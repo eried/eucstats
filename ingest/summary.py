@@ -32,6 +32,7 @@ class TripSummary:
     max_sustained_w: float | None
     max_sustained_a: float | None
     peak_voltage: float | None
+    fastest_0_40_s: float | None
     sample_count: int
 
 
@@ -110,6 +111,27 @@ def _power(s: Sample):
     return None
 
 
+def _fastest_0_40(samples: list[Sample]) -> float | None:
+    """Shortest time (s) to launch from a near-stop (<=2 km/h) up to 40 km/h —
+    an EUC '0-60'-style acceleration metric. Lower is better."""
+    best = None
+    start = None
+    for s in samples:
+        sp = s.speed
+        if sp is None:
+            continue
+        if sp <= 2.0:
+            start = s.t
+        elif start is not None and sp >= 40.0:
+            dt = (s.t - start).total_seconds()
+            # 1.5s floor rejects sensor noise; 20s ceiling rejects casual coasts
+            # (only a genuine hard launch from a stop to 40 km/h counts)
+            if 1.5 <= dt <= 20 and (best is None or dt < best):
+                best = dt
+            start = None
+    return best
+
+
 def summarize(samples: list[Sample], max_step_km: float = 5.0,
               gps_tolerance: float = 0.4) -> TripSummary:
     if not samples:
@@ -140,6 +162,7 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     peak_voltage = max(volts) if volts else None
     max_sustained_w = _sustained_max(samples, _power, 2.0)
     max_sustained_a = _sustained_max(samples, lambda s: s.current, 2.0)
+    fastest_0_40_s = _fastest_0_40(samples)
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
@@ -147,5 +170,5 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
         max_speed=max_speed, avg_speed=avg_speed, max_gforce=max_gforce,
         wh_per_km=wh_per_km, max_sustained_w=max_sustained_w,
         max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
-        sample_count=len(samples),
+        fastest_0_40_s=fastest_0_40_s, sample_count=len(samples),
     )

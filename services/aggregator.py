@@ -32,6 +32,9 @@ class Aggregator:
             rs.best_sustained_a = max(rs.best_sustained_a or 0.0, trip.max_sustained_a)
         if trip.peak_voltage is not None:
             rs.peak_voltage = max(rs.peak_voltage or 0.0, trip.peak_voltage)
+        if trip.fastest_0_40_s is not None and trip.fastest_0_40_s > 0:
+            rs.fastest_0_40_s = (trip.fastest_0_40_s if rs.fastest_0_40_s is None
+                                 else min(rs.fastest_0_40_s, trip.fastest_0_40_s))
         rs.longest_trip_km = max(rs.longest_trip_km or 0.0, dist)
 
         if trip.start_utc:

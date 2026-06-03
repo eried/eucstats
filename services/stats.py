@@ -102,12 +102,22 @@ def month_leaderboard(db, limit=50):
     return _period_leaderboard(db, "%Y-%m", "best_month_km", limit)
 
 
+def accel_leaderboard(db, limit=50):
+    """Fastest launch from a near-stop to 40 km/h (lower is better)."""
+    rows = (db.query(RiderStat).join(Rider, Rider.store_id == RiderStat.store_id)
+            .filter(Rider.deleted_at.is_(None), RiderStat.fastest_0_40_s.isnot(None),
+                    RiderStat.fastest_0_40_s > 0)
+            .order_by(RiderStat.fastest_0_40_s.asc()).limit(limit).all())
+    return [{**_rider_brief(db, rs.store_id), "accel_s": round(rs.fastest_0_40_s, 2)} for rs in rows]
+
+
 BOARDS = {
     "mileage": mileage_leaderboard,
     "daily": daily_leaderboard,
     "week": week_leaderboard,
     "month": month_leaderboard,
     "speed": speed_leaderboard,
+    "accel": accel_leaderboard,
     "gforce": gforce_leaderboard,
     "power": power_leaderboard,
     "current": current_leaderboard,

@@ -59,7 +59,8 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .cc{font:600 10px/1.6 ui-monospace,monospace;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 4px;letter-spacing:.5px}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
-.tab{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;letter-spacing:.3px}
+.tab{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:5px 11px;font-size:12px;cursor:pointer;letter-spacing:.3px}
+.tab svg{width:14px;height:14px}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
 .podium{display:flex;gap:12px;justify-content:center;align-items:flex-end;padding:8px 0}
 .pod{background:var(--surf);border:1px solid var(--line);border-top-width:3px;border-radius:9px;padding:14px 12px;text-align:center;width:148px;cursor:pointer;transition:transform .15s;box-shadow:var(--shadow)}
@@ -94,17 +95,30 @@ const cc=c=>c?`<span class="cc">${c}</span>`:"";
 const av=id=>`<img class="av" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`;
 const rider=e=>`<span class="rider">${av(e.store_id)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
+const IC={
+ mileage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5h8a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h11"/></svg>',
+ daily:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4.5"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g></svg>',
+ week:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><rect x="6" y="13" width="4" height="4" fill="currentColor" stroke="none"/></svg>',
+ month:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2"/></svg>',
+ speed:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19a8 8 0 1 1 16 0"/><path d="M12 13l4-3.5"/></svg>',
+ accel:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 3c4 .5 6.5 3.5 7 7-3 .5-4.6 2.2-6 5l-3-3c1.4-3.6 1.2-6.6 2-9zM8 16l-4 4m6-2l-4 4m0-6l-2 2"/></svg>',
+ gforce:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.6 6.6L21 11l-6.4 2.4L12 20l-2.6-6.6L3 11l6.4-2.4z"/></svg>',
+ power:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>',
+ current:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12c2-6 4-6 6 0s4 6 6 0 4-6 6 0"/></svg>',
+ voltage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="15" height="10" rx="2"/><path d="M21 10v4"/><path d="M10 9l-2 3.5h3L9 16" stroke-linejoin="round"/></svg>',
+ streak:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-2 5-2 8a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 4-6 5-14z"/></svg>'};
 const BOARDS=[
- {k:"mileage",t:"Total km",c:"total_km",u:" km"},
- {k:"daily",t:"Biggest day",c:"best_day_km",u:" km"},
- {k:"week",t:"Biggest week",c:"best_week_km",u:" km"},
- {k:"month",t:"Biggest month",c:"best_month_km",u:" km"},
- {k:"speed",t:"Top speed",c:"best_speed",u:" km/h"},
- {k:"gforce",t:"Max G",c:"best_gforce",u:" g"},
- {k:"power",t:"Sustained W",c:"sustained_w",u:" W"},
- {k:"current",t:"Sustained A",c:"sustained_a",u:" A"},
- {k:"voltage",t:"Volt peak",c:"peak_voltage",u:" V"},
- {k:"streak",t:"Streak",c:"longest_streak",u:" d"}];
+ {k:"mileage",t:"Total km",c:"total_km",u:" km",d:"Total distance ever ridden"},
+ {k:"daily",t:"Biggest day",c:"best_day_km",u:" km",d:"Most distance in a single day"},
+ {k:"week",t:"Biggest week",c:"best_week_km",u:" km",d:"Most distance in one ISO week"},
+ {k:"month",t:"Biggest month",c:"best_month_km",u:" km",d:"Most distance in one calendar month"},
+ {k:"speed",t:"Top speed",c:"best_speed",u:" km/h",d:"Highest speed reached on any ride"},
+ {k:"accel",t:"0→40",c:"accel_s",u:" s",d:"Fastest launch from a stop to 40 km/h — lower is better"},
+ {k:"gforce",t:"Max G",c:"best_gforce",u:" g",d:"Strongest g-force spike — hard accel, brake or bump"},
+ {k:"power",t:"Sustained W",c:"sustained_w",u:" W",d:"Highest power held for 2 seconds straight"},
+ {k:"current",t:"Sustained A",c:"sustained_a",u:" A",d:"Highest current (amps) held for 2 seconds"},
+ {k:"voltage",t:"Volt peak",c:"peak_voltage",u:" V",d:"Highest battery voltage observed"},
+ {k:"streak",t:"Streak",c:"longest_streak",u:" d",d:"Longest run of consecutive days ridden"}];
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
 const REGION={America:[-98,39,4],Europe:[12,52,4.2],Asia:[100,34,3.2],Africa:[21,3,3.2],Australia:[134,-25,4],Pacific:[-150,5,3],Atlantic:[-30,35,3],Indian:[75,-15,3],Antarctica:[0,-72,2.6]};
 // city/country-level centers so we land near the visitor (e.g. Oslo, not central Europe)
@@ -165,12 +179,13 @@ function closePanel(){openPanel=null;panel.classList.remove("open");document.que
 document.getElementById("pclose").onclick=closePanel;
 
 function showBoards(){
-  setPanel("boards","Leaderboards",`<div class="hint">TAP A RIDER TO FLY THERE</div><div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}">${b.t}</button>`).join("")}</div><table><tbody id="lb"></tbody></table>`);
+  setPanel("boards","Leaderboards",`<div class="hint" id="bhint"></div><div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}">${IC[b.k]||''}<span>${b.t}</span></button>`).join("")}</div><table><tbody id="lb"></tbody></table>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   loadBoard("mileage");
 }
 async function loadBoard(k){
-  const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=15`)).entries,tb=document.getElementById("lb");
+  const b=BOARDS.find(x=>x.k===k); const h=document.getElementById("bhint"); if(h) h.textContent=b.d;
+  const rows=(await j(`/leaderboards/${k}?limit=15`)).entries,tb=document.getElementById("lb");
   tb.innerHTML=rows.length?rows.map((e,i)=>`<tr class="sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*55}ms"><td class=rk>${i+1}</td><td>${rider(e)}</td><td class=val>${e[b.c]??0}${b.u}</td></tr>`).join(""):`<tr><td colspan=3 class=mut>no data yet</td></tr>`;
   tb.querySelectorAll("tr.sel").forEach(tr=>tr.onclick=()=>flyToRider(rows[+tr.dataset.i]));
 }
