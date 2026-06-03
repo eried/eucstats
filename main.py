@@ -14,6 +14,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="eucstats", lifespan=lifespan)
 
+from web.api import router as api_router  # noqa: E402
+
+app.include_router(api_router)
+
 
 @app.get("/health")
 def health():
