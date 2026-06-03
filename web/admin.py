@@ -15,12 +15,13 @@ import pyotp
 import qrcode
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from sqlalchemy import func
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 import config
 from database import get_db
 from models import Rider, Trip
+from services.aggregator import Aggregator
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -111,12 +112,39 @@ def _login_html(error: str = "") -> str:
     </form>""")
 
 
-def _dash_html(counts: dict) -> str:
-    rows = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>" for k, v in counts.items())
+def _dash_html(db: Session) -> str:
+    rows = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>" for k, v in _counts(db).items())
+
+    flagged = db.query(Trip).filter(Trip.validation_status == "flagged").order_by(desc(Trip.created_at)).limit(50).all()
+    fhtml = "".join(
+        f"<tr><td>{t.trip_uuid[:8]}</td><td>{t.rider_store_id}</td><td>{round(t.distance_km or 0,1)} km</td>"
+        f"<td>{','.join(t.flag_reasons or [])}</td><td>"
+        f"<form method=post action=/admin/trip/{t.trip_uuid}/approve style=display:inline><button>approve</button></form> "
+        f"<form method=post action=/admin/trip/{t.trip_uuid}/reject style=display:inline><button>reject</button></form>"
+        f"</td></tr>" for t in flagged) or "<tr><td colspan=5 style=color:#8a93b2>none</td></tr>"
+
+    riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(200).all()
+    rhtml = "".join(
+        f"<tr><td>{r.store_id}</td><td>{r.display_name}</td><td>{r.flag or ''}</td>"
+        f"<td>{r.platform}</td><td>{'deleted' if r.deleted_at else 'active'}</td></tr>"
+        for r in riders) or "<tr><td colspan=5 style=color:#8a93b2>none</td></tr>"
+
+    trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(30).all()
+    thtml = "".join(
+        f"<tr><td>{t.trip_uuid[:8]}</td><td>{t.rider_store_id}</td><td>{round(t.distance_km or 0,1)}</td>"
+        f"<td>{t.country or ''}</td><td>{t.validation_status}</td></tr>"
+        for t in trips) or "<tr><td colspan=5 style=color:#8a93b2>none</td></tr>"
+
     return _PAGE.format(body=f"""
+    <form method="post" action="/admin/logout" style="float:right"><button>Log out</button></form>
     <h1>eucstats admin</h1>
     <table>{rows}</table>
-    <form method="post" action="/admin/logout"><button>Log out</button></form>""")
+    <h2>Flagged trips — review queue</h2>
+    <table><tr><th>id</th><th>rider</th><th>dist</th><th>reasons</th><th>action</th></tr>{fhtml}</table>
+    <h2>Riders</h2>
+    <table><tr><th>store_id</th><th>name</th><th>flag</th><th>platform</th><th>status</th></tr>{rhtml}</table>
+    <h2>Recent trips</h2>
+    <table><tr><th>id</th><th>rider</th><th>km</th><th>country</th><th>status</th></tr>{thtml}</table>""")
 
 
 @admin_router.get("", response_class=HTMLResponse)
@@ -126,7 +154,7 @@ def admin_page(request: Request, db: Session = Depends(get_db)):
         return HTMLResponse(_enroll_html(_qr_b64(secret), secret))
     if not _is_authenticated(request):
         return HTMLResponse(_login_html())
-    return HTMLResponse(_dash_html(_counts(db)))
+    return HTMLResponse(_dash_html(db))
 
 
 @admin_router.post("/verify-totp")
@@ -152,3 +180,27 @@ def status(request: Request, db: Session = Depends(get_db)):
     if not _is_authenticated(request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     return _counts(db)
+
+
+@admin_router.post("/trip/{trip_uuid}/approve")
+def approve_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    t = db.get(Trip, trip_uuid)
+    if t and t.validation_status == "flagged":
+        t.validation_status = "validated"
+        t.flag_reasons = None
+        db.commit()
+        Aggregator(db).apply(t)   # now counts toward leaderboards
+    return RedirectResponse("/admin", status_code=303)
+
+
+@admin_router.post("/trip/{trip_uuid}/reject")
+def reject_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    t = db.get(Trip, trip_uuid)
+    if t and t.validation_status == "flagged":
+        t.validation_status = "rejected"
+        db.commit()
+    return RedirectResponse("/admin", status_code=303)
