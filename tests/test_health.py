@@ -10,8 +10,9 @@ def test_health():
     assert r.json() == {"ok": True}
 
 
-def test_root():
+def test_root_serves_site():
     with TestClient(app) as client:
         r = client.get("/")
     assert r.status_code == 200
-    assert r.json()["service"] == "eucstats"
+    assert "text/html" in r.headers["content-type"]
+    assert "eucstats" in r.text.lower()
