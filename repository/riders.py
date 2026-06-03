@@ -1,0 +1,62 @@
+"""Rider/profile persistence + once-per-calendar-month change rules."""
+from datetime import datetime
+
+from models import Rider, utcnow
+
+_FIELD_COL = {"name": "display_name", "flag": "flag", "avatar": "avatar_png"}
+
+
+class RiderRepo:
+    def __init__(self, db):
+        self.db = db
+
+    def get(self, store_id) -> Rider | None:
+        return self.db.get(Rider, store_id)
+
+    def upsert(self, store_id, platform, display_name, flag=None,
+               avatar_png=None, consent_public=True) -> Rider:
+        r = self.get(store_id)
+        now = utcnow()
+        if r is None:
+            r = Rider(
+                store_id=store_id, platform=platform, display_name=display_name,
+                flag=flag, avatar_png=avatar_png, consent_public=consent_public,
+                last_name_change=now,
+                last_flag_change=now if flag else None,
+                last_avatar_change=now if avatar_png else None,
+            )
+            self.db.add(r)
+        else:
+            # Re-registration: refresh platform/consent, undelete; name/flag/avatar
+            # changes must go through apply_change() so monthly limits apply.
+            r.platform = platform
+            r.consent_public = consent_public
+            r.deleted_at = None
+        self.db.commit()
+        return r
+
+    @staticmethod
+    def _same_month(a: datetime, b: datetime) -> bool:
+        return a.year == b.year and a.month == b.month
+
+    def can_change(self, rider: Rider, field: str, now: datetime | None = None) -> bool:
+        now = now or utcnow()
+        last = getattr(rider, f"last_{field}_change")
+        return last is None or not self._same_month(last, now)
+
+    def apply_change(self, rider: Rider, field: str, value, now: datetime | None = None) -> Rider:
+        now = now or utcnow()
+        setattr(rider, _FIELD_COL[field], value)
+        setattr(rider, f"last_{field}_change", now)
+        self.db.commit()
+        return rider
+
+    def soft_delete(self, store_id) -> Rider | None:
+        r = self.get(store_id)
+        if r:
+            r.deleted_at = utcnow()
+            r.display_name = "(deleted)"
+            r.avatar_png = None
+            r.flag = None
+            self.db.commit()
+        return r

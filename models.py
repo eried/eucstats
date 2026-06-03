@@ -1,0 +1,149 @@
+"""SQLAlchemy models for eucstats (see spec §5)."""
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
+    LargeBinary, String,
+)
+
+from database import Base
+
+
+def utcnow() -> datetime:
+    """Naive UTC timestamp (SQLite stores naive; we keep everything UTC)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# --- Source-of-truth tables ---
+
+class Rider(Base):
+    __tablename__ = "riders"
+    store_id = Column(String, primary_key=True)
+    platform = Column(String, nullable=False, default="google_play")
+    display_name = Column(String, nullable=False)
+    flag = Column(String)                      # ISO-3166-1 alpha-2
+    avatar_png = Column(LargeBinary)           # 64x64 PNG
+    last_name_change = Column(DateTime)
+    last_flag_change = Column(DateTime)
+    last_avatar_change = Column(DateTime)
+    consent_public = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utcnow)
+    deleted_at = Column(DateTime)
+
+
+class Wheel(Base):
+    __tablename__ = "wheels"
+    wheel_id = Column(String, primary_key=True)
+    rider_store_id = Column(String, ForeignKey("riders.store_id"))
+    brand = Column(String)
+    model = Column(String)
+    ble_name = Column(String)
+    firmware = Column(String)
+    first_seen = Column(DateTime, default=utcnow)
+    last_seen = Column(DateTime, default=utcnow)
+
+
+class Trip(Base):
+    __tablename__ = "trips"
+    trip_uuid = Column(String, primary_key=True)
+    rider_store_id = Column(String, ForeignKey("riders.store_id"), index=True)
+    wheel_id = Column(String, ForeignKey("wheels.wheel_id"), nullable=True)
+    start_utc = Column(DateTime, index=True)
+    end_utc = Column(DateTime)
+    tz = Column(String)
+    tz_known = Column(Boolean, default=True)
+    distance_km = Column(Float)
+    duration_s = Column(Float)
+    max_speed = Column(Float)
+    avg_speed = Column(Float)
+    max_gforce = Column(Float)
+    wh_per_km = Column(Float)
+    country = Column(String, index=True)
+    start_cell = Column(String)
+    validation_status = Column(String, default="validated", index=True)  # validated|flagged|rejected
+    flag_reasons = Column(JSON)
+    schema_version = Column(String)
+    source_app = Column(String)
+    is_mock_location = Column(Boolean, default=False)
+    sample_count = Column(Integer)
+    aggregated = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=utcnow)
+
+
+class TripTrack(Base):
+    __tablename__ = "trip_tracks"
+    trip_uuid = Column(String, ForeignKey("trips.trip_uuid"), primary_key=True)
+    points = Column(LargeBinary)               # gzip-compressed JSON
+
+
+class RawUpload(Base):
+    __tablename__ = "raw_uploads"
+    trip_uuid = Column(String, ForeignKey("trips.trip_uuid"), primary_key=True)
+    blob = Column(LargeBinary)
+    bytes = Column(Integer)
+    received_at = Column(DateTime, default=utcnow, index=True)
+
+
+# --- Materialized / precomputed tables (public reads hit only these) ---
+
+class RiderStat(Base):
+    __tablename__ = "rider_stats"
+    store_id = Column(String, ForeignKey("riders.store_id"), primary_key=True)
+    total_km = Column(Float, default=0.0)
+    trip_count = Column(Integer, default=0)
+    best_speed = Column(Float, default=0.0)
+    best_gforce = Column(Float, default=0.0)
+    longest_trip_km = Column(Float, default=0.0)
+    current_streak = Column(Integer, default=0)
+    longest_streak = Column(Integer, default=0)
+    last_ride_date = Column(Date)
+
+
+class CountryStat(Base):
+    __tablename__ = "country_stats"
+    country = Column(String, primary_key=True)
+    total_km = Column(Float, default=0.0)
+    rider_count = Column(Integer, default=0)
+    avg_km_per_rider = Column(Float, default=0.0)
+
+
+class DailyDistance(Base):
+    __tablename__ = "daily_distance"
+    store_id = Column(String, primary_key=True)
+    date = Column(Date, primary_key=True)
+    km = Column(Float, default=0.0)
+
+
+class MapCell(Base):
+    __tablename__ = "map_cells"
+    zoom = Column(Float, primary_key=True)
+    cell = Column(String, primary_key=True)
+    rider_count = Column(Integer, default=0)
+    total_km = Column(Float, default=0.0)
+    last_activity = Column(DateTime)
+
+
+class MapCellRider(Base):
+    """Association for distinct-rider counting per cell."""
+    __tablename__ = "map_cell_riders"
+    zoom = Column(Float, primary_key=True)
+    cell = Column(String, primary_key=True)
+    store_id = Column(String, primary_key=True)
+
+
+class Record(Base):
+    __tablename__ = "records"
+    key = Column(String, primary_key=True)     # mileage_king|top_speed|max_gforce|longest_trip
+    store_id = Column(String)
+    value = Column(Float)
+    trip_uuid = Column(String)
+    achieved_at = Column(DateTime)
+
+
+class LeaderboardSnapshot(Base):
+    __tablename__ = "leaderboard_snapshots"
+    period_type = Column(String, primary_key=True)   # 'week'
+    period_key = Column(String, primary_key=True)    # '2026-W22'
+    board = Column(String, primary_key=True)         # 'distance'
+    payload = Column(JSON)
+    generated_at = Column(DateTime, default=utcnow)
