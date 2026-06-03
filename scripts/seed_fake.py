@@ -53,6 +53,9 @@ WHEELS = [
     ("KingSong", "S19", 126.0, 68), ("KingSong", "16X", 84.0, 45),
 ]
 
+CCENTER = {c[0]: (c[1], c[2]) for c in COUNTRIES}
+SPECIAL = {"tg_001": "IT"}   # Gio Aka Wheel In Motion is an Italian channel
+
 
 def avatar_b64(m):
     """Decode the scraped avatar and re-encode to a 64x64 PNG (server re-encodes
@@ -119,6 +122,9 @@ def main():
             code, clat, clon = COUNTRIES[idx % len(COUNTRIES)]
             brand, model, pack, vmax = WHEELS[rnd.randrange(len(WHEELS))]
             sid = f"tg_{idx:03d}"
+            if sid in SPECIAL:
+                code = SPECIAL[sid]
+                clat, clon = CCENTER[code]
             hlat = clat + rnd.uniform(-0.4, 0.4)
             hlon = clon + rnd.uniform(-0.6, 0.6)
             payload = {"store_id": sid, "display_name": name, "flag": code, "consent_public": True}
