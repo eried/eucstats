@@ -18,7 +18,7 @@ _PAGE = r"""<!doctype html>
 <meta property="og:image" content="https://eucstats.ried.no/static/logo.png"/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<link rel="icon" type="image/svg+xml" href="/static/euc-favicon.svg"/>
+<link rel="icon" type="image/png" href="/static/favicon.png"/>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
 :root{--ink:#eef1fb;--mut:#9aa6c8;--acc:#2ea8ff;--gold:#ffd24a;--line:#33457a;--surf:linear-gradient(158deg,rgba(34,52,100,.92),rgba(9,14,30,.95));--glass:rgba(13,17,32,.82);--shadow:0 12px 34px rgba(0,0,0,.6),inset 0 1px 0 rgba(130,170,255,.14)}
@@ -29,21 +29,19 @@ html,body{height:100%;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,san
 svg.ic{width:18px;height:18px;display:block}
 .intro{opacity:0}
 .intro.show{opacity:1;transition:opacity 1s ease}
+@keyframes rowin{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 .topbar{position:fixed;top:16px;left:16px;z-index:500;display:flex;flex-direction:column;gap:9px;max-width:min(92vw,460px)}
 .champ{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;background:var(--surf);backdrop-filter:blur(10px);border:1px solid rgba(255,210,74,.42);border-radius:8px;padding:9px 13px;font-size:13px;letter-spacing:.2px;box-shadow:var(--shadow),0 0 18px rgba(255,210,74,.12)}
 .champ svg{width:16px;height:16px;color:var(--gold)}.champ b{font-weight:700;color:var(--gold)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--mut);letter-spacing:.3px;box-shadow:var(--shadow)}
 .chip b{color:var(--acc);font-weight:700}
-.pside,.gside{position:fixed;bottom:22px;z-index:500;display:flex;align-items:center;gap:9px;white-space:nowrap;color:var(--mut);font-size:12px;letter-spacing:.6px;text-decoration:none}
-.pside:hover{color:var(--ink)}.pside:hover b{color:var(--acc)}
-.pside b,.gside b{color:var(--ink);font-weight:700}
-.pside{left:22px;transform-origin:left bottom;transform:rotate(-90deg)}
-.pside img{width:18px;height:18px;transform:rotate(90deg)}
-.gside{right:22px;transform-origin:right bottom;transform:rotate(90deg)}
-.gside a{display:flex;align-items:center;gap:6px;color:var(--mut);text-decoration:none;transition:color .2s}
-.gside a:hover{color:var(--acc)}.gside svg{width:14px;height:14px;transform:rotate(-90deg)}
-.gside .ver{font-family:ui-monospace,monospace;font-size:11px}
+.rfoot{position:fixed;right:8px;top:50%;transform:translateY(-50%);z-index:500;writing-mode:vertical-rl;display:flex;flex-direction:row;align-items:center;gap:22px;white-space:nowrap;color:var(--mut);font-size:12px;letter-spacing:.6px}
+.rfoot b{color:var(--ink);font-weight:700}
+.rfoot a{display:inline-flex;flex-direction:row;align-items:center;gap:7px;color:var(--mut);text-decoration:none;transition:color .2s}
+.rfoot a:hover{color:var(--acc)}.rfoot a:hover b{color:var(--acc)}
+.rfoot img{width:18px;height:18px}.rfoot svg{width:14px;height:14px}
+.rfoot .ver{font-family:ui-monospace,monospace;font-size:11px}
 .dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;background:var(--surf);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:10px;padding:7px;box-shadow:var(--shadow),0 18px 54px rgba(0,0,0,.55)}
 .dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:rgba(46,168,255,.16);color:var(--acc)}
@@ -76,8 +74,8 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
   <div id="champ" class="champ intro" style="display:none"></div>
   <div id="chips" class="chips intro"></div>
 </div>
-<a class="pside intro" href="https://eucplanet.ried.no" target="_blank" rel="noopener"><img src="/static/euc-planet.svg" alt=""/><span>powered by <b>EUC&nbsp;Planet</b></span></a>
-<div class="gside intro">
+<div class="rfoot intro">
+  <a href="https://eucplanet.ried.no" target="_blank" rel="noopener"><img src="/static/euc-planet.svg" alt=""/><span>powered by <b>EUC&nbsp;Planet</b></span></a>
   <a href="https://github.com/eried/eucstats" target="_blank" rel="noopener" title="View / contribute on GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
   <span class="ver" title="HTML last-modified date (auto-updated on deploy)">build __BUILD__</span>
 </div>
@@ -97,10 +95,17 @@ const av=id=>`<img class="av" src="${API}/riders/${encodeURIComponent(id)}/avata
 const rider=e=>`<span class="rider">${av(e.store_id)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
 const BOARDS=[
- {k:"mileage",t:"Mileage",c:"total_km",u:" km"},{k:"speed",t:"Top speed",c:"best_speed",u:" km/h"},
- {k:"daily",t:"Biggest day",c:"best_day_km",u:" km"},{k:"streak",t:"Streak",c:"longest_streak",u:" d"},
- {k:"gforce",t:"Max G",c:"best_gforce",u:" g"}];
-const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force"};
+ {k:"mileage",t:"Total km",c:"total_km",u:" km"},
+ {k:"daily",t:"Biggest day",c:"best_day_km",u:" km"},
+ {k:"week",t:"Biggest week",c:"best_week_km",u:" km"},
+ {k:"month",t:"Biggest month",c:"best_month_km",u:" km"},
+ {k:"speed",t:"Top speed",c:"best_speed",u:" km/h"},
+ {k:"gforce",t:"Max G",c:"best_gforce",u:" g"},
+ {k:"power",t:"Sustained W",c:"sustained_w",u:" W"},
+ {k:"current",t:"Sustained A",c:"sustained_a",u:" A"},
+ {k:"voltage",t:"Volt peak",c:"peak_voltage",u:" V"},
+ {k:"streak",t:"Streak",c:"longest_streak",u:" d"}];
+const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
 const REGION={America:[-98,39,4],Europe:[12,52,4.2],Asia:[100,34,3.2],Africa:[21,3,3.2],Australia:[134,-25,4],Pacific:[-150,5,3],Atlantic:[-30,35,3],Indian:[75,-15,3],Antarctica:[0,-72,2.6]};
 // city/country-level centers so we land near the visitor (e.g. Oslo, not central Europe)
 const TZMAP={
@@ -143,10 +148,10 @@ function flyToRider(e){
   if(!e||e.lat==null||e.lon==null||!map) return;
   closePanel();
   const key=new Date().toISOString().slice(0,10)+"|"+e.store_id;       // changes daily, stable within a day
-  const dxKm=((hashStr(key+"x")%8000)/100)-40, dyKm=((hashStr(key+"y")%8000)/100)-40;  // ~ -40..+40 km each axis
+  const dxKm=((hashStr(key+"x")%2000)/100)-10, dyKm=((hashStr(key+"y")%2000)/100)-10;  // ~ -10..+10 km each axis
   const olat=e.lat+dyKm/111, olon=e.lon+dxKm/(111*(Math.cos(e.lat*Math.PI/180)||1e-6));
-  showArea(olon,olat,14);                                              // dotted ring marking the noised area
-  map.flyTo({center:[olon,olat],zoom:9.2,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
+  showArea(olon,olat,11);                                              // dotted ring marking the noised area
+  map.flyTo({center:[olon,olat],zoom:9.6,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
 }
 
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
@@ -166,23 +171,23 @@ function showBoards(){
 }
 async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=15`)).entries,tb=document.getElementById("lb");
-  tb.innerHTML=rows.length?rows.map((e,i)=>`<tr class="sel" data-i="${i}"><td class=rk>${i+1}</td><td>${rider(e)}</td><td class=val>${e[b.c]??0}${b.u}</td></tr>`).join(""):`<tr><td colspan=3 class=mut>no data yet</td></tr>`;
+  tb.innerHTML=rows.length?rows.map((e,i)=>`<tr class="sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*55}ms"><td class=rk>${i+1}</td><td>${rider(e)}</td><td class=val>${e[b.c]??0}${b.u}</td></tr>`).join(""):`<tr><td colspan=3 class=mut>no data yet</td></tr>`;
   tb.querySelectorAll("tr.sel").forEach(tr=>tr.onclick=()=>flyToRider(rows[+tr.dataset.i]));
 }
 async function showPodium(){
   const m=(await j("/leaderboards/mileage?limit=3")).entries,o=[1,0,2],rkn=["1ST","2ND","3RD"];
   setPanel("podium","Mileage Kings",`<div class="hint">TAP A WINNER TO FLY THERE</div><div class="podium" id="pod"></div>`);
-  document.getElementById("pod").innerHTML=o.filter(i=>m[i]).map(i=>`<div class="pod p${i+1}" data-i="${i}"><div class="rkn">${rkn[i]}</div>${av(m[i].store_id)}<div>${cc(m[i].flag)} ${m[i].name||m[i].store_id}</div><div class="km">${m[i].total_km} km</div></div>`).join("")||"<span class=mut>no riders yet</span>";
+  document.getElementById("pod").innerHTML=o.filter(i=>m[i]).map(i=>`<div class="pod p${i+1}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${av(m[i].store_id)}<div>${cc(m[i].flag)} ${m[i].name||m[i].store_id}</div><div class="km">${m[i].total_km} km</div></div>`).join("")||"<span class=mut>no riders yet</span>";
   document.querySelectorAll("#pod .pod").forEach(p=>p.onclick=()=>flyToRider(m[+p.dataset.i]));
 }
 async function showCountries(){
   const cs=await j("/countries");
-  setPanel("countries","By country",`<table><tr><th>#</th><th>Country</th><th class=val>Total km</th><th class=val>Riders</th><th class=val>Avg</th></tr>${cs.map((c,i)=>`<tr><td class=rk>${i+1}</td><td>${cc(c.country)}</td><td class=val>${c.total_km}</td><td class=val>${c.riders}</td><td class=val>${c.avg_km_per_rider}</td></tr>`).join("")||"<tr><td colspan=5 class=mut>no data yet</td></tr>"}</table>`);
+  setPanel("countries","By country",`<table><tr><th>#</th><th>Country</th><th class=val>Total km</th><th class=val>Riders</th><th class=val>Avg</th></tr>${cs.map((c,i)=>`<tr style="animation:rowin .5s both;animation-delay:${i*55}ms"><td class=rk>${i+1}</td><td>${cc(c.country)}</td><td class=val>${c.total_km}</td><td class=val>${c.riders}</td><td class=val>${c.avg_km_per_rider}</td></tr>`).join("")||"<tr><td colspan=5 class=mut>no data yet</td></tr>"}</table>`);
 }
 async function showRecords(){
   const recs=(await j("/records")).filter(r=>r.value!=null);
   setPanel("records","Records",`<div class="hint">TAP A HOLDER TO FLY THERE</div><table id="rec"></table>`);
-  document.getElementById("rec").innerHTML=recs.map((r,i)=>`<tr class="sel" data-i="${i}"><td>${RECLABEL[r.key]||r.key}</td><td>${rider(r.rider)}</td><td class=val>${Math.round(r.value*100)/100}</td></tr>`).join("")||"<tr><td class=mut>no records yet</td></tr>";
+  document.getElementById("rec").innerHTML=recs.map((r,i)=>`<tr class="sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*55}ms"><td>${RECLABEL[r.key]||r.key}</td><td>${rider(r.rider)}</td><td class=val>${Math.round(r.value*100)/100}</td></tr>`).join("")||"<tr><td class=mut>no records yet</td></tr>";
   document.querySelectorAll("#rec tr.sel").forEach(tr=>tr.onclick=()=>flyToRider(recs[+tr.dataset.i].rider));
 }
 const HANDLERS={boards:showBoards,podium:showPodium,countries:showCountries,records:showRecords};
@@ -194,8 +199,7 @@ function runIntro(){
   reveal(document.getElementById("chips"),1700);
   reveal(document.querySelector(".dock"),2300);
   document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,2700+i*320));
-  reveal(document.querySelector(".pside"),4100);
-  reveal(document.querySelector(".gside"),4450);
+  reveal(document.querySelector(".rfoot"),4100);
 }
 
 async function init(){

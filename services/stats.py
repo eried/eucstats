@@ -67,12 +67,52 @@ def daily_leaderboard(db, limit=50):
     return [{**_rider_brief(db, sid), "best_day_km": round(best or 0, 2)} for sid, best in rows]
 
 
+def power_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "sustained_w": round(rs.best_sustained_w or 0, 0)}
+            for rs in _board(db, RiderStat.best_sustained_w, limit, positive_only=True)]
+
+
+def current_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "sustained_a": round(rs.best_sustained_a or 0, 1)}
+            for rs in _board(db, RiderStat.best_sustained_a, limit, positive_only=True)]
+
+
+def voltage_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "peak_voltage": round(rs.peak_voltage or 0, 1)}
+            for rs in _board(db, RiderStat.peak_voltage, limit, positive_only=True)]
+
+
+def _period_leaderboard(db, fmt, key, limit):
+    """Biggest single ISO-week / calendar-month distance per rider (from daily rows)."""
+    p = func.strftime(fmt, DailyDistance.date)
+    per = (db.query(DailyDistance.store_id.label("sid"), p.label("p"),
+                    func.sum(DailyDistance.km).label("km")).group_by("sid", "p").subquery())
+    best = (db.query(per.c.sid.label("sid"), func.max(per.c.km).label("best"))
+            .group_by(per.c.sid).subquery())
+    rows = (db.query(best.c.sid, best.c.best).join(Rider, Rider.store_id == best.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(best.c.best)).limit(limit).all())
+    return [{**_rider_brief(db, sid), key: round(b or 0, 2)} for sid, b in rows]
+
+
+def week_leaderboard(db, limit=50):
+    return _period_leaderboard(db, "%Y-%W", "best_week_km", limit)
+
+
+def month_leaderboard(db, limit=50):
+    return _period_leaderboard(db, "%Y-%m", "best_month_km", limit)
+
+
 BOARDS = {
     "mileage": mileage_leaderboard,
-    "speed": speed_leaderboard,
     "daily": daily_leaderboard,
-    "streak": streak_leaderboard,
+    "week": week_leaderboard,
+    "month": month_leaderboard,
+    "speed": speed_leaderboard,
     "gforce": gforce_leaderboard,
+    "power": power_leaderboard,
+    "current": current_leaderboard,
+    "voltage": voltage_leaderboard,
+    "streak": streak_leaderboard,
 }
 
 

@@ -29,6 +29,9 @@ class TripSummary:
     avg_speed: float | None
     max_gforce: float | None
     wh_per_km: float | None
+    max_sustained_w: float | None
+    max_sustained_a: float | None
+    peak_voltage: float | None
     sample_count: int
 
 
@@ -80,6 +83,33 @@ def _energy_wh(samples: list[Sample]) -> float | None:
     return wh if wh > 0 else None
 
 
+def _sustained_max(samples: list[Sample], fn, window_s: float = 2.0) -> float | None:
+    """Max average of fn(sample) over any trailing window of ~window_s seconds."""
+    pts = [(s.t, fn(s)) for s in samples if fn(s) is not None]
+    if not pts:
+        return None
+    best = None
+    left = 0
+    ssum = 0.0
+    for right in range(len(pts)):
+        ssum += pts[right][1]
+        while (pts[right][0] - pts[left][0]).total_seconds() > window_s:
+            ssum -= pts[left][1]
+            left += 1
+        avg = ssum / (right - left + 1)
+        if best is None or avg > best:
+            best = avg
+    return best
+
+
+def _power(s: Sample):
+    if s.power is not None:
+        return s.power
+    if s.voltage is not None and s.current is not None:
+        return s.voltage * s.current
+    return None
+
+
 def summarize(samples: list[Sample], max_step_km: float = 5.0,
               gps_tolerance: float = 0.4) -> TripSummary:
     if not samples:
@@ -106,9 +136,16 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     wh = _energy_wh(samples)
     wh_per_km = (wh / distance) if (wh is not None and distance > 0) else None
 
+    volts = [s.voltage for s in samples if s.voltage is not None]
+    peak_voltage = max(volts) if volts else None
+    max_sustained_w = _sustained_max(samples, _power, 2.0)
+    max_sustained_a = _sustained_max(samples, lambda s: s.current, 2.0)
+
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
         distance_km=distance, gps_distance_km=gps_km,
         max_speed=max_speed, avg_speed=avg_speed, max_gforce=max_gforce,
-        wh_per_km=wh_per_km, sample_count=len(samples),
+        wh_per_km=wh_per_km, max_sustained_w=max_sustained_w,
+        max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
+        sample_count=len(samples),
     )

@@ -26,6 +26,12 @@ class Aggregator:
             rs.best_speed = max(rs.best_speed or 0.0, trip.max_speed)
         if trip.max_gforce is not None:
             rs.best_gforce = max(rs.best_gforce or 0.0, trip.max_gforce)
+        if trip.max_sustained_w is not None:
+            rs.best_sustained_w = max(rs.best_sustained_w or 0.0, trip.max_sustained_w)
+        if trip.max_sustained_a is not None:
+            rs.best_sustained_a = max(rs.best_sustained_a or 0.0, trip.max_sustained_a)
+        if trip.peak_voltage is not None:
+            rs.peak_voltage = max(rs.peak_voltage or 0.0, trip.peak_voltage)
         rs.longest_trip_km = max(rs.longest_trip_km or 0.0, dist)
 
         if trip.start_utc:
@@ -43,6 +49,9 @@ class Aggregator:
         self.agg.set_record_if_better("top_speed", store, trip.max_speed, trip.trip_uuid, when)
         self.agg.set_record_if_better("max_gforce", store, trip.max_gforce, trip.trip_uuid, when)
         self.agg.set_record_if_better("longest_trip", store, dist, trip.trip_uuid, when)
+        self.agg.set_record_if_better("sustained_w", store, trip.max_sustained_w, trip.trip_uuid, when)
+        self.agg.set_record_if_better("sustained_a", store, trip.max_sustained_a, trip.trip_uuid, when)
+        self.agg.set_record_if_better("peak_voltage", store, trip.peak_voltage, trip.trip_uuid, when)
 
         trip.aggregated = True
         self.db.commit()
