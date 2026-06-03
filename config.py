@@ -30,4 +30,5 @@ TRACK_MAX_POINTS = 500
 MAX_KMH = 120.0          # any sample speed above this -> flagged
 MAX_G = 12.0             # any |G-Force| above this -> flagged
 TELEPORT_KMH = 150.0     # implied speed between consecutive GPS fixes
+TELEPORT_MAX_JUMPS = 8   # tolerate this many isolated GPS spikes before flagging
 DIST_TOLERANCE = 0.4     # allowed |odometer - gps| / odometer mismatch

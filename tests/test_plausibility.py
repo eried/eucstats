@@ -37,8 +37,9 @@ def test_mock_location_flagged():
     assert "mock_location" in reasons and status == "flagged"
 
 
-def test_teleport_flagged():
+def test_teleport_flagged_when_many_jumps():
     s = clean_samples()
-    s[2] = mk(101, lat=80.0, lon=18.0, speed=20.0, odo=100.8)  # huge jump in 1s
-    status, reasons = check(s, summarize(s))
-    assert "teleport" in reasons
+    s[2] = mk(101, lat=80.0, lon=18.0, speed=20.0, odo=100.8)  # huge jump in 1s (2 jumps)
+    # one isolated spike is tolerated by default; flag when jumps exceed the cap
+    assert "teleport" not in check(s, summarize(s))[1]
+    assert "teleport" in check(s, summarize(s), teleport_max_jumps=1)[1]

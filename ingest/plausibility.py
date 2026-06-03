@@ -7,7 +7,8 @@ from .summary import TripSummary, _haversine_km
 
 def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           max_kmh: float = 120.0, max_g: float = 12.0,
-          teleport_kmh: float = 150.0, dist_tolerance: float = 0.4):
+          teleport_kmh: float = 150.0, teleport_max_jumps: int = 8,
+          dist_tolerance: float = 0.4):
     reasons: list[str] = []
 
     if is_mock:
@@ -19,18 +20,19 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
     if summary.max_gforce is not None and summary.max_gforce > max_g:
         reasons.append("impossible_gforce")
 
-    # teleport: any consecutive GPS pair implying > teleport_kmh
+    # teleport: count consecutive GPS pairs implying > teleport_kmh. A few are
+    # normal GPS noise; only flag when there are many (systematic teleporting).
     prev = None
-    teleport = False
+    teleport_jumps = 0
     for s in samples:
         if s.lat is not None and s.lon is not None:
             if prev is not None:
                 d = _haversine_km(prev[0], prev[1], s.lat, s.lon)
                 dt = (s.t - prev[2]).total_seconds()
                 if dt > 0 and (d / (dt / 3600.0)) > teleport_kmh:
-                    teleport = True
+                    teleport_jumps += 1
             prev = (s.lat, s.lon, s.t)
-    if teleport:
+    if teleport_jumps > teleport_max_jumps:
         reasons.append("teleport")
 
     # odometer vs GPS distance disagreement (only when both are meaningful)

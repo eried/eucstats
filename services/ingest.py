@@ -76,7 +76,8 @@ class IngestService:
         status, reasons = check(
             samples, sm, is_mock,
             max_kmh=config.MAX_KMH, max_g=config.MAX_G,
-            teleport_kmh=config.TELEPORT_KMH, dist_tolerance=config.DIST_TOLERANCE,
+            teleport_kmh=config.TELEPORT_KMH, teleport_max_jumps=config.TELEPORT_MAX_JUMPS,
+            dist_tolerance=config.DIST_TOLERANCE,
         )
 
         first = next((s for s in samples if s.lat is not None and s.lon is not None), None)
