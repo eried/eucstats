@@ -19,4 +19,4 @@ __pycache__/
 
 # Playwright MCP transient artifacts (snapshots/screenshots/logs — may contain account data)
 .playwright-mcp/
-/eucstats-site.png
+/eucstats-*.png
