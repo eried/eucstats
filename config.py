@@ -26,9 +26,10 @@ MAX_UPLOAD_MB = float(os.environ.get("EUCSTATS_MAX_UPLOAD_MB", "8"))
 AVATAR_PX = 64
 TRACK_MAX_POINTS = 500
 
-# --- Plausibility thresholds ---
-MAX_KMH = 120.0          # any sample speed above this -> flagged
-MAX_G = 12.0             # any |G-Force| above this -> flagged
-TELEPORT_KMH = 150.0     # implied speed between consecutive GPS fixes
-TELEPORT_MAX_JUMPS = 8   # tolerate this many isolated GPS spikes before flagging
-DIST_TOLERANCE = 0.4     # allowed |odometer - gps| / odometer mismatch
+# --- Plausibility thresholds (env-overridable so live tuned values stay off the
+#     public repo; the repo only ships sensible defaults) ---
+MAX_KMH = float(os.environ.get("EUCSTATS_MAX_KMH", "120"))            # sample speed cap -> flag
+MAX_G = float(os.environ.get("EUCSTATS_MAX_G", "12"))                 # |G-Force| cap -> flag
+TELEPORT_KMH = float(os.environ.get("EUCSTATS_TELEPORT_KMH", "150"))  # implied speed between GPS fixes
+TELEPORT_MAX_JUMPS = int(os.environ.get("EUCSTATS_TELEPORT_MAX_JUMPS", "8"))  # tolerate isolated spikes
+DIST_TOLERANCE = float(os.environ.get("EUCSTATS_DIST_TOLERANCE", "0.4"))      # odometer-vs-gps mismatch
