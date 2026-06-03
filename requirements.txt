@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+gunicorn
+sqlalchemy
+pydantic
+python-multipart
+pillow
+reverse_geocoder
+pyotp
+qrcode[pil]
+itsdangerous
+
+# dev / test
+pytest
+httpx
