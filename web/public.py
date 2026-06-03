@@ -25,18 +25,18 @@ _PAGE = r"""<!doctype html>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#070a16;overflow:hidden}
 #map{position:fixed;inset:0;z-index:0}
-#veil{position:fixed;inset:0;z-index:1;pointer-events:none;transition:opacity .25s linear;background:linear-gradient(to bottom,rgba(0,0,0,.62) 0%,rgba(0,0,0,.22) 30%,rgba(0,0,0,0) 58%),radial-gradient(128% 95% at 50% 42%,rgba(0,0,0,0) 52%,rgba(0,0,0,.66) 100%)}
+#veil{position:fixed;inset:0;z-index:1;pointer-events:none;transition:opacity .25s linear;background:linear-gradient(to bottom,rgba(0,0,0,.5) 0%,rgba(0,0,0,.12) 28%,rgba(0,0,0,0) 50%),radial-gradient(ellipse 80% 84% at 50% 48%,rgba(0,0,0,0) 40%,rgba(0,0,0,.74) 100%)}
 .maplibregl-ctrl-attrib{font-size:9px;opacity:.4}.maplibregl-ctrl-group{background:var(--glass)!important;border:1px solid var(--line)!important}
 svg.ic{width:18px;height:18px;display:block}
 .intro{opacity:0}
 .intro.show{opacity:1;transition:opacity 1s ease}
 @keyframes rowin{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
-.topbar{position:fixed;top:16px;left:16px;z-index:500;display:flex;flex-direction:column;gap:9px;max-width:min(92vw,460px)}
-.champ{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;background:var(--surf);backdrop-filter:blur(10px);border:1px solid rgba(255,210,74,.42);border-radius:8px;padding:9px 13px;font-size:13px;letter-spacing:.2px;box-shadow:var(--shadow),0 0 18px rgba(255,210,74,.12)}
+.topbar{position:fixed;top:16px;left:16px;z-index:500;max-width:min(92vw,380px);background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.champ{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;letter-spacing:.2px;border-bottom:1px solid var(--line);background:rgba(255,210,74,.06)}
 .champ svg{width:16px;height:16px;color:var(--gold)}.champ b{font-weight:700;color:var(--gold)}
-.chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--mut);letter-spacing:.3px;box-shadow:var(--shadow)}
-.chip b{color:var(--acc);font-weight:700}
+.chips{display:flex;flex-wrap:wrap}
+.chip{flex:1 1 auto;padding:9px 14px;font-size:11px;color:var(--mut);letter-spacing:.3px;border-right:1px solid var(--line);white-space:nowrap}
+.chip:last-child{border-right:0}.chip b{display:block;color:var(--acc);font-weight:700;font-size:16px;letter-spacing:0}
 .rfoot{position:fixed;right:8px;top:50%;transform:translateY(-50%);z-index:500;writing-mode:vertical-rl;display:flex;flex-direction:row;align-items:center;gap:22px;white-space:nowrap;color:var(--mut);font-size:12px;letter-spacing:.6px}
 .rfoot b{color:var(--ink);font-weight:700}
 .rfoot a{display:inline-flex;flex-direction:row;align-items:center;gap:7px;color:var(--mut);text-decoration:none;transition:color .2s}
@@ -70,9 +70,9 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .pod.p1{border-top-color:var(--gold);margin-bottom:18px}.pod.p2{border-top-color:#cdd3e0}.pod.p3{border-top-color:#b07a4a;margin-bottom:0}
 .pod .km{color:var(--acc);font-weight:700;margin-top:3px}.pod .rkn{color:var(--mut);font:700 12px/1 ui-monospace,monospace;letter-spacing:1px}
 .winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(46,168,255,.22),0 0 20px rgba(46,168,255,.65)}
-#gear{position:fixed;right:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
+#gear{position:fixed;left:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
 #gear:hover{color:var(--acc)}#gear svg{width:18px;height:18px}
-.cfgpop{position:fixed;right:14px;bottom:60px;z-index:560;display:none;flex-direction:column;gap:12px;min-width:196px;background:linear-gradient(158deg,rgba(26,40,78,.96),rgba(8,12,26,.97));backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);padding:14px}
+.cfgpop{position:fixed;left:14px;bottom:60px;z-index:560;display:none;flex-direction:column;gap:12px;min-width:196px;background:linear-gradient(158deg,rgba(26,40,78,.96),rgba(8,12,26,.97));backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);padding:14px}
 .cfgpop.open{display:flex}
 .crow{display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:12px;color:var(--mut);letter-spacing:.4px}
 .seg{display:flex;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:3px}
@@ -82,9 +82,9 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 </style></head><body>
 <div id="map"></div>
 <div id="veil"></div>
-<div class="topbar">
-  <div id="champ" class="champ intro" style="display:none"></div>
-  <div id="chips" class="chips intro"></div>
+<div class="topbar intro">
+  <div id="champ" class="champ" style="display:none"></div>
+  <div id="chips" class="chips"></div>
 </div>
 <div class="rfoot intro">
   <a href="https://eucplanet.ried.no" target="_blank" rel="noopener"><img src="/static/euc-planet.svg" alt=""/><span>powered by <b>EUC&nbsp;Planet</b></span></a>
@@ -236,8 +236,7 @@ document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.da
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
 function runIntro(){
-  reveal(document.getElementById("champ"),1100);
-  reveal(document.getElementById("chips"),1700);
+  reveal(document.querySelector(".topbar"),1100);
   reveal(document.querySelector(".dock"),2300);
   document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,2700+i*320));
   reveal(document.querySelector(".rfoot"),4100);
@@ -261,9 +260,11 @@ function addHeat(){
     "heatmap-weight":["min",1,["/",["ln",["+",1,["get","r"]]],["ln",11]]],
     "heatmap-intensity":["interpolate",["linear"],["zoom"],0,0.6,9,1.8],
     "heatmap-radius":["interpolate",["linear"],["zoom"],0,24,5,46,12,76],
-    "heatmap-opacity":0.82,
+    "heatmap-opacity":0,
     "heatmap-color":["interpolate",["linear"],["heatmap-density"],
-      0,"rgba(0,0,0,0)",0.12,"#11317a",0.32,"#1f6feb",0.55,"#2ec5ff",0.78,"#ffd24a",1,"#ff5d5d"]}});
+      0,"rgba(0,0,0,0)",0.08,"#0b0630",0.25,"#3b0a6b",0.45,"#8c1d6e",0.62,"#d8392f",0.78,"#f4791f",0.9,"#ffd24a",1,"#fffceb"]}});
+  map.setPaintProperty("heat","heatmap-opacity-transition",{duration:1500});
+  requestAnimationFrame(()=>map.setPaintProperty("heat","heatmap-opacity",0.85));   // smooth thermal fade-in
 }
 function setupCfg(){
   const gear=document.getElementById("gear"),cfg=document.getElementById("cfg");
