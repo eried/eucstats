@@ -10,10 +10,10 @@ _PAGE = r"""<!doctype html>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>EUC Stats — Electric Unicycle rider leaderboards & world heatmap</title>
 <meta name="description" content="Live leaderboards, records and a world activity heatmap for electric unicycle riders, powered by EUC Planet."/>
-<link rel="icon" type="image/svg+xml" href="/static/euc-magenta.svg"/>
+<link rel="icon" type="image/svg+xml" href="/static/euc-planet.svg"/>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
-:root{--ink:#eef1fb;--mut:#8a93b2;--acc:#ff2ec4;--line:#272f4d;--glass:rgba(13,17,32,.82)}
+:root{--ink:#eef1fb;--mut:#8a93b2;--acc:#2ea8ff;--gold:#ffd24a;--line:#272f4d;--glass:rgba(13,17,32,.82)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#070a16;overflow:hidden}
 #map{position:fixed;inset:0;z-index:0}
@@ -22,8 +22,8 @@ svg.ic{width:18px;height:18px;display:block}
 .intro{opacity:0;transform:translateY(10px)}
 .intro.show{opacity:1;transform:none;transition:opacity .9s ease,transform .9s ease}
 .topbar{position:fixed;top:16px;left:16px;z-index:500;display:flex;flex-direction:column;gap:9px;max-width:min(92vw,460px)}
-.champ{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;padding:8px 13px;font-size:13px;letter-spacing:.2px}
-.champ svg{width:16px;height:16px;color:var(--acc)}.champ b{font-weight:700}
+.champ{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;background:var(--glass);backdrop-filter:blur(10px);border:1px solid rgba(255,210,74,.35);border-radius:12px;padding:8px 13px;font-size:13px;letter-spacing:.2px}
+.champ svg{width:16px;height:16px;color:var(--gold)}.champ b{font-weight:700;color:var(--gold)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--mut);letter-spacing:.3px}
 .chip b{color:var(--acc);font-weight:700}
@@ -33,7 +33,7 @@ svg.ic{width:18px;height:18px;display:block}
 .gh:hover{color:var(--acc);transform:translateY(-2px)}.gh svg{width:30px;height:30px}
 .dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:16px;padding:7px;box-shadow:0 14px 44px rgba(0,0,0,.5)}
 .dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:11px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
-.dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:rgba(255,46,196,.16);color:var(--acc)}
+.dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:rgba(46,168,255,.16);color:var(--acc)}
 .dock button.on svg{color:var(--acc)}
 .panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);max-height:60vh;overflow:auto;background:rgba(11,15,28,.95);backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:18px;box-shadow:0 26px 80px rgba(0,0,0,.6);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
@@ -46,16 +46,16 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .mut{color:var(--mut)}.rider{display:flex;align-items:center;gap:9px}
 .av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto}
 .cc{font:600 10px/1.6 ui-monospace,monospace;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 4px;letter-spacing:.5px}
-tr.sel{cursor:pointer}tr.sel:hover{background:rgba(255,46,196,.08)}
+tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
 .tab{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;letter-spacing:.3px}
-.tab.on{background:rgba(255,46,196,.16);border-color:var(--acc);color:var(--acc)}
+.tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
 .podium{display:flex;gap:12px;justify-content:center;align-items:flex-end;padding:8px 0}
 .pod{background:#0e1326;border:1px solid var(--line);border-top-width:3px;border-radius:12px;padding:14px 12px;text-align:center;width:148px;cursor:pointer;transition:transform .15s}
 .pod:hover{transform:translateY(-3px)}.pod .av{width:54px;height:54px;margin:0 auto 8px;display:block}
-.pod.p1{border-top-color:var(--acc);margin-bottom:18px}.pod.p2{border-top-color:#cdd3e0}.pod.p3{border-top-color:#b07a4a;margin-bottom:0}
+.pod.p1{border-top-color:var(--gold);margin-bottom:18px}.pod.p2{border-top-color:#cdd3e0}.pod.p3{border-top-color:#b07a4a;margin-bottom:0}
 .pod .km{color:var(--acc);font-weight:700;margin-top:3px}.pod .rkn{color:var(--mut);font:700 12px/1 ui-monospace,monospace;letter-spacing:1px}
-.winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(255,46,196,.22),0 0 20px rgba(255,46,196,.65)}
+.winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(46,168,255,.22),0 0 20px rgba(46,168,255,.65)}
 @media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}.badge b~span,.badge span{}}
 </style></head><body>
 <div id="map"></div>
@@ -63,7 +63,7 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(255,46,196,.08)}
   <div id="champ" class="champ intro" style="display:none"></div>
   <div id="chips" class="chips intro"></div>
 </div>
-<div class="badge intro"><img src="/static/euc-magenta.svg" alt=""/> powered by <b>EUC&nbsp;Planet</b></div>
+<div class="badge intro"><img src="/static/euc-planet.svg" alt=""/> powered by <b>EUC&nbsp;Planet</b></div>
 <a class="gh intro" href="https://github.com/eried/eucstats" target="_blank" rel="noopener" title="View / contribute on GitHub" aria-label="GitHub">
   <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
 </a>
@@ -89,15 +89,32 @@ const BOARDS=[
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force"};
 const REGION={America:[-98,39,4],Europe:[12,52,4.2],Asia:[100,34,3.2],Africa:[21,3,3.2],Australia:[134,-25,4],Pacific:[-150,5,3],Atlantic:[-30,35,3],Indian:[75,-15,3],Antarctica:[0,-72,2.6]};
 
-let map, winMarker=null;
+let map;
+// FNV-1a string hash -> deterministic noise per (today + rider), so a winner's
+// area is stable for the day but never their exact location (privacy).
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+function ringCoords(lon,lat,km,n=72){const c=[],k=Math.cos(lat*Math.PI/180)||1e-6;for(let i=0;i<=n;i++){const a=2*Math.PI*i/n;c.push([lon+(km*Math.cos(a))/(111*k),lat+(km*Math.sin(a))/111]);}return c;}
+const DASH=[[0,4,3],[0.5,4,2.5],[1,4,2],[1.5,4,1.5],[2,4,1],[2.5,4,0.5],[3,4,0],[0,0.5,3,3.5],[0,1,3,3],[0,1.5,3,2.5],[0,2,3,2],[0,2.5,3,1.5],[0,3,3,1],[0,3.5,3,0.5]];
+let dashStep=-1,dashRunning=false;
+function animateDash(){ if(map&&map.getLayer("area-line")){const s=Math.floor((performance.now()/45)%DASH.length); if(s!==dashStep){map.setPaintProperty("area-line","line-dasharray",DASH[s]);dashStep=s;}} requestAnimationFrame(animateDash); }
+function showArea(lon,lat,km){
+  const ring={type:"Feature",geometry:{type:"LineString",coordinates:ringCoords(lon,lat,km)}};
+  if(map.getSource("area")){map.getSource("area").setData(ring);}
+  else{
+    map.addSource("area",{type:"geojson",data:ring});
+    map.addLayer({id:"area-glow",type:"line",source:"area",paint:{"line-color":"#ffd24a","line-width":9,"line-blur":9,"line-opacity":0.3}});
+    map.addLayer({id:"area-line",type:"line",source:"area",paint:{"line-color":"#ffd24a","line-width":2.5,"line-dasharray":[0,4,3]}});
+  }
+  if(!dashRunning){dashRunning=true;animateDash();}
+}
 function flyToRider(e){
   if(!e||e.lat==null||e.lon==null||!map) return;
   closePanel();
-  if(winMarker) winMarker.remove();
-  const el=document.createElement("div"); el.className="winpin";
-  el.style.backgroundImage=`url(${API}/riders/${encodeURIComponent(e.store_id)}/avatar)`;
-  winMarker=new maplibregl.Marker({element:el}).setLngLat([e.lon,e.lat]).addTo(map);
-  map.flyTo({center:[e.lon,e.lat],zoom:9.5,speed:1.2,curve:1.6,essential:true});
+  const key=new Date().toISOString().slice(0,10)+"|"+e.store_id;       // changes daily, stable within a day
+  const dxKm=((hashStr(key+"x")%8000)/100)-40, dyKm=((hashStr(key+"y")%8000)/100)-40;  // ~ -40..+40 km each axis
+  const olat=e.lat+dyKm/111, olon=e.lon+dxKm/(111*(Math.cos(e.lat*Math.PI/180)||1e-6));
+  showArea(olon,olat,42);                                              // ~42 km dotted ring around the noised point
+  map.flyTo({center:[olon,olat],zoom:7.9,speed:1.2,curve:1.6,essential:true});
 }
 
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
@@ -163,20 +180,17 @@ async function init(){
     center:[rlon*0.4,rlat*0.5],zoom:1.4,attributionControl:true});   // start zoomed out
   map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");
   map.on("load",async ()=>{
-    const cells=await j("/map/cells?zoom=0.1");
-    const maxKm=Math.max(1,...cells.map(c=>c.total_km));
+    const cells=await j("/map/cells?zoom=0.5");   // coarser, smoother grid
     map.addSource("activity",{type:"geojson",data:{type:"FeatureCollection",
-      features:cells.map(c=>({type:"Feature",geometry:{type:"Point",coordinates:[c.lon,c.lat]},properties:{w:c.total_km}}))}});
+      features:cells.map(c=>({type:"Feature",geometry:{type:"Point",coordinates:[c.lon,c.lat]},properties:{r:c.rider_count||0}}))}});
     map.addLayer({id:"heat",type:"heatmap",source:"activity",paint:{
-      "heatmap-weight":["interpolate",["linear"],["get","w"],0,0.05,maxKm,1],
-      "heatmap-intensity":["interpolate",["linear"],["zoom"],0,1,9,3],
-      "heatmap-radius":["interpolate",["linear"],["zoom"],0,12,9,34],
-      "heatmap-opacity":0.9,
+      // logarithmic: ~10 riders in an area -> full intensity; a lone rider stays faint
+      "heatmap-weight":["min",1,["/",["ln",["+",1,["get","r"]]],["ln",11]]],
+      "heatmap-intensity":["interpolate",["linear"],["zoom"],0,0.6,9,1.8],
+      "heatmap-radius":["interpolate",["linear"],["zoom"],0,24,5,46,12,76],
+      "heatmap-opacity":0.82,
       "heatmap-color":["interpolate",["linear"],["heatmap-density"],
-        0,"rgba(0,0,0,0)",0.2,"#1f6feb",0.45,"#6f5cff",0.7,"#ff2ec4",1,"#ffd9f4"]}});
-    map.addLayer({id:"dots",type:"circle",source:"activity",minzoom:7,paint:{
-      "circle-radius":["interpolate",["linear"],["zoom"],7,2,12,7],"circle-color":"#ff2ec4","circle-opacity":0.5}});
-    // cinematic ease toward the visitor's region
+        0,"rgba(0,0,0,0)",0.12,"#11317a",0.32,"#1f6feb",0.55,"#2ec5ff",0.78,"#ffd24a",1,"#ff5d5d"]}});
     setTimeout(()=>map.flyTo({center:[rlon,rlat],zoom:rz,duration:4200,curve:1.4,essential:true}),500);
     runIntro();
   });
