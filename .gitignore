@@ -16,3 +16,6 @@ __pycache__/
 # Env / secrets
 .env
 *.env
+
+# Playwright MCP transient artifacts (snapshots/screenshots/logs — may contain account data)
+.playwright-mcp/
