@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 import config
 from database import get_db
+from services import stats
 from services.identity import ChangeNotAllowed, IdentityService
 from services.ingest import IngestError, IngestService
 
@@ -89,6 +90,36 @@ def get_avatar(store_id: str, db: Session = Depends(get_db)):
     if not r or not r.avatar_png:
         raise HTTPException(404, "no avatar")
     return Response(content=r.avatar_png, media_type="image/png")
+
+
+# --- public leaderboards / map / records ---
+
+@router.get("/leaderboards/{board}")
+def leaderboard(board: str, limit: int = 50, db: Session = Depends(get_db)):
+    fn = stats.BOARDS.get(board)
+    if fn is None:
+        raise HTTPException(404, f"unknown board: {board}")
+    return {"board": board, "entries": fn(db, min(limit, 200))}
+
+
+@router.get("/countries")
+def list_countries(db: Session = Depends(get_db)):
+    return stats.countries(db)
+
+
+@router.get("/records")
+def list_records(db: Session = Depends(get_db)):
+    return stats.records(db)
+
+
+@router.get("/map/cells")
+def map_cells(zoom: float = 0.1, db: Session = Depends(get_db)):
+    return stats.map_cells(db, zoom)
+
+
+@router.get("/stats/summary")
+def stats_summary(db: Session = Depends(get_db)):
+    return stats.global_summary(db)
 
 
 # --- trip ingest ---
