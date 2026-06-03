@@ -122,6 +122,15 @@ def stats_summary(db: Session = Depends(get_db)):
     return stats.global_summary(db)
 
 
+@router.get("/champions/weekly")
+def weekly_champion(db: Session = Depends(get_db)):
+    from models import LeaderboardSnapshot
+    snap = (db.query(LeaderboardSnapshot)
+            .filter_by(period_type="week", board="distance")
+            .order_by(LeaderboardSnapshot.period_key.desc()).first())
+    return snap.payload if snap else {"champion": None, "top": []}
+
+
 # --- trip ingest ---
 
 @router.post("/trips")
