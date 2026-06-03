@@ -7,12 +7,22 @@ from sqlalchemy import desc, func
 from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip
 
 
+def _rider_loc(db, store_id: str):
+    """Representative coordinate for a rider — their latest trip's start point."""
+    row = (db.query(Trip.start_lat, Trip.start_lon)
+           .filter(Trip.rider_store_id == store_id, Trip.start_lat.isnot(None))
+           .order_by(Trip.start_utc.desc()).first())
+    return (row[0], row[1]) if row else (None, None)
+
+
 def _rider_brief(db, store_id: str) -> dict:
     r = db.get(Rider, store_id)
+    lat, lon = _rider_loc(db, store_id)
     if r is None:
-        return {"store_id": store_id, "name": None, "flag": None, "has_avatar": False}
+        return {"store_id": store_id, "name": None, "flag": None,
+                "has_avatar": False, "lat": lat, "lon": lon}
     return {"store_id": store_id, "name": r.display_name, "flag": r.flag,
-            "has_avatar": r.avatar_png is not None}
+            "has_avatar": r.avatar_png is not None, "lat": lat, "lon": lon}
 
 
 def _board(db, column, limit, positive_only=False):
