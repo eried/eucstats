@@ -12,6 +12,7 @@ ADMIN_STATE_FILE = DATA_DIR / "admin.json"
 # --- Retention (full-resolution raw uploads only; summaries/tracks are permanent) ---
 RETENTION_DAYS = int(os.environ.get("EUCSTATS_RETENTION_DAYS", "30"))
 DISK_FLOOR_GB = float(os.environ.get("EUCSTATS_DISK_FLOOR_GB", "10"))
+RETENTION_INTERVAL_S = int(os.environ.get("EUCSTATS_RETENTION_INTERVAL_S", "3600"))
 
 # --- Attestation: "stub" (accept all) or "enforce" (require valid Play Integrity) ---
 ATTESTATION_MODE = os.environ.get("EUCSTATS_ATTESTATION_MODE", "stub")
