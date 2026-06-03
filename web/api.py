@@ -122,6 +122,20 @@ def stats_summary(db: Session = Depends(get_db)):
     return stats.global_summary(db)
 
 
+@router.get("/groups/{kind}")
+def groups(kind: str, db: Session = Depends(get_db)):
+    fns = {"brand": stats.by_brand, "wheel": stats.by_wheel, "country": stats.by_country}
+    fn = fns.get(kind)
+    if fn is None:
+        raise HTTPException(404, f"unknown group: {kind}")
+    return {"kind": kind, "entries": fn(db, 50)}
+
+
+@router.get("/champions")
+def all_champions(db: Session = Depends(get_db)):
+    return stats.champions(db)
+
+
 @router.get("/champions/weekly")
 def weekly_champion(db: Session = Depends(get_db)):
     from models import LeaderboardSnapshot

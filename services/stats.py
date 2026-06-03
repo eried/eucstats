@@ -2,9 +2,11 @@
 All public reads hit these precomputed tables — never raw trips."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from sqlalchemy import desc, func
 
-from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip
+from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip, Wheel
 
 
 def _rider_loc(db, store_id: str):
@@ -153,6 +155,71 @@ def map_cells(db, zoom: float):
         out.append({"lat": round(lat, 4), "lon": round(lon, 4),
                     "rider_count": c.rider_count, "total_km": round(c.total_km or 0, 2)})
     return out
+
+
+def by_brand(db, limit=50):
+    rows = (db.query(Wheel.brand.label("g"), func.coalesce(func.sum(Trip.distance_km), 0.0).label("km"),
+                     func.count(func.distinct(Trip.rider_store_id)).label("riders"),
+                     func.count(Trip.trip_uuid).label("trips"))
+            .join(Trip, Trip.wheel_id == Wheel.wheel_id)
+            .filter(Trip.validation_status == "validated", Wheel.brand.isnot(None), Wheel.brand != "")
+            .group_by(Wheel.brand).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
+    return [{"name": g, "total_km": round(km or 0, 1), "riders": r, "trips": t} for g, km, r, t in rows]
+
+
+def by_wheel(db, limit=50):
+    rows = (db.query(Wheel.brand, Wheel.model, func.coalesce(func.sum(Trip.distance_km), 0.0).label("km"),
+                     func.count(func.distinct(Trip.rider_store_id)).label("riders"),
+                     func.count(Trip.trip_uuid).label("trips"))
+            .join(Trip, Trip.wheel_id == Wheel.wheel_id)
+            .filter(Trip.validation_status == "validated", Wheel.model.isnot(None), Wheel.model != "")
+            .group_by(Wheel.brand, Wheel.model).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
+    return [{"name": ((b or "") + " " + (m or "")).strip(), "total_km": round(km or 0, 1),
+             "riders": r, "trips": t} for b, m, km, r, t in rows]
+
+
+def by_country(db, limit=50):
+    return [{"name": c["country"], "total_km": c["total_km"], "riders": c["riders"],
+             "avg": c["avg_km_per_rider"]} for c in countries(db)][:limit]
+
+
+def champions(db):
+    """Champion of the day/week/month by the EUC Planet Score: distance rewarded,
+    boosted by top speed and time in the saddle. Computed in Python so it works
+    whether start_utc is stored tz-aware or naive."""
+    now = datetime.utcnow()
+    windows = {"day": now - timedelta(days=1), "week": now - timedelta(days=7),
+               "month": now - timedelta(days=30)}
+    rows = (db.query(Trip.rider_store_id, Trip.distance_km, Trip.duration_s,
+                     Trip.max_speed, Trip.start_utc)
+            .join(Rider, Rider.store_id == Trip.rider_store_id)
+            .filter(Trip.validation_status == "validated", Rider.deleted_at.is_(None),
+                    Trip.start_utc.isnot(None)).all())
+    agg = {k: {} for k in windows}   # period -> sid -> [dist, dur_s, vmax]
+    for sid, dist, dur, vmax, t in rows:
+        tt = t.replace(tzinfo=None) if getattr(t, "tzinfo", None) else t
+        for k, since in windows.items():
+            if tt >= since:
+                a = agg[k].setdefault(sid, [0.0, 0.0, 0.0])
+                a[0] += dist or 0.0
+                a[1] += dur or 0.0
+                a[2] = max(a[2], vmax or 0.0)
+
+    def top(period):
+        best = None
+        for sid, (dist, dur, vmax) in agg[period].items():
+            hours = dur / 3600.0
+            score = dist * (1 + vmax / 100.0) * (1 + hours / 10.0)
+            if best is None or score > best[1]:
+                best = (sid, score, dist, hours, vmax)
+        if best is None:
+            return None
+        sid, score, dist, hours, vmax = best
+        return {**_rider_brief(db, sid), "score": round(score, 1), "km": round(dist, 2),
+                "hours": round(hours, 2), "top_speed": round(vmax, 1)}
+
+    return {"day": top("day"), "week": top("week"), "month": top("month"),
+            "formula": "EUC Planet Score = km × (1 + top km/h ÷ 100) × (1 + hours ÷ 10)"}
 
 
 def global_summary(db):
