@@ -1,20 +1,9 @@
 from datetime import datetime, date
 
-import pytest
-
-from database import SessionLocal, init_db
 from repository.riders import RiderRepo
 from repository.trips import TripRepo
 from repository.aggregates import AggregateRepo
 import models
-
-
-@pytest.fixture
-def db():
-    init_db()
-    s = SessionLocal()
-    yield s
-    s.close()
 
 
 def test_rider_upsert_and_get(db):

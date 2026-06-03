@@ -1,0 +1,75 @@
+"""Apply a validated trip to the materialized tables (idempotent per trip)."""
+from __future__ import annotations
+
+import config
+from ingest.geo import cells_for
+from models import DailyDistance, utcnow
+from repository.aggregates import AggregateRepo
+
+
+class Aggregator:
+    def __init__(self, db):
+        self.db = db
+        self.agg = AggregateRepo(db)
+
+    def apply(self, trip) -> None:
+        if trip.validation_status != "validated" or trip.aggregated:
+            return
+        store = trip.rider_store_id
+        dist = trip.distance_km or 0.0
+        when = trip.created_at or utcnow()
+
+        rs = self.agg.get_rider_stat(store)
+        rs.total_km = (rs.total_km or 0.0) + dist
+        rs.trip_count = (rs.trip_count or 0) + 1
+        if trip.max_speed is not None:
+            rs.best_speed = max(rs.best_speed or 0.0, trip.max_speed)
+        if trip.max_gforce is not None:
+            rs.best_gforce = max(rs.best_gforce or 0.0, trip.max_gforce)
+        rs.longest_trip_km = max(rs.longest_trip_km or 0.0, dist)
+
+        if trip.start_utc:
+            self.agg.add_daily(store, trip.start_utc.date(), dist)
+            self._recompute_streak(rs, store)
+
+        if trip.country:
+            self.agg.recompute_country(trip.country)
+
+        if trip.start_lat is not None and trip.start_lon is not None:
+            for z, cell in cells_for(trip.start_lat, trip.start_lon, config.GRID_ZOOMS).items():
+                self.agg.bump_map_cell(z, cell, store, dist, when)
+
+        self.agg.set_record_if_better("mileage_king", store, rs.total_km, trip.trip_uuid, when)
+        self.agg.set_record_if_better("top_speed", store, trip.max_speed, trip.trip_uuid, when)
+        self.agg.set_record_if_better("max_gforce", store, trip.max_gforce, trip.trip_uuid, when)
+        self.agg.set_record_if_better("longest_trip", store, dist, trip.trip_uuid, when)
+
+        trip.aggregated = True
+        self.db.commit()
+
+    def _recompute_streak(self, rs, store) -> None:
+        """Recompute streaks from the rider's daily rows — robust to out-of-order
+        backfill (unlike an incremental counter)."""
+        self.db.flush()  # make the just-added daily row visible (autoflush is off)
+        dates = sorted(
+            d for (d,) in self.db.query(DailyDistance.date)
+            .filter(DailyDistance.store_id == store).all()
+        )
+        if not dates:
+            rs.current_streak = 0
+            rs.longest_streak = 0
+            rs.last_ride_date = None
+            return
+        longest = cur = 1
+        for i in range(1, len(dates)):
+            cur = cur + 1 if (dates[i] - dates[i - 1]).days == 1 else 1
+            longest = max(longest, cur)
+        cur_run = 1
+        for i in range(len(dates) - 1, 0, -1):
+            if (dates[i] - dates[i - 1]).days == 1:
+                cur_run += 1
+            else:
+                break
+        rs.current_streak = cur_run
+        rs.longest_streak = longest
+        rs.last_ride_date = dates[-1]

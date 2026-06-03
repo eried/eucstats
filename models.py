@@ -60,6 +60,8 @@ class Trip(Base):
     wh_per_km = Column(Float)
     country = Column(String, index=True)
     start_cell = Column(String)
+    start_lat = Column(Float)
+    start_lon = Column(Float)
     validation_status = Column(String, default="validated", index=True)  # validated|flagged|rejected
     flag_reasons = Column(JSON)
     schema_version = Column(String)

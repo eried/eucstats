@@ -16,8 +16,12 @@ import pytest
 
 @pytest.fixture
 def db():
-    from database import SessionLocal, init_db
+    # Fresh schema per test — materialized tables (records) use global keys,
+    # so tests must not bleed into one another.
+    from database import SessionLocal, engine, Base, init_db
     init_db()
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     s = SessionLocal()
     try:
         yield s
