@@ -1,5 +1,8 @@
 """Public website: GPU (MapLibre GL) world heatmap with a cinematic intro,
 monochrome/silhouette UI, openable tool panels, and fly-to-winner. /api/v1."""
+import datetime
+import os
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -10,32 +13,42 @@ _PAGE = r"""<!doctype html>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>EUC Stats — Electric Unicycle rider leaderboards & world heatmap</title>
 <meta name="description" content="Live leaderboards, records and a world activity heatmap for electric unicycle riders, powered by EUC Planet."/>
-<link rel="icon" type="image/svg+xml" href="/static/euc-planet.svg"/>
+<meta property="og:title" content="EUC Stats — EUC rider leaderboards & world heatmap"/>
+<meta property="og:description" content="Live leaderboards, records and a world activity heatmap for electric unicycle riders, powered by EUC Planet."/>
+<meta property="og:image" content="https://eucstats.ried.no/static/logo.png"/>
+<meta property="og:type" content="website"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<link rel="icon" type="image/svg+xml" href="/static/euc-favicon.svg"/>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
 <style>
-:root{--ink:#eef1fb;--mut:#8a93b2;--acc:#2ea8ff;--gold:#ffd24a;--line:#272f4d;--glass:rgba(13,17,32,.82)}
+:root{--ink:#eef1fb;--mut:#9aa6c8;--acc:#2ea8ff;--gold:#ffd24a;--line:#33457a;--surf:linear-gradient(158deg,rgba(34,52,100,.92),rgba(9,14,30,.95));--glass:rgba(13,17,32,.82);--shadow:0 12px 34px rgba(0,0,0,.6),inset 0 1px 0 rgba(130,170,255,.14)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#070a16;overflow:hidden}
 #map{position:fixed;inset:0;z-index:0}
 .maplibregl-ctrl-attrib{font-size:9px;opacity:.4}.maplibregl-ctrl-group{background:var(--glass)!important;border:1px solid var(--line)!important}
 svg.ic{width:18px;height:18px;display:block}
-.intro{opacity:0;transform:translateY(10px)}
-.intro.show{opacity:1;transform:none;transition:opacity .9s ease,transform .9s ease}
+.intro{opacity:0}
+.intro.show{opacity:1;transition:opacity 1s ease}
 .topbar{position:fixed;top:16px;left:16px;z-index:500;display:flex;flex-direction:column;gap:9px;max-width:min(92vw,460px)}
-.champ{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;background:var(--glass);backdrop-filter:blur(10px);border:1px solid rgba(255,210,74,.35);border-radius:12px;padding:8px 13px;font-size:13px;letter-spacing:.2px}
+.champ{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;background:var(--surf);backdrop-filter:blur(10px);border:1px solid rgba(255,210,74,.42);border-radius:8px;padding:9px 13px;font-size:13px;letter-spacing:.2px;box-shadow:var(--shadow),0 0 18px rgba(255,210,74,.12)}
 .champ svg{width:16px;height:16px;color:var(--gold)}.champ b{font-weight:700;color:var(--gold)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--mut);letter-spacing:.3px}
+.chip{background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--mut);letter-spacing:.3px;box-shadow:var(--shadow)}
 .chip b{color:var(--acc);font-weight:700}
-.badge{position:fixed;left:16px;bottom:18px;z-index:500;display:flex;align-items:center;gap:8px;background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:999px;padding:6px 14px 6px 8px;font-size:12px;color:var(--mut);letter-spacing:.3px}
-.badge img{width:20px;height:20px}.badge b{color:var(--ink);font-weight:700}
-.gh{position:fixed;right:16px;bottom:18px;z-index:500;color:var(--mut);display:flex;transition:color .2s,transform .2s}
-.gh:hover{color:var(--acc);transform:translateY(-2px)}.gh svg{width:30px;height:30px}
-.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:16px;padding:7px;box-shadow:0 14px 44px rgba(0,0,0,.5)}
-.dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:11px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
+.pside,.gside{position:fixed;bottom:22px;z-index:500;display:flex;align-items:center;gap:9px;white-space:nowrap;color:var(--mut);font-size:12px;letter-spacing:.6px;text-decoration:none}
+.pside:hover{color:var(--ink)}.pside:hover b{color:var(--acc)}
+.pside b,.gside b{color:var(--ink);font-weight:700}
+.pside{left:22px;transform-origin:left bottom;transform:rotate(-90deg)}
+.pside img{width:18px;height:18px;transform:rotate(90deg)}
+.gside{right:22px;transform-origin:right bottom;transform:rotate(90deg)}
+.gside a{display:flex;align-items:center;gap:6px;color:var(--mut);text-decoration:none;transition:color .2s}
+.gside a:hover{color:var(--acc)}.gside svg{width:14px;height:14px;transform:rotate(-90deg)}
+.gside .ver{font-family:ui-monospace,monospace;font-size:11px}
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;background:var(--surf);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:10px;padding:7px;box-shadow:var(--shadow),0 18px 54px rgba(0,0,0,.55)}
+.dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:rgba(46,168,255,.16);color:var(--acc)}
 .dock button.on svg{color:var(--acc)}
-.panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);max-height:60vh;overflow:auto;background:rgba(11,15,28,.95);backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:18px;box-shadow:0 26px 80px rgba(0,0,0,.6);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
+.panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);max-height:60vh;overflow:auto;background:linear-gradient(158deg,rgba(26,40,78,.96),rgba(8,12,26,.97));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,15,28,.97)}
 .phead b{font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}.phead button{background:transparent;border:0;color:var(--mut);cursor:pointer}
@@ -48,10 +61,10 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .cc{font:600 10px/1.6 ui-monospace,monospace;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 4px;letter-spacing:.5px}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
-.tab{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;letter-spacing:.3px}
+.tab{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;letter-spacing:.3px}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
 .podium{display:flex;gap:12px;justify-content:center;align-items:flex-end;padding:8px 0}
-.pod{background:#0e1326;border:1px solid var(--line);border-top-width:3px;border-radius:12px;padding:14px 12px;text-align:center;width:148px;cursor:pointer;transition:transform .15s}
+.pod{background:var(--surf);border:1px solid var(--line);border-top-width:3px;border-radius:9px;padding:14px 12px;text-align:center;width:148px;cursor:pointer;transition:transform .15s;box-shadow:var(--shadow)}
 .pod:hover{transform:translateY(-3px)}.pod .av{width:54px;height:54px;margin:0 auto 8px;display:block}
 .pod.p1{border-top-color:var(--gold);margin-bottom:18px}.pod.p2{border-top-color:#cdd3e0}.pod.p3{border-top-color:#b07a4a;margin-bottom:0}
 .pod .km{color:var(--acc);font-weight:700;margin-top:3px}.pod .rkn{color:var(--mut);font:700 12px/1 ui-monospace,monospace;letter-spacing:1px}
@@ -63,12 +76,13 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
   <div id="champ" class="champ intro" style="display:none"></div>
   <div id="chips" class="chips intro"></div>
 </div>
-<div class="badge intro"><img src="/static/euc-planet.svg" alt=""/> powered by <b>EUC&nbsp;Planet</b></div>
-<a class="gh intro" href="https://github.com/eried/eucstats" target="_blank" rel="noopener" title="View / contribute on GitHub" aria-label="GitHub">
-  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
-</a>
+<a class="pside intro" href="https://eucplanet.ried.no" target="_blank" rel="noopener"><img src="/static/euc-planet.svg" alt=""/><span>powered by <b>EUC&nbsp;Planet</b></span></a>
+<div class="gside intro">
+  <a href="https://github.com/eried/eucstats" target="_blank" rel="noopener" title="View / contribute on GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
+  <span class="ver" title="HTML last-modified date (auto-updated on deploy)">build __BUILD__</span>
+</div>
 <div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="pbody" id="pbody"></div></div>
-<div class="dock">
+<div class="dock intro">
   <button class="intro" data-p="boards" title="Leaderboards"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="10" width="4" height="11" rx="1"/><rect x="10" y="3" width="4" height="18" rx="1"/><rect x="17" y="13" width="4" height="8" rx="1"/></svg><span class="lbl">Leaderboards</span></button>
   <button class="intro" data-p="podium" title="Podium"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h12v3a4 4 0 0 1-3 3.87V13h2v2H7v-2h2v-2.13A4 4 0 0 1 6 7V4Zm-3 2h2v2a2 2 0 0 1-2-2Zm16 0a2 2 0 0 1-2 2V6h2ZM7 17h10v3H7z"/></svg><span class="lbl">Podium</span></button>
   <button class="intro" data-p="countries" title="Countries"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg><span class="lbl">Countries</span></button>
@@ -88,6 +102,24 @@ const BOARDS=[
  {k:"gforce",t:"Max G",c:"best_gforce",u:" g"}];
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force"};
 const REGION={America:[-98,39,4],Europe:[12,52,4.2],Asia:[100,34,3.2],Africa:[21,3,3.2],Australia:[134,-25,4],Pacific:[-150,5,3],Atlantic:[-30,35,3],Indian:[75,-15,3],Antarctica:[0,-72,2.6]};
+// city/country-level centers so we land near the visitor (e.g. Oslo, not central Europe)
+const TZMAP={
+ "Europe/Oslo":[10,62,4.3],"Europe/Stockholm":[16,62,4.3],"Europe/Helsinki":[25,63,4.2],"Europe/Copenhagen":[11,56,5],
+ "Europe/London":[-2,54,4.7],"Europe/Dublin":[-8,53,5],"Europe/Berlin":[10,51,4.7],"Europe/Paris":[2,47,4.7],
+ "Europe/Madrid":[-4,40,4.7],"Europe/Lisbon":[-8,40,5],"Europe/Rome":[12,42,4.7],"Europe/Amsterdam":[5,52,5.2],
+ "Europe/Brussels":[4,50,5.2],"Europe/Zurich":[8,47,5.4],"Europe/Vienna":[15,48,5],"Europe/Warsaw":[20,52,4.7],
+ "Europe/Prague":[15,50,5.2],"Europe/Athens":[23,39,4.8],"Europe/Moscow":[38,56,3.6],"Europe/Kyiv":[31,49,4.4],
+ "Europe/Istanbul":[35,39,4.6],"Asia/Istanbul":[35,39,4.6],
+ "America/New_York":[-75,40,4.7],"America/Toronto":[-79,44,4.7],"America/Chicago":[-90,40,4.4],
+ "America/Denver":[-105,39,4.7],"America/Los_Angeles":[-119,37,4.7],"America/Vancouver":[-123,49,4.7],
+ "America/Mexico_City":[-99,20,4.7],"America/Sao_Paulo":[-47,-22,4.4],"America/Bogota":[-74,4,4.6],
+ "America/Argentina/Buenos_Aires":[-58,-35,4.2],"America/Santiago":[-71,-34,4.4],
+ "Asia/Tokyo":[138,37,4.5],"Asia/Seoul":[127,36,5],"Asia/Shanghai":[113,32,3.8],"Asia/Hong_Kong":[114,22,5.2],
+ "Asia/Singapore":[104,1.3,5.4],"Asia/Bangkok":[101,14,4.6],"Asia/Kolkata":[78,22,3.9],"Asia/Dubai":[54,24,5],
+ "Asia/Jerusalem":[35,31,5.4],"Australia/Sydney":[151,-33,4.7],"Australia/Melbourne":[145,-37,4.7],
+ "Australia/Perth":[116,-32,4.7],"Pacific/Auckland":[174,-41,4.6],"Africa/Johannesburg":[26,-29,4.6],
+ "Africa/Cairo":[31,27,4.4],"Africa/Lagos":[6,8,4.6],"Africa/Nairobi":[37,-1,4.6]};
+const easeInOutCubic=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
 
 let map;
 // FNV-1a string hash -> deterministic noise per (today + rider), so a winner's
@@ -113,8 +145,8 @@ function flyToRider(e){
   const key=new Date().toISOString().slice(0,10)+"|"+e.store_id;       // changes daily, stable within a day
   const dxKm=((hashStr(key+"x")%8000)/100)-40, dyKm=((hashStr(key+"y")%8000)/100)-40;  // ~ -40..+40 km each axis
   const olat=e.lat+dyKm/111, olon=e.lon+dxKm/(111*(Math.cos(e.lat*Math.PI/180)||1e-6));
-  showArea(olon,olat,42);                                              // ~42 km dotted ring around the noised point
-  map.flyTo({center:[olon,olat],zoom:7.9,speed:1.2,curve:1.6,essential:true});
+  showArea(olon,olat,14);                                              // dotted ring marking the noised area
+  map.flyTo({center:[olon,olat],zoom:9.2,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
 }
 
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
@@ -158,11 +190,12 @@ document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.da
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
 function runIntro(){
-  reveal(document.getElementById("champ"),1500);
-  reveal(document.getElementById("chips"),1750);
-  document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,2050+i*200));
-  reveal(document.querySelector(".badge"),3000);
-  reveal(document.querySelector(".gh"),3200);
+  reveal(document.getElementById("champ"),1100);
+  reveal(document.getElementById("chips"),1700);
+  reveal(document.querySelector(".dock"),2300);
+  document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,2700+i*320));
+  reveal(document.querySelector(".pside"),4100);
+  reveal(document.querySelector(".gside"),4450);
 }
 
 async function init(){
@@ -174,10 +207,10 @@ async function init(){
     ch.innerHTML=`${CROWN}<span>Champion of the week — <b>${c.name||c.store_id}</b> ${cc(c.flag)} · ${c.km} km</span>`;
     ch.onclick=()=>flyToRider(c);}
 
-  const tz=(Intl.DateTimeFormat().resolvedOptions().timeZone||"").split("/")[0];
-  const [rlon,rlat,rz]=REGION[tz]||[10,30,3];
+  const tzFull=Intl.DateTimeFormat().resolvedOptions().timeZone||"";
+  const [rlon,rlat,rz]=TZMAP[tzFull]||REGION[tzFull.split("/")[0]]||[10,30,3];
   map=new maplibregl.Map({container:"map",style:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-    center:[rlon*0.4,rlat*0.5],zoom:1.4,attributionControl:true});   // start zoomed out
+    center:[rlon,rlat],zoom:1.5,attributionControl:true});   // start zoomed out over the visitor's region
   map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");
   map.on("load",async ()=>{
     const cells=await j("/map/cells?zoom=0.5");   // coarser, smoother grid
@@ -191,7 +224,7 @@ async function init(){
       "heatmap-opacity":0.82,
       "heatmap-color":["interpolate",["linear"],["heatmap-density"],
         0,"rgba(0,0,0,0)",0.12,"#11317a",0.32,"#1f6feb",0.55,"#2ec5ff",0.78,"#ffd24a",1,"#ff5d5d"]}});
-    setTimeout(()=>map.flyTo({center:[rlon,rlat],zoom:rz,duration:4200,curve:1.4,essential:true}),500);
+    setTimeout(()=>map.flyTo({center:[rlon,rlat],zoom:rz,duration:5000,curve:1.5,easing:easeInOutCubic,essential:true}),450);
     runIntro();
   });
 }
@@ -199,6 +232,13 @@ init().catch(()=>{const c=document.getElementById("chips");c.classList.add("show
 </script></body></html>"""
 
 
+def _build_date():
+    try:
+        return datetime.datetime.utcfromtimestamp(os.path.getmtime(__file__)).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return ""
+
+
 @public_router.get("/", response_class=HTMLResponse)
 def home():
-    return HTMLResponse(_PAGE)
+    return HTMLResponse(_PAGE.replace("__BUILD__", _build_date()))
