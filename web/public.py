@@ -67,6 +67,8 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes wave{0%,100%{transform:skewY(0)}25%{transform:skewY(-5deg)}50%{transform:skewY(0)}75%{transform:skewY(5deg)}}
 .cinfo{background:none;border:0;color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:0}
 .cinfo:hover{color:var(--gold)}
+.ccol{background:none;border:0;color:var(--mut);cursor:pointer;padding:0;display:flex;align-items:center}.ccol:hover{color:var(--gold)}.ccol svg{width:15px;height:15px;transition:transform .25s}
+.champ.collapsed .ccol svg{transform:rotate(-90deg)}.champ.collapsed .cline{display:none}.champ.collapsed{padding-bottom:9px}
 .cline{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0}
 .cline .clab{width:42px;min-width:42px;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
 .cline b{color:var(--gold);font-weight:700;flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -185,6 +187,7 @@ const av=(id,has)=>has===false?'<span class="av avph"></span>':`<img class="av" 
 const rider=e=>`<span class="rider">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
+const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 const IC={
  mileage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5h8a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h11"/></svg>',
  daily:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4.5"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g></svg>',
@@ -224,6 +227,8 @@ const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
 function bval(b,v){if(v==null)v=0;if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+b.u;}
+function bt(b){return (b.k==="accel"&&mph())?"0→25":b.t;}
+function bd(b){return (b.k==="accel"&&mph())?"Fastest launch from a stop to ≈25 mph (40 km/h) · lower is better":b.d;}
 const RECCONV={mileage_king:"dist",longest_trip:"dist",top_speed:"spd"};
 const RECUNIT={sustained_w:" W",sustained_a:" A",peak_voltage:" V",max_gforce:" g"};
 function recval(k,v){const c=RECCONV[k];if(c==="dist")return dnum(v)+" "+dunit();if(c==="spd")return snum(v)+" "+sunit();return (Math.round(v*100)/100)+(RECUNIT[k]||"");}
@@ -315,7 +320,7 @@ function podList(rows,cfg){
   return pod+list;
 }
 function showRiders(){
-  setPanel("riders","Riders",`<div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(b.d||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${b.t}</span></button>`).join("")}</div><div id="lb"></div>`);
+  setPanel("riders","Riders",`<div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   bindTips(pbody);loadBoard("mileage");
 }
@@ -345,7 +350,7 @@ function renderGroup(b,cfg){
 }
 async function showGroupPanel(kind,name,title,cfg){
   GROWS=(await j("/groups/"+kind)).entries;
-  setPanel(name,title,`<div class="tabs">${GBOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(b.d||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${b.t}</span></button>`).join("")}</div><div id="lb"></div>`);
+  setPanel(name,title,`<div class="tabs">${GBOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(GBOARDS[+t.dataset.b],cfg);});
   bindTips(pbody);renderGroup(GBOARDS[0],cfg);
 }
@@ -393,9 +398,12 @@ function renderChampions(){
   ch.style.display="block";ch.style.cursor="default";ch.onclick=null;
   const line=(lab,c)=>c?`<div class="cline" data-sid="${c.store_id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||c.store_id}</b><span class="cscore">${c.score} pts</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">no rides yet</span></div>`;
   const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+"Our secret recipe: distance is king, lifted by your top speed and time in the saddle.").replace(/"/g,"&quot;");
-  ch.innerHTML=`<div class="chead">${FLAG}<span>EUC Planet Champions</span><button class="cinfo" data-tip="${tip}">&#9432;</button></div>`+
+  ch.innerHTML=`<div class="chead">${FLAG}<span>EUC Planet Champions</span><button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="Show / hide">${CHEV}</button></div>`+
     line("Day",C.day)+line("Week",C.week)+line("Month",C.month);
   ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.store_id===el.dataset.sid);if(c)flyToRider(c);};});
+  const col=ch.querySelector(".ccol");
+  if(col)col.onclick=(e)=>{e.stopPropagation();const cl=ch.classList.toggle("collapsed");try{localStorage.setItem("eucstats_champ_collapsed",cl?"1":"0");}catch(_){}};
+  ch.classList.toggle("collapsed",localStorage.getItem("eucstats_champ_collapsed")==="1");
   bindTips(ch);
 }
 let CELLS=null;
