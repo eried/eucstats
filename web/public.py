@@ -354,10 +354,11 @@ function flyToRider(e){
   if(!e||e.lat==null||e.lon==null||!map) return;
   closePanel();
   const key=new Date().toISOString().slice(0,10)+"|"+e.store_id;       // changes daily, stable within a day
-  const dxKm=((hashStr(key+"x")%2000)/100)-10, dyKm=((hashStr(key+"y")%2000)/100)-10;  // ~ -10..+10 km each axis
+  const R=1.2;                                                          // max privacy noise per axis (km)
+  const dxKm=((hashStr(key+"x")%1000)/1000)*2*R-R, dyKm=((hashStr(key+"y")%1000)/1000)*2*R-R;  // -R..+R
   const olat=e.lat+dyKm/111, olon=e.lon+dxKm/(111*(Math.cos(e.lat*Math.PI/180)||1e-6));
-  showArea(olon,olat,11);                                              // dotted ring marking the noised area
-  map.flyTo({center:[olon,olat],zoom:9.6,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
+  showArea(olon,olat,1.8);                                             // small dotted ring near the real area
+  map.flyTo({center:[olon,olat],zoom:11.5,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
 }
 const CENTROIDS={US:[-98,39,4],GB:[-2,54,5],DE:[10,51,5.2],FR:[2.5,47,5],NO:[9,61,4.6],SE:[16,62,4.4],NL:[5.3,52,6.3],ES:[-3.7,40,5.2],IT:[12.5,42,5.2],PL:[19,52,5.2],CA:[-100,56,3.6],AU:[134,-25,3.9],JP:[138,37,4.6],FI:[26,64,4.4],DK:[10,56,6.2],CH:[8.2,46.8,6.4],AT:[14.5,47.5,5.8],CZ:[15.5,49.8,6.2],PT:[-8,39.5,5.8],SG:[103.8,1.35,9],BR:[-50,-12,3.7],MX:[-102,23,4.5]};
 function flyToCountry(code){const c=CENTROIDS[(""+code).toUpperCase()];if(!c||!map)return;closePanel();map.flyTo({center:[c[0],c[1]],zoom:c[2],curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});}
