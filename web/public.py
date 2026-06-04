@@ -124,6 +124,9 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:132px;gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
 .tabs .tab{scroll-snap-align:start}
+.tabcap{display:flex;align-items:center;gap:7px;min-height:16px;margin:-1px 2px 9px;font-size:12px;color:var(--mut);line-height:1.3}
+.tabcap svg{width:14px;height:14px;flex:0 0 auto;opacity:.9}
+.tabcap:empty{display:none}
 .tabs::-webkit-scrollbar{height:6px}.tabs::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 .pbody::-webkit-scrollbar{width:7px}.pbody::-webkit-scrollbar-track{background:transparent}.pbody::-webkit-scrollbar-thumb{background:rgba(130,170,255,.28);border-radius:4px;border:2px solid transparent;background-clip:padding-box}.pbody::-webkit-scrollbar-thumb:hover{background:rgba(130,170,255,.5)}
 .tab{display:flex;align-items:center;justify-content:flex-start;gap:7px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:0 10px;height:36px;font-size:12px;cursor:pointer;letter-spacing:.3px;overflow:hidden}
@@ -367,7 +370,9 @@ function GSB(i){return i===0?' gold1':i===1?' silv':i===2?' brnz':'';}
 function _tipEl(){return document.getElementById("tip");}
 function showTip(html,x,y){const T=_tipEl();if(!T)return;T.innerHTML=html;T.classList.add("on");const r=T.getBoundingClientRect();let nx=x-r.width/2,ny=y-r.height-10;nx=Math.max(8,Math.min(innerWidth-r.width-8,nx));if(ny<8)ny=y+22;T.style.left=nx+"px";T.style.top=ny+"px";}
 function hideTip(){const T=_tipEl();if(T)T.classList.remove("on");}
-function bindTips(root){(root||document).querySelectorAll("[data-tip]").forEach(el=>{const show=()=>{const b=el.getBoundingClientRect();showTip(el.dataset.tip,b.left+b.width/2,b.top);};el.onmouseenter=show;el.onmouseleave=hideTip;el.addEventListener("click",e=>{e.stopPropagation();const T=_tipEl();(T&&T.classList.contains("on"))?hideTip():show();});});}
+function setCap(icon,desc){const c=document.getElementById("tabcap");if(c)c.innerHTML=(icon||'')+"<span>"+(desc||'')+"</span>";}
+const CANHOVER=matchMedia("(hover:hover)").matches;
+function bindTips(root,hoverOnly){(root||document).querySelectorAll("[data-tip]").forEach(el=>{const show=()=>{const b=el.getBoundingClientRect();showTip(el.dataset.tip,b.left+b.width/2,b.top);};if(CANHOVER){el.onmouseenter=show;el.onmouseleave=hideTip;}if(!hoverOnly)el.addEventListener("click",e=>{e.stopPropagation();const T=_tipEl();(T&&T.classList.contains("on"))?hideTip():show();});});}
 document.addEventListener("click",hideTip);
 function countUp(el,target,dur,dec){const t=+target||0;let from;
   if(el.dataset.cur!==undefined){from=+el.dataset.cur;}
@@ -400,13 +405,14 @@ function podList(rows,cfg){
   return pod+list;
 }
 function showRiders(){
-  setPanel("riders","Riders",`<div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div id="lb"></div>`);
+  setPanel("riders","Riders",`<div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
-  bindTips(pbody);loadBoard("mileage");
+  bindTips(pbody,true);loadBoard("mileage");
 }
 async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
   if(!cont)return;
+  if(b)setCap(IC[b.k]||'',bd(b));
   cont.innerHTML=podList(rows,{av:true,flag:e=>e.flag,label:e=>e.name||e.store_id,val:e=>bval(b,e[b.c]),click:true});
   cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToRider(rows[+el.dataset.i]));
   fitTop3(rows,e=>[e.lon,e.lat]);
@@ -428,6 +434,7 @@ let GROWS=null;
 function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+(b.u||"");}
 function renderGroup(b,cfg){
   const cont=document.getElementById("lb");if(!cont||!GROWS)return;
+  setCap(b.ic||'',bd(b));
   const rows=GROWS.filter(e=>e[b.key]!=null).slice().sort((x,y)=>b.asc?((x[b.key]||1e9)-(y[b.key]||1e9)):((y[b.key]||0)-(x[b.key]||0)));
   cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>e.riders+" riders"},cfg));
   if(cfg.click){cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToCountry(rows[+el.dataset.i].country));
@@ -436,9 +443,9 @@ function renderGroup(b,cfg){
 }
 async function showGroupPanel(kind,name,title,cfg){
   GROWS=(await j("/groups/"+kind)).entries;
-  setPanel(name,title,`<div class="tabs">${GBOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div id="lb"></div>`);
+  setPanel(name,title,`<div class="tabs">${GBOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(GBOARDS[+t.dataset.b],cfg);});
-  bindTips(pbody);renderGroup(GBOARDS[0],cfg);
+  bindTips(pbody,true);renderGroup(GBOARDS[0],cfg);
 }
 function showCountries(){showGroupPanel("country","countries","Countries",{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
 function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC});}
