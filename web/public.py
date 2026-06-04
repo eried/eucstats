@@ -523,7 +523,7 @@ function renderChips(){
 }
 function animateChips(slow){const durs=slow?[2700,3500,3000,3900]:[850,1250,1050,1450];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
 const GLITCHSEL=".clab,.cline b,.dock .lbl,.chip b,.cscore,.tab span,.rk,.recval,.reclbl";
-function randomGlitch(){const els=[].slice.call(document.querySelectorAll(GLITCHSEL)).filter(e=>e.offsetParent!==null);if(els.length){const n=Math.random()<0.4?2:1;for(let k=0;k<n;k++){const el=els[(Math.random()*els.length)|0];el.classList.remove("rgbglitch");void el.offsetWidth;el.classList.add("rgbglitch");setTimeout(()=>el.classList.remove("rgbglitch"),650);}}setTimeout(randomGlitch,2500+Math.random()*3000);}
+function randomGlitch(){const _C=window.__CFG__||{};const _gi=_C.glitch_intensity||2;const _gb=(_C.glitch_secs||4)*1000;const els=[].slice.call(document.querySelectorAll(GLITCHSEL)).filter(e=>e.offsetParent!==null);if(els.length){const n=1+((Math.random()*_gi)|0);for(let k=0;k<n;k++){const el=els[(Math.random()*els.length)|0];el.classList.remove("rgbglitch");void el.offsetWidth;el.classList.add("rgbglitch");setTimeout(()=>el.classList.remove("rgbglitch"),650);}}setTimeout(randomGlitch,_gb*0.6+Math.random()*_gb*0.8);}
 if(!(window.__CFG__&&window.__CFG__.glitch_enabled===false))setTimeout(randomGlitch,2800);
 async function pollStats(){
   try{const ns=await j("/stats/summary"),nc=await j("/champions");S=ns;WC=nc;

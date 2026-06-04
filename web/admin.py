@@ -703,6 +703,9 @@ def _settings_html(db: Session, msg: str = "") -> str:
         <p><label>Default map style <select name=map_style style="{sel}">{styles}</select></label>
         <span class=hint>(a visitor's own choice still wins)</span></p>
         <label class=toggle style="display:inline-flex;margin-top:8px"><input type=checkbox name=glitch_enabled value=1{ck(b['glitch_enabled'])}> RGB glitch effects</label>
+        <p class=hint style="margin:12px 0 4px">Glitch tuning (when enabled):</p>
+        <label>roughly every <input type=number name=glitch_secs min=1 max=60 value="{b['glitch_secs']}" style="width:72px"> s</label>
+        &nbsp;&nbsp;<label>intensity <input type=number name=glitch_intensity min=1 max=5 value="{b['glitch_intensity']}" style="width:60px"> <span class=hint>(1 subtle – 5 heavy)</span></label>
       </div>
       <button>{_IC['check']} Save behaviour</button>
     </form>
@@ -721,9 +724,11 @@ def settings_page(request: Request, db: Session = Depends(get_db), msg: str = ""
 def settings_save(request: Request, db: Session = Depends(get_db),
                   poll_secs: int = Form(30), intro_enabled: str = Form(""),
                   intro_src: str = Form("/static/intro.mp4"), map_style: str = Form("dark"),
-                  glitch_enabled: str = Form("")):
+                  glitch_enabled: str = Form(""), glitch_secs: int = Form(4),
+                  glitch_intensity: int = Form(2)):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
-    settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style, bool(glitch_enabled))
+    settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
+                           bool(glitch_enabled), glitch_secs, glitch_intensity)
     return RedirectResponse("/admin/settings?msg=" + quote("behaviour saved — live on next page load"),
                             status_code=303)

@@ -47,32 +47,36 @@ MAP_STYLES = ["dark", "light", "voyager", "satellite", "terrain"]
 _FALSEY = ("0", "false", "False", "")
 
 
-def get_behaviour(db: Session) -> dict:
+def _clamp_int(value, default, lo, hi):
     try:
-        poll = max(0, int(get_meta(db, "cfg_poll_secs", "30") or 30))
+        return max(lo, min(hi, int(value)))
     except (TypeError, ValueError):
-        poll = 30
+        return default
+
+
+def get_behaviour(db: Session) -> dict:
     style = get_meta(db, "cfg_map_style", "dark") or "dark"
     src = (get_meta(db, "cfg_intro_src", "/static/intro.mp4") or "").strip() or "/static/intro.mp4"
     return {
-        "poll_secs": poll,
+        "poll_secs": _clamp_int(get_meta(db, "cfg_poll_secs", "30"), 30, 0, 3600),
         "intro_enabled": get_meta(db, "cfg_intro_enabled", "1") not in _FALSEY,
         "intro_src": src,
         "map_style": style if style in MAP_STYLES else "dark",
         "glitch_enabled": get_meta(db, "cfg_glitch_enabled", "1") not in _FALSEY,
+        "glitch_secs": _clamp_int(get_meta(db, "cfg_glitch_secs", "4"), 4, 1, 60),
+        "glitch_intensity": _clamp_int(get_meta(db, "cfg_glitch_intensity", "2"), 2, 1, 5),
     }
 
 
-def set_behaviour(db: Session, poll_secs, intro_enabled, intro_src, map_style, glitch_enabled) -> None:
-    try:
-        poll = max(0, min(3600, int(poll_secs)))
-    except (TypeError, ValueError):
-        poll = 30
-    set_meta(db, "cfg_poll_secs", str(poll))
+def set_behaviour(db: Session, poll_secs, intro_enabled, intro_src, map_style, glitch_enabled,
+                  glitch_secs=4, glitch_intensity=2) -> None:
+    set_meta(db, "cfg_poll_secs", str(_clamp_int(poll_secs, 30, 0, 3600)))
     set_meta(db, "cfg_intro_enabled", "1" if intro_enabled else "0")
     set_meta(db, "cfg_intro_src", (intro_src or "").strip() or "/static/intro.mp4")
     set_meta(db, "cfg_map_style", map_style if map_style in MAP_STYLES else "dark")
     set_meta(db, "cfg_glitch_enabled", "1" if glitch_enabled else "0")
+    set_meta(db, "cfg_glitch_secs", str(_clamp_int(glitch_secs, 4, 1, 60)))
+    set_meta(db, "cfg_glitch_intensity", str(_clamp_int(glitch_intensity, 2, 1, 5)))
 
 
 def get_meta(db: Session, key: str, default: str | None = None) -> str | None:
