@@ -440,43 +440,30 @@ ANDROID = {36: "Android 16", 35: "Android 15", 34: "Android 14", 33: "Android 13
 
 
 def version_stats(db):
-    """Fun app/device stats — representative device per rider = their latest trip."""
-    rows = (db.query(Trip.rider_store_id, Trip.app_build, Trip.sdk_int, Trip.device_brand, Trip.os_name)
+    """App / OS adoption. The app sends app_version + a free-form os_version
+    (no device/SDK object), so we report on those. Representative per rider =
+    their latest validated trip."""
+    rows = (db.query(Trip.rider_store_id, Trip.app_version, Trip.meta_json)
             .join(Rider, Rider.store_id == Trip.rider_store_id)
-            .filter(Trip.validation_status == "validated", Rider.deleted_at.is_(None),
-                    Trip.os_name.isnot(None))
+            .filter(Trip.validation_status == "validated", Rider.deleted_at.is_(None))
             .order_by(Trip.start_utc.asc()).all())
     rep = {}
-    for sid, build, sdk, brand, os_name in rows:
-        rep[sid] = {"build": build, "sdk": sdk, "brand": brand, "os": os_name}   # latest wins
-    countries, brands, andv = {}, {}, {}
-    for sid, d in rep.items():
-        r = db.get(Rider, sid)
-        flag = r.flag if r else None
-        if flag:
-            c = countries.setdefault(flag, {"n": 0, "build": 0, "bn": 0, "sdk": 0, "sn": 0})
-            c["n"] += 1
-            if d["build"]:
-                c["build"] += d["build"]; c["bn"] += 1
-            if d["sdk"]:
-                c["sdk"] += d["sdk"]; c["sn"] += 1
-        if d["brand"]:
-            brands[d["brand"]] = brands.get(d["brand"], 0) + 1
-        if d["sdk"]:
-            andv[d["sdk"]] = andv.get(d["sdk"], 0) + 1
-    by = [{"country": f, "riders": c["n"],
-           "avg_build": round(c["build"] / c["bn"]) if c["bn"] else None,
-           "avg_sdk": round(c["sdk"] / c["sn"], 1) if c["sn"] else None}
-          for f, c in countries.items()]
-    top = sorted([(s, d["build"]) for s, d in rep.items() if d["build"]], key=lambda x: -x[1])[:10]
+    for sid, appv, mj in rows:
+        osv = mj.get("os_version") if isinstance(mj, dict) else None
+        rep[sid] = {"app": appv, "os": osv}     # ordered asc -> latest trip wins
+    appc, osc = {}, {}
+    for d in rep.values():
+        if d["app"]:
+            appc[d["app"]] = appc.get(d["app"], 0) + 1
+        if d["os"]:
+            osc[d["os"]] = osc.get(d["os"], 0) + 1
+    adopters = sorted(
+        ({**_rider_brief(db, s), "ver": d["app"]} for s, d in rep.items() if d["app"]),
+        key=lambda x: str(x["ver"]), reverse=True)[:10]
     return {
-        "adopters": [{**_rider_brief(db, s), "build": b} for s, b in top],
-        "updated": sorted([x for x in by if x["avg_build"]], key=lambda x: -x["avg_build"]),
-        "newest": sorted([x for x in by if x["avg_sdk"]], key=lambda x: -x["avg_sdk"]),
-        "oldest": sorted([x for x in by if x["avg_sdk"]], key=lambda x: x["avg_sdk"]),
-        "phones": sorted([{"brand": b, "riders": n} for b, n in brands.items()], key=lambda x: -x["riders"]),
-        "android": sorted([{"version": ANDROID.get(s, f"API {s}"), "sdk": s, "riders": n}
-                           for s, n in andv.items()], key=lambda x: -x["sdk"]),
+        "adopters": adopters,
+        "appvers": sorted([{"version": v, "riders": n} for v, n in appc.items()], key=lambda x: -x["riders"]),
+        "osvers": sorted([{"version": v, "riders": n} for v, n in osc.items()], key=lambda x: -x["riders"]),
     }
 
 

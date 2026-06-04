@@ -3,7 +3,9 @@ plausibility -> persist (summary + track + raw) -> aggregate."""
 from __future__ import annotations
 
 import gzip
+import hashlib
 import zlib
+from datetime import datetime
 
 from sqlalchemy.exc import IntegrityError
 
@@ -60,6 +62,19 @@ def _verdict(status: str) -> str:
             "rejected": "rejected"}.get(status, "under_review")
 
 
+def _parse_iso(s):
+    """Parse the app's authoritative ISO-8601 UTC timestamps ('...Z') to naive UTC."""
+    if not s or not isinstance(s, str):
+        return None
+    s = s.strip().replace("Z", "")
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
 class IngestService:
     def __init__(self, db):
         self.db = db
@@ -102,6 +117,11 @@ class IngestService:
         except Exception as e:
             raise IngestError(422, f"decompress_failed:{e}")
 
+        # content integrity: the app sends sha256 of the *uncompressed* CSV
+        want_sha = meta.get("file_sha256")
+        if want_sha and hashlib.sha256(data).hexdigest() != str(want_sha).strip().lower():
+            raise IngestError(422, "checksum_mismatch")
+
         try:
             tz_off = int(meta.get("tz_offset_min", 0) or 0)
         except (TypeError, ValueError):
@@ -117,6 +137,9 @@ class IngestService:
             raise IngestError(413, "too_many_samples")
 
         sm = summarize(samples, max_step_km=5.0, gps_tolerance=config.DIST_TOLERANCE)
+        # prefer the app's authoritative UTC start/end (the CSV Date is local, no TZ)
+        m_start = _parse_iso(meta.get("start_utc")) or _naive(sm.start_utc)
+        m_end = _parse_iso(meta.get("end_utc")) or _naive(sm.end_utc)
         is_mock = bool(meta.get("is_mock_location", False))
         status, reasons = check(
             samples, sm, is_mock,
@@ -128,8 +151,8 @@ class IngestService:
         # same rider with a time-overlapping (non-rejected) trip is physically
         # impossible — one person, two wheels at once — and also catches the same
         # ride uploaded from two phones (different trip_uuid, same window).
-        if sm.start_utc and sm.end_utc:
-            s0, e0 = _naive(sm.start_utc), _naive(sm.end_utc)
+        if m_start and m_end:
+            s0, e0 = m_start, m_end
             clash = (self.db.query(Trip.trip_uuid)
                      .filter(Trip.rider_store_id == store, Trip.trip_uuid != trip_uuid,
                              Trip.validation_status != "rejected",
@@ -152,11 +175,10 @@ class IngestService:
         wid = wheel.get("serial") or wheel.get("ble_mac")
         self._register_wheel(store, wheel, wid)
 
-        dev = meta.get("device") or {}
         try:
             trip = self.trips.insert_trip(
                 trip_uuid=trip_uuid, rider_store_id=store, wheel_id=wid,
-                start_utc=_naive(sm.start_utc), end_utc=_naive(sm.end_utc),
+                start_utc=m_start, end_utc=m_end,
                 tz=str(meta.get("tz") or tz_off), tz_known=bool(meta.get("tz_known", True)),
                 distance_km=sm.distance_km, duration_s=sm.duration_s,
                 max_speed=sm.max_speed, avg_speed=sm.avg_speed, max_gforce=sm.max_gforce,
@@ -169,11 +191,9 @@ class IngestService:
                 validation_status=status, flag_reasons=reasons or None,
                 schema_version=meta.get("schema_version"), source_app=meta.get("source_app"),
                 is_mock_location=is_mock, sample_count=sm.sample_count,
-                app_version=meta.get("app_version"), app_build=_intval(meta.get("app_build")),
+                app_version=meta.get("app_version"),
                 os_name=("ios" if meta.get("platform") == "apple" else "android"),
-                sdk_int=_intval(dev.get("sdk_int")), device_brand=dev.get("manufacturer"),
-                device_model=dev.get("model"),
-                meta_json=({k: meta.get(k) for k in ("device", "gps", "sample_interval_ms", "os_version")
+                meta_json=({k: meta.get(k) for k in ("gps", "os_version", "sample_count")
                             if meta.get(k) is not None} or None),
             )
         except IntegrityError:

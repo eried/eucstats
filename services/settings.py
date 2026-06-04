@@ -32,14 +32,11 @@ METRIC_BOARDS = [
     ("early", "Early Bird"), ("peak", "Peak Bagger"), ("energy", "Power Plant"),
     ("explorer", "Explorer"), ("bigday", "Big Day"), ("commuter", "Commuter"),
 ]
-# Inner sub-panels of the "App & devices" section (keys match version_stats fields).
+# Inner sub-panels of the "App & OS" section (keys match version_stats output).
 METRIC_APP = [
-    ("adopters", "Bleeding Edge (newest app build)"),
-    ("updated", "Most up-to-date countries"),
-    ("newest", "Freshest fleet (newest Android)"),
-    ("oldest", "Living in the past (oldest Android)"),
-    ("phones", "Phone tribes"),
-    ("android", "Android zoo"),
+    ("adopters", "Bleeding Edge (newest app)"),
+    ("appvers", "App versions"),
+    ("osvers", "OS versions"),
 ]
 
 # --- page behaviour (consumed by the public frontend as window.__CFG__) ---

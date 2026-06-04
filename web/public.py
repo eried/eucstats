@@ -494,13 +494,10 @@ async function showTech(){
   const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
   const sec=(key,t,h)=>HIDE.app.includes(key)?"":`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;
-  const body=sec("adopters","🚀 Bleeding Edge · newest app build",tbl(d.adopters,rl,e=>"build "+e.build))+
-    sec("updated","🔄 Most up-to-date countries",tbl(d.updated,fn,e=>"build "+e.avg_build))+
-    sec("newest","✨ Freshest fleet · newest Android",tbl(d.newest,fn,e=>"API "+e.avg_sdk))+
-    sec("oldest","🐢 Living in the past · oldest Android",tbl(d.oldest,fn,e=>"API "+e.avg_sdk))+
-    sec("phones","📱 Phone tribes",tbl(d.phones,e=>e.brand,e=>e.riders+" riders"))+
-    sec("android","🤖 Android zoo",tbl(d.android,e=>e.version,e=>e.riders+" riders"));
-  setPanel("tech","App & devices",body||'<div class="empty">all panels hidden</div>');
+  const body=sec("adopters","🚀 Bleeding Edge · newest app",tbl(d.adopters,rl,e=>"v"+(e.ver||"?")))+
+    sec("appvers","📱 App versions",tbl(d.appvers,e=>"v"+e.version,e=>e.riders+" riders"))+
+    sec("osvers","🤖 OS versions",tbl(d.osvers,e=>e.version,e=>e.riders+" riders"));
+  setPanel("tech","App & OS",body||'<div class="empty">no app data yet</div>');
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.dataset.p]());
