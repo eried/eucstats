@@ -27,6 +27,8 @@ METRIC_BOARDS = [
     ("voltage", "Volt Lord"), ("streak", "Streak Master"), ("ascent", "Everest Climber"),
     ("range", "Long Hauler"), ("efficiency", "Eco Rider"), ("hours", "Steel Legs"),
     ("cruise", "Sunday Cruiser"), ("globe", "Globe Trotter"), ("altking", "Altitude King"),
+    ("frequent", "Frequent Flyer"), ("marathon", "Marathoner"), ("pace", "Pace Maker"),
+    ("battery", "Battery Vampire"), ("night", "Night Rider"), ("weekend", "Weekend Warrior"),
 ]
 
 

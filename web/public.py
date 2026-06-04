@@ -220,6 +220,12 @@ const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
 const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v3a2 2 0 0 1-2 2H4M20 9h-3a2 2 0 0 1-2-2V4M4 15h3a2 2 0 0 1 2 2v3M15 20v-3a2 2 0 0 1 2-2h3"/></svg>';
 const IC={
+ frequent:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
+ marathon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="14" r="8"/><path d="M12 14V9.5M9 2h6"/></svg>',
+ pace:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 14l4-2.5"/></svg>',
+ battery:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="8" width="16" height="9" rx="2"/><path d="M21 11v3" stroke-linecap="round"/><path d="M6 12.5h5" stroke-linecap="round"/></svg>',
+ night:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>',
+ weekend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="15.5" cy="15.5" r="1.8" fill="currentColor" stroke="none"/></svg>',
  mileage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5h8a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h11"/></svg>',
  daily:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4.5"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g></svg>',
  week:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><rect x="6" y="13" width="4" height="4" fill="currentColor" stroke="none"/></svg>',
@@ -258,7 +264,13 @@ const BOARDS=[
  {k:"hours",t:"Steel Legs",c:"hours",u:" h",d:"Most hours on the wheel"},
  {k:"cruise",t:"Sunday Cruiser",c:"slow_km",u:"",conv:"dist",d:"Longest calm ride held under 10 km/h"},
  {k:"globe",t:"Globe Trotter",c:"countries",u:"",d:"Most countries ridden in"},
- {k:"altking",t:"Altitude King",c:"alt_range",u:" m",d:"Biggest altitude swing in one ride"}];
+ {k:"altking",t:"Altitude King",c:"alt_range",u:" m",d:"Biggest altitude swing in one ride"},
+ {k:"frequent",t:"Frequent Flyer",c:"trips_total",u:"",d:"Most rides logged"},
+ {k:"marathon",t:"Marathoner",c:"ride_hours",u:" h",d:"Longest single ride by time"},
+ {k:"pace",t:"Pace Maker",c:"avg_speed",conv:"spd",d:"Highest average speed on a single ride"},
+ {k:"battery",t:"Battery Vampire",c:"batt_pct",u:" %",d:"Biggest battery drain in one ride"},
+ {k:"night",t:"Night Rider",c:"night_rides",u:"",d:"Most rides started at night (22:00–05:00 UTC)"},
+ {k:"weekend",t:"Weekend Warrior",c:"weekend_km",conv:"dist",d:"Most distance ridden on weekends"}];
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];

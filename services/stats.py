@@ -162,6 +162,65 @@ def sunday_cruiser(db, limit=50):
     return [{**_rider_brief(db, sid), "slow_km": round(d or 0, 2)} for sid, d in rows]
 
 
+# --- extra fun boards, computed straight from trips (no extra materialized columns) ---
+
+def _trip_max_board(db, col, key, limit, transform, flt=None):
+    sub = (db.query(Trip.rider_store_id.label("sid"), func.max(col).label("v"))
+           .filter(Trip.validation_status == "validated", col.isnot(None)))
+    if flt is not None:
+        sub = sub.filter(flt)
+    sub = sub.group_by(Trip.rider_store_id).subquery()
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), key: transform(v)} for sid, v in rows]
+
+
+def _trip_count_board(db, key, limit, flt=None):
+    sub = (db.query(Trip.rider_store_id.label("sid"), func.count(Trip.trip_uuid).label("v"))
+           .filter(Trip.validation_status == "validated"))
+    if flt is not None:
+        sub = sub.filter(flt)
+    sub = sub.group_by(Trip.rider_store_id).subquery()
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), key: int(n or 0)} for sid, n in rows]
+
+
+def frequent_flyer(db, limit=50):
+    return _trip_count_board(db, "trips_total", limit)
+
+
+def night_rider(db, limit=50):
+    hh = func.strftime("%H", Trip.start_utc)
+    return _trip_count_board(db, "night_rides", limit,
+                             flt=(Trip.start_utc.isnot(None)) & hh.in_(["22", "23", "00", "01", "02", "03", "04"]))
+
+
+def marathoner(db, limit=50):
+    return _trip_max_board(db, Trip.duration_s, "ride_hours", limit,
+                           transform=lambda v: round((v or 0) / 3600.0, 2), flt=Trip.duration_s > 0)
+
+
+def pace_maker(db, limit=50):
+    return _trip_max_board(db, Trip.avg_speed, "avg_speed", limit,
+                           transform=lambda v: round(v or 0, 1), flt=Trip.avg_speed > 0)
+
+
+def battery_vampire(db, limit=50):
+    return _trip_max_board(db, Trip.battery_used_pct, "batt_pct", limit,
+                           transform=lambda v: round(v or 0, 1), flt=Trip.battery_used_pct > 0)
+
+
+def weekend_warrior(db, limit=50):
+    dow = func.strftime("%w", Trip.start_utc)  # 0=Sun .. 6=Sat
+    sub = (db.query(Trip.rider_store_id.label("sid"), func.sum(Trip.distance_km).label("v"))
+           .filter(Trip.validation_status == "validated", Trip.start_utc.isnot(None), dow.in_(["0", "6"]))
+           .group_by(Trip.rider_store_id).subquery())
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), "weekend_km": round(v or 0, 2)} for sid, v in rows]
+
+
 BOARDS = {
     "mileage": mileage_leaderboard,
     "daily": daily_leaderboard,
@@ -181,6 +240,12 @@ BOARDS = {
     "cruise": sunday_cruiser,
     "globe": globe_trotter,
     "altking": altitude_king,
+    "frequent": frequent_flyer,
+    "marathon": marathoner,
+    "pace": pace_maker,
+    "battery": battery_vampire,
+    "night": night_rider,
+    "weekend": weekend_warrior,
 }
 
 
