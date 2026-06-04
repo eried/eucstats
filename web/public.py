@@ -126,6 +126,7 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes panPop{from{opacity:0;transform:translate(-50%,12px) scale(.92)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
 @keyframes panFlip{from{opacity:0;transform:translate(-50%,22px) perspective(800px) rotateX(20deg)}to{opacity:1;transform:translate(-50%,0) perspective(800px) rotateX(0)}}
 @keyframes panBlur{from{opacity:0;filter:blur(10px);transform:translate(-50%,8px)}to{opacity:1;filter:blur(0);transform:translate(-50%,0)}}
+@keyframes panDown{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,58px)}}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);flex:0 0 auto;z-index:5;background:rgba(11,15,28,.96)}
 .phead b{font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}.phead button{background:transparent;border:0;color:var(--mut);cursor:pointer}
 .pacts{display:flex;gap:12px;align-items:center}.phead button:hover{color:var(--acc)}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
@@ -421,16 +422,28 @@ function countUp(el,target,dur,dec){const t=+target||0;let from;
   const delta=t-from;let s0=null;
   function step(now){if(s0===null)s0=now;let p=Math.min(1,(now-s0)/dur);p=1-Math.pow(1-p,3);const v=from+delta*p;el.textContent=dec?v.toFixed(dec):Math.round(v).toLocaleString();if(p<1)requestAnimationFrame(step);else{el.textContent=dec?t.toFixed(dec):Math.round(t).toLocaleString();el.dataset.cur=""+t;}}
   requestAnimationFrame(step);}
+const DOCK=["riders","countries","wheels","brands","records","tech"];
 function setPanel(name,title,html){
-  if(openPanel===name){closePanel();return;}
+  const prev=openPanel;
   openPanel=name;ptitle.textContent=title;pbody.innerHTML=html;panel.dataset.sec=name;panel.classList.add("open");
-  panel.style.animation="none";void panel.offsetWidth;
-  panel.style.animation="panPop .42s cubic-bezier(.2,.8,.2,1)";
+  if(prev!==name){   // animate on open/switch only — NOT on in-place refresh (prev===name)
+    let anim="panUp";
+    if(prev!==null){const oi=DOCK.indexOf(prev),ni=DOCK.indexOf(name);anim=(ni>oi)?"panRight":"panLeft";}
+    panel.style.animation="none";void panel.offsetWidth;
+    panel.style.animation=anim+" .4s cubic-bezier(.2,.8,.2,1)";
+  }
   document.querySelectorAll(".dock button").forEach(b=>b.classList.toggle("on",b.dataset.p===name));
 }
-function closePanel(){openPanel=null;panel.classList.remove("open");panel.style.animation="";document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));}
+function closePanel(){
+  if(openPanel===null&&!panel.classList.contains("open"))return;
+  openPanel=null;
+  document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));
+  panel.style.animation="none";void panel.offsetWidth;
+  panel.style.animation="panDown .28s ease both";
+  setTimeout(()=>{panel.classList.remove("open");panel.style.animation="";},280);
+}
 document.getElementById("pclose").onclick=closePanel;
-function refreshPanel(){const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}}
+function refreshPanel(){const p=openPanel;if(p)HANDLERS[p]();}   // reload in place, no re-animate
 document.getElementById("prefresh").onclick=()=>{const b=document.getElementById("prefresh");b.classList.add("spin");refreshPanel();setTimeout(()=>b.classList.remove("spin"),650);};
 
 const MEDAL='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg>';
@@ -512,7 +525,7 @@ async function showTech(){
   setPanel("tech","App & OS",body||'<div class="empty">no app data yet</div>');
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
-document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.dataset.p]());
+document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>{if(openPanel===b.dataset.p)closePanel();else HANDLERS[b.dataset.p]();});
 HIDE.sections.forEach(s=>{const b=document.querySelector('.dock button[data-p="'+s+'"]');if(b)b.style.display='none';});
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
