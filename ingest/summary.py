@@ -189,8 +189,15 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
         distance = gps_km
 
     speeds = [s.speed for s in samples if s.speed is not None]
-    max_speed = max(speeds) if speeds else None
     avg_speed = (sum(speeds) / len(speeds)) if speeds else None
+    # True top speed = max of the per-sample LOWER of (wheel speed, GPS speed).
+    # This rejects GPS noise (GPS reads high while walking the wheel) AND wheel
+    # freespin (wheel reads high while lifted). Samples with no GPS fix can't
+    # corroborate, so they're skipped for the max; if a trip has NO GPS speed at
+    # all we fall back to the wheel max (such trips are flagged unverified anyway).
+    corrob = [min(s.speed, s.gps_speed) for s in samples
+              if s.speed is not None and s.gps_speed is not None]
+    max_speed = max(corrob) if corrob else (max(speeds) if speeds else None)
 
     gs = [abs(s.g) for s in samples if s.g is not None]
     max_gforce = max(gs) if gs else None
