@@ -274,7 +274,7 @@ def by_country(db, limit=50):
 
 def champions(db):
     """Champion of the day/week/month by the EUC Planet Score: distance rewarded,
-    boosted by top speed and time in the saddle. Computed in Python so it works
+    boosted by top speed and time on the wheel. Computed in Python so it works
     whether start_utc is stored tz-aware or naive."""
     now = datetime.utcnow()
     windows = {"day": now - timedelta(days=1), "week": now - timedelta(days=7),

@@ -181,7 +181,7 @@ td.sub{color:var(--mut)}
 </div>
 <div class="rfoot intro">
   <a href="https://eucplanet.ried.no" target="_blank" rel="noopener"><img src="/static/euc-planet.svg" alt=""/><span>powered by <b>EUC&nbsp;Planet</b></span></a>
-  <a href="https://github.com/eried/eucstats" target="_blank" rel="noopener" title="View / contribute on GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
+  <a href="https://github.com/eried/eucstats" target="_blank" rel="noopener" aria-label="eucstats on GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
   <span class="ver" title="HTML last-modified date (auto-updated on deploy)">build __BUILD__</span>
 </div>
 <div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="prefresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
@@ -244,7 +244,7 @@ const BOARDS=[
  {k:"ascent",t:"Everest Climber",c:"ascent_m",u:" m",d:"Total elevation climbed (Everest = 8849 m)"},
  {k:"range",t:"Long Hauler",c:"range_km",u:"",conv:"dist",d:"Longest estimated full-charge range"},
  {k:"efficiency",t:"Eco Rider",c:"wh_per_km",u:" Wh/km",d:"Lowest energy use per km · most efficient"},
- {k:"hours",t:"Steel Legs",c:"hours",u:" h",d:"Most hours in the saddle"},
+ {k:"hours",t:"Steel Legs",c:"hours",u:" h",d:"Most hours on the wheel"},
  {k:"cruise",t:"Sunday Cruiser",c:"slow_km",u:"",conv:"dist",d:"Longest calm ride held under 10 km/h"},
  {k:"globe",t:"Globe Trotter",c:"countries",u:"",d:"Most countries ridden in"},
  {k:"altking",t:"Altitude King",c:"alt_range",u:" m",d:"Biggest altitude swing in one ride"}];
@@ -497,7 +497,7 @@ function renderChampions(){
   if(!(C.day||C.week||C.month)){ch.style.display="none";return;}
   ch.style.display="block";ch.style.cursor="default";ch.onclick=null;
   const line=(lab,c)=>c?`<div class="cline" data-sid="${c.store_id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||c.store_id}</b><span class="cscore">${c.score} pts</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">no rides yet</span></div>`;
-  const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+"Our secret recipe: distance is king, lifted by your top speed and time in the saddle.").replace(/"/g,"&quot;");
+  const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+"Our secret recipe: distance is king, lifted by your top speed and time on the wheel.").replace(/"/g,"&quot;");
   ch.innerHTML=`<div class="chead">${FLAG}<span>EUC Planet Champions</span><button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="Show / hide">${CHEV}</button></div>`+
     line("Day",C.day)+line("Week",C.week)+line("Month",C.month);
   ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.store_id===el.dataset.sid);if(c)flyToRider(c);};});

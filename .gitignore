@@ -21,3 +21,6 @@ __pycache__/
 .playwright-mcp/
 /eucstats-*.png
 /members.json
+
+# Local-only encode source for the intro video (committed intro.mp4 is the optimized build)
+/web/static/intro_src.mp4
