@@ -122,6 +122,11 @@ def stats_summary(db: Session = Depends(get_db)):
     return stats.global_summary(db)
 
 
+@router.get("/stats/versions")
+def stats_versions(db: Session = Depends(get_db)):
+    return stats.version_stats(db)
+
+
 @router.get("/groups/{kind}")
 def groups(kind: str, db: Session = Depends(get_db)):
     fns = {"brand": stats.by_brand, "wheel": stats.by_wheel, "country": stats.by_country}

@@ -311,6 +311,49 @@ def champions(db):
             "formula": "EUC Planet Score = km × (1 + top km/h ÷ 100) × (1 + hours ÷ 10)"}
 
 
+ANDROID = {36: "Android 16", 35: "Android 15", 34: "Android 14", 33: "Android 13",
+           32: "Android 12L", 31: "Android 12", 30: "Android 11", 29: "Android 10",
+           28: "Android 9", 27: "Android 8.1", 26: "Android 8", 25: "Android 7.1"}
+
+
+def version_stats(db):
+    """Fun app/device stats — representative device per rider = their latest trip."""
+    rows = (db.query(Trip.rider_store_id, Trip.app_build, Trip.sdk_int, Trip.device_brand, Trip.os_name)
+            .join(Rider, Rider.store_id == Trip.rider_store_id)
+            .filter(Trip.validation_status == "validated", Rider.deleted_at.is_(None),
+                    Trip.os_name.isnot(None))
+            .order_by(Trip.start_utc.asc()).all())
+    rep = {}
+    for sid, build, sdk, brand, os_name in rows:
+        rep[sid] = {"build": build, "sdk": sdk, "brand": brand, "os": os_name}   # latest wins
+    countries, brands, andv = {}, {}, {}
+    for sid, d in rep.items():
+        r = db.get(Rider, sid)
+        flag = r.flag if r else None
+        if flag:
+            c = countries.setdefault(flag, {"n": 0, "build": 0, "bn": 0, "sdk": 0, "sn": 0})
+            c["n"] += 1
+            if d["build"]:
+                c["build"] += d["build"]; c["bn"] += 1
+            if d["sdk"]:
+                c["sdk"] += d["sdk"]; c["sn"] += 1
+        if d["brand"]:
+            brands[d["brand"]] = brands.get(d["brand"], 0) + 1
+        if d["sdk"]:
+            andv[d["sdk"]] = andv.get(d["sdk"], 0) + 1
+    by = [{"country": f, "riders": c["n"],
+           "avg_build": round(c["build"] / c["bn"]) if c["bn"] else None,
+           "avg_sdk": round(c["sdk"] / c["sn"], 1) if c["sn"] else None}
+          for f, c in countries.items()]
+    return {
+        "updated": sorted([x for x in by if x["avg_build"]], key=lambda x: -x["avg_build"]),
+        "oldest": sorted([x for x in by if x["avg_sdk"]], key=lambda x: x["avg_sdk"]),
+        "phones": sorted([{"brand": b, "riders": n} for b, n in brands.items()], key=lambda x: -x["riders"]),
+        "android": sorted([{"version": ANDROID.get(s, f"API {s}"), "sdk": s, "riders": n}
+                           for s, n in andv.items()], key=lambda x: -x["sdk"]),
+    }
+
+
 def global_summary(db):
     total_km = db.query(func.coalesce(func.sum(RiderStat.total_km), 0.0)).scalar() or 0.0
     return {

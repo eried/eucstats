@@ -76,6 +76,13 @@ class Trip(Base):
     source_app = Column(String)
     is_mock_location = Column(Boolean, default=False)
     sample_count = Column(Integer)
+    app_version = Column(String)
+    app_build = Column(Integer)
+    os_name = Column(String)             # android | ios
+    sdk_int = Column(Integer)            # android API level
+    device_brand = Column(String)
+    device_model = Column(String)
+    meta_json = Column(JSON)             # device/gps/sample-rate extras
     aggregated = Column(Boolean, default=False)
     created_at = Column(DateTime, default=utcnow)
 

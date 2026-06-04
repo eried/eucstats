@@ -48,6 +48,11 @@ WHEELS = [
     ("InMotion", "V13"), ("InMotion", "V12"), ("InMotion", "V11"), ("InMotion", "V14 Adventure"),
     ("KingSong", "S22"), ("KingSong", "S20"), ("KingSong", "S19"), ("KingSong", "16X"),
 ]
+PHONES = [("Samsung", "Galaxy S24"), ("Samsung", "Galaxy S23"), ("Google", "Pixel 8"),
+          ("Google", "Pixel 6"), ("Xiaomi", "13 Pro"), ("OnePlus", "12"), ("Samsung", "Galaxy A54"),
+          ("Motorola", "Edge 40"), ("Xiaomi", "Redmi Note 12"), ("Sony", "Xperia 1 V"),
+          ("Nothing", "Phone 2"), ("Asus", "ROG Phone 7")]
+SDKS = [28, 29, 30, 30, 31, 31, 33, 33, 34, 34, 35, 36]
 CCENTER = {c[0]: (c[1], c[2]) for c in COUNTRIES}
 SPECIAL = {"tg_001": "IT"}   # Gio Aka Wheel In Motion is an Italian channel
 EXCLUDE = {"EUCPlanet", "MotoEye / Smartglasses", "Erwin Ried", "Off-topic", "S T", "Adam"}
@@ -177,6 +182,10 @@ def main():
             r = cl.post("/api/v1/riders", json=payload)
 
             serial = f"{brand[:2].upper()}{idx:04d}{rnd.randrange(1000, 9999)}"
+            pb, pm = PHONES[rnd.randrange(len(PHONES))]
+            sdk = rnd.choice(SDKS)
+            build = rnd.randint(410, 466)
+            appver = f"3.{(build - 400) // 10}.{(build - 400) % 10}"
             streak = rnd.randint(1, 9 if idx < 6 else 5)
             extra = rnd.randint(0, 4 if idx < 10 else 2)
             base_off = rnd.randint(0, 40)
@@ -197,6 +206,10 @@ def main():
                     "source_app": t["src"], "schema_version": t["sv"],
                     "tz": "UTC", "tz_offset_min": 0, "tz_known": True, "is_mock_location": False,
                     "wheel": {"serial": serial, "brand": brand, "model": model},
+                    "app_version": appver, "app_build": build, "os_version": f"Android {sdk - 20}",
+                    "device": {"manufacturer": pb, "model": pm, "sdk_int": sdk,
+                               "screen_resolution": "1080x2400", "locale": "en-US"},
+                    "sample_interval_ms": 1000,
                     "attestation": {"type": "play_integrity", "token": "stub", "request_hash": "x"},
                 }
                 files = {"trip": (f"{serial}_{doff}.csv.gz", gzip.compress(csvtxt.encode()), "application/gzip")}

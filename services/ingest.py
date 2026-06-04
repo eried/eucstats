@@ -32,6 +32,13 @@ def _naive(dt):
     return dt.replace(tzinfo=None) if dt is not None else None
 
 
+def _intval(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 class IngestService:
     def __init__(self, db):
         self.db = db
@@ -92,6 +99,7 @@ class IngestService:
         wid = wheel.get("serial") or wheel.get("ble_mac")
         self._register_wheel(store, wheel, wid)
 
+        dev = meta.get("device") or {}
         trip = self.trips.insert_trip(
             trip_uuid=trip_uuid, rider_store_id=store, wheel_id=wid,
             start_utc=_naive(sm.start_utc), end_utc=_naive(sm.end_utc),
@@ -107,6 +115,12 @@ class IngestService:
             validation_status=status, flag_reasons=reasons or None,
             schema_version=meta.get("schema_version"), source_app=meta.get("source_app"),
             is_mock_location=is_mock, sample_count=sm.sample_count,
+            app_version=meta.get("app_version"), app_build=_intval(meta.get("app_build")),
+            os_name=("ios" if meta.get("platform") == "apple" else "android"),
+            sdk_int=_intval(dev.get("sdk_int")), device_brand=dev.get("manufacturer"),
+            device_model=dev.get("model"),
+            meta_json=({k: meta.get(k) for k in ("device", "gps", "sample_interval_ms", "os_version")
+                        if meta.get(k) is not None} or None),
         )
 
         track = downsample(samples, config.TRACK_MAX_POINTS)

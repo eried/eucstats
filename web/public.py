@@ -145,6 +145,7 @@ td.sub{color:var(--mut)}
 .celln{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;vertical-align:middle}.celln>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .csel{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:inherit;font-size:12px;padding:5px 8px;cursor:pointer;max-width:150px}
 .recval{flex:0 0 auto;color:var(--acc);font-weight:700;font-size:15px}
+.vsec{margin-bottom:14px}.vtitle{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold);margin:0 0 6px}
 .winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(46,168,255,.22),0 0 20px rgba(46,168,255,.65)}
 #gear{position:fixed;left:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
 #gear:hover{color:var(--acc)}#gear svg{width:18px;height:18px}
@@ -178,6 +179,7 @@ td.sub{color:var(--mut)}
   <button class="intro" data-p="wheels" title="Wheel models"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg><span class="lbl">Wheels</span></button>
   <button class="intro" data-p="brands" title="Wheel brands"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="lbl">Brands</span></button>
   <button class="intro" data-p="records" title="All-time records"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg><span class="lbl">Records</span></button>
+  <button class="intro" data-p="tech" title="App & devices"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2.6"/><path d="M10.5 18.5h3" stroke-linecap="round"/></svg><span class="lbl">App</span></button>
 </div>
 <button id="gear" class="intro" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg></button>
 <div id="cfg" class="cfgpop"></div>
@@ -397,7 +399,18 @@ async function showRecords(){
   setPanel("records","All-time records",`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${RECLABEL[r.key]||r.key}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">no records yet</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
-const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords};
+async function showTech(){
+  const d=await j("/stats/versions");
+  const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
+  const sec=(t,h)=>`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
+  const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;
+  setPanel("tech","App & devices",
+    sec("📲 Most up-to-date",tbl(d.updated,fn,e=>"build "+e.avg_build))+
+    sec("🐌 Oldest phones",tbl(d.oldest,fn,e=>"API "+e.avg_sdk))+
+    sec("📱 Top phone brands",tbl(d.phones,e=>e.brand,e=>e.riders+" riders"))+
+    sec("🤖 Android versions",tbl(d.android,e=>e.version,e=>e.riders+" riders")));
+}
+const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.dataset.p]());
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
