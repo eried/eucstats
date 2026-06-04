@@ -3,6 +3,7 @@ plausibility -> persist (summary + track + raw) -> aggregate."""
 from __future__ import annotations
 
 import gzip
+import zlib
 
 import config
 from ingest.attestation import get_verifier
@@ -26,6 +27,18 @@ class IngestError(Exception):
 
 def _is_gzip(b: bytes) -> bool:
     return len(b) >= 2 and b[0] == 0x1F and b[1] == 0x8B
+
+
+def _gunzip_capped(raw: bytes, cap: int) -> bytes:
+    """Decompress gzip with a hard output cap — defends against gzip bombs."""
+    d = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    out = d.decompress(raw, cap + 1)
+    if d.unconsumed_tail or len(out) > cap:
+        raise IngestError(413, "decompressed_too_large")
+    out += d.flush()
+    if len(out) > cap:
+        raise IngestError(413, "decompressed_too_large")
+    return out
 
 
 def _naive(dt):
@@ -66,19 +79,33 @@ class IngestService:
                     "validation_status": existing.validation_status,
                     "duplicate": True}
 
+        cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
         try:
-            data = gzip.decompress(raw_bytes) if _is_gzip(raw_bytes) else raw_bytes
+            if _is_gzip(raw_bytes):
+                data = _gunzip_capped(raw_bytes, cap)
+            else:
+                if len(raw_bytes) > cap:
+                    raise IngestError(413, "payload_too_large")
+                data = raw_bytes
             text = data.decode("utf-8", "replace")
+        except IngestError:
+            raise
         except Exception as e:
             raise IngestError(422, f"decompress_failed:{e}")
 
-        tz_off = int(meta.get("tz_offset_min", 0) or 0)
+        try:
+            tz_off = int(meta.get("tz_offset_min", 0) or 0)
+        except (TypeError, ValueError):
+            tz_off = 0
+        tz_off = max(-840, min(840, tz_off))   # clamp to +-14h (untrusted client value)
         try:
             samples = parse_csv(text, tz_off)
         except Exception as e:
             raise IngestError(422, f"parse_failed:{e}")
         if not samples:
             raise IngestError(422, "no_samples")
+        if len(samples) > config.MAX_SAMPLES:
+            raise IngestError(413, "too_many_samples")
 
         sm = summarize(samples, max_step_km=5.0, gps_tolerance=config.DIST_TOLERANCE)
         is_mock = bool(meta.get("is_mock_location", False))

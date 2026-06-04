@@ -69,9 +69,13 @@ def _f(v: str | None) -> float | None:
     if v in ("", "-"):
         return None
     try:
-        return float(v)
+        x = float(v)
     except ValueError:
         return None
+    # reject NaN / +-inf — they poison max()/min()/sum() and aren't valid JSON
+    if x != x or x in (float("inf"), float("-inf")):
+        return None
+    return x
 
 
 def parse_csv(text: str, tz_offset_min: int = 0) -> list[Sample]:

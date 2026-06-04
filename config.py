@@ -32,6 +32,8 @@ GRID_ZOOMS = [float(z) for z in os.environ.get("EUCSTATS_GRID_ZOOMS", "2.0,0.5,0
 
 # --- Limits ---
 MAX_UPLOAD_MB = float(os.environ.get("EUCSTATS_MAX_UPLOAD_MB", "8"))
+MAX_DECOMPRESSED_MB = float(os.environ.get("EUCSTATS_MAX_DECOMPRESSED_MB", "64"))   # gzip-bomb guard
+MAX_SAMPLES = int(os.environ.get("EUCSTATS_MAX_SAMPLES", "300000"))                  # per-trip sample cap
 AVATAR_PX = 64
 TRACK_MAX_POINTS = 500
 
