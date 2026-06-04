@@ -48,6 +48,7 @@ class IdentityService:
                                 avatar_png, consent_public)
 
     def get_profile(self, store_id) -> dict | None:
+        import services.settings as settings
         r = self.repo.get(store_id)
         if r is None or r.deleted_at:
             return None
@@ -58,6 +59,8 @@ class IdentityService:
             "flag": r.flag,
             "has_avatar": r.avatar_png is not None,
             "consent_public": r.consent_public,
+            "banned": settings.is_banned(self.db, store_id),       # show a suspension notice on load
+            "ban_reason": settings.ban_reason(self.db, store_id),   # human-readable; null when not banned
             "can_change_name_after": _allowed_after(r.last_name_change),
             "can_change_flag_after": _allowed_after(r.last_flag_change),
             "can_change_avatar_after": _allowed_after(r.last_avatar_change),

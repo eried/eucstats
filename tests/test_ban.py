@@ -35,6 +35,17 @@ def test_card_reports_ban(db):
     assert card["banned"] is True and card["ban_reason"] == "fraud"
 
 
+def test_profile_reports_ban(db):
+    from services.identity import IdentityService
+    db.add(models.Rider(store_id="bad", display_name="Spammer", platform="google_play"))
+    db.commit()
+    svc = IdentityService(db)
+    assert svc.get_profile("bad")["banned"] is False
+    settings.ban(db, "bad", "mock GPS")
+    p = svc.get_profile("bad")
+    assert p["banned"] is True and p["ban_reason"] == "mock GPS"
+
+
 def test_rebuild_excludes_banned_rider(db):
     _rider_with_trip(db)
     assert stats.global_summary(db)["total_km"] == 10.0
