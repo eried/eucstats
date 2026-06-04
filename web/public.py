@@ -31,6 +31,7 @@ body{position:fixed;inset:0;width:100%}
 #map{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:0}
 #veil{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:1;pointer-events:none;transition:opacity .25s linear;background:linear-gradient(to bottom,rgba(0,0,0,.5) 0%,rgba(0,0,0,.12) 28%,rgba(0,0,0,0) 50%),radial-gradient(ellipse 80% 84% at 50% 48%,rgba(0,0,0,0) 40%,rgba(0,0,0,.74) 100%)}
 #dots{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:1;pointer-events:none;mix-blend-mode:multiply;opacity:.22;background-image:radial-gradient(circle at center,rgba(0,0,0,.8) 0,rgba(0,0,0,.8) .7px,transparent 1.2px);background-size:4px 4px}
+#testwm{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;pointer-events:none;font:900 clamp(46px,14vw,210px)/1 "Orbitron",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,42,42,.2);transform:rotate(-22deg);text-shadow:0 0 32px rgba(255,0,0,.22);white-space:nowrap;-webkit-text-stroke:2px rgba(255,60,60,.18)}
 #intro{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:3000;object-fit:cover;background:#000;filter:blur(.5px) saturate(1.08) contrast(1.04);clip-path:circle(150% at 50% 50%);transition:clip-path 1.6s cubic-bezier(.65,0,.35,1)}#intro.done{clip-path:circle(0% at 50% 50%);pointer-events:none}
 #introfx{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:3001;pointer-events:none;overflow:hidden;clip-path:circle(150% at 50% 50%);transition:clip-path 1.6s cubic-bezier(.65,0,.35,1);background:radial-gradient(ellipse 80% 84% at 50% 47%,rgba(0,0,0,0) 38%,rgba(0,0,0,.34) 72%,rgba(0,0,0,.7) 100%),linear-gradient(to bottom,rgba(0,0,0,.34),rgba(0,0,0,0) 20%,rgba(0,0,0,0) 80%,rgba(0,0,0,.42))}#introfx.done{clip-path:circle(0% at 50% 50%)}
 #introfx::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.45) 0,rgba(0,0,0,.45) 2px,rgba(130,180,255,.06) 2px,rgba(130,180,255,.06) 4px);background-size:100% 4px;mix-blend-mode:multiply;opacity:.72;animation:scan 2.5s linear infinite}
@@ -171,6 +172,7 @@ td.sub{color:var(--mut)}
 <div id="map"></div>
 <div id="veil"></div>
 <div id="dots"></div>
+<div id="testwm">TEST DATA</div>
 <video id="intro" autoplay muted playsinline preload="auto"><source src="/static/intro.mp4" type="video/mp4"></video>
 <div id="introfx"></div>
 <div class="topbar intro">
