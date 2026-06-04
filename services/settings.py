@@ -40,6 +40,38 @@ METRIC_APP = [
     ("android", "Android zoo"),
 ]
 
+# --- page behaviour (consumed by the public frontend as window.__CFG__) ---
+MAP_STYLES = ["dark", "light", "voyager", "satellite", "terrain"]
+_FALSEY = ("0", "false", "False", "")
+
+
+def get_behaviour(db: Session) -> dict:
+    try:
+        poll = max(0, int(get_meta(db, "cfg_poll_secs", "30") or 30))
+    except (TypeError, ValueError):
+        poll = 30
+    style = get_meta(db, "cfg_map_style", "dark") or "dark"
+    src = (get_meta(db, "cfg_intro_src", "/static/intro.mp4") or "").strip() or "/static/intro.mp4"
+    return {
+        "poll_secs": poll,
+        "intro_enabled": get_meta(db, "cfg_intro_enabled", "1") not in _FALSEY,
+        "intro_src": src,
+        "map_style": style if style in MAP_STYLES else "dark",
+        "glitch_enabled": get_meta(db, "cfg_glitch_enabled", "1") not in _FALSEY,
+    }
+
+
+def set_behaviour(db: Session, poll_secs, intro_enabled, intro_src, map_style, glitch_enabled) -> None:
+    try:
+        poll = max(0, min(3600, int(poll_secs)))
+    except (TypeError, ValueError):
+        poll = 30
+    set_meta(db, "cfg_poll_secs", str(poll))
+    set_meta(db, "cfg_intro_enabled", "1" if intro_enabled else "0")
+    set_meta(db, "cfg_intro_src", (intro_src or "").strip() or "/static/intro.mp4")
+    set_meta(db, "cfg_map_style", map_style if map_style in MAP_STYLES else "dark")
+    set_meta(db, "cfg_glitch_enabled", "1" if glitch_enabled else "0")
+
 
 def get_meta(db: Session, key: str, default: str | None = None) -> str | None:
     row = db.get(Meta, key)

@@ -278,7 +278,7 @@ function defaultUnit(){try{const r=((navigator.language||"").split("-")[1]||"").
 let UNIT=localStorage.getItem("eucstats_unit")||defaultUnit();
 const RASTER=(t,a)=>({version:8,sources:{r:{type:"raster",tiles:[t],tileSize:256,attribution:a,maxzoom:19}},layers:[{id:"r",type:"raster",source:"r"}]});
 const STYLES={dark:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",light:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",voyager:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",satellite:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}","© Esri, Maxar"),terrain:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}","© Esri")};
-let MAPSTYLE=localStorage.getItem("eucstats_style")||"dark";
+let MAPSTYLE=localStorage.getItem("eucstats_style")||(window.__CFG__&&window.__CFG__.map_style)||"dark";
 const mph=()=>UNIT==="mph";
 const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
@@ -512,7 +512,7 @@ function renderChips(){
 function animateChips(slow){const durs=slow?[2700,3500,3000,3900]:[850,1250,1050,1450];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
 const GLITCHSEL=".clab,.cline b,.dock .lbl,.chip b,.cscore,.tab span,.rk,.recval,.reclbl";
 function randomGlitch(){const els=[].slice.call(document.querySelectorAll(GLITCHSEL)).filter(e=>e.offsetParent!==null);if(els.length){const n=Math.random()<0.4?2:1;for(let k=0;k<n;k++){const el=els[(Math.random()*els.length)|0];el.classList.remove("rgbglitch");void el.offsetWidth;el.classList.add("rgbglitch");setTimeout(()=>el.classList.remove("rgbglitch"),650);}}setTimeout(randomGlitch,2500+Math.random()*3000);}
-setTimeout(randomGlitch,2800);
+if(!(window.__CFG__&&window.__CFG__.glitch_enabled===false))setTimeout(randomGlitch,2800);
 async function pollStats(){
   try{const ns=await j("/stats/summary"),nc=await j("/champions");S=ns;WC=nc;
     const map={riders:ns.riders,trips:ns.trips,total:mph()?r1(ns.total_km*MI):r1(ns.total_km),countries:ns.countries};
@@ -569,7 +569,8 @@ function setupCfg(){
 
 (function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();
 async function init(){
-  S=await j("/stats/summary"); WC=await j("/champions"); renderHeader(); setInterval(pollStats,30000);
+  S=await j("/stats/summary"); WC=await j("/champions"); renderHeader();
+  const _ps=(window.__CFG__&&typeof window.__CFG__.poll_secs==="number")?window.__CFG__.poll_secs:30; if(_ps>0)setInterval(pollStats,_ps*1000);
   const tzFull=Intl.DateTimeFormat().resolvedOptions().timeZone||"";
   const [rlon,rlat,rz]=TZMAP[tzFull]||REGION[tzFull.split("/")[0]]||[10,30,3];
   map=new maplibregl.Map({container:"map",style:STYLES[MAPSTYLE],center:[rlon,rlat],zoom:1.5,attributionControl:true});
@@ -596,6 +597,10 @@ async function init(){
     runIntro();
   }
   const vid=document.getElementById("intro"),fx=document.getElementById("introfx");
+  const _C=window.__CFG__||{};
+  if(_C.intro_enabled===false){ if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; }
+  else {
+  if(vid&&_C.intro_src){const _so=vid.querySelector("source"); if(_so&&_so.getAttribute("src")!==_C.intro_src){_so.setAttribute("src",_C.intro_src); vid.load();}}
   const introSeen=localStorage.getItem("eucstats_intro_seen");
   const endVideo=()=>{ if(videoDone) return; videoDone=true; try{localStorage.setItem("eucstats_intro_seen","1");}catch(e){}
     if(vid){vid.classList.add("done"); setTimeout(()=>{vid&&vid.remove();},2000);}
@@ -611,6 +616,7 @@ async function init(){
     } else { setTimeout(endVideo,14000); }   // first visit: full intro (with a safety timeout)
     const pp=vid.play&&vid.play(); if(pp&&pp.catch)pp.catch(()=>{});
   } else { videoDone=true; }
+  }
   map.on("load",async ()=>{
     CELLS=await j("/map/cells?zoom=0.1"); addHeat();
     mapReady=true; doIntro();
@@ -643,6 +649,7 @@ def _hide_cfg(db):
     h = settings.get_hidden(db)
     return ('<script>window.__HIDE__='
             + json.dumps({"boards": h["boards"], "sections": h["sections"], "app": h.get("app", [])})
+            + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';</script>')
 
 

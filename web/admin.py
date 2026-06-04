@@ -93,7 +93,8 @@ def _counts(db: Session) -> dict:
 
 
 _NAV = [("/admin", "Overview"), ("/admin/datasets", "Datasets"),
-        ("/admin/pipeline", "Pipeline"), ("/admin/metrics", "Metrics")]
+        ("/admin/pipeline", "Pipeline"), ("/admin/metrics", "Metrics"),
+        ("/admin/settings", "Settings")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -668,4 +669,61 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
     hidden_app = [k for k, _ in settings.METRIC_APP if k not in show_app]
     settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app)
     return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved — live now"),
+                            status_code=303)
+
+
+# --- page behaviour settings ---
+
+def _settings_html(db: Session, msg: str = "") -> str:
+    b = settings.get_behaviour(db)
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    sel = "background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:8px 10px;border-radius:9px"
+    styles = "".join(
+        f'<option value="{s}"{" selected" if b["map_style"] == s else ""}>{s}</option>'
+        for s in settings.MAP_STYLES)
+    ck = lambda v: " checked" if v else ""
+    inner = f"""
+    {banner}
+    <h1>Page behaviour</h1>
+    <p class=sub>How the public site behaves. Changes apply on the next page load.</p>
+    <form method=post action="/admin/settings/save">
+      <div class=card>
+        <h2>Live refresh</h2>
+        <p class=hint>How often the top champions + global stats auto-refresh. 0 = off.</p>
+        <label>Refresh every <input type=number name=poll_secs min=0 max=3600 value="{b['poll_secs']}" style="width:90px"> seconds</label>
+      </div>
+      <div class=card>
+        <h2>Intro video</h2>
+        <label class=toggle style="display:inline-flex"><input type=checkbox name=intro_enabled value=1{ck(b['intro_enabled'])}> Show the cinematic intro</label>
+        <p class=hint style="margin:12px 0 4px">Video path or URL:</p>
+        <input type=text name=intro_src value="{html.escape(b['intro_src'])}" style="width:min(440px,100%)">
+      </div>
+      <div class=card>
+        <h2>Look &amp; feel</h2>
+        <p><label>Default map style <select name=map_style style="{sel}">{styles}</select></label>
+        <span class=hint>(a visitor's own choice still wins)</span></p>
+        <label class=toggle style="display:inline-flex;margin-top:8px"><input type=checkbox name=glitch_enabled value=1{ck(b['glitch_enabled'])}> RGB glitch effects</label>
+      </div>
+      <button>{_IC['check']} Save behaviour</button>
+    </form>
+    """
+    return _ds_page(inner, "/admin/settings")
+
+
+@admin_router.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_settings_html(db, msg))
+
+
+@admin_router.post("/settings/save")
+def settings_save(request: Request, db: Session = Depends(get_db),
+                  poll_secs: int = Form(30), intro_enabled: str = Form(""),
+                  intro_src: str = Form("/static/intro.mp4"), map_style: str = Form("dark"),
+                  glitch_enabled: str = Form("")):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style, bool(glitch_enabled))
+    return RedirectResponse("/admin/settings?msg=" + quote("behaviour saved — live on next page load"),
                             status_code=303)
