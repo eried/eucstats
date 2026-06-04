@@ -24,3 +24,6 @@ __pycache__/
 
 # Local-only encode source for the intro video (committed intro.mp4 is the optimized build)
 /web/static/intro_src.mp4
+
+# Playwright/verification screenshots saved to the repo root during dev
+/*.jpeg
