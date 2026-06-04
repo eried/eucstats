@@ -33,6 +33,9 @@ class TripSummary:
     max_sustained_a: float | None
     peak_voltage: float | None
     fastest_0_40_s: float | None
+    ascent_m: float | None
+    battery_used_pct: float | None
+    est_range_km: float | None
     sample_count: int
 
 
@@ -132,6 +135,36 @@ def _fastest_0_40(samples: list[Sample]) -> float | None:
     return best
 
 
+def _ascent_m(samples: list[Sample]) -> float | None:
+    """Elevation gain from altitude samples, 3 m hysteresis to filter GPS noise."""
+    alts = [s.alt for s in samples if s.alt is not None]
+    if len(alts) < 2:
+        return None
+    gain = 0.0
+    ref = alts[0]
+    for a in alts[1:]:
+        if a - ref > 3.0:
+            gain += a - ref
+            ref = a
+        elif ref - a > 3.0:
+            ref = a
+    return round(gain, 1)
+
+
+def _battery_used(samples: list[Sample]) -> float | None:
+    """Total battery % consumed (sum of drops; ignores mid-ride charging)."""
+    bs = [s.battery for s in samples if s.battery is not None]
+    if len(bs) < 2:
+        return None
+    drop = 0.0
+    prev = bs[0]
+    for b in bs[1:]:
+        if b < prev:
+            drop += prev - b
+        prev = b
+    return round(drop, 1)
+
+
 def summarize(samples: list[Sample], max_step_km: float = 5.0,
               gps_tolerance: float = 0.4) -> TripSummary:
     if not samples:
@@ -163,6 +196,10 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     max_sustained_w = _sustained_max(samples, _power, 2.0)
     max_sustained_a = _sustained_max(samples, lambda s: s.current, 2.0)
     fastest_0_40_s = _fastest_0_40(samples)
+    ascent_m = _ascent_m(samples)
+    battery_used_pct = _battery_used(samples)
+    est_range_km = (round(distance * 100.0 / battery_used_pct, 1)
+                    if (battery_used_pct and battery_used_pct >= 10 and distance > 0) else None)
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
@@ -170,5 +207,7 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
         max_speed=max_speed, avg_speed=avg_speed, max_gforce=max_gforce,
         wh_per_km=wh_per_km, max_sustained_w=max_sustained_w,
         max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
-        fastest_0_40_s=fastest_0_40_s, sample_count=len(samples),
+        fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m,
+        battery_used_pct=battery_used_pct, est_range_km=est_range_km,
+        sample_count=len(samples),
     )

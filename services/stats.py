@@ -113,6 +113,25 @@ def accel_leaderboard(db, limit=50):
     return [{**_rider_brief(db, rs.store_id), "accel_s": round(rs.fastest_0_40_s, 2)} for rs in rows]
 
 
+def ascent_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "ascent_m": round(rs.total_ascent_m or 0, 0)}
+            for rs in _board(db, RiderStat.total_ascent_m, limit, positive_only=True)]
+
+
+def range_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "range_km": round(rs.best_range_km or 0, 1)}
+            for rs in _board(db, RiderStat.best_range_km, limit, positive_only=True)]
+
+
+def efficiency_leaderboard(db, limit=50):
+    """Lowest Wh/km = most efficient (ascending)."""
+    rows = (db.query(RiderStat).join(Rider, Rider.store_id == RiderStat.store_id)
+            .filter(Rider.deleted_at.is_(None), RiderStat.best_wh_per_km.isnot(None),
+                    RiderStat.best_wh_per_km > 0)
+            .order_by(RiderStat.best_wh_per_km.asc()).limit(limit).all())
+    return [{**_rider_brief(db, rs.store_id), "wh_per_km": round(rs.best_wh_per_km, 1)} for rs in rows]
+
+
 BOARDS = {
     "mileage": mileage_leaderboard,
     "daily": daily_leaderboard,
@@ -125,6 +144,9 @@ BOARDS = {
     "current": current_leaderboard,
     "voltage": voltage_leaderboard,
     "streak": streak_leaderboard,
+    "ascent": ascent_leaderboard,
+    "range": range_leaderboard,
+    "efficiency": efficiency_leaderboard,
 }
 
 
@@ -165,17 +187,21 @@ def _grp_aggs():
             func.count(Trip.trip_uuid),
             func.max(Trip.max_speed), func.max(Trip.max_gforce),
             func.max(Trip.max_sustained_w), func.max(Trip.max_sustained_a),
-            func.max(Trip.peak_voltage), func.min(Trip.fastest_0_40_s))
+            func.max(Trip.peak_voltage), func.min(Trip.fastest_0_40_s),
+            func.coalesce(func.sum(Trip.ascent_m), 0.0), func.max(Trip.est_range_km),
+            func.min(Trip.wh_per_km))
 
 
-def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel):
+def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, whkm):
     return {"name": name, "total_km": round(km or 0, 1), "riders": riders, "trips": trips,
             "top_speed": round(speed, 1) if speed else None,
             "max_gforce": round(g, 3) if g else None,
             "sustained_w": round(w, 0) if w else None,
             "sustained_a": round(a, 1) if a else None,
             "peak_voltage": round(v, 1) if v else None,
-            "accel_s": round(accel, 2) if accel else None}
+            "accel_s": round(accel, 2) if accel else None,
+            "ascent_m": round(ascent or 0, 0), "range_km": round(rng, 1) if rng else None,
+            "wh_per_km": round(whkm, 1) if whkm else None}
 
 
 def by_brand(db, limit=50):

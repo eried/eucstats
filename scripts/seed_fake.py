@@ -1,16 +1,18 @@
 #!/usr/bin/env python
-"""Seed the public eucstats server with demo riders + plausible trips.
+"""Seed the public eucstats server with demo riders + realistic trips.
 
-Rider names/avatars come from members.json (scraped EUC Planet group, gitignored).
-Riders are spread across many countries / wheel brands / models so the country,
-brand and wheel leaderboards and the world heatmap all populate. Hits the public
-API only. Idempotent: re-running re-registers riders and skips duplicate trips.
+Trips are built by RELOCATING + RETIMING the real sample CSVs in samples/ (which
+carry the full schema — Battery level, Altitude, voltage/current, G-Force) to
+each fake rider's country and date window. This keeps battery/ascent/efficiency
+metrics working, unlike synthetic generation. Rider names/avatars come from
+members.json (scraped EUC Planet group, gitignored). Public API only; idempotent.
 
 Usage:
     python scripts/seed_fake.py
     EUCSTATS_URL=http://127.0.0.1:8004 python scripts/seed_fake.py
 """
 import base64
+import csv as csvmod
 import gzip
 import io
 import json
@@ -30,8 +32,8 @@ BASE = os.environ.get("EUCSTATS_URL", "https://eucstats.ried.no")
 NS = uuid.UUID("00000000-0000-0000-0000-0000000000fa")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEMBERS = json.load(open(os.path.join(ROOT, "members.json"), encoding="utf-8"))
+SAMPLES = os.path.join(ROOT, "samples")
 
-# (flag, center lat, center lon) — EUC-popular countries, spread globally
 COUNTRIES = [
     ("US", 39.8, -98.6), ("GB", 53.0, -1.5), ("DE", 51.0, 10.0), ("FR", 46.6, 2.4),
     ("NO", 60.4, 8.5), ("SE", 62.0, 15.0), ("NL", 52.1, 5.3), ("ES", 40.3, -3.7),
@@ -40,40 +42,30 @@ COUNTRIES = [
     ("AT", 48.2, 16.4), ("CZ", 50.1, 14.4), ("PT", 38.7, -9.1), ("SG", 1.35, 103.8),
     ("BR", -23.5, -46.6), ("MX", 19.4, -99.1),
 ]
-
-# (brand, model, full-charge pack voltage, realistic top cruise km/h)
 WHEELS = [
-    ("Begode", "Master", 134.4, 70), ("Begode", "EX30", 151.2, 78),
-    ("Begode", "T4", 100.8, 55), ("Begode", "Hero", 134.4, 65),
-    ("Veteran", "Sherman", 100.8, 60), ("Veteran", "Sherman L", 151.2, 75),
-    ("Veteran", "Patton", 126.0, 70), ("Veteran", "Lynx", 151.2, 72),
-    ("InMotion", "V13", 126.0, 70), ("InMotion", "V12", 100.8, 55),
-    ("InMotion", "V11", 84.0, 50), ("InMotion", "V14 Adventure", 151.2, 80),
-    ("KingSong", "S22", 126.0, 65), ("KingSong", "S20", 100.8, 55),
-    ("KingSong", "S19", 126.0, 68), ("KingSong", "16X", 84.0, 45),
+    ("Begode", "Master"), ("Begode", "EX30"), ("Begode", "T4"), ("Begode", "Hero"),
+    ("Veteran", "Sherman"), ("Veteran", "Sherman L"), ("Veteran", "Patton"), ("Veteran", "Lynx"),
+    ("InMotion", "V13"), ("InMotion", "V12"), ("InMotion", "V11"), ("InMotion", "V14 Adventure"),
+    ("KingSong", "S22"), ("KingSong", "S20"), ("KingSong", "S19"), ("KingSong", "16X"),
 ]
-
 CCENTER = {c[0]: (c[1], c[2]) for c in COUNTRIES}
 SPECIAL = {"tg_001": "IT"}   # Gio Aka Wheel In Motion is an Italian channel
+EXCLUDE = {"EUCPlanet", "MotoEye / Smartglasses", "Erwin Ried", "Off-topic", "S T", "Adam"}
+DATE_FMTS = ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S",
+             "%d.%m.%Y %H:%M:%S.%f", "%d.%m.%Y %H:%M:%S")
 
 
 def clean_name(s):
-    """Drop private-use glyphs, variation selectors and zero-width chars that
-    scraped Telegram names carry (they render as tofu boxes)."""
     out = []
     for ch in s or "":
         o = ord(ch)
-        if 0xE000 <= o <= 0xF8FF or 0xFE00 <= o <= 0xFE0F:
-            continue
-        if o in (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF):
+        if 0xE000 <= o <= 0xF8FF or 0xFE00 <= o <= 0xFE0F or o in (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF):
             continue
         out.append(ch)
     return " ".join("".join(out).split())
 
 
 def avatar_b64(m):
-    """Decode the scraped avatar and re-encode to a 64x64 PNG (server re-encodes
-    again; doing it here avoids depending on server-side webp support)."""
     a = m.get("avatar")
     if not a:
         return None
@@ -88,53 +80,90 @@ def avatar_b64(m):
         return None
 
 
-def build_trip(rnd, lat0, lon0, pack, vmax, start):
-    """Build a plausible per-second-ish trip CSV (GPS + speed + electrical + g)."""
-    cad = 3                                   # seconds between samples
-    n = max(40, rnd.randint(6, 22) * 60 // cad)
-    cruise = rnd.uniform(max(20.0, vmax * 0.55), vmax * 0.96)
-    ramp = rnd.randint(2, 4)                  # steps to reach cruise (~6-12s)
-    stat = 2                                  # standing-still samples (enables 0->40)
-    heading = rnd.uniform(0, 2 * math.pi)
-    lat, lon, prev = lat0, lon0, 0.0
-    rows = ["Date,Speed,Voltage,Current,Power,Latitude,Longitude,G-Force"]
-    t = start
-    for k in range(n):
-        if k < stat:
-            sp = 0.0
-        elif k < stat + ramp:
-            sp = cruise * (k - stat + 1) / ramp
-        elif k > n - 4:
-            sp = max(0.0, cruise * (n - k) / 4)
-        else:
-            sp = cruise + rnd.uniform(-3, 3)
-        sp = max(0.0, min(vmax + 2, sp))
-        acc = sp - prev
-        heading += rnd.uniform(-0.25, 0.25)
-        stepkm = sp * (cad / 3600.0)
-        lat += stepkm / 111.0 * math.cos(heading)
-        lon += stepkm / (111.0 * max(0.2, math.cos(math.radians(lat)))) * math.sin(heading)
-        load = sp / max(1.0, cruise)
-        volt = pack * 0.985 - pack * 0.12 * load + rnd.uniform(-0.4, 0.4)
-        cur = min(95.0, max(0.0, 4.0 + sp * 0.55 + max(0.0, acc) * 3.0 + rnd.uniform(-2, 3)))
-        power = volt * cur
-        g = min(2.4, 1.0 + abs(acc) * 0.06 + rnd.uniform(-0.03, 0.05))
-        rows.append(f"{t.strftime('%Y-%m-%dT%H:%M:%S.%f')},{sp:.2f},{volt:.1f},"
-                    f"{cur:.1f},{power:.0f},{lat:.6f},{lon:.6f},{g:.3f}")
-        prev = sp
-        t += timedelta(seconds=cad)
-    return "\n".join(rows)
+def parse_dt(s):
+    s = (s or "").strip()
+    for f in DATE_FMTS:
+        try:
+            return datetime.strptime(s, f), f
+        except ValueError:
+            continue
+    return None, None
+
+
+def load_template(path):
+    rows = list(csvmod.reader(open(path, encoding="utf-8", errors="replace")))
+    header, data = rows[0], [r for r in rows[1:] if r]
+    low = [h.strip().lower() for h in header]
+    di = low.index("date")
+    la = low.index("latitude") if "latitude" in low else None
+    lo = low.index("longitude") if "longitude" in low else None
+    fmt = None
+    for r in data:
+        if di < len(r):
+            _, fmt = parse_dt(r[di])
+            if fmt:
+                break
+    olat = olon = None
+    if la is not None and lo is not None:
+        for r in data:
+            try:
+                olat, olon = float(r[la]), float(r[lo])
+                break
+            except (ValueError, IndexError):
+                continue
+    src = "darknessbot" if "pitch" in low else "eucplanet"
+    sv = ("darknessbot-v1" if src == "darknessbot"
+          else "eucplanet-v3-gforce" if "g-force" in low else "eucplanet-v1")
+    return {"header": header, "data": data, "di": di, "la": la, "lo": lo,
+            "fmt": fmt or DATE_FMTS[0], "olat": olat, "olon": olon, "src": src, "sv": sv}
+
+
+def build_trip(t, hlat, hlon, start_dt, frac):
+    """Relocate template GPS to (hlat,hlon) and retime so it starts at start_dt."""
+    n = max(20, int(len(t["data"]) * frac))
+    sub = t["data"][:n]
+    first_dt, _ = parse_dt(sub[0][t["di"]]) if sub else (None, None)
+    delta = (start_dt - first_dt) if first_dt else timedelta(0)
+    olat, olon = t["olat"], t["olon"]
+    cosr = (math.cos(math.radians(olat)) / max(0.2, math.cos(math.radians(hlat)))) if olat is not None else 1.0
+    lines = [",".join(t["header"])]
+    for row in sub:
+        r = list(row)
+        dt, _ = parse_dt(r[t["di"]]) if t["di"] < len(r) else (None, None)
+        if dt:
+            r[t["di"]] = (dt + delta).strftime(t["fmt"])
+        if t["la"] is not None and olat is not None and t["la"] < len(r) and t["lo"] < len(r):
+            try:
+                r[t["la"]] = f"{hlat + (float(r[t['la']]) - olat):.6f}"
+                r[t["lo"]] = f"{hlon + (float(r[t['lo']]) - olon) * cosr:.6f}"
+            except ValueError:
+                pass
+        lines.append(",".join(r))
+    return "\n".join(lines)
 
 
 def main():
-    today = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    templates = []
+    for fn in sorted(os.listdir(SAMPLES)):
+        if fn.lower().endswith(".csv"):
+            try:
+                templates.append(load_template(os.path.join(SAMPLES, fn)))
+            except Exception as e:
+                print("skip template", fn, e)
+    print("templates:", [(t["src"], t["sv"], len(t["data"])) for t in templates])
+    if not templates:
+        print("no sample templates found"); return
+    big = max(templates, key=lambda t: len(t["data"]))      # richest/longest
+    today = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
     total = 0
     with httpx.Client(base_url=BASE, timeout=120) as cl:
         for idx, m in enumerate(MEMBERS):
             rnd = random.Random(1000 + idx)
             name = clean_name(m.get("name") or f"Rider {idx}")[:40] or f"Rider {idx}"
+            if name in EXCLUDE:
+                continue
             code, clat, clon = COUNTRIES[idx % len(COUNTRIES)]
-            brand, model, pack, vmax = WHEELS[rnd.randrange(len(WHEELS))]
+            brand, model = WHEELS[rnd.randrange(len(WHEELS))]
             sid = f"tg_{idx:03d}"
             if sid in SPECIAL:
                 code = SPECIAL[sid]
@@ -148,36 +177,37 @@ def main():
             r = cl.post("/api/v1/riders", json=payload)
 
             serial = f"{brand[:2].upper()}{idx:04d}{rnd.randrange(1000, 9999)}"
-            streak = rnd.randint(1, 11 if idx < 6 else 6)
-            extra = rnd.randint(0, 5 if idx < 10 else 3)
+            streak = rnd.randint(1, 9 if idx < 6 else 5)
+            extra = rnd.randint(0, 4 if idx < 10 else 2)
             base_off = rnd.randint(0, 40)
             days = {base_off + d for d in range(streak)}
             for _ in range(extra):
                 days.add(rnd.randint(0, 70))
 
             trips = 0
-            for jj, doff in enumerate(sorted(days)):
+            for j, doff in enumerate(sorted(days)):
+                t = rnd.choices(templates + [big, big], k=1)[0]   # weight the rich/long one
+                frac = rnd.uniform(0.25, 0.85) if len(t["data"]) > 400 else 1.0
                 day = today - timedelta(days=doff)
                 start = day.replace(hour=rnd.randint(7, 19), minute=rnd.randint(0, 59))
-                csv = build_trip(rnd, hlat, hlon, pack, vmax, start)
+                csvtxt = build_trip(t, hlat, hlon, start, frac)
                 meta = {
                     "store_id": sid, "platform": "google_play",
-                    "trip_uuid": str(uuid.uuid5(NS, f"{sid}|{doff}|{jj}")),
-                    "source_app": "eucplanet", "schema_version": "auto",
-                    "tz": "UTC", "tz_offset_min": 0, "tz_known": True,
-                    "is_mock_location": False,
+                    "trip_uuid": str(uuid.uuid5(NS, f"{sid}|{doff}|{j}")),
+                    "source_app": t["src"], "schema_version": t["sv"],
+                    "tz": "UTC", "tz_offset_min": 0, "tz_known": True, "is_mock_location": False,
                     "wheel": {"serial": serial, "brand": brand, "model": model},
                     "attestation": {"type": "play_integrity", "token": "stub", "request_hash": "x"},
                 }
-                files = {"trip": (f"{serial}_{doff}.csv.gz", gzip.compress(csv.encode()), "application/gzip")}
+                files = {"trip": (f"{serial}_{doff}.csv.gz", gzip.compress(csvtxt.encode()), "application/gzip")}
                 rr = cl.post("/api/v1/trips", data={"meta": json.dumps(meta)}, files=files)
                 if rr.status_code in (200, 201):
                     trips += 1
                 else:
                     print(f"  trip fail {sid} {rr.status_code} {rr.text[:120]}")
             total += trips
-            print(f"[{idx + 1:2d}/{len(MEMBERS)}] {sid} {name[:22]:22s} {code} "
-                  f"{brand} {model} reg={r.status_code} trips={trips}", flush=True)
+            print(f"[{idx + 1:2d}/{len(MEMBERS)}] {sid} {name[:20]:20s} {code} {brand} {model} "
+                  f"reg={r.status_code} trips={trips}", flush=True)
     print("TOTAL trips uploaded:", total)
 
 

@@ -36,6 +36,13 @@ class Aggregator:
             rs.fastest_0_40_s = (trip.fastest_0_40_s if rs.fastest_0_40_s is None
                                  else min(rs.fastest_0_40_s, trip.fastest_0_40_s))
         rs.longest_trip_km = max(rs.longest_trip_km or 0.0, dist)
+        if trip.ascent_m:
+            rs.total_ascent_m = (rs.total_ascent_m or 0.0) + trip.ascent_m
+        if trip.est_range_km:
+            rs.best_range_km = max(rs.best_range_km or 0.0, trip.est_range_km)
+        if trip.wh_per_km and (trip.distance_km or 0) >= 2:
+            rs.best_wh_per_km = (trip.wh_per_km if rs.best_wh_per_km is None
+                                 else min(rs.best_wh_per_km, trip.wh_per_km))
 
         if trip.start_utc:
             self.agg.add_daily(store, trip.start_utc.date(), dist)

@@ -101,6 +101,7 @@ class IngestService:
             wh_per_km=sm.wh_per_km, max_sustained_w=sm.max_sustained_w,
             max_sustained_a=sm.max_sustained_a, peak_voltage=sm.peak_voltage,
             fastest_0_40_s=sm.fastest_0_40_s,
+            ascent_m=sm.ascent_m, battery_used_pct=sm.battery_used_pct, est_range_km=sm.est_range_km,
             country=country, start_cell=start_cell, start_lat=start_lat, start_lon=start_lon,
             validation_status=status, flag_reasons=reasons or None,
             schema_version=meta.get("schema_version"), source_app=meta.get("source_app"),

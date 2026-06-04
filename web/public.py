@@ -199,7 +199,10 @@ const IC={
  power:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>',
  current:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12c2-6 4-6 6 0s4 6 6 0 4-6 6 0"/></svg>',
  voltage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="15" height="10" rx="2"/><path d="M21 10v4"/><path d="M10 9l-2 3.5h3L9 16" stroke-linejoin="round"/></svg>',
- streak:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-2 5-2 8a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 4-6 5-14z"/></svg>'};
+ streak:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-2 5-2 8a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 4-6 5-14z"/></svg>',
+ ascent:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20h18L14 7l-3.2 5.6L8.5 9 3 20z"/></svg>',
+ range:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 10v4"/><path d="M5.5 10v4M8.5 10v4M11.5 10v4" stroke-linecap="round"/></svg>',
+ efficiency:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 20c0-9 7-15 16-15 0 10-6 16-15 16 1-4 4-7 8-9-4 1-7 3-9 8z"/></svg>'};
 const GIC_PPL='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0z"/></svg>';
 const GIC_TRIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c3-2 4-6 4-9a3 3 0 0 1 6 0c0 4 1 7 4 9"/></svg>';
 const BOARDS=[
@@ -213,7 +216,10 @@ const BOARDS=[
  {k:"power",t:"Sustained W",c:"sustained_w",u:" W",d:"Highest power held for 2 seconds straight"},
  {k:"current",t:"Sustained A",c:"sustained_a",u:" A",d:"Highest current (amps) held for 2 seconds"},
  {k:"voltage",t:"Volt peak",c:"peak_voltage",u:" V",d:"Highest battery voltage observed"},
- {k:"streak",t:"Streak",c:"longest_streak",u:" d",d:"Longest run of consecutive days ridden"}];
+ {k:"streak",t:"Streak",c:"longest_streak",u:" d",d:"Longest run of consecutive days ridden"},
+ {k:"ascent",t:"Climbed",c:"ascent_m",u:" m",d:"Total elevation climbed (Everest = 8849 m)"},
+ {k:"range",t:"Best range",c:"range_km",u:"",conv:"dist",d:"Longest estimated full-charge range"},
+ {k:"efficiency",t:"Efficiency",c:"wh_per_km",u:" Wh/km",d:"Lowest energy use per km · most efficient"}];
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
@@ -339,7 +345,10 @@ const GBOARDS=[
  {k:"current",t:"Sustained A",key:"sustained_a",u:" A",ic:IC.current,d:"Highest current held 2s"},
  {k:"voltage",t:"Volt peak",key:"peak_voltage",u:" V",ic:IC.voltage,d:"Highest battery voltage"},
  {k:"riders",t:"Riders",key:"riders",u:"",ic:GIC_PPL,d:"Active riders"},
- {k:"trips",t:"Rides",key:"trips",u:"",ic:GIC_TRIP,d:"Rides logged"}];
+ {k:"trips",t:"Rides",key:"trips",u:"",ic:GIC_TRIP,d:"Rides logged"},
+ {k:"ascent",t:"Climbed",key:"ascent_m",u:" m",ic:IC.ascent,d:"Total elevation climbed"},
+ {k:"range",t:"Best range",key:"range_km",conv:"dist",ic:IC.range,d:"Longest est. range"},
+ {k:"eff",t:"Efficiency",key:"wh_per_km",u:" Wh/km",asc:true,ic:IC.efficiency,d:"Lowest Wh/km · best"}];
 let GROWS=null;
 function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+(b.u||"");}
 function renderGroup(b,cfg){
