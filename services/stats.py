@@ -160,6 +160,9 @@ def countries(db):
 def records(db):
     out = []
     for rec in db.query(Record).all():
+        r = db.get(Rider, rec.store_id)
+        if r is None or r.deleted_at is not None:   # skip records held by deleted/missing riders
+            continue
         out.append({"key": rec.key, "value": rec.value,
                     "rider": _rider_brief(db, rec.store_id), "trip_uuid": rec.trip_uuid})
     return out
