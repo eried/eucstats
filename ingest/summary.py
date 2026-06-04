@@ -8,6 +8,10 @@ from datetime import datetime
 from .parser import Sample
 
 EARTH_KM = 6371.0088
+# Believable peak acceleration for an EUC. Real wheels reach 100 km/h in well
+# over 5 s, so ~20 km/h per second is a generous ceiling — any rise faster than
+# this is a sensor spike or a freespin (wheel lifted), not a real top speed.
+MAX_ACCEL_KMH_S = 20.0
 
 
 def _haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -26,6 +30,7 @@ class TripSummary:
     distance_km: float
     gps_distance_km: float
     max_speed: float | None
+    max_freespin: float | None
     avg_speed: float | None
     max_gforce: float | None
     wh_per_km: float | None
@@ -172,6 +177,50 @@ def _battery_used(samples: list[Sample]) -> float | None:
     return round(drop, 1)
 
 
+def _corrob_speed(s: Sample) -> float | None:
+    """Per-sample speed used for the realistic top speed: the LOWER of wheel and
+    GPS speed when both exist (rejects GPS noise while walking AND sustained
+    freespin, where GPS reads ~0). Falls back to wheel speed when there's no GPS."""
+    if s.speed is None:
+        return None
+    return min(s.speed, s.gps_speed) if s.gps_speed is not None else s.speed
+
+
+def _speeds(samples: list[Sample], wheel_speeds: list[float]) -> tuple[float | None, float | None]:
+    """Return (realistic_max_speed, max_freespin).
+
+    A real top speed must be *reached through believable acceleration*. We walk
+    the samples in time order and clamp how fast the speed may rise (MAX_ACCEL_KMH_S);
+    decelerations are always allowed. The realistic top speed is the peak of this
+    acceleration-limited track. The raw peak that the cap rejected (an instantaneous
+    jump with no ramp — a freespin or sensor spike) is reported separately as
+    max_freespin so it can be celebrated as its own category, not counted as speed."""
+    plausible = None      # running believable speed
+    realistic = None      # peak of the believable track
+    prev_t = None
+    for s in samples:
+        v = _corrob_speed(s)
+        if v is None:
+            continue
+        if plausible is None or prev_t is None:
+            plausible = v
+        elif v <= plausible:
+            plausible = v                                      # slowing down: always believable
+        else:
+            dt = max((s.t - prev_t).total_seconds(), 0.0)
+            plausible = min(v, plausible + MAX_ACCEL_KMH_S * dt)   # speeding up: capped by accel
+        prev_t = s.t
+        realistic = plausible if realistic is None else max(realistic, plausible)
+
+    raw_max = max(wheel_speeds) if wheel_speeds else None
+    if realistic is None:
+        return raw_max, None
+    # The spike only counts as "freespin" when it's clearly beyond what real
+    # acceleration could have produced (>5 km/h over the believable peak).
+    freespin = raw_max if (raw_max is not None and raw_max > realistic + 5.0) else None
+    return realistic, freespin
+
+
 def summarize(samples: list[Sample], max_step_km: float = 5.0,
               gps_tolerance: float = 0.4) -> TripSummary:
     if not samples:
@@ -190,14 +239,7 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
 
     speeds = [s.speed for s in samples if s.speed is not None]
     avg_speed = (sum(speeds) / len(speeds)) if speeds else None
-    # True top speed = max of the per-sample LOWER of (wheel speed, GPS speed).
-    # This rejects GPS noise (GPS reads high while walking the wheel) AND wheel
-    # freespin (wheel reads high while lifted). Samples with no GPS fix can't
-    # corroborate, so they're skipped for the max; if a trip has NO GPS speed at
-    # all we fall back to the wheel max (such trips are flagged unverified anyway).
-    corrob = [min(s.speed, s.gps_speed) for s in samples
-              if s.speed is not None and s.gps_speed is not None]
-    max_speed = max(corrob) if corrob else (max(speeds) if speeds else None)
+    max_speed, max_freespin = _speeds(samples, speeds)
 
     gs = [abs(s.g) for s in samples if s.g is not None]
     max_gforce = max(gs) if gs else None
@@ -219,7 +261,7 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
         distance_km=distance, gps_distance_km=gps_km,
-        max_speed=max_speed, avg_speed=avg_speed, max_gforce=max_gforce,
+        max_speed=max_speed, max_freespin=max_freespin, avg_speed=avg_speed, max_gforce=max_gforce,
         wh_per_km=wh_per_km, max_sustained_w=max_sustained_w,
         max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
         fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m,
