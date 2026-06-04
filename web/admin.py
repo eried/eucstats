@@ -602,9 +602,10 @@ def _pipeline_html(db: Session) -> str:
     <div class=card>
       <h2>Status — {total} trips total</h2>
       <p>{chips}</p>
-      <p class=mut>Attestation mode: <b>{html.escape(config.ATTESTATION_MODE)}</b>
-      ({'accepting all uploads' if config.ATTESTATION_MODE == 'stub' else 'requiring Play Integrity'})
+      <p class=mut>Attestation: <b>{html.escape(config.ATTESTATION_MODE)}</b>
+      ({'accepting all uploads, no verification' if config.ATTESTATION_MODE == 'stub' else 'requires an attestation token — presence only, not yet cryptographically verified'})
       · package <b>{html.escape(config.ANDROID_PACKAGE)}</b></p>
+      <p class=mut>Ingest allowlist: <b>{', '.join(config.INGEST_ALLOW) if config.INGEST_ALLOW else 'off — all registered riders accepted'}</b></p>
     </div>
     <div class=card>
       <h2>Ingest — last 14 days</h2>

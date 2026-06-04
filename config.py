@@ -22,6 +22,11 @@ ANDROID_PACKAGE = os.environ.get("EUCSTATS_ANDROID_PACKAGE", "com.eried.eucplane
 #     Set via env so the id stays out of the public repo and can change without a code deploy. ---
 CLARITY_ID = os.environ.get("EUCSTATS_CLARITY_ID", "").strip()
 
+# --- Ingest allowlist: if set (comma-separated store_ids), ONLY those riders'
+#     uploads are accepted (everyone else gets 403). Empty = open to all
+#     registered riders. Use it to keep the live site to your own submissions. ---
+INGEST_ALLOW = [s.strip() for s in os.environ.get("EUCSTATS_INGEST_ALLOW", "").split(",") if s.strip()]
+
 # --- Map grid: zoom levels expressed as cell size in degrees (coarse -> fine) ---
 GRID_ZOOMS = [float(z) for z in os.environ.get("EUCSTATS_GRID_ZOOMS", "2.0,0.5,0.1").split(",")]
 

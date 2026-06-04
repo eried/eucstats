@@ -55,6 +55,8 @@ class IngestService:
         trip_uuid = meta.get("trip_uuid")
         if not store or not trip_uuid:
             raise IngestError(400, "missing_store_id_or_trip_uuid")
+        if config.INGEST_ALLOW and store not in config.INGEST_ALLOW:
+            raise IngestError(403, "rider_not_allowlisted")
         if self.riders.get(store) is None:
             raise IngestError(400, "rider_not_registered")
 
