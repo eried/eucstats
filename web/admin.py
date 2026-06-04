@@ -602,6 +602,16 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         f'<td>{html.escape(", ".join(t.flag_reasons or []))}</td></tr>'
         for t in recent) or '<tr><td colspan=6 class=mut>no trips yet</td></tr>'
 
+    offenders = (db.query(Trip.rider_store_id, func.count(Trip.trip_uuid).label("n"))
+                 .filter(Trip.validation_status.in_(["flagged", "rejected"]))
+                 .group_by(Trip.rider_store_id)
+                 .order_by(func.count(Trip.trip_uuid).desc()).limit(15).all())
+    ohtml = "".join(
+        f'<tr><td><code>{html.escape(sid or "")}</code></td>'
+        f'<td>{html.escape((db.get(Rider, sid).display_name if db.get(Rider, sid) else "") or "")}</td>'
+        f'<td>{n}</td></tr>'
+        for sid, n in offenders) or '<tr><td colspan=3 class=mut>none</td></tr>'
+
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
@@ -621,6 +631,10 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     <div class=card>
       <h2>Ingest — last 14 days</h2>
       {bars}
+    </div>
+    <div class=card>
+      <h2>Repeat offenders <span class=mut>· riders by flagged/rejected trips</span></h2>
+      <table><tr><th>store id</th><th>name</th><th>flagged/rejected</th></tr>{ohtml}</table>
     </div>
     <h2>Recent uploads (newest 60)</h2>
     <table><tr><th>created (UTC)</th><th>rider</th><th>km</th><th>country</th><th>status</th><th>flag/reject reasons</th></tr>{rrows}</table>

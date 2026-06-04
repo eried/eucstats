@@ -101,9 +101,13 @@ def parse_csv(text: str, tz_offset_min: int = 0) -> list[Sample]:
             i = idx.get(key)
             return _f(row[i]) if (i is not None and i < len(row)) else None
 
+        _lat = g("lat")
+        _lon = g("lon")
+        if _lat is not None and _lon is not None and abs(_lat) < 1e-7 and abs(_lon) < 1e-7:
+            _lat = _lon = None   # 0,0 = "no GPS fix" sentinel, not a real coordinate
         out.append(Sample(
             t=_parse_dt(row[idx["t"]], tz_offset_min),
-            lat=g("lat"), lon=g("lon"), speed=g("speed"), gps_speed=g("gps_speed"),
+            lat=_lat, lon=_lon, speed=g("speed"), gps_speed=g("gps_speed"),
             ext_gps_speed=g("ext_gps_speed"), alt=g("alt"), odo=g("odo"),
             voltage=g("voltage"), current=g("current"), power=g("power"), pwm=g("pwm"),
             battery=g("battery"), temp=g("temp"), g=g("g"), gx=g("gx"), gy=g("gy"),

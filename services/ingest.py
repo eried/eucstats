@@ -14,7 +14,7 @@ from ingest.geo import cells_for, country_of
 from ingest.parser import parse_csv
 from ingest.plausibility import check
 from ingest.summary import summarize
-from models import Wheel, utcnow
+from models import Trip, Wheel, utcnow
 from repository.riders import RiderRepo
 from repository.trips import TripRepo
 from services.aggregator import Aggregator
@@ -54,6 +54,12 @@ def _intval(v):
         return None
 
 
+def _verdict(status: str) -> str:
+    """Map internal validation_status to the app-facing verdict."""
+    return {"validated": "accepted", "flagged": "under_review",
+            "rejected": "rejected"}.get(status, "under_review")
+
+
 class IngestService:
     def __init__(self, db):
         self.db = db
@@ -79,6 +85,7 @@ class IngestService:
         if existing is not None:
             return {"trip_uuid": trip_uuid,
                     "validation_status": existing.validation_status,
+                    "verdict": _verdict(existing.validation_status),
                     "duplicate": True}
 
         cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
@@ -117,6 +124,21 @@ class IngestService:
             teleport_kmh=config.TELEPORT_KMH, teleport_max_jumps=config.TELEPORT_MAX_JUMPS,
             dist_tolerance=config.DIST_TOLERANCE, unverified_dist_km=config.UNVERIFIED_DIST_KM,
         )
+
+        # same rider with a time-overlapping (non-rejected) trip is physically
+        # impossible — one person, two wheels at once — and also catches the same
+        # ride uploaded from two phones (different trip_uuid, same window).
+        if sm.start_utc and sm.end_utc:
+            s0, e0 = _naive(sm.start_utc), _naive(sm.end_utc)
+            clash = (self.db.query(Trip.trip_uuid)
+                     .filter(Trip.rider_store_id == store, Trip.trip_uuid != trip_uuid,
+                             Trip.validation_status != "rejected",
+                             Trip.start_utc.isnot(None), Trip.end_utc.isnot(None),
+                             Trip.start_utc < e0, Trip.end_utc > s0)
+                     .first())
+            if clash and "overlapping_trip" not in reasons:
+                reasons.append("overlapping_trip")
+        status = "flagged" if reasons else status
 
         first = next((s for s in samples if s.lat is not None and s.lon is not None), None)
         country = start_lat = start_lon = start_cell = None
@@ -158,9 +180,9 @@ class IngestService:
             # a concurrent upload of the same trip_uuid won the insert race -> idempotent duplicate
             self.db.rollback()
             ex = self.trips.get(trip_uuid)
-            return {"trip_uuid": trip_uuid,
-                    "validation_status": ex.validation_status if ex else "flagged",
-                    "duplicate": True}
+            vs = ex.validation_status if ex else "flagged"
+            return {"trip_uuid": trip_uuid, "validation_status": vs,
+                    "verdict": _verdict(vs), "duplicate": True}
 
         track = downsample(samples, config.TRACK_MAX_POINTS)
         if track:
@@ -171,7 +193,7 @@ class IngestService:
             Aggregator(self.db).apply(trip)
 
         return {"trip_uuid": trip_uuid, "validation_status": status,
-                "reasons": reasons, "duplicate": False,
+                "verdict": _verdict(status), "reasons": reasons, "duplicate": False,
                 "distance_km": round(sm.distance_km, 3), "country": country}
 
     def _register_wheel(self, store, wheel: dict, wid):
