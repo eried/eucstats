@@ -57,6 +57,20 @@ CCENTER = {c[0]: (c[1], c[2]) for c in COUNTRIES}
 SPECIAL = {"tg_001": "IT"}   # Gio Aka Wheel In Motion is an Italian channel
 
 
+def clean_name(s):
+    """Drop private-use glyphs, variation selectors and zero-width chars that
+    scraped Telegram names carry (they render as tofu boxes)."""
+    out = []
+    for ch in s or "":
+        o = ord(ch)
+        if 0xE000 <= o <= 0xF8FF or 0xFE00 <= o <= 0xFE0F:
+            continue
+        if o in (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF):
+            continue
+        out.append(ch)
+    return " ".join("".join(out).split())
+
+
 def avatar_b64(m):
     """Decode the scraped avatar and re-encode to a 64x64 PNG (server re-encodes
     again; doing it here avoids depending on server-side webp support)."""
@@ -118,7 +132,7 @@ def main():
     with httpx.Client(base_url=BASE, timeout=120) as cl:
         for idx, m in enumerate(MEMBERS):
             rnd = random.Random(1000 + idx)
-            name = (m.get("name") or f"Rider {idx}").strip()[:40]
+            name = clean_name(m.get("name") or f"Rider {idx}")[:40] or f"Rider {idx}"
             code, clat, clon = COUNTRIES[idx % len(COUNTRIES)]
             brand, model, pack, vmax = WHEELS[rnd.randrange(len(WHEELS))]
             sid = f"tg_{idx:03d}"
@@ -142,13 +156,13 @@ def main():
                 days.add(rnd.randint(0, 70))
 
             trips = 0
-            for j, doff in enumerate(sorted(days)):
+            for jj, doff in enumerate(sorted(days)):
                 day = today - timedelta(days=doff)
                 start = day.replace(hour=rnd.randint(7, 19), minute=rnd.randint(0, 59))
                 csv = build_trip(rnd, hlat, hlon, pack, vmax, start)
                 meta = {
                     "store_id": sid, "platform": "google_play",
-                    "trip_uuid": str(uuid.uuid5(NS, f"{sid}|{doff}|{j}")),
+                    "trip_uuid": str(uuid.uuid5(NS, f"{sid}|{doff}|{jj}")),
                     "source_app": "eucplanet", "schema_version": "auto",
                     "tz": "UTC", "tz_offset_min": 0, "tz_known": True,
                     "is_mock_location": False,

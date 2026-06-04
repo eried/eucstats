@@ -27,7 +27,7 @@ _PAGE = r"""<!doctype html>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;height:100dvh;font:14px/1.45 "Chakra Petch",ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#070a16;overflow:hidden}
 body{position:fixed;inset:0;width:100%}
-#ptitle,.champ,.chead,.chip b,.val,.rk,.pod .km,.pod .rkn,.cscore,.clab,.tab span,.dock .lbl{font-family:"Orbitron",ui-sans-serif,sans-serif;letter-spacing:.5px}
+#ptitle,.champ,.chead,.chip b,.val,.rk,.pod .km,.pod .rkn,.cscore,.clab,.tab span,.dock .lbl,.recval{font-family:"Orbitron",ui-sans-serif,sans-serif;letter-spacing:.5px}
 #map{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:0}
 #veil{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:1;pointer-events:none;transition:opacity .25s linear;background:linear-gradient(to bottom,rgba(0,0,0,.5) 0%,rgba(0,0,0,.12) 28%,rgba(0,0,0,0) 50%),radial-gradient(ellipse 80% 84% at 50% 48%,rgba(0,0,0,0) 40%,rgba(0,0,0,.74) 100%)}
 #dots{position:fixed;top:0;left:0;width:100vw;height:var(--appvh,100dvh);z-index:1;pointer-events:none;mix-blend-mode:multiply;opacity:.22;background-image:radial-gradient(circle at center,rgba(0,0,0,.8) 0,rgba(0,0,0,.8) .7px,transparent 1.2px);background-size:4px 4px}
@@ -113,10 +113,25 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tab svg{width:14px;height:14px}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
 .podium{display:flex;gap:12px;justify-content:center;align-items:flex-end;padding:8px 0}
-.pod{background:var(--surf);border:1px solid var(--line);border-top-width:3px;border-radius:9px;padding:14px 12px;text-align:center;width:148px;cursor:pointer;transition:transform .15s;box-shadow:var(--shadow)}
+.pod{background:var(--surf);border:1px solid var(--line);border-top-width:3px;border-radius:9px;padding:14px 12px;text-align:center;flex:1 1 0;min-width:0;max-width:158px;cursor:pointer;transition:transform .15s;box-shadow:var(--shadow)}
 .pod:hover{transform:translateY(-3px)}.pod .av{width:54px;height:54px;margin:0 auto 8px;display:block}
 .pod.p1{border-top-color:var(--gold);margin-bottom:18px}.pod.p2{border-top-color:#cdd3e0}.pod.p3{border-top-color:#b07a4a;margin-bottom:0}
 .pod .km{color:var(--acc);font-weight:700;margin-top:3px}.pod .rkn{color:var(--mut);font:700 12px/1 ui-monospace,monospace;letter-spacing:1px}
+.pname{margin-top:2px;font-size:12.5px;line-height:1.25;word-break:break-word}
+.psub{color:var(--mut);font-size:10.5px;margin-top:3px}
+.podic{width:48px;height:48px;margin:2px auto 6px;display:flex;align-items:center;justify-content:center;color:var(--acc)}
+.podic svg{width:40px;height:40px}
+td.sub{color:var(--mut)}
+.empty{padding:26px;text-align:center;color:var(--mut)}
+.recs{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:10px;padding:2px 0}
+.rec{display:flex;align-items:center;gap:11px;background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:11px 13px;cursor:pointer;transition:transform .15s,border-color .2s}
+.rec:hover{transform:translateY(-2px);border-color:var(--acc)}
+.recmed{flex:0 0 auto;color:var(--gold)}.recmed svg{width:26px;height:26px;display:block}
+.recmain{flex:1;min-width:0}
+.reclbl{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
+.recrider{display:flex;align-items:center;gap:6px;font-weight:700;margin-top:3px;white-space:nowrap;overflow:hidden}
+.recrider .av{width:22px;height:22px}.recrider span{overflow:hidden;text-overflow:ellipsis}
+.recval{flex:0 0 auto;color:var(--acc);font-weight:700;font-size:15px}
 .winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(46,168,255,.22),0 0 20px rgba(46,168,255,.65)}
 #gear{position:fixed;left:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
 #gear:hover{color:var(--acc)}#gear svg{width:18px;height:18px}
@@ -145,10 +160,11 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 </div>
 <div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="prefresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
 <div class="dock intro">
-  <button class="intro" data-p="boards" title="Leaderboards"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="10" width="4" height="11" rx="1"/><rect x="10" y="3" width="4" height="18" rx="1"/><rect x="17" y="13" width="4" height="8" rx="1"/></svg><span class="lbl">Leaderboards</span></button>
-  <button class="intro" data-p="podium" title="Podium"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h12v3a4 4 0 0 1-3 3.87V13h2v2H7v-2h2v-2.13A4 4 0 0 1 6 7V4Zm-3 2h2v2a2 2 0 0 1-2-2Zm16 0a2 2 0 0 1-2 2V6h2ZM7 17h10v3H7z"/></svg><span class="lbl">Podium</span></button>
+  <button class="intro" data-p="riders" title="Riders"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><circle cx="17" cy="9" r="2.6"/><path d="M14.6 14.4c2.8-.7 5.6 1 6.4 4.6h-4.8z"/></svg><span class="lbl">Riders</span></button>
   <button class="intro" data-p="countries" title="Countries"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg><span class="lbl">Countries</span></button>
-  <button class="intro" data-p="records" title="Records"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg><span class="lbl">Records</span></button>
+  <button class="intro" data-p="wheels" title="Wheel models"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4" stroke-linecap="round"/></svg><span class="lbl">Wheels</span></button>
+  <button class="intro" data-p="brands" title="Wheel brands"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="lbl">Brands</span></button>
+  <button class="intro" data-p="records" title="All-time records"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg><span class="lbl">Records</span></button>
 </div>
 <button id="gear" class="intro" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg></button>
 <div id="cfg" class="cfgpop"></div>
@@ -202,7 +218,8 @@ const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
 function bval(b,v){if(v==null)v=0;if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+b.u;}
 const RECCONV={mileage_king:"dist",longest_trip:"dist",top_speed:"spd"};
-function recval(k,v){const c=RECCONV[k];if(c==="dist")return dnum(v)+" "+dunit();if(c==="spd")return snum(v)+" "+sunit();return Math.round(v*100)/100;}
+const RECUNIT={sustained_w:" W",sustained_a:" A",peak_voltage:" V",max_gforce:" g"};
+function recval(k,v){const c=RECCONV[k];if(c==="dist")return dnum(v)+" "+dunit();if(c==="spd")return snum(v)+" "+sunit();return (Math.round(v*100)/100)+(RECUNIT[k]||"");}
 let S=null,WC=null;
 const REGION={America:[-98,39,4],Europe:[12,52,4.2],Asia:[100,34,3.2],Africa:[21,3,3.2],Australia:[134,-25,4],Pacific:[-150,5,3],Atlantic:[-30,35,3],Indian:[75,-15,3],Antarctica:[0,-72,2.6]};
 // city/country-level centers so we land near the visitor (e.g. Oslo, not central Europe)
@@ -277,35 +294,46 @@ document.getElementById("pclose").onclick=closePanel;
 function refreshPanel(){const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}}
 document.getElementById("prefresh").onclick=()=>{const b=document.getElementById("prefresh");b.classList.add("spin");refreshPanel();setTimeout(()=>b.classList.remove("spin"),650);};
 
-function showBoards(){
-  setPanel("boards","Leaderboards",`<div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(b.d||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${b.t}</span></button>`).join("")}</div><table><tbody id="lb"></tbody></table>`);
+const MEDAL='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg>';
+const WHEELIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4" stroke-linecap="round"/></svg>';
+const BRANDIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg>';
+function podList(rows,cfg){
+  if(!rows||!rows.length) return '<div class="empty">no data yet</div>';
+  const o=[1,0,2],rkn=["1ST","2ND","3RD"],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>cfg.flag?cc(cfg.flag(e)):'';
+  const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.store_id,e.has_avatar):(cfg.icon?`<div class="podic">${cfg.icon}</div>`:'')}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
+  const rest=rows.slice(3);let list='';
+  if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td>${cfg.av?av(e.store_id,e.has_avatar)+' ':''}${fl(e)} ${cfg.label(e)}</td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
+  return pod+list;
+}
+function showRiders(){
+  setPanel("riders","Riders",`<div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(b.d||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${b.t}</span></button>`).join("")}</div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
-  bindTips(pbody);
-  loadBoard("mileage");
+  bindTips(pbody);loadBoard("mileage");
 }
 async function loadBoard(k){
-  const b=BOARDS.find(x=>x.k===k);
-  const rows=(await j(`/leaderboards/${k}?limit=15`)).entries,tb=document.getElementById("lb");
-  tb.innerHTML=rows.length?rows.map((e,i)=>`<tr class="sel${GSB(i)}" data-i="${i}" style="${RA(i)}"><td class=rk>${i+1}</td><td>${rider(e)}</td><td class=val>${bval(b,e[b.c])}</td></tr>`).join(""):`<tr><td colspan=3 class=mut>no data yet</td></tr>`;
-  tb.querySelectorAll("tr.sel").forEach(tr=>tr.onclick=()=>flyToRider(rows[+tr.dataset.i]));
-}
-async function showPodium(){
-  const m=(await j("/leaderboards/mileage?limit=3")).entries,o=[1,0,2],rkn=["1ST","2ND","3RD"];
-  setPanel("podium","Mileage Kings",`<div class="podium" id="pod"></div>`);
-  document.getElementById("pod").innerHTML=o.filter(i=>m[i]).map(i=>`<div class="pod p${i+1}${i===0?' gold1':i===1?' silv':i===2?' brnz':''}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${av(m[i].store_id,m[i].has_avatar)}<div>${cc(m[i].flag)} ${m[i].name||m[i].store_id}</div><div class="km">${dnum(m[i].total_km)} ${dunit()}</div></div>`).join("")||"<span class=mut>no riders yet</span>";
-  document.querySelectorAll("#pod .pod").forEach(p=>p.onclick=()=>flyToRider(m[+p.dataset.i]));
+  const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
+  if(!cont)return;
+  cont.innerHTML=podList(rows,{av:true,flag:e=>e.flag,label:e=>e.name||e.store_id,val:e=>bval(b,e[b.c]),click:true});
+  cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToRider(rows[+el.dataset.i]));
 }
 async function showCountries(){
-  const cs=await j("/countries");
-  setPanel("countries","By country",`<table><tr><th>#</th><th>Country</th><th class=val>Total ${dunit()}</th><th class=val>Riders</th><th class=val>Avg</th></tr>${cs.map((c,i)=>`<tr class="${GSB(i).trim()}" style="${RA(i)}"><td class=rk>${i+1}</td><td>${cc(c.country)} ${cname(c.country)}</td><td class=val>${dnum(c.total_km)}</td><td class=val>${c.riders}</td><td class=val>${dnum(c.avg_km_per_rider)}</td></tr>`).join("")||"<tr><td colspan=5 class=mut>no data yet</td></tr>"}</table>`);
+  const rows=await j("/countries");
+  setPanel("countries","Countries",podList(rows,{flag:e=>e.country,label:e=>cname(e.country)||e.country,val:e=>dnum(e.total_km)+" "+dunit(),sub:e=>e.riders+" riders"}));
+}
+async function showWheels(){
+  const rows=(await j("/groups/wheel")).entries;
+  setPanel("wheels","Wheel models",podList(rows,{icon:WHEELIC,label:e=>e.name,val:e=>dnum(e.total_km)+" "+dunit(),sub:e=>e.riders+" riders"}));
+}
+async function showBrands(){
+  const rows=(await j("/groups/brand")).entries;
+  setPanel("brands","Wheel brands",podList(rows,{icon:BRANDIC,label:e=>e.name,val:e=>dnum(e.total_km)+" "+dunit(),sub:e=>e.riders+" riders"}));
 }
 async function showRecords(){
   const recs=(await j("/records")).filter(r=>r.value!=null);
-  setPanel("records","Records",`<table id="rec"></table>`);
-  document.getElementById("rec").innerHTML=recs.map((r,i)=>`<tr class="sel${GSB(i)}" data-i="${i}" style="${RA(i)}"><td>${RECLABEL[r.key]||r.key}</td><td>${rider(r.rider)}</td><td class=val>${recval(r.key,r.value)}</td></tr>`).join("")||"<tr><td class=mut>no records yet</td></tr>";
-  document.querySelectorAll("#rec tr.sel").forEach(tr=>tr.onclick=()=>flyToRider(recs[+tr.dataset.i].rider));
+  setPanel("records","All-time records",`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${RECLABEL[r.key]||r.key}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">no records yet</div>'}</div>`);
+  pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
-const HANDLERS={boards:showBoards,podium:showPodium,countries:showCountries,records:showRecords};
+const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.dataset.p]());
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
