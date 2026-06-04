@@ -575,6 +575,7 @@ def datasets_export(slug: str, request: Request):
 
 def _pipeline_html(db: Session, msg: str = "") -> str:
     total = db.query(func.count(Trip.trip_uuid)).scalar() or 0
+    allow = settings.ingest_allow(db)
     by_status = dict(db.query(Trip.validation_status, func.count(Trip.trip_uuid))
                      .group_by(Trip.validation_status).all())
     chips = "".join(
@@ -623,8 +624,12 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
       <p class=mut>Attestation: <b>{html.escape(config.ATTESTATION_MODE)}</b>
       ({'accepting all uploads, no verification' if config.ATTESTATION_MODE == 'stub' else 'requires an attestation token — presence only, not yet cryptographically verified'})
       · package <b>{html.escape(config.ANDROID_PACKAGE)}</b></p>
-      <p class=mut>Ingest allowlist: <b>{', '.join(config.INGEST_ALLOW) if config.INGEST_ALLOW else 'off — all registered riders accepted'}</b></p>
-      <form method=post action="/admin/rebuild" style="margin-top:10px"
+      <form method=post action="/admin/allowlist" style="margin-top:12px">
+        <label class=toggle style="display:inline-flex"><input type=checkbox name=enabled value=1{' checked' if allow['enabled'] else ''}> Restrict uploads to an allowlist</label>
+        <div style="margin-top:8px"><input name=ids value="{html.escape(', '.join(allow['ids']))}" placeholder="store_id, store_id, …" style="width:min(520px,100%)"> <button class="ghost mini">Save allowlist</button></div>
+        <p class=hint style="margin-top:6px">Off = any registered rider can upload (use during the open test period). On = only the listed store_ids (others get 403).</p>
+      </form>
+      <form method=post action="/admin/rebuild" style="margin-top:6px"
             onsubmit="return confirm('Recompute all leaderboards &amp; records from validated trips?')">
         <button class="ghost mini">↻ Rebuild stats</button></form>
     </div>
@@ -657,6 +662,17 @@ def admin_rebuild(request: Request, db: Session = Depends(get_db)):
     n = rebuild_all(db)
     return RedirectResponse("/admin/pipeline?msg=" + quote(f"rebuilt stats from {n} validated trips"),
                             status_code=303)
+
+
+@admin_router.post("/allowlist")
+def allowlist_save(request: Request, db: Session = Depends(get_db),
+                   enabled: str = Form(""), ids: str = Form("")):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    id_list = [s.strip() for s in ids.replace("\n", ",").replace(";", ",").split(",") if s.strip()]
+    settings.set_ingest_allow(db, bool(enabled), id_list)
+    state = f"on ({len(id_list)} id{'s' if len(id_list) != 1 else ''})" if enabled else "off — open to all"
+    return RedirectResponse("/admin/pipeline?msg=" + quote("allowlist " + state), status_code=303)
 
 
 # --- metric / section show-hide toggles ---

@@ -10,6 +10,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+import config
 from models import Meta
 
 IS_TEST = "is_test"
@@ -105,6 +106,23 @@ def is_test_dataset(db: Session) -> bool:
 
 def set_test(db: Session, value: bool) -> None:
     set_meta(db, IS_TEST, "1" if value else "0")
+
+
+def ingest_allow(db: Session) -> dict:
+    """Ingest allowlist: {enabled, ids}. Admin (app_meta) overrides the env
+    default (config.INGEST_ALLOW). When disabled, any registered rider can upload."""
+    en = get_meta(db, "ingest_allow_enabled")
+    raw = get_meta(db, "ingest_allow_ids")
+    if en is None and raw is None:                      # never set in admin -> env default
+        return {"enabled": bool(config.INGEST_ALLOW), "ids": list(config.INGEST_ALLOW)}
+    ids = _json_list(db, "ingest_allow_ids")
+    enabled = (en not in _FALSEY) if en is not None else bool(ids)
+    return {"enabled": enabled, "ids": ids}
+
+
+def set_ingest_allow(db: Session, enabled, ids) -> None:
+    set_meta(db, "ingest_allow_enabled", "1" if enabled else "0")
+    set_meta(db, "ingest_allow_ids", json.dumps([s.strip() for s in ids if s.strip()]))
 
 
 def _json_list(db: Session, key: str) -> list:

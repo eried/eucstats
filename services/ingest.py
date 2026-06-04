@@ -15,6 +15,7 @@ from ingest.downsample import downsample, encode_track
 from ingest.geo import cells_for, country_of
 from ingest.parser import parse_csv
 from ingest.plausibility import check
+from services import settings
 from ingest.summary import summarize
 from models import Trip, Wheel, utcnow
 from repository.riders import RiderRepo
@@ -91,7 +92,8 @@ class IngestService:
         trip_uuid = meta.get("trip_uuid")
         if not store or not trip_uuid:
             raise IngestError(400, "missing_store_id_or_trip_uuid")
-        if config.INGEST_ALLOW and store not in config.INGEST_ALLOW:
+        allow = settings.ingest_allow(self.db)
+        if allow["enabled"] and allow["ids"] and store not in allow["ids"]:
             raise IngestError(403, "rider_not_allowlisted")
         if self.riders.get(store) is None:
             raise IngestError(400, "rider_not_registered")
