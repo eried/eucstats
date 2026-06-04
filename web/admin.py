@@ -715,6 +715,10 @@ def _settings_html(db: Session, msg: str = "") -> str:
     styles = "".join(
         f'<option value="{s}"{" selected" if b["map_style"] == s else ""}>{s}</option>'
         for s in settings.MAP_STYLES)
+    intensity_opts = "".join(
+        f'<option value="{i}"{" selected" if b["glitch_intensity"] == i else ""}>{lbl}</option>'
+        for i, lbl in ((1, "1 — subtle"), (2, "2 — light"), (3, "3 — medium"),
+                       (4, "4 — strong"), (5, "5 — heavy")))
     ck = lambda v: " checked" if v else ""
     inner = f"""
     {banner}
@@ -739,7 +743,7 @@ def _settings_html(db: Session, msg: str = "") -> str:
         <label class=toggle style="display:inline-flex;margin-top:8px"><input type=checkbox name=glitch_enabled value=1{ck(b['glitch_enabled'])}> RGB glitch effects</label>
         <p class=hint style="margin:12px 0 4px">Glitch tuning (when enabled):</p>
         <label>roughly every <input type=number name=glitch_secs min=1 max=60 value="{b['glitch_secs']}" style="width:72px"> s</label>
-        &nbsp;&nbsp;<label>intensity <input type=number name=glitch_intensity min=1 max=5 value="{b['glitch_intensity']}" style="width:60px"> <span class=hint>(1 subtle – 5 heavy)</span></label>
+        &nbsp;&nbsp;<label>intensity <select name=glitch_intensity style="{sel}">{intensity_opts}</select></label>
       </div>
       <button>{_IC['check']} Save behaviour</button>
     </form>
