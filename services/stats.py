@@ -345,8 +345,11 @@ def version_stats(db):
            "avg_build": round(c["build"] / c["bn"]) if c["bn"] else None,
            "avg_sdk": round(c["sdk"] / c["sn"], 1) if c["sn"] else None}
           for f, c in countries.items()]
+    top = sorted([(s, d["build"]) for s, d in rep.items() if d["build"]], key=lambda x: -x[1])[:10]
     return {
+        "adopters": [{**_rider_brief(db, s), "build": b} for s, b in top],
         "updated": sorted([x for x in by if x["avg_build"]], key=lambda x: -x["avg_build"]),
+        "newest": sorted([x for x in by if x["avg_sdk"]], key=lambda x: -x["avg_sdk"]),
         "oldest": sorted([x for x in by if x["avg_sdk"]], key=lambda x: x["avg_sdk"]),
         "phones": sorted([{"brand": b, "riders": n} for b, n in brands.items()], key=lambda x: -x["riders"]),
         "android": sorted([{"version": ANDROID.get(s, f"API {s}"), "sdk": s, "riders": n}
