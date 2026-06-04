@@ -127,6 +127,11 @@ def stats_versions(db: Session = Depends(get_db)):
     return stats.version_stats(db)
 
 
+@router.get("/groups/brand/{brand}/flow")
+def brand_flow(brand: str, db: Session = Depends(get_db)):
+    return stats.brand_flow(db, brand)
+
+
 @router.get("/groups/{kind}")
 def groups(kind: str, db: Session = Depends(get_db)):
     fns = {"brand": stats.by_brand, "wheel": stats.by_wheel, "country": stats.by_country}

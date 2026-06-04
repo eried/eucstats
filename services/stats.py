@@ -357,6 +357,31 @@ def version_stats(db):
     }
 
 
+FACTORIES = {   # approximate EUC factory HQs (editable; admin manager is a follow-up)
+    "Begode": (113.75, 23.02, "Dongguan, China"),
+    "Veteran": (114.06, 22.54, "Shenzhen, China"),
+    "InMotion": (114.00, 22.62, "Shenzhen, China"),
+    "KingSong": (114.12, 22.50, "Shenzhen, China"),
+}
+
+
+def brand_flow(db, brand):
+    """Factory HQ + the country hotspots where a brand's wheels are ridden (for the
+    animated 'flow of wheels' map effect)."""
+    fac = FACTORIES.get(brand)
+    rows = (db.query(Trip.country, func.avg(Trip.start_lat), func.avg(Trip.start_lon),
+                     func.count(Trip.trip_uuid))
+            .join(Wheel, Wheel.wheel_id == Trip.wheel_id)
+            .filter(Trip.validation_status == "validated", Wheel.brand == brand,
+                    Trip.start_lat.isnot(None), Trip.country.isnot(None))
+            .group_by(Trip.country).order_by(func.count(Trip.trip_uuid).desc()).limit(40).all())
+    points = [{"lon": round(lon, 4), "lat": round(lat, 4), "country": ct, "trips": n}
+              for ct, lat, lon, n in rows if lat is not None and lon is not None]
+    return {"brand": brand,
+            "factory": ({"lon": fac[0], "lat": fac[1], "name": fac[2]} if fac else None),
+            "points": points}
+
+
 def global_summary(db):
     total_km = db.query(func.coalesce(func.sum(RiderStat.total_km), 0.0)).scalar() or 0.0
     return {
