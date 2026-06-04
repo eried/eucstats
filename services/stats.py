@@ -157,30 +157,56 @@ def map_cells(db, zoom: float):
     return out
 
 
+def _grp_aggs():
+    """Full metric set for a group (country / brand / wheel) — same dimensions as
+    the rider boards so the front-end can offer the same tabs."""
+    return (func.coalesce(func.sum(Trip.distance_km), 0.0),
+            func.count(func.distinct(Trip.rider_store_id)),
+            func.count(Trip.trip_uuid),
+            func.max(Trip.max_speed), func.max(Trip.max_gforce),
+            func.max(Trip.max_sustained_w), func.max(Trip.max_sustained_a),
+            func.max(Trip.peak_voltage), func.min(Trip.fastest_0_40_s))
+
+
+def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel):
+    return {"name": name, "total_km": round(km or 0, 1), "riders": riders, "trips": trips,
+            "top_speed": round(speed, 1) if speed else None,
+            "max_gforce": round(g, 3) if g else None,
+            "sustained_w": round(w, 0) if w else None,
+            "sustained_a": round(a, 1) if a else None,
+            "peak_voltage": round(v, 1) if v else None,
+            "accel_s": round(accel, 2) if accel else None}
+
+
 def by_brand(db, limit=50):
-    rows = (db.query(Wheel.brand.label("g"), func.coalesce(func.sum(Trip.distance_km), 0.0).label("km"),
-                     func.count(func.distinct(Trip.rider_store_id)).label("riders"),
-                     func.count(Trip.trip_uuid).label("trips"))
+    rows = (db.query(Wheel.brand, *_grp_aggs())
             .join(Trip, Trip.wheel_id == Wheel.wheel_id)
             .filter(Trip.validation_status == "validated", Wheel.brand.isnot(None), Wheel.brand != "")
             .group_by(Wheel.brand).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
-    return [{"name": g, "total_km": round(km or 0, 1), "riders": r, "trips": t} for g, km, r, t in rows]
+    return [_grp_entry(g, *rest) for g, *rest in rows]
 
 
 def by_wheel(db, limit=50):
-    rows = (db.query(Wheel.brand, Wheel.model, func.coalesce(func.sum(Trip.distance_km), 0.0).label("km"),
-                     func.count(func.distinct(Trip.rider_store_id)).label("riders"),
-                     func.count(Trip.trip_uuid).label("trips"))
+    rows = (db.query(Wheel.brand, Wheel.model, *_grp_aggs())
             .join(Trip, Trip.wheel_id == Wheel.wheel_id)
             .filter(Trip.validation_status == "validated", Wheel.model.isnot(None), Wheel.model != "")
             .group_by(Wheel.brand, Wheel.model).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
-    return [{"name": ((b or "") + " " + (m or "")).strip(), "total_km": round(km or 0, 1),
-             "riders": r, "trips": t} for b, m, km, r, t in rows]
+    return [_grp_entry(((b or "") + " " + (m or "")).strip(), *rest) for b, m, *rest in rows]
 
 
 def by_country(db, limit=50):
-    return [{"name": c["country"], "total_km": c["total_km"], "riders": c["riders"],
-             "avg": c["avg_km_per_rider"]} for c in countries(db)][:limit]
+    rows = (db.query(Trip.country, *_grp_aggs())
+            .join(Rider, Rider.store_id == Trip.rider_store_id)
+            .filter(Trip.validation_status == "validated", Rider.deleted_at.is_(None),
+                    Trip.country.isnot(None), Trip.country != "")
+            .group_by(Trip.country).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
+    out = []
+    for country, *rest in rows:
+        e = _grp_entry(country, *rest)
+        e["country"] = country
+        e["avg"] = round(e["total_km"] / e["riders"], 1) if e["riders"] else 0
+        out.append(e)
+    return out
 
 
 def champions(db):

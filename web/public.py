@@ -103,7 +103,7 @@ table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;text-align:left}
 tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:700;font-variant-numeric:tabular-nums}
 .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
 .mut{color:var(--mut)}.rider{display:flex;align-items:center;gap:9px}
-.av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto;border:1.5px solid rgba(255,255,255,.8);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 1px 5px rgba(0,0,0,.5)}
 .avph{background:linear-gradient(135deg,#2a3566,#141a30)}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
@@ -192,6 +192,8 @@ const IC={
  current:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12c2-6 4-6 6 0s4 6 6 0 4-6 6 0"/></svg>',
  voltage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="15" height="10" rx="2"/><path d="M21 10v4"/><path d="M10 9l-2 3.5h3L9 16" stroke-linejoin="round"/></svg>',
  streak:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-2 5-2 8a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 4-6 5-14z"/></svg>'};
+const GIC_PPL='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0z"/></svg>';
+const GIC_TRIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c3-2 4-6 4-9a3 3 0 0 1 6 0c0 4 1 7 4 9"/></svg>';
 const BOARDS=[
  {k:"mileage",t:"Total dist",c:"total_km",u:" km",conv:"dist",d:"Total distance ever ridden"},
  {k:"daily",t:"Biggest day",c:"best_day_km",u:" km",conv:"dist",d:"Most distance in a single day"},
@@ -268,6 +270,8 @@ function flyToRider(e){
   showArea(olon,olat,11);                                              // dotted ring marking the noised area
   map.flyTo({center:[olon,olat],zoom:9.6,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
 }
+const CENTROIDS={US:[-98,39,4],GB:[-2,54,5],DE:[10,51,5.2],FR:[2.5,47,5],NO:[9,61,4.6],SE:[16,62,4.4],NL:[5.3,52,6.3],ES:[-3.7,40,5.2],IT:[12.5,42,5.2],PL:[19,52,5.2],CA:[-100,56,3.6],AU:[134,-25,3.9],JP:[138,37,4.6],FI:[26,64,4.4],DK:[10,56,6.2],CH:[8.2,46.8,6.4],AT:[14.5,47.5,5.8],CZ:[15.5,49.8,6.2],PT:[-8,39.5,5.8],SG:[103.8,1.35,9],BR:[-50,-12,3.7],MX:[-102,23,4.5]};
+function flyToCountry(code){const c=CENTROIDS[(""+code).toUpperCase()];if(!c||!map)return;closePanel();map.flyTo({center:[c[0],c[1]],zoom:c[2],curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});}
 
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
 let openPanel=null;
@@ -280,7 +284,7 @@ function bindTips(root){(root||document).querySelectorAll("[data-tip]").forEach(
 document.addEventListener("click",hideTip);
 function countUp(el,target,dur,dec){const t=+target||0;let from;
   if(el.dataset.cur!==undefined){from=+el.dataset.cur;}
-  else{const digits=Math.max(1,Math.floor(Math.abs(t)).toString().length);const fl=Math.pow(10,digits-1);from=Math.max(fl,t*0.8);if(from>=t)from=Math.max(0,t-Math.max(1,t*0.2));}
+  else{const digits=Math.max(1,Math.floor(Math.abs(t)).toString().length);const fl=Math.pow(10,digits-1);from=Math.max(fl,t*0.7);if(from>=t)from=Math.max(0,t-Math.max(1,t*0.3));}
   const delta=t-from;let s0=null;
   function step(now){if(s0===null)s0=now;let p=Math.min(1,(now-s0)/dur);p=1-Math.pow(1-p,3);const v=from+delta*p;el.textContent=dec?v.toFixed(dec):Math.round(v).toLocaleString();if(p<1)requestAnimationFrame(step);else{el.textContent=dec?t.toFixed(dec):Math.round(t).toLocaleString();el.dataset.cur=""+t;}}
   requestAnimationFrame(step);}
@@ -316,18 +320,33 @@ async function loadBoard(k){
   cont.innerHTML=podList(rows,{av:true,flag:e=>e.flag,label:e=>e.name||e.store_id,val:e=>bval(b,e[b.c]),click:true});
   cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToRider(rows[+el.dataset.i]));
 }
-async function showCountries(){
-  const rows=await j("/countries");
-  setPanel("countries","Countries",podList(rows,{flag:e=>e.country,label:e=>cname(e.country)||e.country,val:e=>dnum(e.total_km)+" "+dunit(),sub:e=>e.riders+" riders"}));
+const GBOARDS=[
+ {k:"dist",t:"Total dist",key:"total_km",conv:"dist",ic:IC.mileage,d:"Total distance ridden"},
+ {k:"speed",t:"Top speed",key:"top_speed",conv:"spd",ic:IC.speed,d:"Fastest ride in the group"},
+ {k:"accel",t:"0→40",key:"accel_s",u:" s",asc:true,ic:IC.accel,d:"Fastest 0→40 km/h · lower is better"},
+ {k:"gforce",t:"Max G",key:"max_gforce",u:" g",ic:IC.gforce,d:"Strongest g-force spike"},
+ {k:"power",t:"Sustained W",key:"sustained_w",u:" W",ic:IC.power,d:"Highest power held 2s"},
+ {k:"current",t:"Sustained A",key:"sustained_a",u:" A",ic:IC.current,d:"Highest current held 2s"},
+ {k:"voltage",t:"Volt peak",key:"peak_voltage",u:" V",ic:IC.voltage,d:"Highest battery voltage"},
+ {k:"riders",t:"Riders",key:"riders",u:"",ic:GIC_PPL,d:"Active riders"},
+ {k:"trips",t:"Rides",key:"trips",u:"",ic:GIC_TRIP,d:"Rides logged"}];
+let GROWS=null;
+function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+(b.u||"");}
+function renderGroup(b,cfg){
+  const cont=document.getElementById("lb");if(!cont||!GROWS)return;
+  const rows=GROWS.filter(e=>e[b.key]!=null).slice().sort((x,y)=>b.asc?((x[b.key]||1e9)-(y[b.key]||1e9)):((y[b.key]||0)-(x[b.key]||0)));
+  cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>e.riders+" riders"},cfg));
+  if(cfg.click) cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToCountry(rows[+el.dataset.i].country));
 }
-async function showWheels(){
-  const rows=(await j("/groups/wheel")).entries;
-  setPanel("wheels","Wheel models",podList(rows,{icon:WHEELIC,label:e=>e.name,val:e=>dnum(e.total_km)+" "+dunit(),sub:e=>e.riders+" riders"}));
+async function showGroupPanel(kind,name,title,cfg){
+  GROWS=(await j("/groups/"+kind)).entries;
+  setPanel(name,title,`<div class="tabs">${GBOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(b.d||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${b.t}</span></button>`).join("")}</div><div id="lb"></div>`);
+  pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(GBOARDS[+t.dataset.b],cfg);});
+  bindTips(pbody);renderGroup(GBOARDS[0],cfg);
 }
-async function showBrands(){
-  const rows=(await j("/groups/brand")).entries;
-  setPanel("brands","Wheel brands",podList(rows,{icon:BRANDIC,label:e=>e.name,val:e=>dnum(e.total_km)+" "+dunit(),sub:e=>e.riders+" riders"}));
-}
+function showCountries(){showGroupPanel("country","countries","Countries",{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
+function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC});}
+function showBrands(){showGroupPanel("brand","brands","Wheel brands",{icon:BRANDIC});}
 async function showRecords(){
   const recs=(await j("/records")).filter(r=>r.value!=null);
   setPanel("records","All-time records",`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${RECLABEL[r.key]||r.key}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">no records yet</div>'}</div>`);
@@ -339,6 +358,7 @@ document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.da
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
 function runIntro(){
   reveal(document.querySelector(".topbar"),1100);
+  setTimeout(animateChips,1450);   // count up once the topbar is fading in (so it's visible)
   reveal(document.querySelector(".dock"),2300);
   document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,2700+i*320));
   reveal(document.querySelector(".rfoot"),4100);
@@ -349,9 +369,8 @@ function renderHeader(){renderChips();renderChampions();}
 function renderChips(){
   const chips=[["Riders",S.riders,0,"riders"],["Trips",S.trips,0,"trips"],["Total "+dunit(),mph()?r1(S.total_km*MI):r1(S.total_km),1,"total"],["Countries",S.countries,0,"countries"]];
   document.getElementById("chips").innerHTML=chips.map(([l,v,dec,k])=>`<span class="chip"><b data-cv="${v}" data-dec="${dec}" data-k="${k}">0</b> ${l}</span>`).join("");
-  const durs=[900,1350,1100,1550];
-  document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));
 }
+function animateChips(){const durs=[1000,1500,1200,1700];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
 async function pollStats(){
   try{const ns=await j("/stats/summary"),nc=await j("/champions");S=ns;WC=nc;
     const map={riders:ns.riders,trips:ns.trips,total:mph()?r1(ns.total_km*MI):r1(ns.total_km),countries:ns.countries};
@@ -392,7 +411,7 @@ function setupCfg(){
     cfg.innerHTML=`<div class="crow"><span>Units</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">km/h</button><button data-u="mph" class="${UNIT==='mph'?'on':''}">mph</button></div></div>`+
       `<div class="crow"><span>Map</span><div class="seg"><button data-s="dark" class="${MAPSTYLE==='dark'?'on':''}">Dark</button><button data-s="light" class="${MAPSTYLE==='light'?'on':''}">Light</button><button data-s="voyager" class="${MAPSTYLE==='voyager'?'on':''}">Voyager</button><button data-s="satellite" class="${MAPSTYLE==='satellite'?'on':''}">Satellite</button><button data-s="terrain" class="${MAPSTYLE==='terrain'?'on':''}">Topo</button></div></div>`+
       `<div class="crow"><span>Intro</span><button id="introbtn" class="cbtn">Replay intro</button></div>`;
-    cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
+    cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     cfg.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{MAPSTYLE=b.dataset.s;localStorage.setItem("eucstats_style",MAPSTYLE);render();map.setStyle(STYLES[MAPSTYLE]);});
     const ib=cfg.querySelector("#introbtn");
     if(ib) ib.onclick=()=>{ try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; ib.classList.add("on"); ib.textContent="Replaying…"; setTimeout(()=>location.reload(),260); };

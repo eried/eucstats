@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>EUC Stats — champion glitch gallery</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{--gold:#ffd24a;--acc:#2ea8ff;--mut:#9aa6c8;--line:#33457a}
+*{box-sizing:border-box}
+body{margin:0;background:#070a16;color:#eef1fb;font-family:"Chakra Petch",system-ui,sans-serif;padding:26px;-webkit-font-smoothing:antialiased}
+h1{font-family:Orbitron;font-size:18px;letter-spacing:1px;margin:0 0 8px}
+p{color:var(--mut);max-width:720px;line-height:1.5;margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px;margin-top:26px}
+.tag{font-family:Orbitron;color:var(--gold);font-size:12px;letter-spacing:1px;margin-bottom:8px}
+.card{background:linear-gradient(158deg,rgba(34,52,100,.85),rgba(9,14,30,.88));border:1px solid var(--line);border-radius:12px;padding:12px 14px;position:relative;overflow:hidden;backdrop-filter:blur(8px);box-shadow:0 12px 34px rgba(0,0,0,.5)}
+.chead{display:flex;align-items:center;gap:7px;font-family:Orbitron;font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.chead .title{flex:1}
+.row{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:2px 0}
+.row .lab{min-width:42px;font-size:9.5px;text-transform:uppercase;color:var(--mut);font-family:Orbitron}
+.row b{color:var(--gold);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .pts{margin-left:auto;font-family:Orbitron;color:var(--acc);font-weight:700;font-size:12px;white-space:nowrap}
+.fl{width:20px;height:15px;border-radius:2px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+
+/* ---- glitch effects (each glitches briefly every 5s for preview) ---- */
+.card.fx-rgb-split{animation:gx-rgb 5s infinite}
+@keyframes gx-rgb{0%,90%,100%{text-shadow:none;transform:none}91%{text-shadow:-3px 0 #ff00d4,3px 0 #00fff0;transform:translateX(1px)}93%{text-shadow:3px 0 #ff00d4,-3px 0 #00fff0;transform:translateX(-1px)}95%{text-shadow:-2px 0 #ff00d4,2px 0 #00fff0}97%{text-shadow:none;transform:none}}
+
+.card.fx-slice{animation:gx-slice 5s steps(1,end) infinite}
+@keyframes gx-slice{0%,90%,100%{clip-path:inset(0);transform:none}91%{clip-path:inset(18% 0 62% 0);transform:translateX(-9px)}92%{clip-path:inset(58% 0 18% 0);transform:translateX(9px)}93%{clip-path:inset(38% 0 42% 0);transform:translateX(-6px)}94%{clip-path:inset(8% 0 78% 0);transform:translateX(7px)}95%{clip-path:inset(0);transform:none}}
+
+.card.fx-shake{animation:gx-shake 5s infinite}
+@keyframes gx-shake{0%,92%,100%{transform:none;filter:none}93%{transform:translate(2px,-1px) skewX(-4deg)}94%{transform:translate(-2px,1px) skewX(4deg);filter:contrast(1.3)}95%{transform:translate(1px,0)}96%{transform:none}}
+
+.card.fx-scanflick{animation:gx-scan 5s infinite}
+@keyframes gx-scan{0%,86%,100%{filter:none}88%{filter:brightness(1.7) contrast(1.3)}89%{filter:brightness(.55)}90%{filter:brightness(1.4)}91%{filter:none}}
+.card.fx-scanflick::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 1px,transparent 3px);pointer-events:none;mix-blend-mode:multiply}
+
+.card.fx-hue-flash{animation:gx-hue 5s infinite}
+@keyframes gx-hue{0%,90%,100%{filter:none}91%{filter:hue-rotate(140deg) saturate(2)}93%{filter:hue-rotate(-100deg) invert(.12)}95%{filter:none}}
+
+.card.fx-static::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");animation:gx-static 5s infinite}
+@keyframes gx-static{0%,88%,100%{opacity:0}89%{opacity:.65}90%{opacity:.15}91%{opacity:.55}92%{opacity:.1}93%{opacity:0}}
+
+.card.fx-flicker{animation:gx-flick 5s infinite}
+@keyframes gx-flick{0%,86%,100%{opacity:1}87%{opacity:.22}88%{opacity:1}89%{opacity:.5}90%{opacity:1}91%{opacity:.12}92%{opacity:1}}
+
+.card.fx-vhs-roll{animation:gx-vhstext 5s infinite}
+@keyframes gx-vhstext{0%,82%,100%{text-shadow:none}84%{text-shadow:1.6px 0 rgba(255,0,80,.6),-1.6px 0 rgba(0,200,255,.6)}88%{text-shadow:none}}
+.card.fx-vhs-roll::after{content:"";position:absolute;left:0;right:0;height:34%;top:-34%;background:linear-gradient(rgba(255,255,255,0),rgba(180,220,255,.2),rgba(255,255,255,0));pointer-events:none;animation:gx-roll 5s linear infinite}
+@keyframes gx-roll{0%,78%{top:-34%}100%{top:134%}}
+
+.card.fx-jitter-zoom{animation:gx-jz 5s infinite}
+@keyframes gx-jz{0%,90%,100%{transform:none;filter:none}91%{transform:scale(1.03);filter:blur(1px)}92%{transform:scale(.985) translateX(3px)}93%{transform:scale(1.02) translateX(-3px);filter:blur(.5px)}94%{transform:none;filter:none}}
+</style></head>
+<body>
+<h1>EUC Stats · champion glitch gallery</h1>
+<p>Each card plays its glitch every ~5&nbsp;seconds for preview. In production it'd fire about every 30&nbsp;s at random on the real "EUC Planet Champions" block. Tell me the <b>#name</b> you like best (or "none") and I'll wire it in.</p>
+<div class="grid" id="grid"></div>
+<script>
+const CARD=`<div class="chead"><span>&#127937;</span><span class="title">EUC Planet Champions</span><span>&#9432;</span></div>
+<div class="row"><span class="lab">Day</span><img class="fl" src="https://flagcdn.com/40x30/gb.png" alt=""><b>Ashkente</b><span class="pts">12.4 pts</span></div>
+<div class="row"><span class="lab">Week</span><img class="fl" src="https://flagcdn.com/40x30/it.png" alt=""><b>Fabry</b><span class="pts">97.8 pts</span></div>
+<div class="row"><span class="lab">Month</span><img class="fl" src="https://flagcdn.com/40x30/it.png" alt=""><b>Gio Aka Wheel In Motion</b><span class="pts">281.1 pts</span></div>`;
+const FX=["rgb-split","slice","shake","scanflick","hue-flash","static","flicker","vhs-roll","jitter-zoom"];
+document.getElementById("grid").innerHTML=FX.map(f=>`<div><div class="tag">#${f}</div><div class="card fx-${f}">${CARD}</div></div>`).join("");
+</script>
+</body></html>
