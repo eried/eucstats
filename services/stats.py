@@ -373,12 +373,25 @@ def by_brand(db, limit=50):
     return [_grp_entry(g, *rest) for g, *rest in rows]
 
 
+def _wheel_name(brand, model):
+    """Model name without a redundant leading brand ('Inmotion Inmotion V14' -> 'V14')."""
+    b, m = (brand or "").strip(), (model or "").strip()
+    if b and m.lower().startswith(b.lower()):
+        m = m[len(b):].strip(" -·") or m
+    return m or b
+
+
 def by_wheel(db, limit=50):
     rows = (db.query(Wheel.brand, Wheel.model, *_grp_aggs())
             .join(Trip, Trip.wheel_id == Wheel.wheel_id)
             .filter(Trip.validation_status == "validated", Wheel.model.isnot(None), Wheel.model != "")
             .group_by(Wheel.brand, Wheel.model).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
-    return [_grp_entry(((b or "") + " " + (m or "")).strip(), *rest) for b, m, *rest in rows]
+    out = []
+    for b, m, *rest in rows:
+        e = _grp_entry(_wheel_name(b, m), *rest)
+        e["brand"] = b
+        out.append(e)
+    return out
 
 
 def by_country(db, limit=50):
@@ -387,11 +400,19 @@ def by_country(db, limit=50):
             .filter(Trip.validation_status == "validated", Rider.deleted_at.is_(None),
                     Trip.country.isnot(None), Trip.country != "")
             .group_by(Trip.country).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
+    coords = {c: (la, lo) for c, la, lo in
+              db.query(Trip.country, func.avg(Trip.start_lat), func.avg(Trip.start_lon))
+              .filter(Trip.validation_status == "validated", Trip.start_lat.isnot(None),
+                      Trip.country.isnot(None), Trip.country != "")
+              .group_by(Trip.country).all()}
     out = []
     for country, *rest in rows:
         e = _grp_entry(country, *rest)
         e["country"] = country
         e["avg"] = round(e["total_km"] / e["riders"], 1) if e["riders"] else 0
+        la, lo = coords.get(country, (None, None))
+        e["lat"] = round(la, 3) if la is not None else None    # where this country's riders ride
+        e["lon"] = round(lo, 3) if lo is not None else None
         out.append(e)
     return out
 

@@ -362,7 +362,15 @@ function flyToRider(e){
   map.flyTo({center:[olon,olat],zoom:11.5,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
 }
 const CENTROIDS={US:[-98,39,4],GB:[-2,54,5],DE:[10,51,5.2],FR:[2.5,47,5],NO:[9,61,4.6],SE:[16,62,4.4],NL:[5.3,52,6.3],ES:[-3.7,40,5.2],IT:[12.5,42,5.2],PL:[19,52,5.2],CA:[-100,56,3.6],AU:[134,-25,3.9],JP:[138,37,4.6],FI:[26,64,4.4],DK:[10,56,6.2],CH:[8.2,46.8,6.4],AT:[14.5,47.5,5.8],CZ:[15.5,49.8,6.2],PT:[-8,39.5,5.8],SG:[103.8,1.35,9],BR:[-50,-12,3.7],MX:[-102,23,4.5]};
-function flyToCountry(code){const c=CENTROIDS[(""+code).toUpperCase()];if(!c||!map)return;closePanel();map.flyTo({center:[c[0],c[1]],zoom:c[2],curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});}
+function flyToCountry(arg){
+  if(!map)return;closePanel();
+  const isObj=arg&&typeof arg==="object";
+  const code=isObj?arg.country:arg, c=CENTROIDS[(""+code).toUpperCase()];
+  const lon=(isObj&&arg.lon!=null)?arg.lon:(c?c[0]:null);   // pan to where riders actually are
+  const lat=(isObj&&arg.lat!=null)?arg.lat:(c?c[1]:null);
+  if(lon==null||lat==null)return;
+  map.flyTo({center:[lon,lat],zoom:5.8,curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});  // not too near
+}
 function fitTop3(rows,coordFn){
   if(!map||!rows||!rows.length)return;
   const pts=rows.slice(0,3).map(coordFn).filter(p=>p&&p[0]!=null&&p[1]!=null);
@@ -496,7 +504,7 @@ function renderGroup(b,cfg){
   setCap(b.ic||'',bd(b));
   const rows=GROWS.filter(e=>e[b.key]!=null).slice().sort((x,y)=>b.asc?((x[b.key]||1e9)-(y[b.key]||1e9)):((y[b.key]||0)-(x[b.key]||0)));
   cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>e.riders+" riders"},cfg));
-  if(cfg.click){cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToCountry(rows[+el.dataset.i].country));
+  if(cfg.click){cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToCountry(rows[+el.dataset.i]));
     fitTop3(rows,e=>{const c=CENTROIDS[(e.country||"").toUpperCase()];return c?[c[0],c[1]]:null;});}
   if(cfg.flow) cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>brandFlow(rows[+el.dataset.i].name));
 }
@@ -508,7 +516,7 @@ async function showGroupPanel(kind,name,title,cfg){
   bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
 }
 function showCountries(){showGroupPanel("country","countries","Countries",{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
-function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC});}
+function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+(e.riders||0)+" riders"});}
 function showBrands(){showGroupPanel("brand","brands","Wheel brands",{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
   const recs=(await j("/records")).filter(r=>r.value!=null);
