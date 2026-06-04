@@ -38,6 +38,9 @@ class Aggregator:
         rs.longest_trip_km = max(rs.longest_trip_km or 0.0, dist)
         if trip.ascent_m:
             rs.total_ascent_m = (rs.total_ascent_m or 0.0) + trip.ascent_m
+        rs.total_duration_s = (rs.total_duration_s or 0.0) + (trip.duration_s or 0.0)
+        if trip.alt_range_m:
+            rs.best_alt_range_m = max(rs.best_alt_range_m or 0.0, trip.alt_range_m)
         if trip.est_range_km:
             rs.best_range_km = max(rs.best_range_km or 0.0, trip.est_range_km)
         if trip.wh_per_km and (trip.distance_km or 0) >= 2:

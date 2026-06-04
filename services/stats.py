@@ -132,6 +132,36 @@ def efficiency_leaderboard(db, limit=50):
     return [{**_rider_brief(db, rs.store_id), "wh_per_km": round(rs.best_wh_per_km, 1)} for rs in rows]
 
 
+def steel_legs(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "hours": round((rs.total_duration_s or 0) / 3600.0, 1)}
+            for rs in _board(db, RiderStat.total_duration_s, limit, positive_only=True)]
+
+
+def altitude_king(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "alt_range": round(rs.best_alt_range_m or 0, 0)}
+            for rs in _board(db, RiderStat.best_alt_range_m, limit, positive_only=True)]
+
+
+def globe_trotter(db, limit=50):
+    sub = (db.query(Trip.rider_store_id.label("sid"), func.count(func.distinct(Trip.country)).label("n"))
+           .filter(Trip.validation_status == "validated", Trip.country.isnot(None), Trip.country != "")
+           .group_by(Trip.rider_store_id).subquery())
+    rows = (db.query(sub.c.sid, sub.c.n).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(sub.c.n.desc()).limit(limit).all())
+    return [{**_rider_brief(db, sid), "countries": n} for sid, n in rows]
+
+
+def sunday_cruiser(db, limit=50):
+    """Longest ride held under 10 km/h average — calm & steady."""
+    sub = (db.query(Trip.rider_store_id.label("sid"), func.max(Trip.distance_km).label("d"))
+           .filter(Trip.validation_status == "validated", Trip.avg_speed > 0,
+                   Trip.avg_speed < 10, Trip.distance_km > 2)
+           .group_by(Trip.rider_store_id).subquery())
+    rows = (db.query(sub.c.sid, sub.c.d).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(sub.c.d.desc()).limit(limit).all())
+    return [{**_rider_brief(db, sid), "slow_km": round(d or 0, 2)} for sid, d in rows]
+
+
 BOARDS = {
     "mileage": mileage_leaderboard,
     "daily": daily_leaderboard,
@@ -147,6 +177,10 @@ BOARDS = {
     "ascent": ascent_leaderboard,
     "range": range_leaderboard,
     "efficiency": efficiency_leaderboard,
+    "hours": steel_legs,
+    "cruise": sunday_cruiser,
+    "globe": globe_trotter,
+    "altking": altitude_king,
 }
 
 

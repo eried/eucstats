@@ -114,8 +114,9 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .avph{background:linear-gradient(135deg,#2a3566,#141a30)}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
-.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:6px;margin-bottom:2px}
-.tab{display:flex;align-items:center;justify-content:flex-start;gap:7px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:7px 10px;font-size:12px;cursor:pointer;letter-spacing:.3px}
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:6px;margin-bottom:2px}
+.tab{display:flex;align-items:center;justify-content:flex-start;gap:7px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:0 10px;height:36px;font-size:12px;cursor:pointer;letter-spacing:.3px;overflow:hidden}
+.tab>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .tab svg{flex:0 0 auto}
 .tab svg{width:14px;height:14px}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
@@ -207,24 +208,32 @@ const IC={
  streak:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-2 5-2 8a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 4-6 5-14z"/></svg>',
  ascent:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20h18L14 7l-3.2 5.6L8.5 9 3 20z"/></svg>',
  range:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 10v4"/><path d="M5.5 10v4M8.5 10v4M11.5 10v4" stroke-linecap="round"/></svg>',
- efficiency:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 20c0-9 7-15 16-15 0 10-6 16-15 16 1-4 4-7 8-9-4 1-7 3-9 8z"/></svg>'};
+ efficiency:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 20c0-9 7-15 16-15 0 10-6 16-15 16 1-4 4-7 8-9-4 1-7 3-9 8z"/></svg>',
+ hours:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>',
+ cruise:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h12v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M7 3c0 1.2-1 1.2-1 2.5M11 3c0 1.2-1 1.2-1 2.5"/></svg>',
+ globe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>',
+ altking:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 20l6-11 4 6 2-3 6 8z"/><path d="M9 9l1.4-3"/></svg>'};
 const GIC_PPL='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0z"/></svg>';
 const GIC_TRIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c3-2 4-6 4-9a3 3 0 0 1 6 0c0 4 1 7 4 9"/></svg>';
 const BOARDS=[
- {k:"mileage",t:"Total dist",c:"total_km",u:" km",conv:"dist",d:"Total distance ever ridden"},
- {k:"daily",t:"Biggest day",c:"best_day_km",u:" km",conv:"dist",d:"Most distance in a single day"},
- {k:"week",t:"Biggest week",c:"best_week_km",u:" km",conv:"dist",d:"Most distance in one ISO week"},
- {k:"month",t:"Biggest month",c:"best_month_km",u:" km",conv:"dist",d:"Most distance in one calendar month"},
- {k:"speed",t:"Top speed",c:"best_speed",u:" km/h",conv:"spd",d:"Highest speed reached on any ride"},
- {k:"accel",t:"0→40",c:"accel_s",u:" s",d:"Fastest launch from a stop to 40 km/h · lower is better"},
- {k:"gforce",t:"Max G",c:"best_gforce",u:" g",d:"Strongest g-force spike · hard accel, brake or bump"},
- {k:"power",t:"Sustained W",c:"sustained_w",u:" W",d:"Highest power held for 2 seconds straight"},
- {k:"current",t:"Sustained A",c:"sustained_a",u:" A",d:"Highest current (amps) held for 2 seconds"},
- {k:"voltage",t:"Volt peak",c:"peak_voltage",u:" V",d:"Highest battery voltage observed"},
- {k:"streak",t:"Streak",c:"longest_streak",u:" d",d:"Longest run of consecutive days ridden"},
- {k:"ascent",t:"Climbed",c:"ascent_m",u:" m",d:"Total elevation climbed (Everest = 8849 m)"},
- {k:"range",t:"Best range",c:"range_km",u:"",conv:"dist",d:"Longest estimated full-charge range"},
- {k:"efficiency",t:"Efficiency",c:"wh_per_km",u:" Wh/km",d:"Lowest energy use per km · most efficient"}];
+ {k:"mileage",t:"Mile Muncher",c:"total_km",u:" km",conv:"dist",d:"Most distance ever ridden"},
+ {k:"daily",t:"Day Crusher",c:"best_day_km",u:" km",conv:"dist",d:"Most distance in a single day"},
+ {k:"week",t:"Week Beast",c:"best_week_km",u:" km",conv:"dist",d:"Most distance in one week"},
+ {k:"month",t:"Month Monster",c:"best_month_km",u:" km",conv:"dist",d:"Most distance in one calendar month"},
+ {k:"speed",t:"Speedy Gonzales",c:"best_speed",u:" km/h",conv:"spd",d:"Highest speed reached on any ride"},
+ {k:"accel",t:"Drag Racer",c:"accel_s",u:" s",d:"Fastest launch from a stop to 40 km/h (≈25 mph) · lower is better"},
+ {k:"gforce",t:"G-Force Hero",c:"best_gforce",u:" g",d:"Strongest g-force spike"},
+ {k:"power",t:"Watt Beast",c:"sustained_w",u:" W",d:"Highest power held for 2 seconds"},
+ {k:"current",t:"Amp Demon",c:"sustained_a",u:" A",d:"Highest current held for 2 seconds"},
+ {k:"voltage",t:"Volt Lord",c:"peak_voltage",u:" V",d:"Highest battery voltage observed"},
+ {k:"streak",t:"Streak Master",c:"longest_streak",u:" d",d:"Longest run of consecutive days ridden"},
+ {k:"ascent",t:"Everest Climber",c:"ascent_m",u:" m",d:"Total elevation climbed (Everest = 8849 m)"},
+ {k:"range",t:"Long Hauler",c:"range_km",u:"",conv:"dist",d:"Longest estimated full-charge range"},
+ {k:"efficiency",t:"Eco Rider",c:"wh_per_km",u:" Wh/km",d:"Lowest energy use per km · most efficient"},
+ {k:"hours",t:"Steel Legs",c:"hours",u:" h",d:"Most hours in the saddle"},
+ {k:"cruise",t:"Sunday Cruiser",c:"slow_km",u:"",conv:"dist",d:"Longest calm ride held under 10 km/h"},
+ {k:"globe",t:"Globe Trotter",c:"countries",u:"",d:"Most countries ridden in"},
+ {k:"altking",t:"Altitude King",c:"alt_range",u:" m",d:"Biggest altitude swing in one ride"}];
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
@@ -238,7 +247,7 @@ const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
 function bval(b,v){if(v==null)v=0;if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+b.u;}
-function bt(b){return (b.k==="accel"&&mph())?"0→25":b.t;}
+function bt(b){return b.t;}
 function bd(b){return (b.k==="accel"&&mph())?"Fastest launch from a stop to ≈25 mph (40 km/h) · lower is better":b.d;}
 const RECCONV={mileage_king:"dist",longest_trip:"dist",top_speed:"spd"};
 const RECUNIT={sustained_w:" W",sustained_a:" A",peak_voltage:" V",max_gforce:" g"};
@@ -353,18 +362,18 @@ async function loadBoard(k){
   fitTop3(rows,e=>[e.lon,e.lat]);
 }
 const GBOARDS=[
- {k:"dist",t:"Total dist",key:"total_km",conv:"dist",ic:IC.mileage,d:"Total distance ridden"},
- {k:"speed",t:"Top speed",key:"top_speed",conv:"spd",ic:IC.speed,d:"Fastest ride in the group"},
- {k:"accel",t:"0→40",key:"accel_s",u:" s",asc:true,ic:IC.accel,d:"Fastest 0→40 km/h · lower is better"},
- {k:"gforce",t:"Max G",key:"max_gforce",u:" g",ic:IC.gforce,d:"Strongest g-force spike"},
- {k:"power",t:"Sustained W",key:"sustained_w",u:" W",ic:IC.power,d:"Highest power held 2s"},
- {k:"current",t:"Sustained A",key:"sustained_a",u:" A",ic:IC.current,d:"Highest current held 2s"},
- {k:"voltage",t:"Volt peak",key:"peak_voltage",u:" V",ic:IC.voltage,d:"Highest battery voltage"},
+ {k:"dist",t:"Mile Muncher",key:"total_km",conv:"dist",ic:IC.mileage,d:"Most distance ridden"},
+ {k:"speed",t:"Speedy Gonzales",key:"top_speed",conv:"spd",ic:IC.speed,d:"Fastest ride in the group"},
+ {k:"accel",t:"Drag Racer",key:"accel_s",u:" s",asc:true,ic:IC.accel,d:"Fastest 0→40 km/h · lower is better"},
+ {k:"gforce",t:"G-Force Hero",key:"max_gforce",u:" g",ic:IC.gforce,d:"Strongest g-force spike"},
+ {k:"power",t:"Watt Beast",key:"sustained_w",u:" W",ic:IC.power,d:"Highest power held 2s"},
+ {k:"current",t:"Amp Demon",key:"sustained_a",u:" A",ic:IC.current,d:"Highest current held 2s"},
+ {k:"voltage",t:"Volt Lord",key:"peak_voltage",u:" V",ic:IC.voltage,d:"Highest battery voltage"},
  {k:"riders",t:"Riders",key:"riders",u:"",ic:GIC_PPL,d:"Active riders"},
  {k:"trips",t:"Rides",key:"trips",u:"",ic:GIC_TRIP,d:"Rides logged"},
- {k:"ascent",t:"Climbed",key:"ascent_m",u:" m",ic:IC.ascent,d:"Total elevation climbed"},
- {k:"range",t:"Best range",key:"range_km",conv:"dist",ic:IC.range,d:"Longest est. range"},
- {k:"eff",t:"Efficiency",key:"wh_per_km",u:" Wh/km",asc:true,ic:IC.efficiency,d:"Lowest Wh/km · best"}];
+ {k:"ascent",t:"Everest Climber",key:"ascent_m",u:" m",ic:IC.ascent,d:"Total elevation climbed"},
+ {k:"range",t:"Long Hauler",key:"range_km",conv:"dist",ic:IC.range,d:"Longest est. range"},
+ {k:"eff",t:"Eco Rider",key:"wh_per_km",u:" Wh/km",asc:true,ic:IC.efficiency,d:"Lowest Wh/km · best"}];
 let GROWS=null;
 function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+(b.u||"");}
 function renderGroup(b,cfg){

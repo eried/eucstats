@@ -36,6 +36,7 @@ class TripSummary:
     ascent_m: float | None
     battery_used_pct: float | None
     est_range_km: float | None
+    alt_range_m: float | None
     sample_count: int
 
 
@@ -151,6 +152,12 @@ def _ascent_m(samples: list[Sample]) -> float | None:
     return round(gain, 1)
 
 
+def _alt_range(samples: list[Sample]) -> float | None:
+    """Altitude swing (max - min) over the ride."""
+    alts = [s.alt for s in samples if s.alt is not None]
+    return round(max(alts) - min(alts), 1) if len(alts) >= 2 else None
+
+
 def _battery_used(samples: list[Sample]) -> float | None:
     """Total battery % consumed (sum of drops; ignores mid-ride charging)."""
     bs = [s.battery for s in samples if s.battery is not None]
@@ -197,6 +204,7 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     max_sustained_a = _sustained_max(samples, lambda s: s.current, 2.0)
     fastest_0_40_s = _fastest_0_40(samples)
     ascent_m = _ascent_m(samples)
+    alt_range_m = _alt_range(samples)
     battery_used_pct = _battery_used(samples)
     est_range_km = (round(distance * 100.0 / battery_used_pct, 1)
                     if (battery_used_pct and battery_used_pct >= 10 and distance > 0) else None)
@@ -209,5 +217,5 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
         max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
         fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m,
         battery_used_pct=battery_used_pct, est_range_km=est_range_km,
-        sample_count=len(samples),
+        alt_range_m=alt_range_m, sample_count=len(samples),
     )
