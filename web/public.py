@@ -78,8 +78,8 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes champvhs{0%,90%,100%{text-shadow:none}92%{text-shadow:1.6px 0 rgba(255,40,90,.5),-1.6px 0 rgba(0,200,255,.5)}94%{text-shadow:-1.6px 0 rgba(255,40,90,.5),1.6px 0 rgba(0,200,255,.5)}96%{text-shadow:none}}
 .champ::after{content:"";position:absolute;left:0;right:0;height:36%;top:-36%;background:linear-gradient(rgba(255,255,255,0),rgba(180,220,255,.16),rgba(255,255,255,0));pointer-events:none;animation:champroll 10s linear infinite}
 @keyframes champroll{0%,82%{top:-36%}100%{top:136%}}
-.rgbglitch{animation:rgbg .55s linear}
-@keyframes rgbg{0%,100%{text-shadow:none}25%{text-shadow:-2px 0 #ff2bd0,2px 0 #00ffe7}50%{text-shadow:2px 0 #ff2bd0,-2px 0 #00ffe7}75%{text-shadow:-1px 0 #ff2bd0,1px 0 #00ffe7}}
+.rgbglitch{animation:rgbg .5s linear}
+@keyframes rgbg{0%,100%{text-shadow:none;opacity:1}15%{text-shadow:-3px 0 #ff2bd0,3px 0 #00ffe7;opacity:.8}35%{text-shadow:3px 0 #ff2bd0,-3px 0 #00ffe7}55%{text-shadow:-3px 0 #ff2bd0,3px 0 #00ffe7;opacity:.9}75%{text-shadow:2px 0 #ff2bd0,-2px 0 #00ffe7}}
 #tip{position:fixed;z-index:600;max-width:240px;background:linear-gradient(158deg,rgba(26,40,78,.88),rgba(8,12,26,.89));border:1px solid var(--line);border-radius:9px;box-shadow:0 16px 50px rgba(0,0,0,.6);padding:8px 11px;font-size:11.5px;line-height:1.45;color:var(--ink);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
 #tip.on{opacity:1;transform:translateY(0)}#tip b{color:var(--gold)}
 .tab.on{animation:tabglow .7s ease}
@@ -363,7 +363,7 @@ document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.da
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
 function runIntro(){
   reveal(document.querySelector(".topbar"),1100);
-  setTimeout(animateChips,1450);   // count up once the topbar is fading in (so it's visible)
+  setTimeout(()=>animateChips(true),1450);   // slow count-up once the topbar is fading in (so it's visible)
   reveal(document.querySelector(".dock"),2300);
   document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,2700+i*320));
   reveal(document.querySelector(".rfoot"),4100);
@@ -375,14 +375,14 @@ function renderChips(){
   const chips=[["Riders",S.riders,0,"riders"],["Trips",S.trips,0,"trips"],["Total "+dunit(),mph()?r1(S.total_km*MI):r1(S.total_km),1,"total"],["Countries",S.countries,0,"countries"]];
   document.getElementById("chips").innerHTML=chips.map(([l,v,dec,k])=>`<span class="chip"><b data-cv="${v}" data-dec="${dec}" data-k="${k}">0</b> ${l}</span>`).join("");
 }
-function animateChips(){const durs=[1000,1500,1200,1700];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
-const GLITCHSEL=".clab,.dock .lbl,.chip b,.cscore,.tab span";
-function randomGlitch(){const els=[].slice.call(document.querySelectorAll(GLITCHSEL)).filter(e=>e.offsetParent!==null);if(els.length){const el=els[(Math.random()*els.length)|0];el.classList.remove("rgbglitch");void el.offsetWidth;el.classList.add("rgbglitch");setTimeout(()=>el.classList.remove("rgbglitch"),750);}setTimeout(randomGlitch,16000+Math.random()*8000);}
-setTimeout(randomGlitch,9000);
+function animateChips(slow){const durs=slow?[2700,3500,3000,3900]:[850,1250,1050,1450];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
+const GLITCHSEL=".clab,.cline b,.dock .lbl,.chip b,.cscore,.tab span,.rk,.recval,.reclbl";
+function randomGlitch(){const els=[].slice.call(document.querySelectorAll(GLITCHSEL)).filter(e=>e.offsetParent!==null);if(els.length){const n=Math.random()<0.4?2:1;for(let k=0;k<n;k++){const el=els[(Math.random()*els.length)|0];el.classList.remove("rgbglitch");void el.offsetWidth;el.classList.add("rgbglitch");setTimeout(()=>el.classList.remove("rgbglitch"),650);}}setTimeout(randomGlitch,2500+Math.random()*3000);}
+setTimeout(randomGlitch,2800);
 async function pollStats(){
   try{const ns=await j("/stats/summary"),nc=await j("/champions");S=ns;WC=nc;
     const map={riders:ns.riders,trips:ns.trips,total:mph()?r1(ns.total_km*MI):r1(ns.total_km),countries:ns.countries};
-    document.querySelectorAll("#chips b[data-k]").forEach(b=>{const tgt=map[b.dataset.k];if(""+tgt!==b.dataset.cv){b.dataset.cv=""+tgt;countUp(b,tgt,1400,+b.dataset.dec);}});
+    document.querySelectorAll("#chips b[data-k]").forEach(b=>{const tgt=map[b.dataset.k];if(""+tgt!==b.dataset.cv){b.dataset.cv=""+tgt;countUp(b,tgt,1000,+b.dataset.dec);}});
     renderChampions();
   }catch(e){}
 }
