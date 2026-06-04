@@ -117,6 +117,14 @@ svg.ic{width:18px;height:18px;display:block}
 .dock button.on svg{color:var(--acc)}
 .panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:60dvh;max-height:580px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
+.panel{transform-origin:50% 100%;border-top-width:2px;border-top-color:var(--sec,var(--acc));box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 110px -34px var(--sec,transparent)}
+.panel[data-sec=riders]{--sec:#2ea8ff}.panel[data-sec=countries]{--sec:#ff6b6b}.panel[data-sec=wheels]{--sec:#ffd24a}.panel[data-sec=brands]{--sec:#ff9f43}.panel[data-sec=records]{--sec:#39d98a}.panel[data-sec=tech]{--sec:#a78bfa}
+@keyframes panUp{from{opacity:0;transform:translate(-50%,46px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes panLeft{from{opacity:0;transform:translate(calc(-50% - 70px),0)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes panRight{from{opacity:0;transform:translate(calc(-50% + 70px),0)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes panPop{from{opacity:0;transform:translate(-50%,12px) scale(.92)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+@keyframes panFlip{from{opacity:0;transform:translate(-50%,22px) perspective(800px) rotateX(20deg)}to{opacity:1;transform:translate(-50%,0) perspective(800px) rotateX(0)}}
+@keyframes panBlur{from{opacity:0;filter:blur(10px);transform:translate(-50%,8px)}to{opacity:1;filter:blur(0);transform:translate(-50%,0)}}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);flex:0 0 auto;z-index:5;background:rgba(11,15,28,.96)}
 .phead b{font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}.phead button{background:transparent;border:0;color:var(--mut);cursor:pointer}
 .pacts{display:flex;gap:12px;align-items:center}.phead button:hover{color:var(--acc)}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
@@ -412,12 +420,17 @@ function countUp(el,target,dur,dec){const t=+target||0;let from;
   const delta=t-from;let s0=null;
   function step(now){if(s0===null)s0=now;let p=Math.min(1,(now-s0)/dur);p=1-Math.pow(1-p,3);const v=from+delta*p;el.textContent=dec?v.toFixed(dec):Math.round(v).toLocaleString();if(p<1)requestAnimationFrame(step);else{el.textContent=dec?t.toFixed(dec):Math.round(t).toLocaleString();el.dataset.cur=""+t;}}
   requestAnimationFrame(step);}
+const PANEL_ANIMS=[["slide-up","panUp"],["slide-left","panLeft"],["slide-right","panRight"],["pop","panPop"],["flip","panFlip"],["blur","panBlur"]];
 function setPanel(name,title,html){
   if(openPanel===name){closePanel();return;}
-  openPanel=name;ptitle.textContent=title;pbody.innerHTML=html;panel.classList.add("open");
+  openPanel=name;ptitle.textContent=title;pbody.innerHTML=html;panel.dataset.sec=name;panel.classList.add("open");
+  const a=PANEL_ANIMS[(Math.random()*PANEL_ANIMS.length)|0];
+  panel.style.animation="none";void panel.offsetWidth;
+  panel.style.animation=a[1]+" .42s cubic-bezier(.2,.8,.2,1)";
+  console.log("%c[panel anim] "+a[0]+"  ("+name+")","color:#2ea8ff;font-weight:700");
   document.querySelectorAll(".dock button").forEach(b=>b.classList.toggle("on",b.dataset.p===name));
 }
-function closePanel(){openPanel=null;panel.classList.remove("open");document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));}
+function closePanel(){openPanel=null;panel.classList.remove("open");panel.style.animation="";document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));}
 document.getElementById("pclose").onclick=closePanel;
 function refreshPanel(){const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}}
 document.getElementById("prefresh").onclick=()=>{const b=document.getElementById("prefresh");b.classList.add("spin");refreshPanel();setTimeout(()=>b.classList.remove("spin"),650);};
