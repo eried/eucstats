@@ -14,6 +14,16 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+# --- Settings / per-dataset flags ---
+
+class Meta(Base):
+    """Key/value settings. Lives inside each dataset file, so per-dataset flags
+    (e.g. is_test) and future UI toggles survive a dataset swap."""
+    __tablename__ = "app_meta"
+    key = Column(String, primary_key=True)
+    value = Column(String)
+
+
 # --- Source-of-truth tables ---
 
 class Rider(Base):
