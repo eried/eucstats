@@ -11,6 +11,7 @@ import html
 import json
 import os
 import tempfile
+from datetime import datetime, timedelta
 from io import BytesIO
 from urllib.parse import quote
 
@@ -142,7 +143,9 @@ def _dash_html(db: Session) -> str:
     return _PAGE.format(body=f"""
     <form method="post" action="/admin/logout" style="float:right"><button>Log out</button></form>
     <h1>eucstats admin</h1>
-    <p><a href="/admin/datasets">→ Datasets &amp; backups</a></p>
+    <p><a href="/admin/datasets">→ Datasets &amp; backups</a> &nbsp;·&nbsp;
+       <a href="/admin/pipeline">→ Ingest pipeline</a> &nbsp;·&nbsp;
+       <a href="/admin/metrics">→ Metrics &amp; sections</a></p>
     <table>{rows}</table>
     <h2>Flagged trips — review queue</h2>
     <table><tr><th>id</th><th>rider</th><th>dist</th><th>reasons</th><th>action</th></tr>{fhtml}</table>
@@ -232,6 +235,17 @@ tr.active{background:#eaf4ff}
 .mut{color:#8a93b2}
 .flash{padding:9px 12px;border-radius:8px;margin:0 0 12px}
 .flash.ok{background:#e6f6ec;color:#0a7a3e}.flash.err{background:#fdeaea;color:#b11}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;margin:0 6px 6px 0}
+.chip.validated{background:#dcf5e6;color:#0a7a3e}.chip.flagged{background:#fff3d6;color:#9a6700}
+.chip.rejected{background:#fdeaea;color:#b11}.chip.pending{background:#e7ecf5;color:#445}
+.bar{display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px}
+.bar .d{width:48px;color:#8a93b2;font-variant-numeric:tabular-nums}
+.bar .track{flex:1;background:#eef1f7;border-radius:5px;height:14px;overflow:hidden}
+.bar .fill{height:100%;background:#1d6fe0;border-radius:5px;min-width:2px}
+.bar .n{width:34px;text-align:right;font-variant-numeric:tabular-nums}
+.toggle{display:flex;align-items:center;gap:8px;padding:5px 0}
+.toggle input{width:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 26px;max-width:760px}
 </style>"""
 
 def _ds_page(inner: str) -> str:
@@ -459,3 +473,61 @@ def datasets_export(slug: str, request: Request):
     except datasets.DatasetError:
         return _redir(err="unknown dataset")
     return FileResponse(str(p), filename=f"{slug}.sqlite", media_type="application/octet-stream")
+
+
+# --- ingest / pipeline monitor (read-only) ---
+
+def _pipeline_html(db: Session) -> str:
+    total = db.query(func.count(Trip.trip_uuid)).scalar() or 0
+    by_status = dict(db.query(Trip.validation_status, func.count(Trip.trip_uuid))
+                     .group_by(Trip.validation_status).all())
+    chips = "".join(
+        f'<span class="chip {html.escape(str(s or "pending"))}">{html.escape(str(s or "pending"))}: {n}</span>'
+        for s, n in sorted(by_status.items(), key=lambda kv: -kv[1])) or '<span class=mut>no trips yet</span>'
+
+    since = datetime.utcnow() - timedelta(days=13)
+    daily = dict(db.query(func.date(Trip.created_at), func.count(Trip.trip_uuid))
+                 .filter(Trip.created_at >= since).group_by(func.date(Trip.created_at)).all())
+    today = datetime.utcnow().date()
+    days = [today - timedelta(days=i) for i in range(13, -1, -1)]
+    counts = [int(daily.get(d.isoformat(), 0)) for d in days]
+    peak = max(counts + [1])
+    bars = "".join(
+        f'<div class=bar><span class=d>{d.isoformat()[5:]}</span>'
+        f'<div class=track><div class=fill style="width:{int(100 * c / peak)}%"></div></div>'
+        f'<span class=n>{c}</span></div>'
+        for d, c in zip(days, counts))
+
+    recent = db.query(Trip).order_by(desc(Trip.created_at)).limit(60).all()
+    rrows = "".join(
+        f'<tr><td>{(t.created_at or "").__str__()[:16]}</td><td>{html.escape(t.rider_store_id or "")}</td>'
+        f'<td>{round(t.distance_km or 0, 1)}</td><td>{html.escape(t.country or "")}</td>'
+        f'<td><span class="chip {html.escape(t.validation_status or "pending")}">{html.escape(t.validation_status or "pending")}</span></td>'
+        f'<td>{html.escape(", ".join(t.flag_reasons or []))}</td></tr>'
+        for t in recent) or '<tr><td colspan=6 class=mut>no trips yet</td></tr>'
+
+    inner = f"""
+    <p><a href="/admin">← back to admin</a></p>
+    <h1>Ingest pipeline</h1>
+    <div class=card>
+      <h2>Status — {total} trips total</h2>
+      <p>{chips}</p>
+      <p class=mut>Attestation mode: <b>{html.escape(config.ATTESTATION_MODE)}</b>
+      ({'accepting all uploads' if config.ATTESTATION_MODE == 'stub' else 'requiring Play Integrity'})
+      · package <b>{html.escape(config.ANDROID_PACKAGE)}</b></p>
+    </div>
+    <div class=card>
+      <h2>Ingest — last 14 days</h2>
+      {bars}
+    </div>
+    <h2>Recent uploads (newest 60)</h2>
+    <table><tr><th>created (UTC)</th><th>rider</th><th>km</th><th>country</th><th>status</th><th>flag/reject reasons</th></tr>{rrows}</table>
+    """
+    return _ds_page(inner)
+
+
+@admin_router.get("/pipeline", response_class=HTMLResponse)
+def pipeline_page(request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_pipeline_html(db))
