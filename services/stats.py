@@ -2,6 +2,7 @@
 All public reads hit these precomputed tables — never raw trips."""
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 
 from sqlalchemy import desc, func
@@ -516,18 +517,43 @@ def rider_card(db, store_id):
     }
 
 
-FACTORIES = {   # approximate EUC factory HQs (editable; admin manager is a follow-up)
+FACTORIES = {   # approximate EUC maker HQs (editable; admin manager is a follow-up)
     "Begode": (113.75, 23.02, "Dongguan, China"),
+    "Gotway": (113.75, 23.02, "Dongguan, China"),          # former name of Begode
+    "ExtremeBull": (113.12, 23.02, "Guangzhou, China"),
     "Veteran": (114.06, 22.54, "Shenzhen, China"),
+    "LeaperKim": (114.06, 22.54, "Shenzhen, China"),       # maker of Veteran
     "InMotion": (114.00, 22.62, "Shenzhen, China"),
     "KingSong": (114.12, 22.50, "Shenzhen, China"),
+    "Ninebot": (116.40, 39.90, "Beijing, China"),          # Segway-Ninebot
+    "Segway": (116.40, 39.90, "Beijing, China"),
+    "IPS": (114.06, 22.55, "Shenzhen, China"),
+    "Rockwheel": (114.10, 22.58, "Shenzhen, China"),
+    "GotwayMSuper": (113.75, 23.02, "Dongguan, China"),
+    "Solowheel": (-122.40, 45.59, "Camas, WA, USA"),       # Inventist (original Solowheel)
+    "Inventist": (-122.40, 45.59, "Camas, WA, USA"),
+    "Airwheel": (120.62, 31.30, "Wuxi, China"),
+    "Ninebot-Segway": (116.40, 39.90, "Beijing, China"),
 }
+
+
+def _factory(brand):
+    """Case/spacing-insensitive factory lookup (wheel brand strings vary)."""
+    if not brand:
+        return None
+    key = re.sub(r"[^a-z0-9]", "", str(brand).lower())
+    if not key:
+        return None
+    for name, loc in FACTORIES.items():
+        if re.sub(r"[^a-z0-9]", "", name.lower()) == key:
+            return loc
+    return None
 
 
 def brand_flow(db, brand):
     """Factory HQ + the country hotspots where a brand's wheels are ridden (for the
     animated 'flow of wheels' map effect)."""
-    fac = FACTORIES.get(brand)
+    fac = _factory(brand)
     rows = (db.query(Trip.country, func.avg(Trip.start_lat), func.avg(Trip.start_lon),
                      func.count(Trip.trip_uuid))
             .join(Wheel, Wheel.wheel_id == Trip.wheel_id)

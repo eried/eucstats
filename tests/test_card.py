@@ -27,3 +27,12 @@ def test_card_with_trip_and_rank(db):
 
 def test_card_missing_rider_is_none(db):
     assert stats.rider_card(db, "nope") is None
+
+
+def test_factory_lookup_is_normalized():
+    assert stats._factory("KingSong") is not None
+    assert stats._factory("king song") == stats._factory("KingSong")   # spacing/case
+    assert stats._factory("GOTWAY") is not None
+    assert stats._factory("LeaperKim") is not None
+    assert stats._factory("InMotion") is not None
+    assert stats._factory("totally-unknown") is None
