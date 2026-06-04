@@ -35,9 +35,12 @@ METRIC_BOARDS = [
 ]
 # Inner sub-panels of the "App & OS" section (keys match version_stats output).
 METRIC_APP = [
+    ("adoption", "Adoption (% on latest)"),
     ("adopters", "Bleeding Edge (newest app)"),
+    ("laggards", "Living in the past (oldest app)"),
     ("appvers", "App versions"),
     ("osvers", "OS versions"),
+    ("countries", "Up-to-date countries"),
 ]
 # Group leaderboard tabs shown inside Countries / Wheels / Brands (GBOARDS keys).
 METRIC_GROUPS = [

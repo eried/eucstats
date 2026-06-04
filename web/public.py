@@ -177,6 +177,7 @@ td.sub{color:var(--mut)}
 .csel{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:inherit;font-size:12px;padding:6px 8px;cursor:pointer;width:100%}
 .recval{flex:0 0 auto;color:var(--acc);font-weight:700;font-size:15px}
 .vsec{margin-bottom:14px}.vtitle{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold);margin:0 0 6px}
+td.barc{width:40%;padding-right:12px}.bartrack{display:block;height:9px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}.barf{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--acc),#7fd0ff);min-width:3px}
 .winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(46,168,255,.22),0 0 20px rgba(46,168,255,.65)}
 #gear{position:fixed;left:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
 #gear:hover{color:var(--acc)}#gear svg{width:18px;height:18px}
@@ -520,9 +521,13 @@ async function showTech(){
   const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
   const sec=(key,t,h)=>HIDE.app.includes(key)?"":`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;
-  const body=sec("adopters","🚀 Bleeding Edge · newest app",tbl(d.adopters,rl,e=>"v"+(e.ver||"?")))+
-    sec("appvers","📱 App versions",tbl(d.appvers,e=>"v"+e.version,e=>e.riders+" riders"))+
-    sec("osvers","🤖 OS versions",tbl(d.osvers,e=>e.version,e=>e.riders+" riders"));
+  const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),mx=Math.max(1,...a.map(e=>e.riders||0));return `<table>${a.map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=barc><span class=bartrack><span class=barf style="width:${Math.round(100*(e.riders||0)/mx)}%"></span></span></td><td class=val>${e.riders}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;};
+  const body=sec("adoption","📊 Adoption",d.latest?`<p class=mut style="margin:2px 0 0">${d.latest_pct}% of riders on the latest app · v${d.latest}</p>`:'<p class=mut>no data yet</p>')+
+    sec("adopters","🚀 Bleeding Edge · newest app",tbl(d.adopters,rl,e=>"v"+(e.ver||"?")))+
+    sec("laggards","🐢 Living in the past · oldest app",tbl(d.laggards,rl,e=>"v"+(e.ver||"?")))+
+    sec("appvers","📱 App versions",bars(d.appvers,e=>"v"+e.version))+
+    sec("osvers","🤖 OS versions",bars(d.osvers,e=>e.version))+
+    sec("countries","🌍 Up-to-date countries",bars(d.countries,e=>`${cc(e.country)} ${cname(e.country)||e.country} · v${e.version||"?"}`));
   setPanel("tech","App & OS",body||'<div class="empty">no app data yet</div>');
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};

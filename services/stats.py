@@ -440,10 +440,14 @@ ANDROID = {36: "Android 16", 35: "Android 15", 34: "Android 14", 33: "Android 13
            28: "Android 9", 27: "Android 8.1", 26: "Android 8", 25: "Android 7.1"}
 
 
+def _vkey(v):
+    """Sortable semver-ish key from a version string ('0.9.13' -> (0,9,13))."""
+    return tuple(int(x) for x in re.findall(r"\d+", str(v or ""))) or (0,)
+
+
 def version_stats(db):
-    """App / OS adoption. The app sends app_version + a free-form os_version
-    (no device/SDK object), so we report on those. Representative per rider =
-    their latest validated trip."""
+    """App / OS adoption from app_version + free-form os_version (the app sends no
+    device/SDK object). Representative per rider = their latest validated trip."""
     rows = (db.query(Trip.rider_store_id, Trip.app_version, Trip.meta_json)
             .join(Rider, Rider.store_id == Trip.rider_store_id)
             .filter(Trip.validation_status == "validated", Rider.deleted_at.is_(None))
@@ -458,13 +462,33 @@ def version_stats(db):
             appc[d["app"]] = appc.get(d["app"], 0) + 1
         if d["os"]:
             osc[d["os"]] = osc.get(d["os"], 0) + 1
-    adopters = sorted(
-        ({**_rider_brief(db, s), "ver": d["app"]} for s, d in rep.items() if d["app"]),
-        key=lambda x: str(x["ver"]), reverse=True)[:10]
+    with_app = [(s, d["app"]) for s, d in rep.items() if d["app"]]
+    newest = max((v for _, v in with_app), key=_vkey, default=None)
+    on_latest = sum(1 for _, v in with_app if v == newest)
+    latest_pct = round(100 * on_latest / len(with_app)) if with_app else 0
+    adopters = [{**_rider_brief(db, s), "ver": v}
+                for s, v in sorted(with_app, key=lambda x: _vkey(x[1]), reverse=True)[:8]]
+    laggards = [{**_rider_brief(db, s), "ver": v}
+                for s, v in sorted(with_app, key=lambda x: _vkey(x[1]))[:8]]
+    cv = {}   # country flag -> newest app version + rider count
+    for sid, d in rep.items():
+        r = db.get(Rider, sid)
+        f = r.flag if r else None
+        if not f:
+            continue
+        e = cv.setdefault(f, {"riders": 0, "ver": None})
+        e["riders"] += 1
+        if d["app"] and (e["ver"] is None or _vkey(d["app"]) > _vkey(e["ver"])):
+            e["ver"] = d["app"]
+    countries = sorted([{"country": f, "riders": c["riders"], "version": c["ver"]}
+                        for f, c in cv.items() if c["ver"]],
+                       key=lambda x: _vkey(x["version"]), reverse=True)
     return {
-        "adopters": adopters,
+        "latest": newest, "latest_pct": latest_pct,
+        "adopters": adopters, "laggards": laggards,
         "appvers": sorted([{"version": v, "riders": n} for v, n in appc.items()], key=lambda x: -x["riders"]),
         "osvers": sorted([{"version": v, "riders": n} for v, n in osc.items()], key=lambda x: -x["riders"]),
+        "countries": countries,
     }
 
 
