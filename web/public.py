@@ -125,7 +125,7 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .avph{background:linear-gradient(135deg,#2a3566,#141a30)}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
-.tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:132px;gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
+.tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:148px;gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
 .tabs .tab{scroll-snap-align:start}
 .tabcap{display:flex;align-items:center;gap:7px;min-height:16px;margin:-1px 2px 9px;font-size:12px;color:var(--mut);line-height:1.3}
 .tabcap svg{width:14px;height:14px;flex:0 0 auto;opacity:.9}
