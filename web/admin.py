@@ -92,67 +92,191 @@ def _counts(db: Session) -> dict:
     }
 
 
-_PAGE = "<title>eucstats admin</title><style>body{{font-family:system-ui;max-width:640px;margin:3rem auto}}</style>{body}"
+_NAV = [("/admin", "Overview"), ("/admin/datasets", "Datasets"),
+        ("/admin/pipeline", "Pipeline"), ("/admin/metrics", "Metrics")]
+
+_IC = {
+    "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+    "x": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    "db": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
+    "pulse": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>',
+    "sliders": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 17h16" stroke-linecap="round"/><circle cx="9" cy="7" r="2.3"/><circle cx="15" cy="17" r="2.3"/></svg>',
+}
+
+_ADMIN_CSS = """<link rel=preconnect href="https://fonts.googleapis.com"><link rel=preconnect href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel=stylesheet><style>
+*{box-sizing:border-box}
+body{margin:0;font-family:'Chakra Petch',system-ui,sans-serif;background:radial-gradient(1100px 560px at 75% -12%,#16223f,transparent),#0a0f1e;color:#e9eefb;min-height:100vh}
+a{color:#2ea8ff;text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1040px;margin:0 auto;padding:22px 18px 70px}
+header.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;padding:12px 18px;background:rgba(10,15,30,.85);backdrop-filter:blur(12px);border-bottom:1px solid #26345e}
+.brand{font-family:Orbitron,sans-serif;font-weight:800;letter-spacing:.5px;color:#ffd24a;font-size:14px;white-space:nowrap}
+.brand b{color:#e9eefb}
+nav.tabs2{display:flex;gap:3px;flex:1;flex-wrap:wrap}
+nav.tabs2 a{padding:7px 12px;border-radius:9px;color:#8ea0c8;font-weight:600;font-size:13px}
+nav.tabs2 a.on{background:rgba(46,168,255,.16);color:#2ea8ff}
+nav.tabs2 a:hover{background:rgba(255,255,255,.05);text-decoration:none}
+h1{font-family:Orbitron,sans-serif;font-weight:700;letter-spacing:.4px;font-size:22px;margin:6px 0 4px}
+.sub{color:#8ea0c8;margin:0 0 18px;font-size:13.5px}
+h2{font-family:Orbitron,sans-serif;font-weight:600;font-size:13.5px;letter-spacing:.4px;margin:2px 0 8px;color:#cfdcff}
+.card{background:linear-gradient(160deg,#121a30,#0e1528);border:1px solid #26345e;border-radius:12px;padding:16px 18px;margin:0 0 16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.hint,.mut{color:#8ea0c8;font-size:12.5px}
+.hint{margin:.1rem 0 12px}
+label{font-size:13px}
+input,button,select{font:inherit}
+input[type=text],input:not([type]),input[type=number]{background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:9px 11px;border-radius:9px;outline:none}
+input::placeholder{color:#5d6f95}
+input:focus{border-color:#2ea8ff}
+input[type=file]{color:#8ea0c8;font-size:12px}
+button,a.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:9px;border:1px solid #2ea8ff;background:#2ea8ff;color:#04122a;font-weight:700;cursor:pointer;font-size:13px;text-decoration:none}
+button:hover,a.btn:hover{filter:brightness(1.08);text-decoration:none}
+button svg,a.btn svg{width:15px;height:15px}
+a.btn{background:transparent;color:#cfe4ff;border-color:#26345e}
+button.danger{background:transparent;color:#ff8585;border-color:rgba(255,107,107,.5)}
+button.danger:hover{background:rgba(255,107,107,.12);filter:none}
+button.go{background:linear-gradient(120deg,#13a05a,#0c7a44);border-color:#0c7a44;color:#eafff3}
+button.ghost{background:transparent;color:#cfe4ff;border-color:#26345e}
+.inline{display:inline-flex;gap:7px;flex-wrap:wrap;align-items:center;margin:6px 12px 6px 0}
+.kpi{display:flex;gap:14px;flex-wrap:wrap}
+.kpi .box{background:#0b1124;border:1px solid #26345e;border-radius:11px;padding:12px 16px;min-width:118px}
+.kpi .n{font-family:Orbitron,sans-serif;font-size:25px}
+.kpi .l{color:#8ea0c8;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;color:#8ea0c8;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #26345e;padding:8px}
+td{border-bottom:1px solid rgba(38,52,94,.5);padding:9px 8px;vertical-align:middle}
+tr.active{background:rgba(46,168,255,.08)}
+.b,.chip,.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px}
+.chip{margin:0 6px 6px 0}
+.b.test,.badge.test,.chip.rejected,.badge.rejected{background:rgba(255,107,107,.16);color:#ff9d9d}
+.b.live,.badge.live,.chip.validated,.badge.validated{background:rgba(57,217,138,.16);color:#7ff0b6}
+.chip.flagged,.badge.flagged{background:rgba(255,206,90,.16);color:#ffd98a}
+.chip.pending,.badge.pending{background:rgba(142,160,200,.16);color:#aab8da}
+.flash{padding:11px 14px;border-radius:10px;margin:0 0 16px;font-size:13.5px;border:1px solid}
+.flash.ok{background:rgba(57,217,138,.1);border-color:rgba(57,217,138,.4);color:#9ff0c4}
+.flash.err{background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.4);color:#ffb0b0}
+.bar{display:flex;align-items:center;gap:10px;margin:3px 0;font-size:12px}
+.bar .d{width:46px;color:#8ea0c8}
+.bar .track{flex:1;background:#0b1124;border-radius:6px;height:15px;overflow:hidden;border:1px solid #26345e}
+.bar .fill{height:100%;background:linear-gradient(90deg,#2ea8ff,#7fd0ff);min-width:2px}
+.bar .n{width:36px;text-align:right}
+.toggle{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #26345e;border-radius:9px;background:#0b1124;cursor:pointer;font-size:13px}
+.toggle input{width:16px;height:16px;accent-color:#2ea8ff}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px}
+.acts{display:flex;flex-direction:column;gap:5px}
+.acts form{display:flex;gap:5px;align-items:center;margin:0}
+.acts input{width:118px;padding:6px 8px}
+.mini,.acts button,.acts a.btn{padding:6px 10px;font-size:12px}
+.center{max-width:430px;margin:60px auto;padding:0 18px;text-align:center}
+.center .card{padding:26px}
+.qr{width:208px;height:208px;border-radius:12px;background:#fff;padding:10px;margin:8px auto;display:block}
+code{background:#0b1124;border:1px solid #26345e;padding:3px 8px;border-radius:6px;color:#ffd24a;font-size:12px;word-break:break-all}
+.codein{font-size:20px;letter-spacing:6px;text-align:center;width:180px}
+.qa{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+</style>"""
+
+
+def _admin_shell(inner: str, active: str = "", chrome: bool = True) -> str:
+    head = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
+            "<meta name=viewport content='width=device-width,initial-scale=1'>"
+            "<title>eucstats admin</title>" + _ADMIN_CSS + "</head><body>")
+    if not chrome:
+        return head + '<div class=center>' + inner + '</div></body></html>'
+    tabs = "".join('<a href="%s"%s>%s</a>' % (h, " class=on" if h == active else "", lbl)
+                   for h, lbl in _NAV)
+    header = ('<header class=bar><span class=brand>EUC<b>STATS</b> · admin</span>'
+              '<nav class=tabs2>' + tabs + '</nav>'
+              '<form method=post action="/admin/logout" style="margin:0">'
+              '<button class="ghost mini">Log out</button></form></header>')
+    return head + header + '<div class=wrap>' + inner + '</div></body></html>'
 
 
 def _enroll_html(qr: str, secret: str) -> str:
-    return _PAGE.format(body=f"""
-    <h1>eucstats admin — enroll</h1>
-    <p>Scan with an authenticator app, then enter the 6-digit code.</p>
-    <img src="data:image/png;base64,{qr}" alt="totp qr"/>
-    <p>Secret: <code>{secret}</code></p>
-    <form method="post" action="/admin/verify-totp">
-      <input name="code" placeholder="123456" autofocus/>
-      <button>Verify</button>
-    </form>""")
+    inner = f"""
+    <div class=card>
+      <div class=brand style="font-size:19px;margin-bottom:8px">EUC<b>STATS</b></div>
+      <h1 style="margin:0 0 4px">Set up admin access</h1>
+      <p class=hint>One-time enrollment. Scan this code with an authenticator app
+      (Google Authenticator, Authy, 1Password…), then enter the 6-digit code it shows.</p>
+      <img class=qr src="data:image/png;base64,{qr}" alt="authenticator QR code"/>
+      <p class=hint>Can't scan? Add this key by hand:<br><code>{secret}</code></p>
+      <form method="post" action="/admin/verify-totp">
+        <input class=codein name="code" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" autofocus/>
+        <div style="margin-top:14px"><button>{_IC['check']} Verify &amp; enroll</button></div>
+      </form>
+    </div>"""
+    return _admin_shell(inner, chrome=False)
 
 
 def _login_html(error: str = "") -> str:
-    err = f'<p style="color:#c00">{error}</p>' if error else ""
-    return _PAGE.format(body=f"""
-    <h1>eucstats admin</h1>{err}
-    <form method="post" action="/admin/verify-totp">
-      <input name="code" placeholder="123456" autofocus/>
-      <button>Log in</button>
-    </form>""")
+    err = f'<div class="flash err">{html.escape(error)}</div>' if error else ""
+    inner = f"""
+    <div class=card>
+      <div class=brand style="font-size:19px;margin-bottom:8px">EUC<b>STATS</b></div>
+      <h1 style="margin:0 0 4px">Admin sign in</h1>
+      <p class=hint>Enter the 6-digit code from your authenticator app.</p>
+      {err}
+      <form method="post" action="/admin/verify-totp">
+        <input class=codein name="code" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" autofocus/>
+        <div style="margin-top:14px"><button>Log in</button></div>
+      </form>
+    </div>"""
+    return _admin_shell(inner, chrome=False)
 
 
 def _dash_html(db: Session) -> str:
-    rows = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>" for k, v in _counts(db).items())
+    c = _counts(db)
+    cur_test = settings.is_test_dataset(db)
+    kpis = "".join(f'<div class=box><div class=n>{c[k]}</div><div class=l>{k}</div></div>'
+                   for k in ("riders", "trips", "validated", "flagged"))
 
     flagged = db.query(Trip).filter(Trip.validation_status == "flagged").order_by(desc(Trip.created_at)).limit(50).all()
     fhtml = "".join(
-        f"<tr><td>{t.trip_uuid[:8]}</td><td>{t.rider_store_id}</td><td>{round(t.distance_km or 0,1)} km</td>"
-        f"<td>{','.join(t.flag_reasons or [])}</td><td>"
-        f"<form method=post action=/admin/trip/{t.trip_uuid}/approve style=display:inline><button>approve</button></form> "
-        f"<form method=post action=/admin/trip/{t.trip_uuid}/reject style=display:inline><button>reject</button></form>"
-        f"</td></tr>" for t in flagged) or "<tr><td colspan=5 style=color:#8a93b2>none</td></tr>"
+        f"<tr><td><code>{t.trip_uuid[:8]}</code></td><td>{html.escape(t.rider_store_id or '')}</td>"
+        f"<td>{round(t.distance_km or 0,1)} km</td>"
+        f"<td>{html.escape(', '.join(t.flag_reasons or []))}</td><td>"
+        f"<form method=post action=/admin/trip/{t.trip_uuid}/approve style='display:inline-flex;margin-right:6px'><button class=mini>{_IC['check']} approve</button></form>"
+        f"<form method=post action=/admin/trip/{t.trip_uuid}/reject style='display:inline-flex'><button class='mini danger'>{_IC['x']} reject</button></form>"
+        f"</td></tr>" for t in flagged) or "<tr><td colspan=5 class=mut>nothing flagged — queue is clear</td></tr>"
 
     riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(200).all()
     rhtml = "".join(
-        f"<tr><td>{r.store_id}</td><td>{r.display_name}</td><td>{r.flag or ''}</td>"
-        f"<td>{r.platform}</td><td>{'deleted' if r.deleted_at else 'active'}</td></tr>"
-        for r in riders) or "<tr><td colspan=5 style=color:#8a93b2>none</td></tr>"
+        f"<tr><td><code>{html.escape(r.store_id)}</code></td><td>{html.escape(r.display_name or '')}</td>"
+        f"<td>{html.escape(r.flag or '')}</td><td>{html.escape(r.platform or '')}</td>"
+        f"<td>{'<span class=\"badge rejected\">deleted</span>' if r.deleted_at else '<span class=\"badge validated\">active</span>'}</td></tr>"
+        for r in riders) or "<tr><td colspan=5 class=mut>no riders</td></tr>"
 
     trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(30).all()
     thtml = "".join(
-        f"<tr><td>{t.trip_uuid[:8]}</td><td>{t.rider_store_id}</td><td>{round(t.distance_km or 0,1)}</td>"
-        f"<td>{t.country or ''}</td><td>{t.validation_status}</td></tr>"
-        for t in trips) or "<tr><td colspan=5 style=color:#8a93b2>none</td></tr>"
+        f"<tr><td><code>{t.trip_uuid[:8]}</code></td><td>{html.escape(t.rider_store_id or '')}</td>"
+        f"<td>{round(t.distance_km or 0,1)}</td><td>{html.escape(t.country or '')}</td>"
+        f"<td><span class='badge {t.validation_status or 'pending'}'>{html.escape(t.validation_status or 'pending')}</span></td></tr>"
+        for t in trips) or "<tr><td colspan=5 class=mut>no trips</td></tr>"
 
-    return _PAGE.format(body=f"""
-    <form method="post" action="/admin/logout" style="float:right"><button>Log out</button></form>
-    <h1>eucstats admin</h1>
-    <p><a href="/admin/datasets">→ Datasets &amp; backups</a> &nbsp;·&nbsp;
-       <a href="/admin/pipeline">→ Ingest pipeline</a> &nbsp;·&nbsp;
-       <a href="/admin/metrics">→ Metrics &amp; sections</a></p>
-    <table>{rows}</table>
-    <h2>Flagged trips — review queue</h2>
-    <table><tr><th>id</th><th>rider</th><th>dist</th><th>reasons</th><th>action</th></tr>{fhtml}</table>
-    <h2>Riders</h2>
-    <table><tr><th>store_id</th><th>name</th><th>flag</th><th>platform</th><th>status</th></tr>{rhtml}</table>
-    <h2>Recent trips</h2>
-    <table><tr><th>id</th><th>rider</th><th>km</th><th>country</th><th>status</th></tr>{thtml}</table>""")
+    inner = f"""
+    <h1>Overview</h1>
+    <p class=sub>Active dataset: {_badge(cur_test)} &nbsp;{'— seeded test data (TEST DATA banner is showing)' if cur_test else '— serving live data'}</p>
+    <div class=card><div class=kpi>{kpis}</div></div>
+    <div class=card>
+      <h2>Quick actions</h2>
+      <div class=qa>
+        <a class=btn href="/admin/datasets">{_IC['db']} Datasets &amp; backups</a>
+        <a class=btn href="/admin/pipeline">{_IC['pulse']} Ingest pipeline</a>
+        <a class=btn href="/admin/metrics">{_IC['sliders']} Metrics &amp; sections</a>
+      </div>
+    </div>
+    <div class=card>
+      <h2>Flagged trips — review queue</h2>
+      <p class=hint>Trips held back by plausibility checks. Approve to count them toward leaderboards, or reject to drop them.</p>
+      <table><tr><th>id</th><th>rider</th><th>distance</th><th>reasons</th><th>action</th></tr>{fhtml}</table>
+    </div>
+    <div class=card>
+      <h2>Riders <span class=mut>· newest 200</span></h2>
+      <table><tr><th>store id</th><th>name</th><th>flag</th><th>platform</th><th>status</th></tr>{rhtml}</table>
+    </div>
+    <div class=card>
+      <h2>Recent trips <span class=mut>· newest 30</span></h2>
+      <table><tr><th>id</th><th>rider</th><th>km</th><th>country</th><th>status</th></tr>{thtml}</table>
+    </div>"""
+    return _admin_shell(inner, active="/admin")
 
 
 @admin_router.get("", response_class=HTMLResponse)
@@ -216,42 +340,8 @@ def reject_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db))
 
 # --- dataset & snapshot manager ---
 
-_DS_STYLE = """<style>
-body{font-family:system-ui,-apple-system,sans-serif;max-width:1000px;margin:2rem auto;padding:0 1rem;color:#1b2030}
-h1{margin:.2rem 0 1rem}h2{font-size:1.05rem;margin:.2rem 0 .6rem}
-a{color:#1d6fe0}
-.card{border:1px solid #d8deea;border-radius:10px;padding:14px 16px;margin:0 0 16px;background:#fafbff}
-.inline{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 12px 6px 0}
-input,button{font:inherit;padding:6px 9px;border-radius:7px;border:1px solid #c3cad8}
-button{background:#1d6fe0;color:#fff;border-color:#1d6fe0;cursor:pointer}
-button.danger{background:#c23b3b;border-color:#c23b3b}button.go{background:#13864a;border-color:#13864a}
-a.btn{display:inline-block;padding:5px 8px;border:1px solid #c3cad8;border-radius:7px;text-decoration:none;color:#1b2030}
-table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{border-bottom:1px solid #e7ebf3;padding:7px 8px;text-align:left;vertical-align:top}
-tr.active{background:#eaf4ff}
-.acts form{display:inline-flex;gap:4px;margin:2px 0}.acts input{width:92px}
-.b{font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px}
-.b.test{background:#ffe2e2;color:#b11}.b.live{background:#dcf5e6;color:#0a7a3e}
-.mut{color:#8a93b2}
-.flash{padding:9px 12px;border-radius:8px;margin:0 0 12px}
-.flash.ok{background:#e6f6ec;color:#0a7a3e}.flash.err{background:#fdeaea;color:#b11}
-.chip{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;margin:0 6px 6px 0}
-.chip.validated{background:#dcf5e6;color:#0a7a3e}.chip.flagged{background:#fff3d6;color:#9a6700}
-.chip.rejected{background:#fdeaea;color:#b11}.chip.pending{background:#e7ecf5;color:#445}
-.bar{display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px}
-.bar .d{width:48px;color:#8a93b2;font-variant-numeric:tabular-nums}
-.bar .track{flex:1;background:#eef1f7;border-radius:5px;height:14px;overflow:hidden}
-.bar .fill{height:100%;background:#1d6fe0;border-radius:5px;min-width:2px}
-.bar .n{width:34px;text-align:right;font-variant-numeric:tabular-nums}
-.toggle{display:flex;align-items:center;gap:8px;padding:5px 0}
-.toggle input{width:auto}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 26px;max-width:760px}
-</style>"""
-
-def _ds_page(inner: str) -> str:
-    return ("<!doctype html><html lang=en><head><meta charset=utf-8>"
-            "<meta name=viewport content='width=device-width,initial-scale=1'>"
-            "<title>eucstats datasets</title>" + _DS_STYLE + "</head><body>" + inner + "</body></html>")
+def _ds_page(inner: str, active: str = "") -> str:
+    return _admin_shell(inner, active=active)
 
 
 def _fmt_size(n) -> str:
@@ -311,9 +401,9 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
         rows = '<tr><td colspan=8 class=mut>no saved datasets yet</td></tr>'
 
     inner = f"""
-    <p><a href="/admin">← back to admin</a></p>
     {banner}
     <h1>Datasets &amp; backups</h1>
+    <p class=sub>Save, swap, import and back up the whole database as portable snapshots.</p>
     <div class=card>
       <h2>Active dataset {_badge(cur_test)}</h2>
       <p>{c['riders']} riders · {c['trips']} trips · {c['validated']} validated · {c['flagged']} flagged</p>
@@ -346,9 +436,9 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
     <h2>Saved datasets</h2>
     <table><tr><th>name</th><th>type</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
     <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
-    current dataset, then restarts the service (~a few seconds of downtime).</p>
+    current dataset, then reconnects instantly — no restart, no downtime.</p>
     """
-    return _ds_page(inner)
+    return _ds_page(inner, "/admin/datasets")
 
 
 def _redir(msg: str = "", err: str = ""):
@@ -507,8 +597,8 @@ def _pipeline_html(db: Session) -> str:
         for t in recent) or '<tr><td colspan=6 class=mut>no trips yet</td></tr>'
 
     inner = f"""
-    <p><a href="/admin">← back to admin</a></p>
     <h1>Ingest pipeline</h1>
+    <p class=sub>How uploads are flowing in and how validation is treating them.</p>
     <div class=card>
       <h2>Status — {total} trips total</h2>
       <p>{chips}</p>
@@ -523,7 +613,7 @@ def _pipeline_html(db: Session) -> str:
     <h2>Recent uploads (newest 60)</h2>
     <table><tr><th>created (UTC)</th><th>rider</th><th>km</th><th>country</th><th>status</th><th>flag/reject reasons</th></tr>{rrows}</table>
     """
-    return _ds_page(inner)
+    return _ds_page(inner, "/admin/pipeline")
 
 
 @admin_router.get("/pipeline", response_class=HTMLResponse)
@@ -546,17 +636,16 @@ def _metrics_html(db: Session, msg: str = "") -> str:
 
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
-    <p><a href="/admin">← back to admin</a></p>
     {banner}
     <h1>Metrics &amp; sections</h1>
     <p class=mut>Ticked = shown on the public site. Untick to hide. Changes are live immediately.</p>
     <form method=post action="/admin/metrics/save">
       <div class=card><h2>Dock sections</h2><div class=grid2>{toggles(settings.METRIC_SECTIONS, "show_section", h["sections"])}</div></div>
       <div class=card><h2>Rider leaderboards</h2><div class=grid2>{toggles(settings.METRIC_BOARDS, "show_board", h["boards"])}</div></div>
-      <button>Save visibility</button>
+      <button>{_IC['check']} Save visibility</button>
     </form>
     """
-    return _ds_page(inner)
+    return _ds_page(inner, "/admin/metrics")
 
 
 @admin_router.get("/metrics", response_class=HTMLResponse)
