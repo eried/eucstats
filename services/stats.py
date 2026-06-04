@@ -221,6 +221,58 @@ def weekend_warrior(db, limit=50):
     return [{**_rider_brief(db, sid), "weekend_km": round(v or 0, 2)} for sid, v in rows]
 
 
+def early_bird(db, limit=50):
+    hh = func.strftime("%H", Trip.start_utc)
+    return _trip_count_board(db, "morning_rides", limit,
+                             flt=(Trip.start_utc.isnot(None)) & hh.in_(["05", "06", "07", "08"]))
+
+
+def peak_bagger(db, limit=50):
+    return _trip_max_board(db, Trip.ascent_m, "peak_ascent", limit,
+                           transform=lambda v: round(v or 0, 0), flt=Trip.ascent_m > 0)
+
+
+def power_plant(db, limit=50):
+    energy = func.sum(Trip.wh_per_km * Trip.distance_km)
+    sub = (db.query(Trip.rider_store_id.label("sid"), energy.label("v"))
+           .filter(Trip.validation_status == "validated", Trip.wh_per_km.isnot(None), Trip.distance_km > 0)
+           .group_by(Trip.rider_store_id).subquery())
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), "energy_kwh": round((v or 0) / 1000.0, 1)} for sid, v in rows]
+
+
+def explorer(db, limit=50):
+    sub = (db.query(Trip.rider_store_id.label("sid"), func.count(func.distinct(Trip.start_cell)).label("v"))
+           .filter(Trip.validation_status == "validated", Trip.start_cell.isnot(None))
+           .group_by(Trip.rider_store_id).subquery())
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), "areas": int(v or 0)} for sid, v in rows]
+
+
+def big_day(db, limit=50):
+    day = func.date(Trip.start_utc)
+    per = (db.query(Trip.rider_store_id.label("sid"), day.label("d"), func.count(Trip.trip_uuid).label("c"))
+           .filter(Trip.validation_status == "validated", Trip.start_utc.isnot(None))
+           .group_by(Trip.rider_store_id, day).subquery())
+    best = (db.query(per.c.sid.label("sid"), func.max(per.c.c).label("v")).group_by(per.c.sid).subquery())
+    rows = (db.query(best.c.sid, best.c.v).join(Rider, Rider.store_id == best.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(best.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), "rides_in_day": int(v or 0)} for sid, v in rows]
+
+
+def commuter(db, limit=50):
+    dow = func.strftime("%w", Trip.start_utc)  # weekdays Mon-Fri = 1..5
+    sub = (db.query(Trip.rider_store_id.label("sid"), func.sum(Trip.distance_km).label("v"))
+           .filter(Trip.validation_status == "validated", Trip.start_utc.isnot(None),
+                   dow.in_(["1", "2", "3", "4", "5"]))
+           .group_by(Trip.rider_store_id).subquery())
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.deleted_at.is_(None)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), "weekday_km": round(v or 0, 2)} for sid, v in rows]
+
+
 BOARDS = {
     "mileage": mileage_leaderboard,
     "daily": daily_leaderboard,
@@ -246,6 +298,12 @@ BOARDS = {
     "battery": battery_vampire,
     "night": night_rider,
     "weekend": weekend_warrior,
+    "early": early_bird,
+    "peak": peak_bagger,
+    "energy": power_plant,
+    "explorer": explorer,
+    "bigday": big_day,
+    "commuter": commuter,
 }
 
 

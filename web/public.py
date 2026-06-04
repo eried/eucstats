@@ -220,6 +220,12 @@ const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
 const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v3a2 2 0 0 1-2 2H4M20 9h-3a2 2 0 0 1-2-2V4M4 15h3a2 2 0 0 1 2 2v3M15 20v-3a2 2 0 0 1 2-2h3"/></svg>';
 const IC={
+ early:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 18h18M12 9a4 4 0 0 1 4 4H8a4 4 0 0 1 4-4zM12 5V3M5 9 3.5 7.5M19 9l1.5-1.5"/></svg>',
+ peak:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20h18L14 7l-3.5 6L8 10z"/></svg>',
+ energy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 21V10l5 3V10l5 3V7l8 5v9z"/></svg>',
+ explorer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z"/></svg>',
+ bigday:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 13v4M10 15h4" stroke-linecap="round"/></svg>',
+ commuter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
  frequent:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
  marathon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="14" r="8"/><path d="M12 14V9.5M9 2h6"/></svg>',
  pace:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 14l4-2.5"/></svg>',
@@ -270,7 +276,13 @@ const BOARDS=[
  {k:"pace",t:"Pace Maker",c:"avg_speed",conv:"spd",d:"Highest average speed on a single ride"},
  {k:"battery",t:"Battery Vampire",c:"batt_pct",u:" %",d:"Biggest battery drain in one ride"},
  {k:"night",t:"Night Rider",c:"night_rides",u:"",d:"Most rides started at night (22:00–05:00 UTC)"},
- {k:"weekend",t:"Weekend Warrior",c:"weekend_km",conv:"dist",d:"Most distance ridden on weekends"}];
+ {k:"weekend",t:"Weekend Warrior",c:"weekend_km",conv:"dist",d:"Most distance ridden on weekends"},
+ {k:"early",t:"Early Bird",c:"morning_rides",u:"",d:"Most rides started in the morning (05:00–09:00 UTC)"},
+ {k:"peak",t:"Peak Bagger",c:"peak_ascent",u:" m",d:"Biggest elevation gain in a single ride"},
+ {k:"energy",t:"Power Plant",c:"energy_kwh",u:" kWh",d:"Most total energy used across all rides"},
+ {k:"explorer",t:"Explorer",c:"areas",u:"",d:"Most distinct map areas ridden"},
+ {k:"bigday",t:"Big Day",c:"rides_in_day",u:"",d:"Most rides in a single day"},
+ {k:"commuter",t:"Commuter",c:"weekday_km",conv:"dist",d:"Most distance ridden on weekdays"}];
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];

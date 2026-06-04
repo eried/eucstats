@@ -29,6 +29,8 @@ METRIC_BOARDS = [
     ("cruise", "Sunday Cruiser"), ("globe", "Globe Trotter"), ("altking", "Altitude King"),
     ("frequent", "Frequent Flyer"), ("marathon", "Marathoner"), ("pace", "Pace Maker"),
     ("battery", "Battery Vampire"), ("night", "Night Rider"), ("weekend", "Weekend Warrior"),
+    ("early", "Early Bird"), ("peak", "Peak Bagger"), ("energy", "Power Plant"),
+    ("explorer", "Explorer"), ("bigday", "Big Day"), ("commuter", "Commuter"),
 ]
 # Inner sub-panels of the "App & devices" section (keys match version_stats fields).
 METRIC_APP = [
