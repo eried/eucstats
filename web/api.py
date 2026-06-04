@@ -44,6 +44,15 @@ def get_rider(store_id: str, db: Session = Depends(get_db)):
     return p
 
 
+@router.get("/riders/{store_id}/card")
+def get_rider_card(store_id: str, db: Session = Depends(get_db)):
+    """Personal stats card (profile + aggregates + ranks) for the app's rider card."""
+    card = stats.rider_card(db, store_id)
+    if card is None:
+        raise HTTPException(404, "rider not found")
+    return card
+
+
 @router.patch("/riders/{store_id}")
 def patch_rider(store_id: str, payload: dict, db: Session = Depends(get_db)):
     svc = IdentityService(db)

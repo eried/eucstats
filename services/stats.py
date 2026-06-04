@@ -467,6 +467,55 @@ def version_stats(db):
     }
 
 
+def _rider_rank(db, column, value):
+    """1-based rank of `value` among non-deleted riders by `column` (None if unranked)."""
+    if not value or value <= 0:
+        return None
+    better = (db.query(func.count())
+              .select_from(RiderStat).join(Rider, Rider.store_id == RiderStat.store_id)
+              .filter(Rider.deleted_at.is_(None), column > value).scalar())
+    return int(better or 0) + 1
+
+
+def rider_card(db, store_id):
+    """Personal stats card for a rider. Returns zeros (not 404) for a registered
+    rider with no validated trips yet, so the app never shows 'couldn't load'."""
+    r = db.get(Rider, store_id)
+    if r is None or r.deleted_at is not None:
+        return None
+    rs = db.get(RiderStat, store_id)
+    countries = (db.query(func.count(func.distinct(Trip.country)))
+                 .filter(Trip.rider_store_id == store_id, Trip.validation_status == "validated",
+                         Trip.country.isnot(None), Trip.country != "").scalar()) or 0
+
+    def z(attr):
+        return (getattr(rs, attr) or 0) if rs else 0
+
+    return {
+        "store_id": store_id,
+        "display_name": r.display_name,
+        "flag": r.flag,
+        "has_avatar": r.avatar_png is not None,
+        "stats": {
+            "total_km": round(z("total_km"), 2),
+            "trips": int(z("trip_count")),
+            "best_speed_kmh": round(z("best_speed"), 1),
+            "best_gforce": round(z("best_gforce"), 3),
+            "longest_trip_km": round(z("longest_trip_km"), 2),
+            "total_ascent_m": round(z("total_ascent_m")),
+            "hours": round(z("total_duration_s") / 3600.0, 1),
+            "current_streak": int(z("current_streak")),
+            "longest_streak": int(z("longest_streak")),
+            "countries": int(countries),
+            "last_ride": rs.last_ride_date.isoformat() if (rs and rs.last_ride_date) else None,
+        },
+        "ranks": {
+            "distance": _rider_rank(db, RiderStat.total_km, rs.total_km if rs else None),
+            "speed": _rider_rank(db, RiderStat.best_speed, rs.best_speed if rs else None),
+        },
+    }
+
+
 FACTORIES = {   # approximate EUC factory HQs (editable; admin manager is a follow-up)
     "Begode": (113.75, 23.02, "Dongguan, China"),
     "Veteran": (114.06, 22.54, "Shenzhen, China"),
