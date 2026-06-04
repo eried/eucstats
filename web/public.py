@@ -177,7 +177,13 @@ td.sub{color:var(--mut)}
 .csel{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:inherit;font-size:12px;padding:6px 8px;cursor:pointer;width:100%}
 .recval{flex:0 0 auto;color:var(--acc);font-weight:700;font-size:15px}
 .vsec{margin-bottom:14px}.vtitle{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold);margin:0 0 6px}
-td.barc{width:40%;padding-right:12px}.bartrack{display:block;height:9px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}.barf{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--acc),#7fd0ff);min-width:3px}
+.blist{display:flex;flex-direction:column;gap:3px;margin-top:4px}
+.brow{position:relative;display:flex;align-items:center;gap:9px;padding:6px 11px;border-radius:7px;font-size:13px;overflow:hidden;background:rgba(255,255,255,.03)}
+.bfill{position:absolute;left:0;top:0;bottom:0;border-radius:7px;background:linear-gradient(90deg,rgba(46,168,255,.30),rgba(46,168,255,.09));z-index:0;transition:width .55s cubic-bezier(.2,.8,.2,1)}
+.brow>:not(.bfill){position:relative;z-index:1}
+.brow .brk{color:var(--mut);font-variant-numeric:tabular-nums;min-width:14px;text-align:right}
+.brow .blab{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brow .bpct{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(46,168,255,.22),0 0 20px rgba(46,168,255,.65)}
 #gear{position:fixed;left:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
 #gear:hover{color:var(--acc)}#gear svg{width:18px;height:18px}
@@ -355,11 +361,11 @@ function flyToRider(e){
   if(!e||e.lat==null||e.lon==null||!map) return;
   closePanel();
   const key=new Date().toISOString().slice(0,10)+"|"+e.store_id;       // changes daily, stable within a day
-  const R=1.2;                                                          // max privacy noise per axis (km)
+  const R=1.7;                                                          // max privacy noise per axis (km)
   const dxKm=((hashStr(key+"x")%1000)/1000)*2*R-R, dyKm=((hashStr(key+"y")%1000)/1000)*2*R-R;  // -R..+R
   const olat=e.lat+dyKm/111, olon=e.lon+dxKm/(111*(Math.cos(e.lat*Math.PI/180)||1e-6));
-  showArea(olon,olat,1.8);                                             // small dotted ring near the real area
-  map.flyTo({center:[olon,olat],zoom:11.5,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
+  showArea(olon,olat,2.7);                                             // dotted ring near the real area
+  map.flyTo({center:[olon,olat],zoom:11.2,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
 }
 const CENTROIDS={US:[-98,39,4],GB:[-2,54,5],DE:[10,51,5.2],FR:[2.5,47,5],NO:[9,61,4.6],SE:[16,62,4.4],NL:[5.3,52,6.3],ES:[-3.7,40,5.2],IT:[12.5,42,5.2],PL:[19,52,5.2],CA:[-100,56,3.6],AU:[134,-25,3.9],JP:[138,37,4.6],FI:[26,64,4.4],DK:[10,56,6.2],CH:[8.2,46.8,6.4],AT:[14.5,47.5,5.8],CZ:[15.5,49.8,6.2],PT:[-8,39.5,5.8],SG:[103.8,1.35,9],BR:[-50,-12,3.7],MX:[-102,23,4.5]};
 function flyToCountry(arg){
@@ -381,9 +387,10 @@ function fitTop3(rows,coordFn){
 let flowRunning=false;
 function flowClear(){if(!map)return;["flow-glow","flow-line","flow-pt"].forEach(l=>{if(map.getLayer(l))map.removeLayer(l);});["flow","flowpts"].forEach(s=>{if(map.getSource(s))map.removeSource(s);});flowRunning=false;}
 function flowDash(){flowRunning=true;(function step(){if(!flowRunning||!map.getLayer("flow-line"))return;const s=Math.floor((performance.now()/55)%DASH.length);map.setPaintProperty("flow-line","line-dasharray",DASH[s]);requestAnimationFrame(step);})();}
-function arcCoords(a,b,n=48,bulge=0.22){   // curved bezier arc, perpendicular bulge (flight-path look)
-  const x1=a[0],y1=a[1],x2=b[0],y2=b[1],mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,dist=Math.hypot(dx,dy)||1;
-  const cx=mx-dy/dist*dist*bulge,cy=my+dx/dist*dist*bulge,out=[];
+function arcCoords(a,b,n=48,bulge=0.22){   // curved bezier arc, always bulging UP (north) — flight-path look
+  const x1=a[0],y1=a[1],x2=b[0],y2=b[1],mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1;
+  let ox=-dy,oy=dx;if(oy<0){ox=-ox;oy=-oy;}   // force the perpendicular bulge toward the top of the map
+  const cx=mx+ox*bulge,cy=my+oy*bulge,out=[];
   for(let i=0;i<=n;i++){const t=i/n,u=1-t;out.push([u*u*x1+2*u*t*cx+t*t*x2,u*u*y1+2*u*t*cy+t*t*y2]);}
   return out;
 }
@@ -398,9 +405,9 @@ function brandFlow(brand){
     map.addSource("flowpts",{type:"geojson",data:{type:"FeatureCollection",features:[{type:"Feature",properties:{f:1},geometry:{type:"Point",coordinates:F}}].concat(d.points.map(p=>({type:"Feature",properties:{f:0},geometry:{type:"Point",coordinates:[p.lon,p.lat]}})))}});
     map.addLayer({id:"flow-glow",type:"line",source:"flow",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#39c0ff","line-width":5,"line-blur":6,"line-opacity":0.32}});
     map.addLayer({id:"flow-line",type:"line",source:"flow",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#cfe9ff","line-width":1.7,"line-opacity":0.85}});
-    map.addLayer({id:"flow-pt",type:"circle",source:"flowpts",paint:{"circle-radius":["case",["==",["get","f"],1],8,5],"circle-color":["case",["==",["get","f"],1],"#ffd24a","#39c0ff"],"circle-blur":0.3,"circle-opacity":0,"circle-opacity-transition":{duration:700},"circle-stroke-color":"#eaf4ff","circle-stroke-width":1.4}});
+    map.addLayer({id:"flow-pt",type:"circle",source:"flowpts",paint:{"circle-radius":["case",["==",["get","f"],1],8,5],"circle-color":["case",["==",["get","f"],1],"#ffd24a","#39c0ff"],"circle-blur":0.3,"circle-opacity":0,"circle-opacity-transition":{duration:700},"circle-stroke-color":"#eaf4ff","circle-stroke-width":1.4,"circle-stroke-opacity":0,"circle-stroke-opacity-transition":{duration:700}}});
     map.flyTo({center:F,zoom:4.2,duration:1500,curve:1.5,essential:true});
-    setTimeout(()=>{const b=new maplibregl.LngLatBounds();b.extend(F);d.points.forEach(p=>b.extend([p.lon,p.lat]));try{map.fitBounds(b,{padding:70,duration:3000,maxZoom:5,essential:true});}catch(e){}try{map.setPaintProperty("flow-pt","circle-opacity",0.95);}catch(e){}},1500);
+    setTimeout(()=>{const b=new maplibregl.LngLatBounds();b.extend(F);d.points.forEach(p=>b.extend([p.lon,p.lat]));try{map.fitBounds(b,{padding:70,duration:3000,maxZoom:5,essential:true});}catch(e){}try{map.setPaintProperty("flow-pt","circle-opacity",0.95);map.setPaintProperty("flow-pt","circle-stroke-opacity",0.95);}catch(e){}},1500);
     let t0=null;flowRunning=true;
     function grow(now){
       if(!flowRunning||!map.getSource("flow"))return;
@@ -410,7 +417,7 @@ function brandFlow(brand){
       if(t<1)requestAnimationFrame(grow);else flowDash();
     }
     setTimeout(()=>requestAnimationFrame(grow),700);
-    setTimeout(()=>{flowRunning=false;["flow-glow","flow-line"].forEach(l=>{try{map.setPaintProperty(l,"line-opacity",0);}catch(e){}});try{map.setPaintProperty("flow-pt","circle-opacity",0);}catch(e){}},8200);
+    setTimeout(()=>{flowRunning=false;["flow-glow","flow-line"].forEach(l=>{try{map.setPaintProperty(l,"line-opacity-transition",{duration:700});map.setPaintProperty(l,"line-opacity",0);}catch(e){}});try{map.setPaintProperty("flow-pt","circle-opacity",0);map.setPaintProperty("flow-pt","circle-stroke-opacity",0);}catch(e){}},8200);
     setTimeout(flowClear,9400);
   }).catch(()=>{});
 }
@@ -529,7 +536,7 @@ async function showTech(){
   const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
   const sec=(key,t,h)=>HIDE.app.includes(key)?"":`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;
-  const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),mx=Math.max(1,...a.map(e=>e.riders||0));return `<table>${a.map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=barc><span class=bartrack><span class=barf style="width:${Math.round(100*(e.riders||0)/mx)}%"></span></span></td><td class=val>${e.riders}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;};
+  const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>no data yet</p>';};
   const body=sec("adoption","📊 Adoption",d.latest?`<p class=mut style="margin:2px 0 0">${d.latest_pct}% of riders on the latest app · v${d.latest}</p>`:'<p class=mut>no data yet</p>')+
     sec("adopters","🚀 Bleeding Edge · newest app",tbl(d.adopters,rl,e=>"v"+(e.ver||"?")))+
     sec("laggards","🐢 Living in the past · oldest app",tbl(d.laggards,rl,e=>"v"+(e.ver||"?")))+
