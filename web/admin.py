@@ -531,3 +531,48 @@ def pipeline_page(request: Request, db: Session = Depends(get_db)):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     return HTMLResponse(_pipeline_html(db))
+
+
+# --- metric / section show-hide toggles ---
+
+def _metrics_html(db: Session, msg: str = "") -> str:
+    h = settings.get_hidden(db)
+
+    def toggles(items, field, hidden):
+        return "".join(
+            f'<label class=toggle><input type=checkbox name={field} value="{k}"'
+            f'{" checked" if k not in hidden else ""}> {html.escape(label)}</label>'
+            for k, label in items)
+
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    inner = f"""
+    <p><a href="/admin">← back to admin</a></p>
+    {banner}
+    <h1>Metrics &amp; sections</h1>
+    <p class=mut>Ticked = shown on the public site. Untick to hide. Changes are live immediately.</p>
+    <form method=post action="/admin/metrics/save">
+      <div class=card><h2>Dock sections</h2><div class=grid2>{toggles(settings.METRIC_SECTIONS, "show_section", h["sections"])}</div></div>
+      <div class=card><h2>Rider leaderboards</h2><div class=grid2>{toggles(settings.METRIC_BOARDS, "show_board", h["boards"])}</div></div>
+      <button>Save visibility</button>
+    </form>
+    """
+    return _ds_page(inner)
+
+
+@admin_router.get("/metrics", response_class=HTMLResponse)
+def metrics_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_metrics_html(db, msg))
+
+
+@admin_router.post("/metrics/save")
+def metrics_save(request: Request, db: Session = Depends(get_db),
+                 show_section: list[str] = Form([]), show_board: list[str] = Form([])):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    hidden_sections = [k for k, _ in settings.METRIC_SECTIONS if k not in show_section]
+    hidden_boards = [k for k, _ in settings.METRIC_BOARDS if k not in show_board]
+    settings.set_hidden(db, hidden_boards, hidden_sections)
+    return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved — live now"),
+                            status_code=303)

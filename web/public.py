@@ -18,6 +18,7 @@ _PAGE = r"""<!doctype html>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>EUC Stats | Leaderboards & Heatmap</title>
 __CLARITY__
+__HIDECFG__
 <meta name="description" content="Live leaderboards, records and a world activity heatmap for electric unicycle riders, powered by EUC Planet."/>
 <meta property="og:title" content="EUC Stats · EUC rider leaderboards & world heatmap"/>
 <meta property="og:description" content="Live leaderboards, records and a world activity heatmap for electric unicycle riders, powered by EUC Planet."/>
@@ -209,6 +210,7 @@ __TESTWM__
 <script>
 const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
+const HIDE=Object.assign({boards:[],sections:[]},window.__HIDE__||{});
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -411,9 +413,10 @@ function podList(rows,cfg){
   return pod+list;
 }
 function showRiders(){
-  setPanel("riders","Riders",`<div class="tabs">${BOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  const vis=BOARDS.filter(b=>!HIDE.boards.includes(b.k));
+  setPanel("riders","Riders",`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
-  bindTips(pbody,true);loadBoard("mileage");
+  bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
 }
 async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
@@ -477,6 +480,7 @@ async function showTech(){
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.dataset.p]());
+HIDE.sections.forEach(s=>{const b=document.querySelector('.dock button[data-p="'+s+'"]');if(b)b.style.display='none';});
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
 function runIntro(){
@@ -622,9 +626,18 @@ def _clarity_tag():
             '(window,document,"clarity","script","' + cid + '");</script>')
 
 
+def _hide_cfg(db):
+    import json
+    h = settings.get_hidden(db)
+    return ('<script>window.__HIDE__='
+            + json.dumps({"boards": h["boards"], "sections": h["sections"]})
+            + ';</script>')
+
+
 @public_router.get("/", response_class=HTMLResponse)
 def home(db: Session = Depends(get_db)):
     testwm = '<div id="testwm">TEST DATA</div>' if settings.is_test_dataset(db) else ''
     return HTMLResponse(_PAGE.replace("__BUILD__", _build_date())
                         .replace("__CLARITY__", _clarity_tag())
+                        .replace("__HIDECFG__", _hide_cfg(db))
                         .replace("__TESTWM__", testwm))

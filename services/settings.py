@@ -6,11 +6,28 @@ as strings; helpers coerce the few typed ones we use.
 """
 from __future__ import annotations
 
+import json
+
 from sqlalchemy.orm import Session
 
 from models import Meta
 
 IS_TEST = "is_test"
+
+# Canonical metric/section lists for the admin show/hide UI.
+# Keep keys in sync with web/public.py BOARDS (board `k`) and the dock `data-p`.
+METRIC_SECTIONS = [
+    ("riders", "Riders"), ("countries", "Countries"), ("wheels", "Wheels"),
+    ("brands", "Brands"), ("records", "Records"), ("tech", "App"),
+]
+METRIC_BOARDS = [
+    ("mileage", "Mile Muncher"), ("daily", "Day Crusher"), ("week", "Week Beast"),
+    ("month", "Month Monster"), ("speed", "Speedy Gonzales"), ("accel", "Drag Racer"),
+    ("gforce", "G-Force Hero"), ("power", "Watt Beast"), ("current", "Amp Demon"),
+    ("voltage", "Volt Lord"), ("streak", "Streak Master"), ("ascent", "Everest Climber"),
+    ("range", "Long Hauler"), ("efficiency", "Eco Rider"), ("hours", "Steel Legs"),
+    ("cruise", "Sunday Cruiser"), ("globe", "Globe Trotter"), ("altking", "Altitude King"),
+]
 
 
 def get_meta(db: Session, key: str, default: str | None = None) -> str | None:
@@ -35,3 +52,22 @@ def is_test_dataset(db: Session) -> bool:
 
 def set_test(db: Session, value: bool) -> None:
     set_meta(db, IS_TEST, "1" if value else "0")
+
+
+def _json_list(db: Session, key: str) -> list:
+    try:
+        v = json.loads(get_meta(db, key, "[]"))
+        return v if isinstance(v, list) else []
+    except Exception:
+        return []
+
+
+def get_hidden(db: Session) -> dict:
+    """Keys of boards/sections to hide from the public site."""
+    return {"boards": _json_list(db, "hidden_boards"),
+            "sections": _json_list(db, "hidden_sections")}
+
+
+def set_hidden(db: Session, boards, sections) -> None:
+    set_meta(db, "hidden_boards", json.dumps(list(boards)))
+    set_meta(db, "hidden_sections", json.dumps(list(sections)))
