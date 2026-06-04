@@ -18,6 +18,10 @@ RETENTION_INTERVAL_S = int(os.environ.get("EUCSTATS_RETENTION_INTERVAL_S", "3600
 ATTESTATION_MODE = os.environ.get("EUCSTATS_ATTESTATION_MODE", "stub")
 ANDROID_PACKAGE = os.environ.get("EUCSTATS_ANDROID_PACKAGE", "com.eried.eucplanet")
 
+# --- Analytics: Microsoft Clarity project id. Empty disables the tag entirely.
+#     Set via env so the id stays out of the public repo and can change without a code deploy. ---
+CLARITY_ID = os.environ.get("EUCSTATS_CLARITY_ID", "").strip()
+
 # --- Map grid: zoom levels expressed as cell size in degrees (coarse -> fine) ---
 GRID_ZOOMS = [float(z) for z in os.environ.get("EUCSTATS_GRID_ZOOMS", "2.0,0.5,0.1").split(",")]
 

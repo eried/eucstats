@@ -6,12 +6,15 @@ import os
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
+import config
+
 public_router = APIRouter()
 
 _PAGE = r"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>EUC Stats | Leaderboards & Heatmap</title>
+__CLARITY__
 <meta name="description" content="Live leaderboards, records and a world activity heatmap for electric unicycle riders, powered by EUC Planet."/>
 <meta property="og:title" content="EUC Stats · EUC rider leaderboards & world heatmap"/>
 <meta property="og:description" content="Live leaderboards, records and a world activity heatmap for electric unicycle riders, powered by EUC Planet."/>
@@ -605,6 +608,17 @@ def _build_date():
         return ""
 
 
+def _clarity_tag():
+    """Microsoft Clarity loader, only when a (safe, alphanumeric) project id is set."""
+    cid = config.CLARITY_ID
+    if not cid or not cid.isalnum():
+        return ""
+    return ('<script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};'
+            't=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;'
+            'y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})'
+            '(window,document,"clarity","script","' + cid + '");</script>')
+
+
 @public_router.get("/", response_class=HTMLResponse)
 def home():
-    return HTMLResponse(_PAGE.replace("__BUILD__", _build_date()))
+    return HTMLResponse(_PAGE.replace("__BUILD__", _build_date()).replace("__CLARITY__", _clarity_tag()))
