@@ -126,6 +126,9 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .pod .km{color:var(--acc);font-weight:700;margin-top:3px}.pod .rkn{color:var(--mut);font:700 12px/1 ui-monospace,monospace;letter-spacing:1px}
 .pname{margin-top:2px;font-size:12.5px;line-height:1.25;word-break:break-word}
 .psub{color:var(--mut);font-size:10.5px;margin-top:3px}
+.blogo{position:relative;width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center}
+.blogo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.bmono{font-family:Orbitron,sans-serif;font-weight:800;font-size:17px;letter-spacing:.5px;color:var(--gold);background:rgba(255,210,74,.1);border:1px solid rgba(255,210,74,.4);border-radius:9px;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
 .podic{width:48px;height:48px;margin:2px auto 6px;display:flex;align-items:center;justify-content:center;color:var(--acc)}
 .podic svg{width:40px;height:40px}
 td.sub{color:var(--mut)}
@@ -326,10 +329,13 @@ document.getElementById("prefresh").onclick=()=>{const b=document.getElementById
 const MEDAL='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg>';
 const WHEELIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg>';
 const BRANDIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg>';
+const BRANDSLUG=n=>(""+n).toLowerCase().replace(/[^a-z0-9]+/g,"");
+function brandLogo(name){const mono=(name||"?").replace(/[^A-Za-z0-9]/g,"").slice(0,2).toUpperCase();
+  return `<span class="blogo"><span class="bmono">${mono}</span><img alt="" src="/static/brands/${BRANDSLUG(name)}.png" onerror="this.remove()"></span>`;}
 function podList(rows,cfg){
   if(!rows||!rows.length) return '<div class="empty">no data yet</div>';
   const o=[1,0,2],rkn=["1ST","2ND","3RD"],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>cfg.flag?cc(cfg.flag(e)):'';
-  const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.store_id,e.has_avatar):(cfg.icon?`<div class="podic">${cfg.icon}</div>`:'')}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
+  const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.store_id,e.has_avatar):(cfg.iconFn?`<div class="podic">${cfg.iconFn(e)}</div>`:(cfg.icon?`<div class="podic">${cfg.icon}</div>`:''))}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
   const rest=rows.slice(3);let list='';
   if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td><span class="celln">${cfg.av?av(e.store_id,e.has_avatar):''}${fl(e)}<span>${cfg.label(e)}</span></span></td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
   return pod+list;
@@ -376,7 +382,7 @@ async function showGroupPanel(kind,name,title,cfg){
 }
 function showCountries(){showGroupPanel("country","countries","Countries",{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
 function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC});}
-function showBrands(){showGroupPanel("brand","brands","Wheel brands",{icon:BRANDIC});}
+function showBrands(){showGroupPanel("brand","brands","Wheel brands",{iconFn:e=>brandLogo(e.name)});}
 async function showRecords(){
   const recs=(await j("/records")).filter(r=>r.value!=null);
   setPanel("records","All-time records",`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${RECLABEL[r.key]||r.key}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">no records yet</div>'}</div>`);
