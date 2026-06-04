@@ -113,11 +113,12 @@ svg.ic{width:18px;height:18px;display:block}
 .rfoot .ver{font-family:ui-monospace,monospace;font-size:11px}
 .dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;background:var(--surf);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:10px;padding:7px;box-shadow:var(--shadow),0 18px 54px rgba(0,0,0,.55)}
 .dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
-.dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:rgba(46,168,255,.16);color:var(--acc)}
-.dock button.on svg{color:var(--acc)}
+.dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
+.dock button.on svg{color:var(--sec,var(--acc))}
+.dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}
 .panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:60dvh;max-height:580px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
-.panel{transform-origin:50% 100%;border-top-width:2px;border-top-color:var(--sec,var(--acc));box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 110px -34px var(--sec,transparent)}
+.panel{transform-origin:50% 100%;border-top-width:2px;border-top-color:color-mix(in srgb,var(--sec,var(--acc)) 62%,transparent);box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 70px -52px var(--sec,transparent)}
 .panel[data-sec=riders]{--sec:#2ea8ff}.panel[data-sec=countries]{--sec:#ff6b6b}.panel[data-sec=wheels]{--sec:#ffd24a}.panel[data-sec=brands]{--sec:#ff9f43}.panel[data-sec=records]{--sec:#39d98a}.panel[data-sec=tech]{--sec:#a78bfa}
 @keyframes panUp{from{opacity:0;transform:translate(-50%,46px)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes panLeft{from{opacity:0;transform:translate(calc(-50% - 70px),0)}to{opacity:1;transform:translate(-50%,0)}}
@@ -420,14 +421,11 @@ function countUp(el,target,dur,dec){const t=+target||0;let from;
   const delta=t-from;let s0=null;
   function step(now){if(s0===null)s0=now;let p=Math.min(1,(now-s0)/dur);p=1-Math.pow(1-p,3);const v=from+delta*p;el.textContent=dec?v.toFixed(dec):Math.round(v).toLocaleString();if(p<1)requestAnimationFrame(step);else{el.textContent=dec?t.toFixed(dec):Math.round(t).toLocaleString();el.dataset.cur=""+t;}}
   requestAnimationFrame(step);}
-const PANEL_ANIMS=[["slide-up","panUp"],["slide-left","panLeft"],["slide-right","panRight"],["pop","panPop"],["flip","panFlip"],["blur","panBlur"]];
 function setPanel(name,title,html){
   if(openPanel===name){closePanel();return;}
   openPanel=name;ptitle.textContent=title;pbody.innerHTML=html;panel.dataset.sec=name;panel.classList.add("open");
-  const a=PANEL_ANIMS[(Math.random()*PANEL_ANIMS.length)|0];
   panel.style.animation="none";void panel.offsetWidth;
-  panel.style.animation=a[1]+" .42s cubic-bezier(.2,.8,.2,1)";
-  console.log("%c[panel anim] "+a[0]+"  ("+name+")","color:#2ea8ff;font-weight:700");
+  panel.style.animation="panPop .42s cubic-bezier(.2,.8,.2,1)";
   document.querySelectorAll(".dock button").forEach(b=>b.classList.toggle("on",b.dataset.p===name));
 }
 function closePanel(){openPanel=null;panel.classList.remove("open");panel.style.animation="";document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));}
