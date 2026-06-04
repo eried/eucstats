@@ -643,6 +643,7 @@ def _metrics_html(db: Session, msg: str = "") -> str:
     <form method=post action="/admin/metrics/save">
       <div class=card><h2>Dock sections</h2><div class=grid2>{toggles(settings.METRIC_SECTIONS, "show_section", h["sections"])}</div></div>
       <div class=card><h2>Rider leaderboards</h2><div class=grid2>{toggles(settings.METRIC_BOARDS, "show_board", h["boards"])}</div></div>
+      <div class=card><h2>App &amp; devices panels</h2><div class=grid2>{toggles(settings.METRIC_APP, "show_app", h["app"])}</div></div>
       <button>{_IC['check']} Save visibility</button>
     </form>
     """
@@ -658,11 +659,13 @@ def metrics_page(request: Request, db: Session = Depends(get_db), msg: str = "")
 
 @admin_router.post("/metrics/save")
 def metrics_save(request: Request, db: Session = Depends(get_db),
-                 show_section: list[str] = Form([]), show_board: list[str] = Form([])):
+                 show_section: list[str] = Form([]), show_board: list[str] = Form([]),
+                 show_app: list[str] = Form([])):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     hidden_sections = [k for k, _ in settings.METRIC_SECTIONS if k not in show_section]
     hidden_boards = [k for k, _ in settings.METRIC_BOARDS if k not in show_board]
-    settings.set_hidden(db, hidden_boards, hidden_sections)
+    hidden_app = [k for k, _ in settings.METRIC_APP if k not in show_app]
+    settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app)
     return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved — live now"),
                             status_code=303)

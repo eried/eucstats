@@ -210,7 +210,7 @@ __TESTWM__
 <script>
 const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
-const HIDE=Object.assign({boards:[],sections:[]},window.__HIDE__||{});
+const HIDE=Object.assign({boards:[],sections:[],app:[]},window.__HIDE__||{});
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -480,15 +480,15 @@ async function showTech(){
   const d=await j("/stats/versions");
   const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
   const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
-  const sec=(t,h)=>`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
+  const sec=(key,t,h)=>HIDE.app.includes(key)?"":`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;
-  setPanel("tech","App & devices",
-    sec("🚀 Bleeding Edge · newest app build",tbl(d.adopters,rl,e=>"build "+e.build))+
-    sec("🔄 Most up-to-date countries",tbl(d.updated,fn,e=>"build "+e.avg_build))+
-    sec("✨ Freshest fleet · newest Android",tbl(d.newest,fn,e=>"API "+e.avg_sdk))+
-    sec("🐢 Living in the past · oldest Android",tbl(d.oldest,fn,e=>"API "+e.avg_sdk))+
-    sec("📱 Phone tribes",tbl(d.phones,e=>e.brand,e=>e.riders+" riders"))+
-    sec("🤖 Android zoo",tbl(d.android,e=>e.version,e=>e.riders+" riders")));
+  const body=sec("adopters","🚀 Bleeding Edge · newest app build",tbl(d.adopters,rl,e=>"build "+e.build))+
+    sec("updated","🔄 Most up-to-date countries",tbl(d.updated,fn,e=>"build "+e.avg_build))+
+    sec("newest","✨ Freshest fleet · newest Android",tbl(d.newest,fn,e=>"API "+e.avg_sdk))+
+    sec("oldest","🐢 Living in the past · oldest Android",tbl(d.oldest,fn,e=>"API "+e.avg_sdk))+
+    sec("phones","📱 Phone tribes",tbl(d.phones,e=>e.brand,e=>e.riders+" riders"))+
+    sec("android","🤖 Android zoo",tbl(d.android,e=>e.version,e=>e.riders+" riders"));
+  setPanel("tech","App & devices",body||'<div class="empty">all panels hidden</div>');
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>HANDLERS[b.dataset.p]());
@@ -642,7 +642,7 @@ def _hide_cfg(db):
     import json
     h = settings.get_hidden(db)
     return ('<script>window.__HIDE__='
-            + json.dumps({"boards": h["boards"], "sections": h["sections"]})
+            + json.dumps({"boards": h["boards"], "sections": h["sections"], "app": h.get("app", [])})
             + ';</script>')
 
 

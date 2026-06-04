@@ -30,6 +30,15 @@ METRIC_BOARDS = [
     ("frequent", "Frequent Flyer"), ("marathon", "Marathoner"), ("pace", "Pace Maker"),
     ("battery", "Battery Vampire"), ("night", "Night Rider"), ("weekend", "Weekend Warrior"),
 ]
+# Inner sub-panels of the "App & devices" section (keys match version_stats fields).
+METRIC_APP = [
+    ("adopters", "Bleeding Edge (newest app build)"),
+    ("updated", "Most up-to-date countries"),
+    ("newest", "Freshest fleet (newest Android)"),
+    ("oldest", "Living in the past (oldest Android)"),
+    ("phones", "Phone tribes"),
+    ("android", "Android zoo"),
+]
 
 
 def get_meta(db: Session, key: str, default: str | None = None) -> str | None:
@@ -65,11 +74,13 @@ def _json_list(db: Session, key: str) -> list:
 
 
 def get_hidden(db: Session) -> dict:
-    """Keys of boards/sections to hide from the public site."""
+    """Keys of boards / dock-sections / App-panels to hide from the public site."""
     return {"boards": _json_list(db, "hidden_boards"),
-            "sections": _json_list(db, "hidden_sections")}
+            "sections": _json_list(db, "hidden_sections"),
+            "app": _json_list(db, "hidden_app")}
 
 
-def set_hidden(db: Session, boards, sections) -> None:
+def set_hidden(db: Session, boards, sections, app=()) -> None:
     set_meta(db, "hidden_boards", json.dumps(list(boards)))
     set_meta(db, "hidden_sections", json.dumps(list(sections)))
+    set_meta(db, "hidden_app", json.dumps(list(app)))
