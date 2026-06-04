@@ -97,13 +97,22 @@ class Aggregator:
         rs.last_ride_date = dates[-1]
 
 
+def _banned_ids(db):
+    import services.settings as settings
+    return set(settings.banned(db).keys())
+
+
 def reconcile_unaggregated(db, limit=5000):
     """Apply any validated trips that were never aggregated (e.g. a crash between
-    the trip insert and aggregation). Idempotent via the `aggregated` flag."""
+    the trip insert and aggregation). Idempotent via the `aggregated` flag.
+    Banned riders' trips are left unaggregated (excluded from public stats)."""
     from models import Trip
-    trips = (db.query(Trip)
-             .filter(Trip.validation_status == "validated", Trip.aggregated.is_(False))
-             .order_by(Trip.created_at).limit(limit).all())
+    q = (db.query(Trip)
+         .filter(Trip.validation_status == "validated", Trip.aggregated.is_(False)))
+    banned = _banned_ids(db)
+    if banned:
+        q = q.filter(~Trip.rider_store_id.in_(banned))
+    trips = q.order_by(Trip.created_at).limit(limit).all()
     agg = Aggregator(db)
     for t in trips:
         agg.apply(t)
@@ -112,15 +121,19 @@ def reconcile_unaggregated(db, limit=5000):
 
 def rebuild_all(db):
     """Clear every materialized table and replay all validated trips from scratch.
-    Use after rejecting an already-counted trip, or to repair any drift."""
+    Use after rejecting an already-counted trip, banning a rider, or to repair drift.
+    Banned riders' trips stay in the DB (reversible) but produce no public stats."""
     from models import CountryStat, DailyDistance, MapCell, Record, RiderStat, Trip
     for model in (RiderStat, CountryStat, DailyDistance, MapCell, Record):
         db.query(model).delete()
     db.query(Trip).update({Trip.aggregated: False})
     db.commit()
     agg = Aggregator(db)
-    trips = (db.query(Trip).filter(Trip.validation_status == "validated")
-             .order_by(Trip.created_at).all())
+    q = db.query(Trip).filter(Trip.validation_status == "validated")
+    banned = _banned_ids(db)
+    if banned:
+        q = q.filter(~Trip.rider_store_id.in_(banned))
+    trips = q.order_by(Trip.created_at).all()
     for t in trips:
         agg.apply(t)
     return len(trips)

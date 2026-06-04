@@ -17,37 +17,72 @@ IS_TEST = "is_test"
 
 # Canonical metric/section lists for the admin show/hide UI.
 # Keep keys in sync with web/public.py BOARDS (board `k`) and the dock `data-p`.
+# Each entry is (key, label, description). Descriptions mirror the public
+# site's own copy (BOARDS/GBOARDS `d:` text in web/public.py) so the admin
+# tree explains exactly what visitors see.
 METRIC_SECTIONS = [
-    ("riders", "Riders"), ("countries", "Countries"), ("wheels", "Wheels"),
-    ("brands", "Brands"), ("records", "Records"), ("tech", "App"),
+    ("riders", "Riders", "Individual rider leaderboards across every metric"),
+    ("countries", "Countries", "Per-country leaderboards and the world map"),
+    ("wheels", "Wheels", "Per wheel-model leaderboards"),
+    ("brands", "Brands", "Per-brand leaderboards and the factory → rider flow map"),
+    ("records", "Records", "All-time single-ride records"),
+    ("tech", "App", "App-version adoption and the device / OS breakdown"),
 ]
 METRIC_BOARDS = [
-    ("mileage", "Mile Muncher"), ("daily", "Day Crusher"), ("week", "Week Beast"),
-    ("month", "Month Monster"), ("speed", "Speedy Gonzales"), ("accel", "Drag Racer"),
-    ("gforce", "G-Force Hero"), ("power", "Watt Beast"), ("current", "Amp Demon"),
-    ("voltage", "Volt Lord"), ("streak", "Streak Master"), ("ascent", "Everest Climber"),
-    ("range", "Long Hauler"), ("efficiency", "Eco Rider"), ("hours", "Steel Legs"),
-    ("cruise", "Sunday Cruiser"), ("globe", "Globe Trotter"), ("altking", "Altitude King"),
-    ("frequent", "Frequent Flyer"), ("marathon", "Marathoner"), ("pace", "Pace Maker"),
-    ("battery", "Battery Vampire"), ("night", "Night Rider"), ("weekend", "Weekend Warrior"),
-    ("early", "Early Bird"), ("peak", "Peak Bagger"), ("energy", "Power Plant"),
-    ("explorer", "Explorer"), ("bigday", "Big Day"), ("commuter", "Commuter"),
+    ("mileage", "Mile Muncher", "Most distance ever ridden"),
+    ("daily", "Day Crusher", "Most distance in a single day"),
+    ("week", "Week Beast", "Most distance in one week"),
+    ("month", "Month Monster", "Most distance in one calendar month"),
+    ("speed", "Speedy Gonzales", "Highest speed reached on any ride"),
+    ("accel", "Drag Racer", "Fastest launch from a stop to 40 km/h · lower is better"),
+    ("gforce", "G-Force Hero", "Strongest g-force spike"),
+    ("power", "Watt Beast", "Highest power held for 2 seconds"),
+    ("current", "Amp Demon", "Highest current held for 2 seconds"),
+    ("voltage", "Volt Lord", "Highest battery voltage observed"),
+    ("streak", "Streak Master", "Longest run of consecutive days ridden"),
+    ("ascent", "Everest Climber", "Total elevation climbed (Everest = 8849 m)"),
+    ("range", "Long Hauler", "Longest estimated full-charge range"),
+    ("efficiency", "Eco Rider", "Lowest energy use per km · most efficient"),
+    ("hours", "Steel Legs", "Most hours on the wheel"),
+    ("cruise", "Sunday Cruiser", "Longest calm ride held under 10 km/h"),
+    ("globe", "Globe Trotter", "Most countries ridden in"),
+    ("altking", "Altitude King", "Biggest altitude swing in one ride"),
+    ("frequent", "Frequent Flyer", "Most rides logged"),
+    ("marathon", "Marathoner", "Longest single ride by time"),
+    ("pace", "Pace Maker", "Highest average speed on a single ride"),
+    ("battery", "Battery Vampire", "Biggest battery drain in one ride"),
+    ("night", "Night Rider", "Most rides started at night (22:00–05:00 UTC)"),
+    ("weekend", "Weekend Warrior", "Most distance ridden on weekends"),
+    ("early", "Early Bird", "Most rides started in the morning (05:00–09:00 UTC)"),
+    ("peak", "Peak Bagger", "Biggest elevation gain in a single ride"),
+    ("energy", "Power Plant", "Most total energy used across all rides"),
+    ("explorer", "Explorer", "Most distinct map areas ridden"),
+    ("bigday", "Big Day", "Most rides in a single day"),
+    ("commuter", "Commuter", "Most distance ridden on weekdays"),
 ]
 # Inner sub-panels of the "App & OS" section (keys match version_stats output).
 METRIC_APP = [
-    ("adoption", "Adoption (% on latest)"),
-    ("adopters", "Bleeding Edge (newest app)"),
-    ("laggards", "Living in the past (oldest app)"),
-    ("appvers", "App versions"),
-    ("osvers", "OS versions"),
-    ("countries", "Up-to-date countries"),
+    ("adoption", "Adoption", "Share of riders on the latest app version"),
+    ("adopters", "Bleeding Edge", "Riders running the newest app version"),
+    ("laggards", "Living in the past", "Riders stuck on the oldest app version"),
+    ("appvers", "App versions", "Distribution of riders across app versions"),
+    ("osvers", "OS versions", "Distribution of riders across Android / OS versions"),
+    ("countries", "Up-to-date countries", "Which countries run the newest app"),
 ]
 # Group leaderboard tabs shown inside Countries / Wheels / Brands (GBOARDS keys).
 METRIC_GROUPS = [
-    ("dist", "Mile Muncher"), ("speed", "Speedy Gonzales"), ("accel", "Drag Racer"),
-    ("gforce", "G-Force Hero"), ("power", "Watt Beast"), ("current", "Amp Demon"),
-    ("voltage", "Volt Lord"), ("riders", "Riders"), ("trips", "Rides"),
-    ("ascent", "Everest Climber"), ("range", "Long Hauler"), ("eff", "Eco Rider"),
+    ("dist", "Mile Muncher", "Most distance ridden"),
+    ("speed", "Speedy Gonzales", "Fastest ride in the group"),
+    ("accel", "Drag Racer", "Fastest 0→40 km/h · lower is better"),
+    ("gforce", "G-Force Hero", "Strongest g-force spike"),
+    ("power", "Watt Beast", "Highest power held 2s"),
+    ("current", "Amp Demon", "Highest current held 2s"),
+    ("voltage", "Volt Lord", "Highest battery voltage"),
+    ("riders", "Riders", "Active riders"),
+    ("trips", "Rides", "Rides logged"),
+    ("ascent", "Everest Climber", "Total elevation climbed"),
+    ("range", "Long Hauler", "Longest est. range"),
+    ("eff", "Eco Rider", "Lowest Wh/km · best"),
 ]
 
 # --- page behaviour (consumed by the public frontend as window.__CFG__) ---
@@ -126,6 +161,43 @@ def ingest_allow(db: Session) -> dict:
 def set_ingest_allow(db: Session, enabled, ids) -> None:
     set_meta(db, "ingest_allow_enabled", "1" if enabled else "0")
     set_meta(db, "ingest_allow_ids", json.dumps([s.strip() for s in ids if s.strip()]))
+
+
+# --- banned riders (store_id -> reason) ---------------------------------
+# Kept in app_meta (not a DB column) so it travels inside the dataset file and
+# never breaks frozen snapshots. A banned rider is rejected at ingest and
+# excluded from public stats; their profile reports the ban so the app can show it.
+
+def banned(db: Session) -> dict:
+    """Map of {store_id: reason} for all banned riders."""
+    try:
+        v = json.loads(get_meta(db, "banned_ids", "{}") or "{}")
+        return v if isinstance(v, dict) else {}
+    except Exception:
+        return {}
+
+
+def is_banned(db: Session, store_id: str) -> bool:
+    return bool(store_id) and store_id in banned(db)
+
+
+def ban_reason(db: Session, store_id: str) -> str | None:
+    return banned(db).get(store_id)
+
+
+def ban(db: Session, store_id: str, reason: str = "") -> None:
+    store_id = (store_id or "").strip()
+    if not store_id:
+        return
+    b = banned(db)
+    b[store_id] = (reason or "").strip() or "Violation of fair-use / anti-fraud policy"
+    set_meta(db, "banned_ids", json.dumps(b))
+
+
+def unban(db: Session, store_id: str) -> None:
+    b = banned(db)
+    if b.pop((store_id or "").strip(), None) is not None:
+        set_meta(db, "banned_ids", json.dumps(b))
 
 
 def _json_list(db: Session, key: str) -> list:

@@ -92,6 +92,8 @@ class IngestService:
         trip_uuid = meta.get("trip_uuid")
         if not store or not trip_uuid:
             raise IngestError(400, "missing_store_id_or_trip_uuid")
+        if settings.is_banned(self.db, store):                       # suspended account: refuse uploads
+            raise IngestError(403, "rider_banned")
         allow = settings.ingest_allow(self.db)
         if allow["enabled"] and allow["ids"] and store not in allow["ids"]:
             raise IngestError(403, "rider_not_allowlisted")
@@ -195,8 +197,10 @@ class IngestService:
                 is_mock_location=is_mock, sample_count=sm.sample_count,
                 app_version=meta.get("app_version"),
                 os_name=("ios" if meta.get("platform") == "apple" else "android"),
-                meta_json=({k: meta.get(k) for k in ("gps", "os_version", "sample_count")
-                            if meta.get(k) is not None} or None),
+                meta_json=(({k: meta.get(k) for k in ("gps", "os_version", "sample_count")
+                             if meta.get(k) is not None}
+                            | ({"max_freespin": round(sm.max_freespin, 1)} if sm.max_freespin else {}))
+                           or None),
             )
         except IntegrityError:
             # a concurrent upload of the same trip_uuid won the insert race -> idempotent duplicate

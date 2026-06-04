@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 import config
 from database import get_db
-from models import Rider, Trip
+from models import RawUpload, Rider, RiderStat, Trip, Wheel
 from services import datasets, settings
 from services.aggregator import Aggregator
 
@@ -92,9 +92,9 @@ def _counts(db: Session) -> dict:
     }
 
 
-_NAV = [("/admin", "Overview"), ("/admin/datasets", "Datasets"),
-        ("/admin/pipeline", "Pipeline"), ("/admin/metrics", "Metrics"),
-        ("/admin/settings", "Settings")]
+_NAV = [("/admin", "Overview"), ("/admin/explorer", "Explorer"),
+        ("/admin/datasets", "Datasets"), ("/admin/pipeline", "Pipeline"),
+        ("/admin/metrics", "Metrics"), ("/admin/settings", "Settings")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -102,6 +102,9 @@ _IC = {
     "db": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
     "pulse": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>',
     "sliders": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 17h16" stroke-linecap="round"/><circle cx="9" cy="7" r="2.3"/><circle cx="15" cy="17" r="2.3"/></svg>',
+    "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>',
+    "ban": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
+    "back": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
 }
 
 _ADMIN_CSS = """<link rel=preconnect href="https://fonts.googleapis.com"><link rel=preconnect href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel=stylesheet><style>
@@ -162,6 +165,31 @@ tr.active{background:rgba(46,168,255,.08)}
 .toggle{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #26345e;border-radius:9px;background:#0b1124;cursor:pointer;font-size:13px}
 .toggle input{width:16px;height:16px;accent-color:#2ea8ff}
 .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px}
+.mtree details{border:1px solid #26345e;border-radius:11px;background:#0b1124;margin:0 0 10px;overflow:hidden}
+.mtree summary{list-style:none;cursor:pointer;padding:12px 15px;display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;background:linear-gradient(160deg,#16203c,#0e1528)}
+.mtree summary::-webkit-details-marker{display:none}
+.mtree summary::before{content:"▸";color:#2ea8ff;font-size:12px;transition:transform .15s}
+.mtree details[open] summary::before{transform:rotate(90deg)}
+.mtree summary .cnt{margin-left:auto;color:#8ea0c8;font-size:12px;font-weight:500}
+.mtree summary .sd{color:#8ea0c8;font-size:12px;font-weight:400}
+.mtree .leaves{padding:6px 10px 11px;display:flex;flex-direction:column;gap:4px}
+.mrow{display:flex;align-items:flex-start;gap:11px;padding:8px 11px;border:1px solid #1d2945;border-radius:9px;background:#0d142a;cursor:pointer}
+.mrow:hover{border-color:#2ea8ff}
+.mrow input{width:16px;height:16px;accent-color:#2ea8ff;margin-top:1px;flex:none}
+.mrow .ml{font-size:13px;color:#e7ecfb}.mrow .md{font-size:12px;color:#8ea0c8;margin-top:1px}
+.mrow.off{opacity:.55}.mrow.off .ml{text-decoration:line-through}
+.searchbar{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap;align-items:center}
+.searchbar input,.searchbar select{flex:1;min-width:160px}
+.dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.dl .f{background:#0b1124;border:1px solid #1d2945;border-radius:9px;padding:8px 11px}
+.dl .f .k{color:#8ea0c8;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
+.dl .f .v{font-size:14px;margin-top:3px;word-break:break-word}
+.dl .f.hi{border-color:rgba(255,206,90,.5);background:rgba(255,206,90,.07)}.dl .f.hi .v{color:#ffd98a}
+tr.clk{cursor:pointer}tr.clk:hover{background:rgba(46,168,255,.08)}
+.bk{display:inline-flex;align-items:center;gap:5px;color:#8ea0c8;font-size:12.5px;margin-bottom:10px}
+.banbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0}
+.banbar input{flex:1;min-width:160px}
+pre.j{background:#0b1124;border:1px solid #1d2945;border-radius:9px;padding:11px 13px;overflow:auto;font-size:12px;color:#cfe4ff;margin:0;max-height:280px}
 .acts{display:flex;flex-direction:column;gap:5px}
 .acts form{display:flex;gap:5px;align-items:center;margin:0}
 .acts input{width:118px;padding:6px 8px}
@@ -240,14 +268,16 @@ def _dash_html(db: Session) -> str:
 
     riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(200).all()
     rhtml = "".join(
-        f"<tr><td><code>{html.escape(r.store_id)}</code></td><td>{html.escape(r.display_name or '')}</td>"
+        f"<tr class=clk onclick=\"location='/admin/explorer/rider/{html.escape(r.store_id)}'\">"
+        f"<td><code>{html.escape(r.store_id)}</code></td><td>{html.escape(r.display_name or '')}</td>"
         f"<td>{html.escape(r.flag or '')}</td><td>{html.escape(r.platform or '')}</td>"
-        f"<td>{'<span class=\"badge rejected\">deleted</span>' if r.deleted_at else '<span class=\"badge validated\">active</span>'}</td></tr>"
+        f"<td>{_rider_badges(db, r)}</td></tr>"
         for r in riders) or "<tr><td colspan=5 class=mut>no riders</td></tr>"
 
     trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(30).all()
     thtml = "".join(
-        f"<tr><td><code>{t.trip_uuid[:8]}</code></td><td>{html.escape(t.rider_store_id or '')}</td>"
+        f"<tr class=clk onclick=\"location='/admin/explorer/trip/{html.escape(t.trip_uuid)}'\">"
+        f"<td><code>{t.trip_uuid[:8]}</code></td><td>{html.escape(t.rider_store_id or '')}</td>"
         f"<td>{round(t.distance_km or 0,1)}</td><td>{html.escape(t.country or '')}</td>"
         f"<td><span class='badge {t.validation_status or 'pending'}'>{html.escape(t.validation_status or 'pending')}</span></td></tr>"
         for t in trips) or "<tr><td colspan=5 class=mut>no trips</td></tr>"
@@ -259,6 +289,7 @@ def _dash_html(db: Session) -> str:
     <div class=card>
       <h2>Quick actions</h2>
       <div class=qa>
+        <a class=btn href="/admin/explorer">{_IC['search']} Explore riders &amp; trips</a>
         <a class=btn href="/admin/datasets">{_IC['db']} Datasets &amp; backups</a>
         <a class=btn href="/admin/pipeline">{_IC['pulse']} Ingest pipeline</a>
         <a class=btn href="/admin/metrics">{_IC['sliders']} Metrics &amp; sections</a>
@@ -342,6 +373,320 @@ def reject_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db))
             from services.aggregator import rebuild_all
             rebuild_all(db)
     return RedirectResponse("/admin", status_code=303)
+
+
+# --- data explorer (riders & trips) -------------------------------------
+# Read-only views over data we already store (plus ban controls). No new data
+# is collected — this just surfaces what's in the active dataset for moderation.
+
+def _fmt_dt(dt) -> str:
+    return dt.strftime("%Y-%m-%d %H:%M") if dt else "—"
+
+
+def _num(v, dec=1):
+    return "—" if v is None else (round(v, dec) if dec else int(v))
+
+
+def _field(k: str, v, hi: bool = False) -> str:
+    return f'<div class="f{" hi" if hi else ""}"><div class=k>{html.escape(k)}</div><div class=v>{v}</div></div>'
+
+
+def _rider_badges(db: Session, r: Rider) -> str:
+    parts = ['<span class="badge rejected">deleted</span>' if r.deleted_at
+             else '<span class="badge validated">active</span>']
+    if settings.is_banned(db, r.store_id):
+        parts.append('<span class="badge rejected">banned</span>')
+    return " ".join(parts)
+
+
+def _rider_row(db: Session, r: Rider, rs) -> str:
+    km = _num(rs.total_km if rs else 0, 1)
+    n = int((rs.trip_count if rs else 0) or 0)
+    return f"""<tr class=clk onclick="location='/admin/explorer/rider/{html.escape(r.store_id)}'">
+      <td><code>{html.escape((r.store_id or '')[:12])}…</code></td>
+      <td>{html.escape(r.display_name or '')}</td><td>{html.escape(r.flag or '')}</td>
+      <td>{n}</td><td>{km} km</td><td>{_rider_badges(db, r)}</td></tr>"""
+
+
+def _trip_row(t: Trip) -> str:
+    fr = (t.meta_json or {}).get("max_freespin") if isinstance(t.meta_json, dict) else None
+    frs = f' <span class=chip flagged title="freespin">⟳{fr}</span>' if fr else ""
+    return f"""<tr class=clk onclick="location='/admin/explorer/trip/{html.escape(t.trip_uuid)}'">
+      <td><code>{html.escape(t.trip_uuid[:8])}</code></td><td>{_fmt_dt(t.start_utc)}</td>
+      <td>{_num(t.distance_km)}</td><td>{_num(t.max_speed)}{frs}</td>
+      <td>{html.escape(t.country or '')}</td>
+      <td><span class="badge {t.validation_status or 'pending'}">{html.escape(t.validation_status or 'pending')}</span></td></tr>"""
+
+
+def _explorer_html(db: Session, q: str = "") -> str:
+    q = (q or "").strip()
+    query = db.query(Rider, RiderStat).outerjoin(RiderStat, RiderStat.store_id == Rider.store_id)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(Rider.store_id.ilike(like) | Rider.display_name.ilike(like))
+    rows = query.order_by(desc(Rider.created_at)).limit(100).all()
+    body = "".join(_rider_row(db, r, rs) for r, rs in rows) or \
+        f"<tr><td colspan=6 class=mut>no riders{' match' if q else ''}</td></tr>"
+    bn = settings.banned(db)
+    banned_note = (f'<p class=hint>{len(bn)} rider(s) currently banned — excluded from public stats.</p>'
+                   if bn else "")
+    inner = f"""
+    <h1>Explorer</h1>
+    <p class=sub>Search and inspect riders and trips. Click any row for full detail.</p>
+    <div class=card>
+      <h2>Find a rider</h2>
+      <form class=searchbar method=get action="/admin/explorer">
+        <input type=text name=q value="{html.escape(q)}" placeholder="store id or display name…" autofocus>
+        <button>{_IC['search']} Search</button>
+        <a class=btn href="/admin/explorer/trips">{_IC['pulse']} Trip explorer →</a>
+      </form>
+      {banned_note}
+      <table><tr><th>store id</th><th>name</th><th>flag</th><th>trips</th><th>distance</th><th>status</th></tr>{body}</table>
+      <p class=hint>Showing up to 100{' matching' if q else ' newest'} riders.</p>
+    </div>"""
+    return _admin_shell(inner, active="/admin/explorer")
+
+
+def _rider_detail_html(db: Session, store_id: str, msg: str = "") -> str | None:
+    r = db.get(Rider, store_id)
+    if r is None:
+        return None
+    rs = db.get(RiderStat, store_id)
+    banned, reason = settings.is_banned(db, store_id), settings.ban_reason(db, store_id)
+    wheels = db.query(Wheel).filter(Wheel.rider_store_id == store_id).order_by(desc(Wheel.last_seen)).all()
+    trips = db.query(Trip).filter(Trip.rider_store_id == store_id).order_by(desc(Trip.start_utc)).limit(200).all()
+    tcount = db.query(func.count(Trip.trip_uuid)).filter(Trip.rider_store_id == store_id).scalar()
+
+    if banned:
+        ban_card = f"""<div class=card style="border-color:rgba(255,107,107,.4)">
+          <h2 style="color:#ff9d9d">Account suspended</h2>
+          <p class=hint>Reason shown to the rider in-app: <b>{html.escape(reason or '')}</b></p>
+          <form method=post action="/admin/rider/{html.escape(store_id)}/unban">
+            <button class=go>{_IC['check']} Lift the ban</button></form></div>"""
+    else:
+        ban_card = f"""<div class=card>
+          <h2>Moderation</h2>
+          <p class=hint>Banning refuses new uploads (403) and removes the rider from all public stats. Reversible.</p>
+          <form class=banbar method=post action="/admin/rider/{html.escape(store_id)}/ban">
+            <input type=text name=reason placeholder="reason (shown to the rider in-app)…">
+            <button class=danger>{_IC['ban']} Ban rider</button></form></div>"""
+
+    prof = "".join([
+        _field("platform", html.escape(r.platform or "—")),
+        _field("created", _fmt_dt(r.created_at)),
+        _field("public consent", "yes" if r.consent_public else "no"),
+        _field("last name change", _fmt_dt(r.last_name_change)),
+        _field("last flag change", _fmt_dt(r.last_flag_change)),
+        _field("deleted", _fmt_dt(r.deleted_at) if r.deleted_at else "no"),
+    ])
+    if rs:
+        statf = "".join([
+            _field("total distance", f"{_num(rs.total_km)} km"),
+            _field("validated trips", int(rs.trip_count or 0)),
+            _field("best speed", f"{_num(rs.best_speed)} km/h"),
+            _field("longest trip", f"{_num(rs.longest_trip_km)} km"),
+            _field("total ascent", f"{_num(rs.total_ascent_m, 0)} m"),
+            _field("hours", _num((rs.total_duration_s or 0) / 3600.0)),
+            _field("current streak", f"{int(rs.current_streak or 0)} d"),
+            _field("longest streak", f"{int(rs.longest_streak or 0)} d"),
+            _field("best range", f"{_num(rs.best_range_km)} km"),
+            _field("best Wh/km", _num(rs.best_wh_per_km)),
+            _field("peak voltage", f"{_num(rs.peak_voltage)} V"),
+            _field("last ride", rs.last_ride_date.isoformat() if rs.last_ride_date else "—"),
+        ])
+        stat_card = f'<div class=card><h2>Stats <span class=mut>· materialized, validated only</span></h2><div class=dl>{statf}</div></div>'
+    else:
+        stat_card = '<div class=card><h2>Stats</h2><p class=mut>No validated trips yet.</p></div>'
+
+    whtml = "".join(
+        f"<tr><td>{html.escape(w.brand or '')}</td><td>{html.escape(w.model or '')}</td>"
+        f"<td>{html.escape(w.ble_name or '')}</td><td>{html.escape(w.firmware or '')}</td>"
+        f"<td>{_fmt_dt(w.first_seen)}</td><td>{_fmt_dt(w.last_seen)}</td></tr>"
+        for w in wheels) or "<tr><td colspan=6 class=mut>no wheels recorded</td></tr>"
+    thtml = "".join(_trip_row(t) for t in trips) or "<tr><td colspan=6 class=mut>no trips</td></tr>"
+
+    flash = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    av = '<img src="/admin/explorer/rider/%s/avatar" style="width:46px;height:46px;border-radius:50%%;vertical-align:middle;margin-right:10px;border:1px solid #26345e">' % quote(store_id) if r.avatar_png else ""
+    inner = f"""
+    <a class=bk href="/admin/explorer">{_IC['back']} all riders</a>
+    {flash}
+    <h1>{av}{html.escape(r.display_name or '(no name)')} {html.escape(r.flag or '')}</h1>
+    <p class=sub><code>{html.escape(store_id)}</code> &nbsp; {_rider_badges(db, r)}
+       &nbsp;·&nbsp; <a href="/api/riders/{quote(store_id)}/card" target=_blank>card JSON →</a></p>
+    {ban_card}
+    {stat_card}
+    <div class=card><h2>Profile</h2><div class=dl>{prof}</div></div>
+    <div class=card><h2>Wheels <span class=mut>· {len(wheels)}</span></h2>
+      <table><tr><th>brand</th><th>model</th><th>BLE name</th><th>firmware</th><th>first seen</th><th>last seen</th></tr>{whtml}</table></div>
+    <div class=card><h2>Trips <span class=mut>· {tcount} total, newest {len(trips)}</span></h2>
+      <table><tr><th>id</th><th>start (UTC)</th><th>km</th><th>max km/h</th><th>country</th><th>status</th></tr>{thtml}</table></div>"""
+    return _admin_shell(inner, active="/admin/explorer")
+
+
+def _trips_html(db: Session, status: str = "", country: str = "", store: str = "", q: str = "") -> str:
+    query = db.query(Trip)
+    if status:
+        query = query.filter(Trip.validation_status == status)
+    if country:
+        query = query.filter(Trip.country == country.strip().upper())
+    if store:
+        query = query.filter(Trip.rider_store_id == store.strip())
+    if q:
+        query = query.filter(Trip.trip_uuid.ilike(f"{q.strip()}%"))
+    trips = query.order_by(desc(Trip.start_utc)).limit(200).all()
+    opts = "".join(f'<option value="{s}"{" selected" if status == s else ""}>{s or "any status"}</option>'
+                   for s in ("", "validated", "flagged", "rejected"))
+    body = "".join(_trip_row(t) for t in trips) or "<tr><td colspan=6 class=mut>no trips match</td></tr>"
+    inner = f"""
+    <a class=bk href="/admin/explorer">{_IC['back']} explorer</a>
+    <h1>Trip explorer</h1>
+    <p class=sub>Filter and inspect individual trip submissions.</p>
+    <div class=card>
+      <form class=searchbar method=get action="/admin/explorer/trips">
+        <select name=status>{opts}</select>
+        <input type=text name=country value="{html.escape(country)}" placeholder="country (e.g. NO)">
+        <input type=text name=store value="{html.escape(store)}" placeholder="rider store id">
+        <input type=text name=q value="{html.escape(q)}" placeholder="trip id prefix">
+        <button>{_IC['search']} Filter</button>
+      </form>
+      <table><tr><th>id</th><th>start (UTC)</th><th>km</th><th>max km/h</th><th>country</th><th>status</th></tr>{body}</table>
+      <p class=hint>Showing up to 200 trips, newest first. ⟳ marks a freespin spike.</p>
+    </div>"""
+    return _admin_shell(inner, active="/admin/explorer")
+
+
+def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
+    t = db.get(Trip, trip_uuid)
+    if t is None:
+        return None
+    raw = db.get(RawUpload, trip_uuid)
+    mj = t.meta_json if isinstance(t.meta_json, dict) else {}
+    fr = mj.get("max_freespin")
+    fields = "".join([
+        _field("rider", f'<a href="/admin/explorer/rider/{quote(t.rider_store_id or "")}">{html.escape(t.rider_store_id or "—")}</a>'),
+        _field("start (UTC)", _fmt_dt(t.start_utc)), _field("end (UTC)", _fmt_dt(t.end_utc)),
+        _field("duration", f"{_num((t.duration_s or 0) / 60.0)} min"),
+        _field("distance", f"{_num(t.distance_km)} km"),
+        _field("max speed", f"{_num(t.max_speed)} km/h"),
+    ] + ([_field("freespin spike", f"{fr} km/h", hi=True)] if fr else []) + [
+        _field("avg speed", f"{_num(t.avg_speed)} km/h"),
+        _field("max g-force", _num(t.max_gforce, 2)),
+        _field("sustained W", _num(t.max_sustained_w, 0)),
+        _field("sustained A", _num(t.max_sustained_a, 0)),
+        _field("peak voltage", f"{_num(t.peak_voltage)} V"),
+        _field("0→40 km/h", f"{_num(t.fastest_0_40_s)} s" if t.fastest_0_40_s else "—"),
+        _field("ascent", f"{_num(t.ascent_m, 0)} m"),
+        _field("alt range", f"{_num(t.alt_range_m, 0)} m"),
+        _field("battery used", f"{_num(t.battery_used_pct)} %"),
+        _field("est range", f"{_num(t.est_range_km)} km"),
+        _field("country", html.escape(t.country or "—")),
+        _field("start cell", html.escape(t.start_cell or "—")),
+        _field("start coords", f"{_num(t.start_lat, 3)}, {_num(t.start_lon, 3)}" if t.start_lat is not None else "—"),
+        _field("samples", t.sample_count if t.sample_count is not None else "—"),
+        _field("app version", html.escape(t.app_version or "—")),
+        _field("OS", html.escape(t.os_name or "—")),
+        _field("device", html.escape(((t.device_brand or "") + " " + (t.device_model or "")).strip() or "—")),
+        _field("schema", html.escape(t.schema_version or "—")),
+        _field("source app", html.escape(t.source_app or "—")),
+        _field("mock location", "⚠ yes" if t.is_mock_location else "no", hi=bool(t.is_mock_location)),
+        _field("aggregated", "yes" if t.aggregated else "no"),
+        _field("raw upload", _fmt_size(raw.bytes) if raw else "—"),
+        _field("created", _fmt_dt(t.created_at)),
+    ])
+    reasons = ", ".join(t.flag_reasons or []) if t.flag_reasons else ""
+    reasons_card = (f'<div class=card style="border-color:rgba(255,206,90,.4)"><h2 style="color:#ffd98a">Flag reasons</h2>'
+                    f'<p class=hint>{html.escape(reasons)}</p></div>') if reasons else ""
+    actions = ""
+    if t.validation_status in ("flagged", "validated"):
+        actions += (f'<form method=post action="/admin/trip/{quote(trip_uuid)}/reject" style="display:inline-flex;margin-right:6px">'
+                    f'<button class="mini danger">{_IC["x"]} reject</button></form>')
+    if t.validation_status == "flagged":
+        actions = (f'<form method=post action="/admin/trip/{quote(trip_uuid)}/approve" style="display:inline-flex;margin-right:6px">'
+                   f'<button class=mini>{_IC["check"]} approve</button></form>') + actions
+    actions_card = f'<div class=card><h2>Actions</h2>{actions}</div>' if actions else ""
+    try:
+        mj_pretty = html.escape(json.dumps(mj, indent=2, ensure_ascii=False)) if mj else "{}"
+    except Exception:
+        mj_pretty = "{}"
+    inner = f"""
+    <a class=bk href="/admin/explorer/trips">{_IC['back']} trip explorer</a>
+    <h1>Trip <code style="font-size:16px">{html.escape(trip_uuid[:8])}</code>
+      <span class="badge {t.validation_status or 'pending'}">{html.escape(t.validation_status or 'pending')}</span></h1>
+    <p class=sub><code>{html.escape(trip_uuid)}</code></p>
+    {reasons_card}
+    {actions_card}
+    <div class=card><h2>Metrics</h2><div class=dl>{fields}</div></div>
+    <div class=card><h2>meta_json <span class=mut>· device / gps extras</span></h2><pre class=j>{mj_pretty}</pre></div>"""
+    return _admin_shell(inner, active="/admin/explorer")
+
+
+@admin_router.get("/explorer", response_class=HTMLResponse)
+def explorer_page(request: Request, db: Session = Depends(get_db), q: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_explorer_html(db, q))
+
+
+@admin_router.get("/explorer/trips", response_class=HTMLResponse)
+def explorer_trips(request: Request, db: Session = Depends(get_db),
+                   status: str = "", country: str = "", store: str = "", q: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_trips_html(db, status, country, store, q))
+
+
+@admin_router.get("/explorer/rider/{store_id}", response_class=HTMLResponse)
+def explorer_rider(store_id: str, request: Request, db: Session = Depends(get_db), msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    page = _rider_detail_html(db, store_id, msg)
+    if page is None:
+        return HTMLResponse(_admin_shell('<a class=bk href="/admin/explorer">← back</a><div class=card><h1>Rider not found</h1></div>',
+                                         active="/admin/explorer"), status_code=404)
+    return HTMLResponse(page)
+
+
+@admin_router.get("/explorer/rider/{store_id}/avatar")
+def explorer_avatar(store_id: str, request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    r = db.get(Rider, store_id)
+    if not r or not r.avatar_png:
+        return JSONResponse({"error": "no avatar"}, status_code=404)
+    return HTMLResponse(content=r.avatar_png, media_type="image/png")
+
+
+@admin_router.get("/explorer/trip/{trip_uuid}", response_class=HTMLResponse)
+def explorer_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    page = _trip_detail_html(db, trip_uuid)
+    if page is None:
+        return HTMLResponse(_admin_shell('<a class=bk href="/admin/explorer/trips">← back</a><div class=card><h1>Trip not found</h1></div>',
+                                         active="/admin/explorer"), status_code=404)
+    return HTMLResponse(page)
+
+
+@admin_router.post("/rider/{store_id}/ban")
+def ban_rider(store_id: str, request: Request, db: Session = Depends(get_db), reason: str = Form("")):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services.aggregator import rebuild_all
+    settings.ban(db, store_id, reason)
+    rebuild_all(db)   # drop the banned rider from all materialized public stats
+    return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
+                            quote("rider banned — removed from public stats"), status_code=303)
+
+
+@admin_router.post("/rider/{store_id}/unban")
+def unban_rider(store_id: str, request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services.aggregator import rebuild_all
+    settings.unban(db, store_id)
+    rebuild_all(db)   # restore their trips to public stats
+    return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
+                            quote("ban lifted — rider restored to public stats"), status_code=303)
 
 
 # --- dataset & snapshot manager ---
@@ -680,22 +1025,37 @@ def allowlist_save(request: Request, db: Session = Depends(get_db),
 def _metrics_html(db: Session, msg: str = "") -> str:
     h = settings.get_hidden(db)
 
-    def toggles(items, field, hidden):
-        return "".join(
-            f'<label class=toggle><input type=checkbox name={field} value="{k}"'
-            f'{" checked" if k not in hidden else ""}> {html.escape(label)}</label>'
-            for k, label in items)
+    def leaf(field, k, label, desc, hidden):
+        on = k not in hidden
+        return (f'<label class="mrow{"" if on else " off"}">'
+                f'<input type=checkbox name={field} value="{k}"{" checked" if on else ""}>'
+                f'<span><span class=ml>{html.escape(label)}</span>'
+                f'<span class=md>{html.escape(desc)}</span></span></label>')
+
+    def node(title, sub, field, items, hidden):
+        shown = sum(1 for k, *_ in items if k not in hidden)
+        leaves = "".join(leaf(field, k, lbl, desc, hidden) for k, lbl, desc in items)
+        return (f'<details open><summary>{html.escape(title)}'
+                f'<span class=sd>{html.escape(sub)}</span>'
+                f'<span class=cnt>{shown}/{len(items)} shown</span></summary>'
+                f'<div class=leaves>{leaves}</div></details>')
 
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    tree = (
+        node("Dock sections", "the six buttons in the dock", "show_section",
+             settings.METRIC_SECTIONS, h["sections"]) +
+        node("Rider leaderboards", "inside the Riders section", "show_board",
+             settings.METRIC_BOARDS, h["boards"]) +
+        node("Group leaderboards", "tabs inside Countries / Wheels / Brands", "show_group",
+             settings.METRIC_GROUPS, h["groups"]) +
+        node("App & OS panels", "inside the App section", "show_app",
+             settings.METRIC_APP, h["app"]))
     inner = f"""
     {banner}
     <h1>Metrics &amp; sections</h1>
-    <p class=mut>Ticked = shown on the public site. Untick to hide. Changes are live immediately.</p>
+    <p class=mut>Ticked = shown on the public site. Untick to hide it. Each row explains exactly what visitors see. Changes are live immediately.</p>
     <form method=post action="/admin/metrics/save">
-      <div class=card><h2>Dock sections</h2><div class=grid2>{toggles(settings.METRIC_SECTIONS, "show_section", h["sections"])}</div></div>
-      <div class=card><h2>Rider leaderboards</h2><div class=grid2>{toggles(settings.METRIC_BOARDS, "show_board", h["boards"])}</div></div>
-      <div class=card><h2>App &amp; OS panels</h2><div class=grid2>{toggles(settings.METRIC_APP, "show_app", h["app"])}</div></div>
-      <div class=card><h2>Group leaderboards <span class=mut>· Countries / Wheels / Brands tabs</span></h2><div class=grid2>{toggles(settings.METRIC_GROUPS, "show_group", h["groups"])}</div></div>
+      <div class=mtree>{tree}</div>
       <button>{_IC['check']} Save visibility</button>
     </form>
     """
@@ -715,10 +1075,10 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
                  show_app: list[str] = Form([]), show_group: list[str] = Form([])):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
-    hidden_sections = [k for k, _ in settings.METRIC_SECTIONS if k not in show_section]
-    hidden_boards = [k for k, _ in settings.METRIC_BOARDS if k not in show_board]
-    hidden_app = [k for k, _ in settings.METRIC_APP if k not in show_app]
-    hidden_groups = [k for k, _ in settings.METRIC_GROUPS if k not in show_group]
+    hidden_sections = [k for k, *_ in settings.METRIC_SECTIONS if k not in show_section]
+    hidden_boards = [k for k, *_ in settings.METRIC_BOARDS if k not in show_board]
+    hidden_app = [k for k, *_ in settings.METRIC_APP if k not in show_app]
+    hidden_groups = [k for k, *_ in settings.METRIC_GROUPS if k not in show_group]
     settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app, hidden_groups)
     return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved — live now"),
                             status_code=303)

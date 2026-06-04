@@ -526,6 +526,7 @@ def _rider_rank(db, column, value):
 def rider_card(db, store_id):
     """Personal stats card for a rider. Returns zeros (not 404) for a registered
     rider with no validated trips yet, so the app never shows 'couldn't load'."""
+    import services.settings as settings
     r = db.get(Rider, store_id)
     if r is None or r.deleted_at is not None:
         return None
@@ -542,6 +543,8 @@ def rider_card(db, store_id):
         "display_name": r.display_name,
         "flag": r.flag,
         "has_avatar": r.avatar_png is not None,
+        "banned": settings.is_banned(db, store_id),       # app shows a suspension notice on profile load
+        "ban_reason": settings.ban_reason(db, store_id),  # human-readable; null when not banned
         "stats": {
             "total_km": round(z("total_km"), 2),
             "trips": int(z("trip_count")),
@@ -613,10 +616,17 @@ def brand_flow(db, brand):
 
 
 def global_summary(db):
+    import services.settings as settings
     total_km = db.query(func.coalesce(func.sum(RiderStat.total_km), 0.0)).scalar() or 0.0
+    banned = set(settings.banned(db).keys())                     # excluded from public counts
+    riders_q = db.query(func.count(Rider.store_id)).filter(Rider.deleted_at.is_(None))
+    trips_q = db.query(func.count(Trip.trip_uuid)).filter(Trip.validation_status == "validated")
+    if banned:
+        riders_q = riders_q.filter(~Rider.store_id.in_(banned))
+        trips_q = trips_q.filter(~Trip.rider_store_id.in_(banned))
     return {
-        "riders": db.query(func.count(Rider.store_id)).filter(Rider.deleted_at.is_(None)).scalar(),
-        "trips": db.query(func.count(Trip.trip_uuid)).filter(Trip.validation_status == "validated").scalar(),
+        "riders": riders_q.scalar(),
+        "trips": trips_q.scalar(),
         "total_km": round(total_km, 1),
         "countries": db.query(func.count(CountryStat.country)).scalar(),
     }
