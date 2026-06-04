@@ -79,7 +79,7 @@ svg.ic{width:18px;height:18px;display:block}
 .champ::after{content:"";position:absolute;left:0;right:0;height:36%;top:-36%;background:linear-gradient(rgba(255,255,255,0),rgba(180,220,255,.16),rgba(255,255,255,0));pointer-events:none;animation:champroll 10s linear infinite}
 @keyframes champroll{0%,82%{top:-36%}100%{top:136%}}
 .rgbglitch{animation:rgbg .5s linear}
-@keyframes rgbg{0%,100%{text-shadow:none;opacity:1}15%{text-shadow:-3px 0 #ff2bd0,3px 0 #00ffe7;opacity:.8}35%{text-shadow:3px 0 #ff2bd0,-3px 0 #00ffe7}55%{text-shadow:-3px 0 #ff2bd0,3px 0 #00ffe7;opacity:.9}75%{text-shadow:2px 0 #ff2bd0,-2px 0 #00ffe7}}
+@keyframes rgbg{0%,100%{text-shadow:none}20%{text-shadow:-1.6px 0 #ff2bd0,1.6px 0 #00ffe7}45%{text-shadow:1.6px 0 #ff2bd0,-1.6px 0 #00ffe7}70%{text-shadow:-1px 0 #ff2bd0,1px 0 #00ffe7}}
 #tip{position:fixed;z-index:600;max-width:240px;background:linear-gradient(158deg,rgba(26,40,78,.88),rgba(8,12,26,.89));border:1px solid var(--line);border-radius:9px;box-shadow:0 16px 50px rgba(0,0,0,.6);padding:8px 11px;font-size:11.5px;line-height:1.45;color:var(--ink);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
 #tip.on{opacity:1;transform:translateY(0)}#tip b{color:var(--gold)}
 .tab.on{animation:tabglow .7s ease}
