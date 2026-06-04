@@ -219,7 +219,7 @@ __TESTWM__
 <script>
 const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
-const HIDE=Object.assign({boards:[],sections:[],app:[]},window.__HIDE__||{});
+const HIDE=Object.assign({boards:[],sections:[],app:[],groups:[]},window.__HIDE__||{});
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -487,9 +487,10 @@ function renderGroup(b,cfg){
 }
 async function showGroupPanel(kind,name,title,cfg){
   GROWS=(await j("/groups/"+kind)).entries;
-  setPanel(name,title,`<div class="tabs">${GBOARDS.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
-  pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(GBOARDS[+t.dataset.b],cfg);});
-  bindTips(pbody,true);renderGroup(GBOARDS[0],cfg);
+  const vis=GBOARDS.filter(b=>!HIDE.groups.includes(b.k));
+  setPanel(name,title,`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
+  bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
 }
 function showCountries(){showGroupPanel("country","countries","Countries",{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
 function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC});}
@@ -668,7 +669,8 @@ def _hide_cfg(db):
     import json
     h = settings.get_hidden(db)
     return ('<script>window.__HIDE__='
-            + json.dumps({"boards": h["boards"], "sections": h["sections"], "app": h.get("app", [])})
+            + json.dumps({"boards": h["boards"], "sections": h["sections"],
+                          "app": h.get("app", []), "groups": h.get("groups", [])})
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';</script>')
 

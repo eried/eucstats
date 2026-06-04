@@ -38,6 +38,13 @@ METRIC_APP = [
     ("appvers", "App versions"),
     ("osvers", "OS versions"),
 ]
+# Group leaderboard tabs shown inside Countries / Wheels / Brands (GBOARDS keys).
+METRIC_GROUPS = [
+    ("dist", "Mile Muncher"), ("speed", "Speedy Gonzales"), ("accel", "Drag Racer"),
+    ("gforce", "G-Force Hero"), ("power", "Watt Beast"), ("current", "Amp Demon"),
+    ("voltage", "Volt Lord"), ("riders", "Riders"), ("trips", "Rides"),
+    ("ascent", "Everest Climber"), ("range", "Long Hauler"), ("eff", "Eco Rider"),
+]
 
 # --- page behaviour (consumed by the public frontend as window.__CFG__) ---
 MAP_STYLES = ["dark", "light", "voyager", "satellite", "terrain"]
@@ -109,13 +116,15 @@ def _json_list(db: Session, key: str) -> list:
 
 
 def get_hidden(db: Session) -> dict:
-    """Keys of boards / dock-sections / App-panels to hide from the public site."""
+    """Keys of boards / dock-sections / App-panels / group-tabs to hide publicly."""
     return {"boards": _json_list(db, "hidden_boards"),
             "sections": _json_list(db, "hidden_sections"),
-            "app": _json_list(db, "hidden_app")}
+            "app": _json_list(db, "hidden_app"),
+            "groups": _json_list(db, "hidden_groups")}
 
 
-def set_hidden(db: Session, boards, sections, app=()) -> None:
+def set_hidden(db: Session, boards, sections, app=(), groups=()) -> None:
     set_meta(db, "hidden_boards", json.dumps(list(boards)))
     set_meta(db, "hidden_sections", json.dumps(list(sections)))
     set_meta(db, "hidden_app", json.dumps(list(app)))
+    set_meta(db, "hidden_groups", json.dumps(list(groups)))
