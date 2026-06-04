@@ -91,14 +91,15 @@ def parse_csv(text: str, tz_offset_min: int = 0) -> list[Sample]:
         raise ValueError("CSV has no recognizable Date column")
 
     out: list[Sample] = []
-    ncols = len(header)
+    ti = idx["t"]
     for row in reader:
-        if not row or len(row) < ncols:
+        # tolerate ragged rows: require a date cell; missing trailing columns -> None
+        if not row or ti >= len(row) or not (row[ti] or "").strip():
             continue
 
         def g(key: str) -> float | None:
             i = idx.get(key)
-            return _f(row[i]) if i is not None else None
+            return _f(row[i]) if (i is not None and i < len(row)) else None
 
         out.append(Sample(
             t=_parse_dt(row[idx["t"]], tz_offset_min),

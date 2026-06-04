@@ -5,6 +5,8 @@ from __future__ import annotations
 import gzip
 import zlib
 
+from sqlalchemy.exc import IntegrityError
+
 import config
 from ingest.attestation import get_verifier
 from ingest.downsample import downsample, encode_track
@@ -113,7 +115,7 @@ class IngestService:
             samples, sm, is_mock,
             max_kmh=config.MAX_KMH, max_g=config.MAX_G,
             teleport_kmh=config.TELEPORT_KMH, teleport_max_jumps=config.TELEPORT_MAX_JUMPS,
-            dist_tolerance=config.DIST_TOLERANCE,
+            dist_tolerance=config.DIST_TOLERANCE, unverified_dist_km=config.UNVERIFIED_DIST_KM,
         )
 
         first = next((s for s in samples if s.lat is not None and s.lon is not None), None)
@@ -129,28 +131,36 @@ class IngestService:
         self._register_wheel(store, wheel, wid)
 
         dev = meta.get("device") or {}
-        trip = self.trips.insert_trip(
-            trip_uuid=trip_uuid, rider_store_id=store, wheel_id=wid,
-            start_utc=_naive(sm.start_utc), end_utc=_naive(sm.end_utc),
-            tz=str(meta.get("tz") or tz_off), tz_known=bool(meta.get("tz_known", True)),
-            distance_km=sm.distance_km, duration_s=sm.duration_s,
-            max_speed=sm.max_speed, avg_speed=sm.avg_speed, max_gforce=sm.max_gforce,
-            wh_per_km=sm.wh_per_km, max_sustained_w=sm.max_sustained_w,
-            max_sustained_a=sm.max_sustained_a, peak_voltage=sm.peak_voltage,
-            fastest_0_40_s=sm.fastest_0_40_s,
-            ascent_m=sm.ascent_m, alt_range_m=sm.alt_range_m,
-            battery_used_pct=sm.battery_used_pct, est_range_km=sm.est_range_km,
-            country=country, start_cell=start_cell, start_lat=start_lat, start_lon=start_lon,
-            validation_status=status, flag_reasons=reasons or None,
-            schema_version=meta.get("schema_version"), source_app=meta.get("source_app"),
-            is_mock_location=is_mock, sample_count=sm.sample_count,
-            app_version=meta.get("app_version"), app_build=_intval(meta.get("app_build")),
-            os_name=("ios" if meta.get("platform") == "apple" else "android"),
-            sdk_int=_intval(dev.get("sdk_int")), device_brand=dev.get("manufacturer"),
-            device_model=dev.get("model"),
-            meta_json=({k: meta.get(k) for k in ("device", "gps", "sample_interval_ms", "os_version")
-                        if meta.get(k) is not None} or None),
-        )
+        try:
+            trip = self.trips.insert_trip(
+                trip_uuid=trip_uuid, rider_store_id=store, wheel_id=wid,
+                start_utc=_naive(sm.start_utc), end_utc=_naive(sm.end_utc),
+                tz=str(meta.get("tz") or tz_off), tz_known=bool(meta.get("tz_known", True)),
+                distance_km=sm.distance_km, duration_s=sm.duration_s,
+                max_speed=sm.max_speed, avg_speed=sm.avg_speed, max_gforce=sm.max_gforce,
+                wh_per_km=sm.wh_per_km, max_sustained_w=sm.max_sustained_w,
+                max_sustained_a=sm.max_sustained_a, peak_voltage=sm.peak_voltage,
+                fastest_0_40_s=sm.fastest_0_40_s,
+                ascent_m=sm.ascent_m, alt_range_m=sm.alt_range_m,
+                battery_used_pct=sm.battery_used_pct, est_range_km=sm.est_range_km,
+                country=country, start_cell=start_cell, start_lat=start_lat, start_lon=start_lon,
+                validation_status=status, flag_reasons=reasons or None,
+                schema_version=meta.get("schema_version"), source_app=meta.get("source_app"),
+                is_mock_location=is_mock, sample_count=sm.sample_count,
+                app_version=meta.get("app_version"), app_build=_intval(meta.get("app_build")),
+                os_name=("ios" if meta.get("platform") == "apple" else "android"),
+                sdk_int=_intval(dev.get("sdk_int")), device_brand=dev.get("manufacturer"),
+                device_model=dev.get("model"),
+                meta_json=({k: meta.get(k) for k in ("device", "gps", "sample_interval_ms", "os_version")
+                            if meta.get(k) is not None} or None),
+            )
+        except IntegrityError:
+            # a concurrent upload of the same trip_uuid won the insert race -> idempotent duplicate
+            self.db.rollback()
+            ex = self.trips.get(trip_uuid)
+            return {"trip_uuid": trip_uuid,
+                    "validation_status": ex.validation_status if ex else "flagged",
+                    "duplicate": True}
 
         track = downsample(samples, config.TRACK_MAX_POINTS)
         if track:

@@ -333,9 +333,14 @@ def reject_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db))
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     t = db.get(Trip, trip_uuid)
-    if t and t.validation_status == "flagged":
+    if t and t.validation_status in ("flagged", "validated"):
+        was_counted = t.validation_status == "validated"
         t.validation_status = "rejected"
+        t.flag_reasons = None
         db.commit()
+        if was_counted:   # it had already been aggregated -> recompute to remove its stats
+            from services.aggregator import rebuild_all
+            rebuild_all(db)
     return RedirectResponse("/admin", status_code=303)
 
 
@@ -568,7 +573,7 @@ def datasets_export(slug: str, request: Request):
 
 # --- ingest / pipeline monitor (read-only) ---
 
-def _pipeline_html(db: Session) -> str:
+def _pipeline_html(db: Session, msg: str = "") -> str:
     total = db.query(func.count(Trip.trip_uuid)).scalar() or 0
     by_status = dict(db.query(Trip.validation_status, func.count(Trip.trip_uuid))
                      .group_by(Trip.validation_status).all())
@@ -597,7 +602,9 @@ def _pipeline_html(db: Session) -> str:
         f'<td>{html.escape(", ".join(t.flag_reasons or []))}</td></tr>'
         for t in recent) or '<tr><td colspan=6 class=mut>no trips yet</td></tr>'
 
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
+    {banner}
     <h1>Ingest pipeline</h1>
     <p class=sub>How uploads are flowing in and how validation is treating them.</p>
     <div class=card>
@@ -607,6 +614,9 @@ def _pipeline_html(db: Session) -> str:
       ({'accepting all uploads, no verification' if config.ATTESTATION_MODE == 'stub' else 'requires an attestation token — presence only, not yet cryptographically verified'})
       · package <b>{html.escape(config.ANDROID_PACKAGE)}</b></p>
       <p class=mut>Ingest allowlist: <b>{', '.join(config.INGEST_ALLOW) if config.INGEST_ALLOW else 'off — all registered riders accepted'}</b></p>
+      <form method=post action="/admin/rebuild" style="margin-top:10px"
+            onsubmit="return confirm('Recompute all leaderboards &amp; records from validated trips?')">
+        <button class="ghost mini">↻ Rebuild stats</button></form>
     </div>
     <div class=card>
       <h2>Ingest — last 14 days</h2>
@@ -619,10 +629,20 @@ def _pipeline_html(db: Session) -> str:
 
 
 @admin_router.get("/pipeline", response_class=HTMLResponse)
-def pipeline_page(request: Request, db: Session = Depends(get_db)):
+def pipeline_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
-    return HTMLResponse(_pipeline_html(db))
+    return HTMLResponse(_pipeline_html(db, msg))
+
+
+@admin_router.post("/rebuild")
+def admin_rebuild(request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services.aggregator import rebuild_all
+    n = rebuild_all(db)
+    return RedirectResponse("/admin/pipeline?msg=" + quote(f"rebuilt stats from {n} validated trips"),
+                            status_code=303)
 
 
 # --- metric / section show-hide toggles ---

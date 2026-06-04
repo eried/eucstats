@@ -33,7 +33,7 @@ def run_retention(db, now=None, retention_days=None, disk_floor_gb=None,
 
     # 2) disk-pressure: evict oldest validated raw until above the floor
     if free_gb(data_dir) < disk_floor_gb:
-        for ru in tr.oldest_validated_raw(limit=10000):
+        for ru in tr.oldest_raw(limit=10000):
             db.delete(ru)
             db.commit()
             evicted += 1

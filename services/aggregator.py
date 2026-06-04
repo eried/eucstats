@@ -95,3 +95,32 @@ class Aggregator:
         rs.current_streak = cur_run
         rs.longest_streak = longest
         rs.last_ride_date = dates[-1]
+
+
+def reconcile_unaggregated(db, limit=5000):
+    """Apply any validated trips that were never aggregated (e.g. a crash between
+    the trip insert and aggregation). Idempotent via the `aggregated` flag."""
+    from models import Trip
+    trips = (db.query(Trip)
+             .filter(Trip.validation_status == "validated", Trip.aggregated.is_(False))
+             .order_by(Trip.created_at).limit(limit).all())
+    agg = Aggregator(db)
+    for t in trips:
+        agg.apply(t)
+    return len(trips)
+
+
+def rebuild_all(db):
+    """Clear every materialized table and replay all validated trips from scratch.
+    Use after rejecting an already-counted trip, or to repair any drift."""
+    from models import CountryStat, DailyDistance, MapCell, Record, RiderStat, Trip
+    for model in (RiderStat, CountryStat, DailyDistance, MapCell, Record):
+        db.query(model).delete()
+    db.query(Trip).update({Trip.aggregated: False})
+    db.commit()
+    agg = Aggregator(db)
+    trips = (db.query(Trip).filter(Trip.validation_status == "validated")
+             .order_by(Trip.created_at).all())
+    for t in trips:
+        agg.apply(t)
+    return len(trips)

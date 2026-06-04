@@ -8,11 +8,17 @@ from .summary import TripSummary, _haversine_km
 def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           max_kmh: float = 120.0, max_g: float = 12.0,
           teleport_kmh: float = 150.0, teleport_max_jumps: int = 8,
-          dist_tolerance: float = 0.4):
+          dist_tolerance: float = 0.4, unverified_dist_km: float = 3.0):
     reasons: list[str] = []
 
     if is_mock:
         reasons.append("mock_location")
+
+    # a meaningful distance with NO GPS at all is trivially faked via the odometer
+    # — flag for review so it can't silently top distance boards
+    has_gps = any(s.lat is not None and s.lon is not None for s in samples)
+    if not has_gps and (summary.distance_km or 0) > unverified_dist_km:
+        reasons.append("unverified_distance")
 
     if any(s.speed is not None and s.speed > max_kmh for s in samples):
         reasons.append("impossible_speed")

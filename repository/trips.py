@@ -43,19 +43,10 @@ class TripRepo:
 
     def evictable_by_age(self, now: datetime, retention_days: int):
         cutoff = now - timedelta(days=retention_days)
-        return (
-            self.db.query(RawUpload)
-            .join(Trip, Trip.trip_uuid == RawUpload.trip_uuid)
-            .filter(Trip.validation_status == "validated", RawUpload.received_at < cutoff)
-            .all()
-        )
+        # evict ANY raw older than the cutoff (incl. flagged/rejected — summaries
+        # and tracks are kept regardless, so review data survives within the window)
+        return self.db.query(RawUpload).filter(RawUpload.received_at < cutoff).all()
 
-    def oldest_validated_raw(self, limit: int = 50):
-        return (
-            self.db.query(RawUpload)
-            .join(Trip, Trip.trip_uuid == RawUpload.trip_uuid)
-            .filter(Trip.validation_status == "validated")
-            .order_by(RawUpload.received_at.asc())
-            .limit(limit)
-            .all()
-        )
+    def oldest_raw(self, limit: int = 50):
+        return (self.db.query(RawUpload)
+                .order_by(RawUpload.received_at.asc()).limit(limit).all())
