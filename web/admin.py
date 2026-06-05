@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 import config
 from database import get_db
 from models import RawUpload, Rider, RiderStat, Trip, Wheel, utcnow
-from services import datasets, settings
+from services import audit, datasets, settings
 from services.aggregator import Aggregator
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -95,7 +95,7 @@ def _counts(db: Session) -> dict:
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Explorer"),
         ("/admin/datasets", "Datasets"), ("/admin/pipeline", "Pipeline"),
         ("/admin/metrics", "Metrics"), ("/admin/system", "System"),
-        ("/admin/settings", "Settings")]
+        ("/admin/audit", "Audit"), ("/admin/settings", "Settings")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -831,6 +831,7 @@ def ban_rider(store_id: str, request: Request, db: Session = Depends(get_db), re
     from services.aggregator import rebuild_all
     settings.ban(db, store_id, reason)
     rebuild_all(db)   # drop the banned rider from all materialized public stats
+    audit.log("ban", f"rider={store_id} reason={(reason or '').strip()[:80]}")
     return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
                             quote("rider banned — removed from public stats"), status_code=303)
 
@@ -842,6 +843,7 @@ def unban_rider(store_id: str, request: Request, db: Session = Depends(get_db)):
     from services.aggregator import rebuild_all
     settings.unban(db, store_id)
     rebuild_all(db)   # restore their trips to public stats
+    audit.log("unban", f"rider={store_id}")
     return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
                             quote("ban lifted — rider restored to public stats"), status_code=303)
 
@@ -859,6 +861,7 @@ def delete_rider(store_id: str, request: Request, db: Session = Depends(get_db),
                                 quote("name did not match — not deleted"), status_code=303)
     from services.identity import purge_rider
     purge_rider(db, store_id)
+    audit.log("delete_rider", f"rider={store_id} name={expected[:60]}")
     return RedirectResponse("/admin/explorer?msg=" + quote(f"permanently deleted “{expected}” and all their data"),
                             status_code=303)
 
@@ -988,6 +991,7 @@ def datasets_new(request: Request, name: str = Form(...)):
     try:
         slug = datasets.create_empty(name)
         datasets.switch_to(slug, reload_app=_reload_app)        # create AND activate
+        audit.log("dataset_new", f"name={name} (created + activated)")
         return _redir(msg=f"created and switched to empty dataset “{name}”")
     except datasets.DatasetError as e:
         return _redir(err=str(e))
@@ -1033,6 +1037,7 @@ def datasets_delete(request: Request, slug: str = Form(...), confirm: str = Form
     if (confirm or "").strip() != entry["name"]:
         return _redir(err="confirmation name did not match — nothing deleted")
     datasets.delete(slug)
+    audit.log("dataset_delete", f"name={entry['name']}")
     return _redir(msg=f"deleted “{entry['name']}”")
 
 
@@ -1049,6 +1054,7 @@ def datasets_switch(request: Request, slug: str = Form(...), confirm: str = Form
         datasets.switch_to(slug, reload_app=_reload_app)
     except datasets.DatasetError as e:
         return _redir(err=str(e))
+    audit.log("dataset_switch", f"to={entry['name']}")
     return _redir(msg=f"now serving “{entry['name']}” (a safety backup of the previous dataset was saved)")
 
 
@@ -1207,12 +1213,29 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
       </form>
     </div>""" + _PIPELINE_CALC_JS
 
+    from services.reprocess import raw_available_count
+    raw_n = raw_available_count(db)
+    reprocess_card = f"""
+    <div class=card>
+      <h2>Re-process with current calibration</h2>
+      <p class=hint>Calibration changes only affect <b>new</b> uploads. This recomputes speed / freespin /
+      g-force / sag / acceleration for the <b>{raw_n}</b> trip(s) whose raw file is still on disk
+      (within the {settings.get_retention(db)['days']}-day retention window), using the calibration above,
+      then rebuilds the leaderboards. Validation status is left unchanged; trips whose raw was already
+      evicted can't be redone.</p>
+      <form method=post action="/admin/pipeline/reprocess"
+            onsubmit="return confirm('Re-summarize {raw_n} trip(s) from their raw upload with the current calibration?')">
+        <button class=ghost{' disabled' if not raw_n else ''}>↻ Re-process {raw_n} trip(s)</button>
+      </form>
+    </div>"""
+
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
     <h1>Ingest pipeline</h1>
     <p class=sub>How uploads are flowing in and how validation is treating them.</p>
     {rules_card}
+    {reprocess_card}
     <div class=card>
       <h2>Status — {total} trips total</h2>
       <p>{chips}</p>
@@ -1255,8 +1278,21 @@ def admin_rebuild(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/admin", status_code=303)
     from services.aggregator import rebuild_all
     n = rebuild_all(db)
+    audit.log("rebuild_stats", f"{n} validated trips")
     return RedirectResponse("/admin/pipeline?msg=" + quote(f"rebuilt stats from {n} validated trips"),
                             status_code=303)
+
+
+@admin_router.post("/pipeline/reprocess")
+def pipeline_reprocess(request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services.reprocess import reprocess_with_calibration
+    r = reprocess_with_calibration(db)
+    audit.log("reprocess", f"reprocessed={r['reprocessed']} failed={r['failed']} of {r['available']} with raw")
+    return RedirectResponse("/admin/pipeline?msg=" + quote(
+        f"re-processed {r['reprocessed']} trip(s) with current calibration"
+        + (f" ({r['failed']} failed)" if r['failed'] else "")), status_code=303)
 
 
 @admin_router.post("/pipeline/rules")
@@ -1269,6 +1305,7 @@ async def pipeline_rules_save(request: Request, db: Session = Depends(get_db)):
     settings.set_calibration(db, {key: form.get("cal_" + key) for key, *_ in settings.CALIBRATION})
     settings.set_rate_limits(db, {key: form.get("rl_" + key) for key, *_ in settings.RATE_LIMITS})
     off = len(settings.pipeline_disabled(db))
+    audit.log("rules_save", f"{len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} rules active")
     note = f"rules saved — {len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} active"
     return RedirectResponse("/admin/pipeline?msg=" + quote(note), status_code=303)
 
@@ -1281,6 +1318,7 @@ def allowlist_save(request: Request, db: Session = Depends(get_db),
     id_list = [s.strip() for s in ids.replace("\n", ",").replace(";", ",").split(",") if s.strip()]
     settings.set_ingest_allow(db, bool(enabled), id_list)
     state = f"on ({len(id_list)} id{'s' if len(id_list) != 1 else ''})" if enabled else "off — open to all"
+    audit.log("allowlist", state)
     return RedirectResponse("/admin/pipeline?msg=" + quote("allowlist " + state), status_code=303)
 
 
@@ -1385,6 +1423,8 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
     hidden_groups = [k for k, *_ in settings.METRIC_GROUPS if k not in show_group]
     hidden_records = [k for k, *_ in settings.METRIC_RECORDS if k not in show_record]
     settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app, hidden_groups, hidden_records)
+    audit.log("metrics_save", f"hidden: {len(hidden_sections)} sec / {len(hidden_boards)} board / "
+                              f"{len(hidden_groups)} grp / {len(hidden_app)} app / {len(hidden_records)} rec")
     return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved — live now"),
                             status_code=303)
 
@@ -1461,6 +1501,7 @@ def settings_save(request: Request, db: Session = Depends(get_db),
     settings.set_test_mode(bool(test_enabled), test_text)
     settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
                            bool(glitch_enabled), glitch_secs, glitch_intensity)
+    audit.log("settings_save", f"banner={'on' if test_enabled else 'off'} map={map_style}")
     return RedirectResponse("/admin/settings?msg=" + quote("settings saved — live on next page load"),
                             status_code=303)
 
@@ -1588,6 +1629,20 @@ def system_resources(request: Request):
     return HTMLResponse(_resources_html())
 
 
+@admin_router.get("/audit", response_class=HTMLResponse)
+def audit_page(request: Request):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    lines = audit.tail(400)
+    body = html.escape("\n".join(lines)) if lines else "no admin actions logged yet"
+    inner = f"""
+    <h1>Audit log</h1>
+    <p class=sub>Append-only record of admin actions, read from <code>data/audit.log</code> — a flat file,
+    not stored in any dataset, so it survives dataset switches. Newest first; last 400 lines.</p>
+    <div class=card><pre class=j style="max-height:600px">{body}</pre></div>"""
+    return HTMLResponse(_admin_shell(inner, active="/admin/audit"))
+
+
 @admin_router.post("/system/save")
 def system_save(request: Request, db: Session = Depends(get_db),
                 ret_days: int = Form(30), ret_floor_gb: float = Form(10.0),
@@ -1595,4 +1650,5 @@ def system_save(request: Request, db: Session = Depends(get_db),
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     settings.set_retention(db, ret_days, ret_floor_gb, ret_interval_s)
+    audit.log("retention_save", f"days={ret_days} floor_gb={ret_floor_gb} interval_s={ret_interval_s}")
     return RedirectResponse("/admin/system?msg=" + quote("retention saved"), status_code=303)

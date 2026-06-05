@@ -1,0 +1,64 @@
+"""Re-summarize trips from their stored raw upload using the CURRENT calibration.
+
+Only trips whose raw blob still exists (within the retention window) can be redone —
+older ones had their raw evicted and keep their stored values. This recomputes the
+metric values only; a trip's validation status is left untouched.
+"""
+from __future__ import annotations
+
+import config
+from ingest.parser import parse_csv
+from ingest.summary import summarize
+from models import RawUpload, Trip
+from services import settings
+
+
+def raw_available_count(db) -> int:
+    """How many trips still have a raw upload on disk (i.e. can be reprocessed)."""
+    return (db.query(Trip.trip_uuid)
+            .join(RawUpload, RawUpload.trip_uuid == Trip.trip_uuid).count())
+
+
+def reprocess_with_calibration(db) -> dict:
+    from services.aggregator import rebuild_all
+    from services.ingest import _gunzip_capped, _is_gzip
+
+    cal = settings.get_calibration(db)
+    gps_tol = settings.get_thresholds(db)["dist_tolerance"]
+    cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
+    rows = (db.query(Trip, RawUpload)
+            .join(RawUpload, RawUpload.trip_uuid == Trip.trip_uuid).all())
+    done = failed = 0
+    for t, ru in rows:
+        try:
+            raw = ru.blob
+            data = _gunzip_capped(raw, cap) if _is_gzip(raw) else raw
+            # tz offset only shifts absolute times; metrics use deltas, so 0 is fine
+            samples = parse_csv(data.decode("utf-8", "replace"), 0)
+            if not samples:
+                failed += 1
+                continue
+            sm = summarize(samples, gps_tolerance=gps_tol, cal=cal)
+            # copy recomputed metrics (NOT status / coords / country / wheel / times)
+            t.distance_km, t.duration_s = sm.distance_km, sm.duration_s
+            t.max_speed, t.avg_speed = sm.max_speed, sm.avg_speed
+            t.max_gforce = sm.max_gforce
+            t.wh_per_km = sm.wh_per_km
+            t.max_sustained_w, t.max_sustained_a = sm.max_sustained_w, sm.max_sustained_a
+            t.peak_voltage = sm.peak_voltage
+            t.fastest_0_40_s = sm.fastest_0_40_s
+            t.ascent_m, t.alt_range_m = sm.ascent_m, sm.alt_range_m
+            t.battery_used_pct, t.est_range_km = sm.battery_used_pct, sm.est_range_km
+            t.max_freespin, t.max_voltage_sag = sm.max_freespin, sm.max_voltage_sag
+            t.sustained_accel = sm.sustained_accel
+            mj = dict(t.meta_json) if isinstance(t.meta_json, dict) else {}
+            mj.pop("max_gforce_spike", None)
+            if sm.max_gforce_spike and sm.max_gforce and sm.max_gforce_spike > sm.max_gforce * 1.3:
+                mj["max_gforce_spike"] = round(sm.max_gforce_spike, 3)
+            t.meta_json = mj or None
+            done += 1
+        except Exception:
+            failed += 1
+    db.commit()
+    rebuild_all(db)                       # refresh leaderboards/records from the new values
+    return {"reprocessed": done, "failed": failed, "available": len(rows)}
