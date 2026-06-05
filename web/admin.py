@@ -1689,7 +1689,7 @@ def _heatmap_card(db: Session) -> str:
           <label class=thr>Intensity
             <input type=number step=0.1 min=0.1 max=10 name=intensity value="{hm['intensity']}"></label>
           <label class=thr>Opacity (0–1)
-            <input type=number step=0.05 min=0 max=1 name=opacity value="{hm['opacity']}"></label>
+            <input type=number step=0.01 min=0 max=1 name=opacity value="{hm['opacity']}"></label>
         </div>
         <button style="margin-top:10px">{_IC['check']} Save heatmap</button>
       </form>

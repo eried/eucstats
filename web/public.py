@@ -605,10 +605,19 @@ function addHeat(){
   if(!CELLS||map.getSource("activity")) return;
   map.addSource("activity",{type:"geojson",data:{type:"FeatureCollection",
     features:CELLS.map(c=>({type:"Feature",geometry:{type:"Point",coordinates:[c.lon,c.lat]},properties:{r:c.rider_count||0}}))}});
+  // Heat radius tracks zoom the way the map itself does: web-mercator pixels-per-metre
+  // double every zoom level, so scale the base radius by 2^((zoom-Zref)*k) to keep each
+  // cell's glow ~a constant ground size — bigger as you zoom in, smaller far out. k<1
+  // softens it; clamped so it never vanishes (far) or floods the view (near). The admin
+  // "Heat radius" is the value at the reference zoom Zref; raise it to lift the whole curve.
+  const Rb=HEAT.radius,Zref=10,k=0.55,RMIN=6,RMAX=Rb*5;
+  const rAt=z=>Math.max(RMIN,Math.min(RMAX,Rb*Math.pow(2,(z-Zref)*k)));
+  const rRadius=["interpolate",["linear"],["zoom"]].concat(
+    [2,5,8,11,14,17,20].reduce((a,z)=>a.concat([z,Math.round(rAt(z))]),[]));
   map.addLayer({id:"heat",type:"heatmap",source:"activity",paint:{
     "heatmap-weight":["min",1,["+",0.25,["/",["ln",["+",1,["get","r"]]],["ln",7]]]],
     "heatmap-intensity":["interpolate",["linear"],["zoom"],0,1.0*HEAT.intensity,9,3.2*HEAT.intensity],
-    "heatmap-radius":["interpolate",["linear"],["zoom"],0,HEAT.radius*0.55,5,HEAT.radius*1.0,12,HEAT.radius*1.6],
+    "heatmap-radius":rRadius,
     "heatmap-opacity":0,
     "heatmap-color":["interpolate",["linear"],["heatmap-density"],
       0,"rgba(0,0,0,0)",0.1,"rgba(22,35,94,0.6)",0.3,"#2b6fd6",0.5,"#1fb6c9",0.7,"#3fe6a8",0.86,"#c8f7e6",1,"#ffffff"]}});
