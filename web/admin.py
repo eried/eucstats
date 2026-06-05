@@ -1221,9 +1221,8 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
       <h2>Re-process with current calibration</h2>
       <p class=hint>Calibration changes only affect <b>new</b> uploads. This recomputes speed / freespin /
       g-force / sag / acceleration for the <b>{raw_n}</b> trip(s) whose raw file is still on disk
-      (within the {settings.get_retention(db)['days']}-day retention window), using the calibration above,
-      then rebuilds the leaderboards. Validation status is left unchanged; trips whose raw was already
-      evicted can't be redone.</p>
+      (within the retention window), using the calibration above, then rebuilds the leaderboards.
+      Validation status is left unchanged; trips whose raw was already evicted can't be redone.</p>
       <form method=post action="/admin/pipeline/reprocess"
             onsubmit="return confirm('Re-summarize {raw_n} trip(s) from their raw upload with the current calibration?')">
         <button class=ghost{' disabled' if not raw_n else ''}>↻ Re-process {raw_n} trip(s)</button>
@@ -1245,8 +1244,10 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
       · package <b>{html.escape(config.ANDROID_PACKAGE)}</b></p>
       <form method=post action="/admin/allowlist" style="margin-top:12px">
         <label class=toggle style="display:inline-flex"><input type=checkbox name=enabled value=1{' checked' if allow['enabled'] else ''}> Restrict uploads to an allowlist</label>
-        <div style="margin-top:8px"><input name=ids value="{html.escape(', '.join(allow['ids']))}" placeholder="store_id, store_id, …" style="width:min(520px,100%)"> <button class="ghost mini">Save allowlist</button></div>
-        <p class=hint style="margin-top:6px">Off = any registered rider can upload (use during the open test period). On = only the listed store_ids (others get 403).</p>
+        <p class=hint style="margin:8px 0 4px">Off = any registered rider can upload (use during the open test period).
+        On = only the store_ids below (others get 403). Currently <b>{'ON' if allow['enabled'] else 'OFF'}</b>.</p>
+        <input name=ids value="{html.escape(', '.join(allow['ids']))}" placeholder="store_id, store_id, …" style="width:min(520px,100%)">
+        <div style="margin-top:10px"><button>{_IC['check']} Save upload restriction</button></div>
       </form>
       <form method=post action="/admin/rebuild" style="margin-top:6px"
             onsubmit="return confirm('Recompute all leaderboards &amp; records from validated trips?')">
