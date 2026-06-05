@@ -25,7 +25,10 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
     if not has_gps and (summary.distance_km or 0) > unverified_dist_km:
         add("unverified_distance")
 
-    if any(s.speed is not None and s.speed > max_kmh for s in samples):
+    # Use the REALISTIC (acceleration-corroborated) top speed and the SUSTAINED
+    # g-force — not raw samples. A crash or freespin spikes speed/g for a fraction
+    # of a second; that's a warning (kept in meta_json), never a cheat flag.
+    if summary.max_speed is not None and summary.max_speed > max_kmh:
         add("impossible_speed")
 
     if summary.max_gforce is not None and summary.max_gforce > max_g:

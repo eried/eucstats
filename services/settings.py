@@ -103,9 +103,11 @@ PIPELINE_RULES = [
     ("unverified_distance", "Unverified distance (no GPS)",
      "Flag a long trip with no GPS fix at all — odometer-only distance is trivially faked."),
     ("impossible_speed", "Impossible speed",
-     "Flag if any sample's wheel speed exceeds the physical ceiling."),
+     "Flag if the realistic (acceleration-corroborated) top speed exceeds the ceiling. "
+     "Momentary crash / freespin spikes are recorded as warnings, not cheats."),
     ("impossible_gforce", "Impossible g-force",
-     "Flag if the peak g-force exceeds a physical limit."),
+     "Flag if the sustained (2s) g-force exceeds a physical limit. "
+     "A fall spikes g for a split second — that's a warning, not a cheat."),
     ("teleport", "GPS teleporting",
      "Flag many GPS point-to-point jumps that imply impossible travel speed."),
     ("distance_mismatch", "Odometer vs GPS mismatch",

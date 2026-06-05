@@ -202,7 +202,10 @@ class IngestService:
                 os_name=("ios" if meta.get("platform") == "apple" else "android"),
                 meta_json=(({k: meta.get(k) for k in ("gps", "os_version", "sample_count")
                              if meta.get(k) is not None}
-                            | ({"max_freespin": round(sm.max_freespin, 1)} if sm.max_freespin else {}))
+                            | ({"max_freespin": round(sm.max_freespin, 1)} if sm.max_freespin else {})
+                            | ({"max_gforce_spike": round(sm.max_gforce_spike, 3)}
+                               if (sm.max_gforce_spike and sm.max_gforce
+                                   and sm.max_gforce_spike > sm.max_gforce * 1.3) else {}))
                            or None),
             )
         except IntegrityError:

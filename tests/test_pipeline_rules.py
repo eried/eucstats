@@ -21,6 +21,36 @@ def test_rule_can_be_disabled():
     assert "impossible_speed" not in reasons
 
 
+def test_crash_speed_spike_is_warning_not_cheat():
+    # ~20 km/h ride with one instant 160 km/h spike (a fall): realistic speed stays
+    # low so it is NOT flagged as a cheat; the spike is captured as freespin (warning).
+    s = [Sample(t=datetime(2026, 6, 1, 10, 0, i), speed=sp, g=1.0)
+         for i, sp in enumerate([20.0, 160.0, 20.0, 21.0])]
+    sm = summarize(s)
+    _, reasons = check(s, sm, max_kmh=120)
+    assert "impossible_speed" not in reasons
+    assert sm.max_freespin == 160.0
+
+
+def test_sustained_overspeed_is_cheat():
+    s = [Sample(t=datetime(2026, 6, 1, 10, 0, i), speed=200.0, g=1.0) for i in range(4)]
+    sm = summarize(s)
+    _, reasons = check(s, sm, max_kmh=120)
+    assert "impossible_speed" in reasons
+
+
+def test_gforce_sustained_vs_spike():
+    # 0.3g cruising with a single 8g crash spike: the metric (2s sustained) stays
+    # low, the spike is kept separately, and it is not flagged as impossible g-force.
+    gs = [0.3, 0.3, 8.0, 0.3, 0.3]
+    s = [Sample(t=datetime(2026, 6, 1, 10, 0, i), speed=20.0, g=g) for i, g in enumerate(gs)]
+    sm = summarize(s)
+    assert sm.max_gforce < sm.max_gforce_spike
+    assert sm.max_gforce_spike == 8.0
+    _, reasons = check(s, sm, max_g=12)
+    assert "impossible_gforce" not in reasons
+
+
 def test_pipeline_enabled_roundtrip(db):
     assert settings.pipeline_disabled(db) == set()
     enabled = [k for k, *_ in settings.PIPELINE_RULES if k not in ("teleport", "mock_location")]

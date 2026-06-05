@@ -33,6 +33,7 @@ class TripSummary:
     max_freespin: float | None
     avg_speed: float | None
     max_gforce: float | None
+    max_gforce_spike: float | None
     wh_per_km: float | None
     max_sustained_w: float | None
     max_sustained_a: float | None
@@ -241,8 +242,12 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     avg_speed = (sum(speeds) / len(speeds)) if speeds else None
     max_speed, max_freespin = _speeds(samples, speeds)
 
+    # G-force: the leaderboard value is the SUSTAINED g (best 2s average) — real
+    # cornering/braking load, not a crash. The instantaneous peak (a fall spikes
+    # the wheel briefly) is kept separately as a warning, never as the metric.
     gs = [abs(s.g) for s in samples if s.g is not None]
-    max_gforce = max(gs) if gs else None
+    max_gforce_spike = max(gs) if gs else None
+    max_gforce = _sustained_max(samples, lambda s: abs(s.g) if s.g is not None else None, 2.0)
 
     wh = _energy_wh(samples)
     wh_per_km = (wh / distance) if (wh is not None and distance > 0) else None
@@ -261,7 +266,8 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
         distance_km=distance, gps_distance_km=gps_km,
-        max_speed=max_speed, max_freespin=max_freespin, avg_speed=avg_speed, max_gforce=max_gforce,
+        max_speed=max_speed, max_freespin=max_freespin, avg_speed=avg_speed,
+        max_gforce=max_gforce, max_gforce_spike=max_gforce_spike,
         wh_per_km=wh_per_km, max_sustained_w=max_sustained_w,
         max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
         fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m,

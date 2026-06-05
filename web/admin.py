@@ -606,15 +606,17 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
     raw = db.get(RawUpload, trip_uuid)
     mj = t.meta_json if isinstance(t.meta_json, dict) else {}
     fr = mj.get("max_freespin")
+    gspike = mj.get("max_gforce_spike")
     fields = "".join([
         _field("rider", f'<a href="/admin/explorer/rider/{quote(t.rider_store_id or "")}">{html.escape(t.rider_store_id or "—")}</a>'),
         _field("start (UTC)", _fmt_dt(t.start_utc)), _field("end (UTC)", _fmt_dt(t.end_utc)),
         _field("duration", f"{_num((t.duration_s or 0) / 60.0)} min"),
         _field("distance", f"{_num(t.distance_km)} km"),
-        _field("max speed", f"{_num(t.max_speed)} km/h"),
-    ] + ([_field("freespin spike", f"{fr} km/h", hi=True)] if fr else []) + [
+        _field("max speed (realistic)", f"{_num(t.max_speed)} km/h"),
+    ] + ([_field("⚠ freespin spike", f"{fr} km/h", hi=True)] if fr else []) + [
         _field("avg speed", f"{_num(t.avg_speed)} km/h"),
-        _field("max g-force", _num(t.max_gforce, 2)),
+        _field("g-force (2s sustained)", _num(t.max_gforce, 2)),
+    ] + ([_field("⚠ g-force spike", _num(gspike, 2), hi=True)] if gspike else []) + [
         _field("sustained W", _num(t.max_sustained_w, 0)),
         _field("sustained A", _num(t.max_sustained_a, 0)),
         _field("peak voltage", f"{_num(t.peak_voltage)} V"),
@@ -1359,27 +1361,47 @@ def _disk_card(disk, app) -> str:
     return bar
 
 
-def _system_html(db: Session, msg: str = "") -> str:
+def _resources_html() -> str:
     from services.sysinfo import system_stats
     s = system_stats()
-    r = settings.get_retention(db)
     disk, mem, cpu = s["disk"], s["mem"], s["cpu"]
     res = _disk_card(disk, s.get("app"))
     res += (_resbar("RAM", mem["pct"], f'{_gb(mem["used"])} used of {_gb(mem["total"])} · {_gb(mem["avail"])} available')
-            if mem else '<p class=mut>memory stats unavailable</p>')
-    load = (" / ".join(str(x) for x in cpu["load"]) + " (1·5·15 min)") if cpu.get("load") else "load unavailable"
-    res += _resbar("CPU", cpu.get("pct"), f'{cpu["count"]} core(s) · load {load}')
+            if mem else '<p class=mut>memory stats unavailable (Linux only)</p>')
+    if cpu.get("load"):
+        load = " / ".join(str(x) for x in cpu["load"]) + " (1·5·15 min)"
+        res += _resbar("CPU", cpu.get("pct"), f'{cpu["count"]} core(s) · load {load}')
+    else:
+        res += _resbar("CPU", None, f'{cpu["count"]} core(s) · load average unavailable on this OS (Linux only)')
+    return res
 
+
+def _system_html(db: Session, msg: str = "") -> str:
+    r = settings.get_retention(db)
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
     <h1>System</h1>
     <p class=sub>Live server resources and data-retention controls.</p>
     <div class=card>
-      <h2>Server resources <span class=mut>· at page load</span></h2>
-      {res}
-      <p class=hint>Reload the page to refresh. Green &lt;70%, amber &lt;90%, red above.</p>
+      <h2>Server resources <span class=mut id=resage>· live · auto-refreshing</span></h2>
+      <div id=resbox>{_resources_html()}</div>
     </div>
+    <script>
+    (function(){{
+      var box=document.getElementById('resbox');
+      function tick(){{
+        fetch('/admin/system/resources',{{headers:{{'x-frag':'1'}}}})
+          .then(function(r){{return r.ok?r.text():Promise.reject();}})
+          .then(function(h){{
+            var open=box.querySelector('details')&&box.querySelector('details').open;
+            box.innerHTML=h;
+            var d=box.querySelector('details'); if(d&&open)d.open=true;   // keep breakdown expanded
+          }}).catch(function(){{}});
+      }}
+      setInterval(tick,4000);
+    }})();
+    </script>
     <div class=card>
       <h2>Data retention</h2>
       <p class=hint>Only the original uploaded files (raw blobs) are ever evicted — trip summaries, GPS tracks,
@@ -1403,6 +1425,14 @@ def system_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     return HTMLResponse(_system_html(db, msg))
+
+
+@admin_router.get("/system/resources", response_class=HTMLResponse)
+def system_resources(request: Request):
+    """Just the resource bars — polled by the System page for live autorefresh."""
+    if not _is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    return HTMLResponse(_resources_html())
 
 
 @admin_router.post("/system/save")

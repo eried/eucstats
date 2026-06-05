@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 
 import config
+
+_FOOTPRINT_CACHE = {"t": 0.0, "val": None}
 
 
 def _disk(path: str) -> dict | None:
@@ -83,7 +86,17 @@ def _cpu() -> dict:
     return {"count": count, "load": load, "pct": pct}
 
 
+def app_footprint_cached(path: str, ttl: float = 60.0) -> dict | None:
+    """Footprint walk is expensive (whole install); cache it so the System page's
+    autorefresh can poll the cheap disk/mem/cpu stats every few seconds."""
+    now = time.time()
+    if _FOOTPRINT_CACHE["val"] is None or (now - _FOOTPRINT_CACHE["t"]) > ttl:
+        _FOOTPRINT_CACHE["val"] = app_footprint(path)
+        _FOOTPRINT_CACHE["t"] = now
+    return _FOOTPRINT_CACHE["val"]
+
+
 def system_stats(path: str | None = None) -> dict:
     path = path or str(config.DATA_DIR)
     return {"disk": _disk(path), "mem": _mem(), "cpu": _cpu(),
-            "app": app_footprint(str(config.BASE_DIR))}
+            "app": app_footprint_cached(str(config.BASE_DIR))}
