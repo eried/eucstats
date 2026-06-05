@@ -85,6 +85,86 @@ METRIC_GROUPS = [
     ("eff", "Eco Rider", "Lowest Wh/km · best"),
 ]
 
+# --- ingest pipeline plausibility rules (admin-toggleable) ---
+# (key, label, description). Keys match plausibility.check()'s flag reasons.
+PIPELINE_RULES = [
+    ("mock_location", "Mock-location flag",
+     "Flag trips the device reported as using a mock / spoofed GPS provider."),
+    ("unverified_distance", "Unverified distance (no GPS)",
+     "Flag a long trip with no GPS fix at all — odometer-only distance is trivially faked."),
+    ("impossible_speed", "Impossible speed",
+     "Flag if any sample's wheel speed exceeds the physical ceiling."),
+    ("impossible_gforce", "Impossible g-force",
+     "Flag if the peak g-force exceeds a physical limit."),
+    ("teleport", "GPS teleporting",
+     "Flag many GPS point-to-point jumps that imply impossible travel speed."),
+    ("distance_mismatch", "Odometer vs GPS mismatch",
+     "Flag when odometer distance and GPS-measured distance disagree beyond tolerance."),
+    ("overlapping_trip", "Overlapping trips",
+     "Flag a trip whose time window overlaps another of the rider's trips "
+     "(two wheels at once / the same ride uploaded twice)."),
+]
+# Tunable thresholds: (key, label, meta_key, config_attr, kind, lo, hi).
+PIPELINE_THRESHOLDS = [
+    ("max_kmh", "Max wheel speed (km/h)", "thr_max_kmh", "MAX_KMH", "float", 1, 500),
+    ("max_g", "Max g-force (g)", "thr_max_g", "MAX_G", "float", 1, 50),
+    ("teleport_kmh", "Teleport speed (km/h)", "thr_teleport_kmh", "TELEPORT_KMH", "float", 1, 2000),
+    ("teleport_max_jumps", "Teleport jumps allowed", "thr_teleport_jumps", "TELEPORT_MAX_JUMPS", "int", 0, 1000),
+    ("dist_tolerance", "Odo/GPS mismatch tolerance (0–1)", "thr_dist_tol", "DIST_TOLERANCE", "float", 0, 1),
+    ("unverified_dist_km", "Unverified distance limit (km)", "thr_unverified_km", "UNVERIFIED_DIST_KM", "float", 0, 10000),
+]
+
+
+def pipeline_disabled(db: Session) -> set:
+    """Set of plausibility-rule keys the admin has switched OFF."""
+    return set(_json_list(db, "pipeline_disabled"))
+
+
+def set_pipeline_enabled(db: Session, enabled_keys) -> None:
+    enabled = set(enabled_keys)
+    disabled = [k for k, *_ in PIPELINE_RULES if k not in enabled]
+    set_meta(db, "pipeline_disabled", json.dumps(disabled))
+
+
+def get_thresholds(db: Session) -> dict:
+    out = {}
+    for key, _lbl, mkey, cattr, kind, lo, hi in PIPELINE_THRESHOLDS:
+        default = getattr(config, cattr)
+        raw = get_meta(db, mkey, None)
+        val = raw if raw is not None else default
+        out[key] = _clamp_int(val, default, lo, hi) if kind == "int" else _clamp_float(val, default, lo, hi)
+    return out
+
+
+def set_thresholds(db: Session, values: dict) -> None:
+    for key, _lbl, mkey, cattr, kind, lo, hi in PIPELINE_THRESHOLDS:
+        v = values.get(key)
+        if v in (None, ""):
+            continue
+        default = getattr(config, cattr)
+        v = _clamp_int(v, default, lo, hi) if kind == "int" else _clamp_float(v, default, lo, hi)
+        set_meta(db, mkey, str(v))
+
+
+# --- data retention (admin-overridable; falls back to env/config defaults) ---
+
+def get_retention(db: Session) -> dict:
+    return {
+        "days": _clamp_int(get_meta(db, "ret_days", config.RETENTION_DAYS),
+                           config.RETENTION_DAYS, 0, 3650),
+        "disk_floor_gb": _clamp_float(get_meta(db, "ret_floor_gb", config.DISK_FLOOR_GB),
+                                      config.DISK_FLOOR_GB, 0, 100000),
+        "interval_s": _clamp_int(get_meta(db, "ret_interval_s", config.RETENTION_INTERVAL_S),
+                                 config.RETENTION_INTERVAL_S, 60, 86400),
+    }
+
+
+def set_retention(db: Session, days, disk_floor_gb, interval_s) -> None:
+    set_meta(db, "ret_days", str(_clamp_int(days, config.RETENTION_DAYS, 0, 3650)))
+    set_meta(db, "ret_floor_gb", str(_clamp_float(disk_floor_gb, config.DISK_FLOOR_GB, 0, 100000)))
+    set_meta(db, "ret_interval_s", str(_clamp_int(interval_s, config.RETENTION_INTERVAL_S, 60, 86400)))
+
+
 # --- page behaviour (consumed by the public frontend as window.__CFG__) ---
 MAP_STYLES = ["dark", "light", "voyager", "satellite", "terrain"]
 _FALSEY = ("0", "false", "False", "")
@@ -93,6 +173,13 @@ _FALSEY = ("0", "false", "False", "")
 def _clamp_int(value, default, lo, hi):
     try:
         return max(lo, min(hi, int(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _clamp_float(value, default, lo, hi):
+    try:
+        return max(lo, min(hi, float(value)))
     except (TypeError, ValueError):
         return default
 

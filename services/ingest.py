@@ -145,11 +145,14 @@ class IngestService:
         m_start = _parse_iso(meta.get("start_utc")) or _naive(sm.start_utc)
         m_end = _parse_iso(meta.get("end_utc")) or _naive(sm.end_utc)
         is_mock = bool(meta.get("is_mock_location", False))
+        thr = settings.get_thresholds(self.db)          # admin-tunable; config defaults
+        disabled = settings.pipeline_disabled(self.db)  # admin-switched-off rules
         status, reasons = check(
             samples, sm, is_mock,
-            max_kmh=config.MAX_KMH, max_g=config.MAX_G,
-            teleport_kmh=config.TELEPORT_KMH, teleport_max_jumps=config.TELEPORT_MAX_JUMPS,
-            dist_tolerance=config.DIST_TOLERANCE, unverified_dist_km=config.UNVERIFIED_DIST_KM,
+            max_kmh=thr["max_kmh"], max_g=thr["max_g"],
+            teleport_kmh=thr["teleport_kmh"], teleport_max_jumps=thr["teleport_max_jumps"],
+            dist_tolerance=thr["dist_tolerance"], unverified_dist_km=thr["unverified_dist_km"],
+            disabled=disabled,
         )
 
         # same rider with a time-overlapping (non-rejected) trip is physically
@@ -163,7 +166,7 @@ class IngestService:
                              Trip.start_utc.isnot(None), Trip.end_utc.isnot(None),
                              Trip.start_utc < e0, Trip.end_utc > s0)
                      .first())
-            if clash and "overlapping_trip" not in reasons:
+            if clash and "overlapping_trip" not in reasons and "overlapping_trip" not in disabled:
                 reasons.append("overlapping_trip")
         status = "flagged" if reasons else status
 

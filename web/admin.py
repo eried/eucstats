@@ -94,7 +94,8 @@ def _counts(db: Session) -> dict:
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Explorer"),
         ("/admin/datasets", "Datasets"), ("/admin/pipeline", "Pipeline"),
-        ("/admin/metrics", "Metrics"), ("/admin/settings", "Settings")]
+        ("/admin/metrics", "Metrics"), ("/admin/system", "System"),
+        ("/admin/settings", "Settings")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -165,19 +166,23 @@ tr.active{background:rgba(46,168,255,.08)}
 .toggle{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #26345e;border-radius:9px;background:#0b1124;cursor:pointer;font-size:13px}
 .toggle input{width:16px;height:16px;accent-color:#2ea8ff}
 .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px}
-.mtree details{border:1px solid #26345e;border-radius:11px;background:#0b1124;margin:0 0 10px;overflow:hidden}
-.mtree summary{list-style:none;cursor:pointer;padding:12px 15px;display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;background:linear-gradient(160deg,#16203c,#0e1528)}
-.mtree summary::-webkit-details-marker{display:none}
-.mtree summary::before{content:"▸";color:#2ea8ff;font-size:12px;transition:transform .15s}
-.mtree details[open] summary::before{transform:rotate(90deg)}
-.mtree summary .cnt{margin-left:auto;color:#8ea0c8;font-size:12px;font-weight:500}
-.mtree summary .sd{color:#8ea0c8;font-size:12px;font-weight:400}
-.mtree .leaves{padding:6px 10px 11px;display:flex;flex-direction:column;gap:4px}
-.mrow{display:flex;align-items:flex-start;gap:11px;padding:8px 11px;border:1px solid #1d2945;border-radius:9px;background:#0d142a;cursor:pointer}
-.mrow:hover{border-color:#2ea8ff}
-.mrow input{width:16px;height:16px;accent-color:#2ea8ff;margin-top:1px;flex:none}
-.mrow .ml{font-size:13px;color:#e7ecfb}.mrow .md{font-size:12px;color:#8ea0c8;margin-top:1px}
-.mrow.off{opacity:.55}.mrow.off .ml{text-decoration:line-through}
+.mtree2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start;margin:0 0 16px}
+.mnode{border:1px solid #26345e;border-radius:11px;background:#0b1124;overflow:hidden}
+.mhead{display:flex;align-items:flex-start;gap:11px;padding:11px 13px;background:linear-gradient(160deg,#16203c,#0e1528);cursor:pointer}
+.mhead input{width:17px;height:17px;accent-color:#2ea8ff;margin-top:2px;flex:none}
+.mhead .tw{flex:1;min-width:0}
+.mhead .t{font-weight:600;font-size:14px;display:block}
+.mhead .d{color:#8ea0c8;font-size:12px;display:block;margin-top:3px}
+.mhead .cnt{color:#8ea0c8;font-size:11px;white-space:nowrap;padding-top:2px}
+.kids{padding:7px 11px 11px;display:flex;flex-direction:column;gap:5px;transition:opacity .15s}
+.kids.dim{opacity:.4}
+.krow{display:flex;align-items:flex-start;gap:10px;padding:7px 10px;border:1px solid #1d2945;border-radius:8px;background:#0d142a;cursor:pointer}
+.krow:hover{border-color:#2ea8ff}
+.krow input{width:15px;height:15px;accent-color:#2ea8ff;margin-top:2px;flex:none}
+.krow .kl{font-size:13px;color:#e7ecfb;display:block}
+.krow .kd{font-size:11.5px;color:#8ea0c8;display:block;margin-top:2px}
+.krow.off .kl{text-decoration:line-through;color:#8ea0c8}
+.mnone{color:#8ea0c8;font-size:12px;padding:0 2px 4px}
 .searchbar{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap;align-items:center}
 .searchbar input,.searchbar select{flex:1;min-width:160px}
 .dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
@@ -293,6 +298,7 @@ def _dash_html(db: Session) -> str:
         <a class=btn href="/admin/datasets">{_IC['db']} Datasets &amp; backups</a>
         <a class=btn href="/admin/pipeline">{_IC['pulse']} Ingest pipeline</a>
         <a class=btn href="/admin/metrics">{_IC['sliders']} Metrics &amp; sections</a>
+        <a class=btn href="/admin/system">{_IC['pulse']} System &amp; retention</a>
       </div>
     </div>
     <div class=card>
@@ -1030,11 +1036,40 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         f'<td>{n}</td></tr>'
         for sid, n in offenders) or '<tr><td colspan=3 class=mut>none</td></tr>'
 
+    # --- anti-fraud rule toggles + tunable thresholds ---
+    disabled = settings.pipeline_disabled(db)
+    rule_rows = "".join(
+        f'<label class="krow{"" if k not in disabled else " off"}">'
+        f'<input type=checkbox name=rule value="{k}"{" checked" if k not in disabled else ""}>'
+        f'<span class=tw><span class=kl>{html.escape(lbl)}</span>'
+        f'<span class=kd>{html.escape(desc)}</span></span></label>'
+        for k, lbl, desc in settings.PIPELINE_RULES)
+    thr = settings.get_thresholds(db)
+    thr_inputs = "".join(
+        f'<label style="display:inline-flex;flex-direction:column;gap:3px;margin:0 14px 10px 0;font-size:12px;color:#8ea0c8">'
+        f'{html.escape(lbl)}<input type=number name="thr_{key}" value="{thr[key]}" '
+        f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}" style="width:140px"></label>'
+        for key, lbl, _mk, _ca, kind, lo, hi in settings.PIPELINE_THRESHOLDS)
+    rules_card = f"""
+    <div class=card>
+      <h2>Anti-fraud rules <span class=mut>· what we check on every upload</span></h2>
+      <p class=hint>Ticked = the rule is active and will flag a matching trip for review. Untick to disable a
+      check entirely. Applies to new uploads (use “Rebuild stats” after to re-evaluate nothing — rules run at ingest).</p>
+      <form method=post action="/admin/pipeline/rules">
+        <div class=kids style="padding:0">{rule_rows}</div>
+        <h2 style="margin-top:16px">Thresholds</h2>
+        <p class=hint>Tune the limits each rule uses. Blank-safe; values clamp to sane ranges.</p>
+        <div style="display:flex;flex-wrap:wrap">{thr_inputs}</div>
+        <button>{_IC['check']} Save rules &amp; thresholds</button>
+      </form>
+    </div>"""
+
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
     <h1>Ingest pipeline</h1>
     <p class=sub>How uploads are flowing in and how validation is treating them.</p>
+    {rules_card}
     <div class=card>
       <h2>Status — {total} trips total</h2>
       <p>{chips}</p>
@@ -1081,6 +1116,18 @@ def admin_rebuild(request: Request, db: Session = Depends(get_db)):
                             status_code=303)
 
 
+@admin_router.post("/pipeline/rules")
+async def pipeline_rules_save(request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    form = await request.form()
+    settings.set_pipeline_enabled(db, form.getlist("rule"))
+    settings.set_thresholds(db, {key: form.get("thr_" + key) for key, *_ in settings.PIPELINE_THRESHOLDS})
+    off = len(settings.pipeline_disabled(db))
+    note = f"rules saved — {len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} active"
+    return RedirectResponse("/admin/pipeline?msg=" + quote(note), status_code=303)
+
+
 @admin_router.post("/allowlist")
 def allowlist_save(request: Request, db: Session = Depends(get_db),
                    enabled: str = Form(""), ids: str = Form("")):
@@ -1094,42 +1141,80 @@ def allowlist_save(request: Request, db: Session = Depends(get_db),
 
 # --- metric / section show-hide toggles ---
 
+_METRICS_JS = """
+    <script>
+    (function(){
+      function offc(cb){var r=cb.closest('.krow');if(r){r.classList.toggle('off',!cb.checked);}}
+      document.querySelectorAll('.krow input').forEach(function(cb){
+        cb.addEventListener('change',function(){
+          offc(cb);
+          document.querySelectorAll('.krow input[data-k="'+cb.dataset.k+'"]').forEach(function(o){
+            if(o!==cb){o.checked=cb.checked;offc(o);}     // group tabs are shared across Countries/Wheels/Brands
+          });
+        });
+      });
+      document.querySelectorAll('.mhead input[data-parent]').forEach(function(p){
+        function upd(){var n=p.closest('.mnode'),k=n&&n.querySelector('.kids');if(k){k.classList.toggle('dim',!p.checked);}}
+        p.addEventListener('change',upd);upd();
+      });
+    })();
+    </script>"""
+
+
 def _metrics_html(db: Session, msg: str = "") -> str:
     h = settings.get_hidden(db)
+    secmeta = {k: (lbl, desc) for k, lbl, desc in settings.METRIC_SECTIONS}
+    # section_key -> (child form field, items, hidden list)
+    kids_of = {
+        "riders": ("show_board", settings.METRIC_BOARDS, h["boards"]),
+        "countries": ("show_group", settings.METRIC_GROUPS, h["groups"]),
+        "wheels": ("show_group", settings.METRIC_GROUPS, h["groups"]),
+        "brands": ("show_group", settings.METRIC_GROUPS, h["groups"]),
+        "tech": ("show_app", settings.METRIC_APP, h["app"]),
+    }
 
-    def leaf(field, k, label, desc, hidden):
+    def krow(field, k, label, desc, hidden):
         on = k not in hidden
-        return (f'<label class="mrow{"" if on else " off"}">'
-                f'<input type=checkbox name={field} value="{k}"{" checked" if on else ""}>'
-                f'<span><span class=ml>{html.escape(label)}</span>'
-                f'<span class=md>{html.escape(desc)}</span></span></label>')
+        return (f'<label class="krow{"" if on else " off"}">'
+                f'<input type=checkbox name={field} value="{k}" data-k="{field}:{k}"{" checked" if on else ""}>'
+                f'<span class=tw><span class=kl>{html.escape(label)}</span>'
+                f'<span class=kd>{html.escape(desc)}</span></span></label>')
 
-    def node(title, sub, field, items, hidden):
-        shown = sum(1 for k, *_ in items if k not in hidden)
-        leaves = "".join(leaf(field, k, lbl, desc, hidden) for k, lbl, desc in items)
-        return (f'<details open><summary>{html.escape(title)}'
-                f'<span class=sd>{html.escape(sub)}</span>'
-                f'<span class=cnt>{shown}/{len(items)} shown</span></summary>'
-                f'<div class=leaves>{leaves}</div></details>')
+    def field_is_group(fi):
+        return bool(fi) and fi[0] == "show_group"
 
+    def node(sec_key):
+        lbl, desc = secmeta[sec_key]
+        son = sec_key not in h["sections"]
+        fi = kids_of.get(sec_key)
+        if fi:
+            field, items, hidden = fi
+            shown = sum(1 for k, *_ in items if k not in hidden)
+            body = "".join(krow(field, k, l, d, hidden) for k, l, d in items)
+            cnt = f'<span class=cnt>{shown}/{len(items)} on</span>'
+        else:
+            body = '<div class=mnone>No sub-metrics — the section toggle controls it.</div>'
+            cnt = ""
+        shared = ' · shared tabs' if field_is_group(fi) else ''
+        return (f'<div class=mnode>'
+                f'<label class=mhead><input type=checkbox name=show_section value="{sec_key}" data-parent="{sec_key}"{" checked" if son else ""}>'
+                f'<span class=tw><span class=t>{html.escape(lbl)}</span>'
+                f'<span class=d>{html.escape(desc)}{shared}</span></span>{cnt}</label>'
+                f'<div class=kids>{body}</div></div>')
+
+    tree = "".join(node(k) for k, *_ in settings.METRIC_SECTIONS)
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
-    tree = (
-        node("Dock sections", "the six buttons in the dock", "show_section",
-             settings.METRIC_SECTIONS, h["sections"]) +
-        node("Rider leaderboards", "inside the Riders section", "show_board",
-             settings.METRIC_BOARDS, h["boards"]) +
-        node("Group leaderboards", "tabs inside Countries / Wheels / Brands", "show_group",
-             settings.METRIC_GROUPS, h["groups"]) +
-        node("App & OS panels", "inside the App section", "show_app",
-             settings.METRIC_APP, h["app"]))
     inner = f"""
     {banner}
     <h1>Metrics &amp; sections</h1>
-    <p class=mut>Ticked = shown on the public site. Untick to hide it. Each row explains exactly what visitors see. Changes are live immediately.</p>
+    <p class=mut>Each dock section is a parent toggle; its metrics are nested underneath. Ticked = shown
+    on the public site. Untick a parent to hide the whole section, or individual rows to hide single metrics.
+    Countries / Wheels / Brands share the same group tabs (editing one updates all three). Changes are live on save.</p>
     <form method=post action="/admin/metrics/save">
-      <div class=mtree>{tree}</div>
+      <div class=mtree2>{tree}</div>
       <button>{_IC['check']} Save visibility</button>
     </form>
+    {_METRICS_JS}
     """
     return _ds_page(inner, "/admin/metrics")
 
@@ -1220,3 +1305,79 @@ def settings_save(request: Request, db: Session = Depends(get_db),
                            bool(glitch_enabled), glitch_secs, glitch_intensity)
     return RedirectResponse("/admin/settings?msg=" + quote("behaviour saved — live on next page load"),
                             status_code=303)
+
+
+# --- system: server resources + data retention ---
+
+def _gb(n) -> str:
+    try:
+        return f"{n / 1e9:.1f} GB"
+    except (TypeError, ValueError):
+        return "?"
+
+
+def _resbar(label: str, pct, sub: str) -> str:
+    p = 0 if pct is None else pct
+    col = "#39d98a" if p < 70 else "#ffd24a" if p < 90 else "#ff8585"
+    return (f'<div class=bar><span class=d style="width:54px">{html.escape(label)}</span>'
+            f'<div class=track><div class=fill style="width:{min(100, p)}%;background:{col}"></div></div>'
+            f'<span class=n>{p}%</span></div>'
+            f'<p class=hint style="margin:1px 0 12px 0">{html.escape(sub)}</p>')
+
+
+def _system_html(db: Session, msg: str = "") -> str:
+    from services.sysinfo import system_stats
+    s = system_stats()
+    r = settings.get_retention(db)
+    disk, mem, cpu = s["disk"], s["mem"], s["cpu"]
+    res = ""
+    res += (_resbar("Disk", disk["pct"], f'{_gb(disk["used"])} used of {_gb(disk["total"])} · {_gb(disk["free"])} free')
+            if disk else '<p class=mut>disk stats unavailable</p>')
+    res += (_resbar("RAM", mem["pct"], f'{_gb(mem["used"])} used of {_gb(mem["total"])} · {_gb(mem["avail"])} available')
+            if mem else '<p class=mut>memory stats unavailable</p>')
+    load = (" / ".join(str(x) for x in cpu["load"]) + " (1·5·15 min)") if cpu.get("load") else "load unavailable"
+    res += _resbar("CPU", cpu.get("pct"), f'{cpu["count"]} core(s) · load {load}')
+
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    inner = f"""
+    {banner}
+    <h1>System</h1>
+    <p class=sub>Live server resources and data-retention controls.</p>
+    <div class=card>
+      <h2>Server resources <span class=mut>· at page load</span></h2>
+      {res}
+      <p class=hint>Reload the page to refresh. Green &lt;70%, amber &lt;90%, red above.</p>
+    </div>
+    <div class=card>
+      <h2>Data retention</h2>
+      <p class=hint>Only the original uploaded files (raw blobs) are ever evicted — trip summaries, GPS tracks,
+      leaderboards and the map are kept permanently.</p>
+      <form method=post action="/admin/system/save">
+        <p><label>Keep raw uploads for
+          <input type=number name=ret_days min=0 max=3650 value="{r['days']}" style="width:80px"> days</label></p>
+        <p><label>Evict oldest raw when free disk drops below
+          <input type=number step=0.1 name=ret_floor_gb min=0 value="{r['disk_floor_gb']}" style="width:90px"> GB</label>
+          <span class=hint>(safety valve so the droplet never fills)</span></p>
+        <p><label>Run the retention sweep every
+          <input type=number name=ret_interval_s min=60 max=86400 value="{r['interval_s']}" style="width:100px"> seconds</label></p>
+        <button>{_IC['check']} Save retention</button>
+      </form>
+    </div>"""
+    return _ds_page(inner, "/admin/system")
+
+
+@admin_router.get("/system", response_class=HTMLResponse)
+def system_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_system_html(db, msg))
+
+
+@admin_router.post("/system/save")
+def system_save(request: Request, db: Session = Depends(get_db),
+                ret_days: int = Form(30), ret_floor_gb: float = Form(10.0),
+                ret_interval_s: int = Form(3600)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    settings.set_retention(db, ret_days, ret_floor_gb, ret_interval_s)
+    return RedirectResponse("/admin/system?msg=" + quote("retention saved"), status_code=303)

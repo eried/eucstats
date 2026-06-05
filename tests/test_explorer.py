@@ -85,6 +85,41 @@ def test_metrics_tree_shows_descriptions(db):
         r = client.get("/admin/metrics")
         assert r.status_code == 200
         assert "Mile Muncher" in r.text and "Most distance ever ridden" in r.text
+        assert "class=mnode" in r.text and 'data-parent="riders"' in r.text   # nested tree
+
+
+def test_system_and_pipeline_pages(db):
+    with TestClient(app) as client:
+        _auth(client)
+        sp = client.get("/admin/system")
+        assert sp.status_code == 200 and "Data retention" in sp.text and "Server resources" in sp.text
+        pp = client.get("/admin/pipeline")
+        assert pp.status_code == 200 and "Anti-fraud rules" in pp.text and "Thresholds" in pp.text
+
+
+def test_pipeline_rules_save(db):
+    with TestClient(app) as client:
+        _auth(client)
+        r = client.post("/admin/pipeline/rules",
+                        data={"rule": ["mock_location", "impossible_speed"], "thr_max_kmh": "90"},
+                        follow_redirects=False)
+        assert r.status_code == 303
+        db.expire_all()
+        dis = settings.pipeline_disabled(db)
+        assert "teleport" in dis and "mock_location" not in dis
+        assert settings.get_thresholds(db)["max_kmh"] == 90.0
+
+
+def test_system_save(db):
+    with TestClient(app) as client:
+        _auth(client)
+        r = client.post("/admin/system/save",
+                        data={"ret_days": "14", "ret_floor_gb": "5.5", "ret_interval_s": "600"},
+                        follow_redirects=False)
+        assert r.status_code == 303
+        db.expire_all()
+        r2 = settings.get_retention(db)
+        assert r2["days"] == 14 and r2["disk_floor_gb"] == 5.5 and r2["interval_s"] == 600
 
 
 def test_ban_and_unban_through_ui(db):

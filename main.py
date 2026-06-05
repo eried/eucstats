@@ -14,7 +14,17 @@ logger = logging.getLogger("eucstats")
 
 async def _retention_loop():
     while True:
-        await asyncio.sleep(config.RETENTION_INTERVAL_S)
+        interval = config.RETENTION_INTERVAL_S
+        try:
+            db = SessionLocal()
+            try:
+                from services.settings import get_retention
+                interval = get_retention(db)["interval_s"]   # admin-tunable cadence
+            finally:
+                db.close()
+        except Exception:
+            pass
+        await asyncio.sleep(interval)
         try:
             db = SessionLocal()
             try:

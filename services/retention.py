@@ -18,8 +18,11 @@ def free_gb(path: str) -> float:
 def run_retention(db, now=None, retention_days=None, disk_floor_gb=None,
                   data_dir=None) -> int:
     now = now or utcnow()
-    retention_days = config.RETENTION_DAYS if retention_days is None else retention_days
-    disk_floor_gb = config.DISK_FLOOR_GB if disk_floor_gb is None else disk_floor_gb
+    if retention_days is None or disk_floor_gb is None:   # admin overrides (app_meta) win over env/config
+        import services.settings as settings
+        r = settings.get_retention(db)
+        retention_days = r["days"] if retention_days is None else retention_days
+        disk_floor_gb = r["disk_floor_gb"] if disk_floor_gb is None else disk_floor_gb
     data_dir = data_dir or str(config.DATA_DIR)
 
     tr = TripRepo(db)
