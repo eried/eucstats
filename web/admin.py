@@ -526,7 +526,17 @@ def _rider_detail_html(db: Session, store_id: str, msg: str = "") -> str | None:
     <div class=card><h2>Wheels <span class=mut>· {len(wheels)}</span></h2>
       <table><tr><th>brand</th><th>model</th><th>BLE name</th><th>firmware</th><th>first seen</th><th>last seen</th></tr>{whtml}</table></div>
     <div class=card><h2>Trips <span class=mut>· {tcount} total, newest {len(trips)}</span></h2>
-      <table><tr><th>id</th><th>start (UTC)</th><th>km</th><th>max km/h</th><th>country</th><th>status</th></tr>{thtml}</table></div>"""
+      <table><tr><th>id</th><th>start (UTC)</th><th>km</th><th>max km/h</th><th>country</th><th>status</th></tr>{thtml}</table></div>
+    <div class=card style="border-color:rgba(255,107,107,.4)">
+      <h2 style="color:#ff9d9d">Danger zone</h2>
+      <p class=hint>Permanently delete this rider and ALL their data — trips, GPS tracks, raw uploads, wheels and stats. Irreversible.
+      (A rider closing their own account in the app keeps their portal presence; only this removes it.)</p>
+      <form class=banbar method=post action="/admin/rider/{html.escape(store_id)}/delete"
+            onsubmit="return confirm('Permanently delete this rider and all their data? This cannot be undone.')">
+        <input type=text name=confirm placeholder="type the rider's name to confirm">
+        <button class=danger>{_IC['ban']} Delete rider &amp; all data</button>
+      </form>
+    </div>"""
     return _admin_shell(inner, active="/admin/explorer")
 
 
@@ -770,6 +780,23 @@ def unban_rider(store_id: str, request: Request, db: Session = Depends(get_db)):
     rebuild_all(db)   # restore their trips to public stats
     return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
                             quote("ban lifted — rider restored to public stats"), status_code=303)
+
+
+@admin_router.post("/rider/{store_id}/delete")
+def delete_rider(store_id: str, request: Request, db: Session = Depends(get_db), confirm: str = Form("")):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    r = db.get(Rider, store_id)
+    if r is None:
+        return RedirectResponse("/admin/explorer?msg=" + quote("rider not found"), status_code=303)
+    expected = (r.display_name or store_id).strip()
+    if (confirm or "").strip() not in (expected, store_id):
+        return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
+                                quote("name did not match — not deleted"), status_code=303)
+    from services.identity import purge_rider
+    purge_rider(db, store_id)
+    return RedirectResponse("/admin/explorer?msg=" + quote(f"permanently deleted “{expected}” and all their data"),
+                            status_code=303)
 
 
 # --- dataset & snapshot manager ---

@@ -12,6 +12,33 @@ from models import Rider, utcnow
 from repository.riders import RiderRepo
 
 
+def purge_rider(db, store_id) -> bool:
+    """Admin hard-delete: permanently remove a rider and ALL their data (trips,
+    tracks, raw uploads, wheels, and every materialized row), then rebuild stats.
+    Irreversible — unlike a rider's own account close, which keeps portal presence.
+    Returns True if the rider existed."""
+    from models import (DailyDistance, MapCellRider, RawUpload, Record, Rider,
+                        RiderStat, TripTrack, Trip, Wheel)
+    from services.aggregator import rebuild_all
+    if db.get(Rider, store_id) is None:
+        return False
+    trip_ids = [t for (t,) in db.query(Trip.trip_uuid)
+                .filter(Trip.rider_store_id == store_id).all()]
+    if trip_ids:
+        db.query(TripTrack).filter(TripTrack.trip_uuid.in_(trip_ids)).delete(synchronize_session=False)
+        db.query(RawUpload).filter(RawUpload.trip_uuid.in_(trip_ids)).delete(synchronize_session=False)
+    db.query(Trip).filter(Trip.rider_store_id == store_id).delete(synchronize_session=False)
+    db.query(Wheel).filter(Wheel.rider_store_id == store_id).delete(synchronize_session=False)
+    db.query(RiderStat).filter(RiderStat.store_id == store_id).delete(synchronize_session=False)
+    db.query(DailyDistance).filter(DailyDistance.store_id == store_id).delete(synchronize_session=False)
+    db.query(MapCellRider).filter(MapCellRider.store_id == store_id).delete(synchronize_session=False)
+    db.query(Record).filter(Record.store_id == store_id).delete(synchronize_session=False)
+    db.query(Rider).filter(Rider.store_id == store_id).delete(synchronize_session=False)
+    db.commit()
+    rebuild_all(db)                     # recompute records / map / country cleanly
+    return True
+
+
 class ChangeNotAllowed(Exception):
     def __init__(self, field: str, allowed_after: str | None):
         super().__init__(f"{field} can be changed again after {allowed_after}")

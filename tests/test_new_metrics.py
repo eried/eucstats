@@ -96,22 +96,23 @@ def test_aggregator_tracks_new_bests(db):
 
 # ---------- leaderboards: ordering + exclusions ----------
 
-def test_new_leaderboards_order_and_exclude_deleted(db):
+def test_new_leaderboards_order_and_banned_excluded(db):
+    from services import settings
     for sid, fs in (("a", 100.0), ("b", 200.0), ("c", 150.0)):
         db.add(models.Rider(store_id=sid, display_name=sid, platform="google_play"))
         db.add(_trip("t_" + sid, sid, max_freespin=fs, max_voltage_sag=fs / 10,
                      sustained_accel=fs / 10))
-    # a deleted rider with a huge value must NOT appear
-    db.add(models.Rider(store_id="del", display_name="del", platform="google_play",
-                        deleted_at=datetime(2026, 6, 1)))
-    db.add(_trip("t_del", "del", max_freespin=999.0))
+    # a banned rider with a huge value must NOT appear (deleted riders still would)
+    db.add(models.Rider(store_id="ban", display_name="ban", platform="google_play"))
+    db.add(_trip("t_ban", "ban", max_freespin=999.0))
     db.commit()
+    settings.ban(db, "ban", "fraud")
     rebuild_all(db)
 
     fk = stats.freespin_leaderboard(db)
     ids = [r["store_id"] for r in fk]
     assert ids[:3] == ["b", "c", "a"]          # descending
-    assert "del" not in ids                      # deleted excluded
+    assert "ban" not in ids                      # banned excluded
     assert fk[0]["freespin_kmh"] == 200.0
 
     assert stats.sag_leaderboard(db)[0]["store_id"] == "b"
