@@ -96,25 +96,30 @@ METRIC_RECORDS = [
 ]
 
 # --- ingest pipeline plausibility rules (admin-toggleable) ---
-# (key, label, description). Keys match plausibility.check()'s flag reasons.
+# (key, label, description, [threshold keys it uses]). Keys match plausibility.check()'s
+# flag reasons; the threshold keys reference PIPELINE_THRESHOLDS below. Some rules are
+# pure booleans with no tunable parameters.
 PIPELINE_RULES = [
     ("mock_location", "Mock-location flag",
-     "Flag trips the device reported as using a mock / spoofed GPS provider."),
+     "Flag trips the device reported as using a mock / spoofed GPS provider.", []),
     ("unverified_distance", "Unverified distance (no GPS)",
-     "Flag a long trip with no GPS fix at all — odometer-only distance is trivially faked."),
+     "Flag a long trip with no GPS fix at all — odometer-only distance is trivially faked.",
+     ["unverified_dist_km"]),
     ("impossible_speed", "Impossible speed",
      "Flag if the realistic (acceleration-corroborated) top speed exceeds the ceiling. "
-     "Momentary crash / freespin spikes are recorded as warnings, not cheats."),
+     "Momentary crash / freespin spikes are recorded as warnings, not cheats.", ["max_kmh"]),
     ("impossible_gforce", "Impossible g-force",
      "Flag if the sustained (2s) g-force exceeds a physical limit. "
-     "A fall spikes g for a split second — that's a warning, not a cheat."),
+     "A fall spikes g for a split second — that's a warning, not a cheat.", ["max_g"]),
     ("teleport", "GPS teleporting",
-     "Flag many GPS point-to-point jumps that imply impossible travel speed."),
+     "Flag many GPS point-to-point jumps that imply impossible travel speed.",
+     ["teleport_kmh", "teleport_max_jumps"]),
     ("distance_mismatch", "Odometer vs GPS mismatch",
-     "Flag when odometer distance and GPS-measured distance disagree beyond tolerance."),
+     "Flag when odometer distance and GPS-measured distance disagree beyond tolerance.",
+     ["dist_tolerance"]),
     ("overlapping_trip", "Overlapping trips",
      "Flag a trip whose time window overlaps another of the rider's trips "
-     "(two wheels at once / the same ride uploaded twice)."),
+     "(two wheels at once / the same ride uploaded twice).", []),
 ]
 # Tunable thresholds: (key, label, meta_key, config_attr, kind, lo, hi).
 PIPELINE_THRESHOLDS = [

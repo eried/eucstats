@@ -80,6 +80,37 @@ def test_trip_track_requires_auth(db):
         assert client.get("/admin/explorer/trip/tr1/track.geojson").status_code == 401
 
 
+def test_explorer_pagination(db):
+    import models
+    for i in range(55):
+        db.add(models.Rider(store_id=f"r{i:03d}", display_name=f"R{i:03d}", platform="google_play"))
+    db.commit()
+    with TestClient(app) as client:
+        _auth(client)
+        p1 = client.get("/admin/explorer")
+        assert p1.status_code == 200
+        assert "55 rider(s)" in p1.text and "page=2" in p1.text   # 55 > 50 -> next page exists
+        p2 = client.get("/admin/explorer?page=2")
+        assert p2.status_code == 200 and "page 2" in p2.text
+
+
+def test_trip_explorer_pagination(db):
+    import models
+    from datetime import datetime, timedelta
+    db.add(models.Rider(store_id="rp", display_name="RP", platform="google_play"))
+    db.commit()
+    base = datetime(2026, 6, 1, 8, 0)
+    for i in range(60):
+        db.add(models.Trip(trip_uuid=f"tp{i:03d}", rider_store_id="rp", validation_status="validated",
+                           distance_km=5.0, start_utc=base + timedelta(minutes=i)))
+    db.commit()
+    with TestClient(app) as client:
+        _auth(client)
+        p1 = client.get("/admin/explorer/trips")
+        assert "60 trip(s)" in p1.text and "page=2" in p1.text
+        assert "page 2" in client.get("/admin/explorer/trips?page=2").text
+
+
 def test_metrics_tree_shows_descriptions(db):
     with TestClient(app) as client:
         _auth(client)
@@ -113,7 +144,8 @@ def test_system_and_pipeline_pages(db):
         sp = client.get("/admin/system")
         assert sp.status_code == 200 and "Data retention" in sp.text and "Server resources" in sp.text
         pp = client.get("/admin/pipeline")
-        assert pp.status_code == 200 and "Anti-fraud rules" in pp.text and "Thresholds" in pp.text
+        assert pp.status_code == 200 and "Anti-fraud rules" in pp.text
+        assert "Max wheel speed" in pp.text and "no tunable parameters" in pp.text   # per-rule thresholds
 
 
 def test_pipeline_rules_save(db):

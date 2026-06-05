@@ -149,8 +149,13 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th{text-align:left;color:#8ea0c8;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #26345e;padding:8px}
 td{border-bottom:1px solid rgba(38,52,94,.5);padding:9px 8px;vertical-align:middle}
 tr.active{background:rgba(46,168,255,.08)}
-.scrollbox{max-height:330px;overflow:auto;border:1px solid #1d2945;border-radius:9px}
+.scrollbox{max-height:200px;overflow:auto;border:1px solid #1d2945;border-radius:9px}
 .scrollbox table th{position:sticky;top:0;background:#10182e;z-index:1}
+.pager{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:13px}
+.pager a,.pager span.cur{padding:6px 11px;border:1px solid #26345e;border-radius:8px;color:#cfe4ff}
+.pager a:hover{border-color:#2ea8ff;text-decoration:none}
+.pager .cur{background:rgba(46,168,255,.16);color:#2ea8ff;border-color:#2ea8ff}
+.pager .off{opacity:.4;pointer-events:none}
 .b,.chip,.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px}
 .chip{margin:0 6px 6px 0}
 .b.test,.badge.test,.chip.rejected,.badge.rejected{background:rgba(255,107,107,.16);color:#ff9d9d}
@@ -185,6 +190,14 @@ tr.active{background:rgba(46,168,255,.08)}
 .krow .kd{font-size:11.5px;color:#8ea0c8;display:block;margin-top:2px}
 .krow.off .kl{text-decoration:line-through;color:#8ea0c8}
 .mnone{color:#8ea0c8;font-size:12px;padding:0 2px 4px}
+.rblock{border:1px solid #1d2945;border-radius:9px;background:#0d142a;padding:9px 12px;margin-bottom:7px}
+.rblock.off{opacity:.55}
+.rhead{display:flex;align-items:flex-start;gap:11px;cursor:pointer}
+.rhead input{width:16px;height:16px;accent-color:#2ea8ff;margin-top:2px;flex:none}
+.rparams{display:flex;flex-wrap:wrap;gap:14px;margin:9px 0 1px 27px}
+.rparams .thr{display:inline-flex;flex-direction:column;gap:3px;font-size:11.5px;color:#8ea0c8}
+.rparams .thr input{width:140px}
+.rparams .nopar{color:#5d6f95;font-size:11.5px}
 .searchbar{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap;align-items:center}
 .searchbar input,.searchbar select{flex:1;min-width:160px}
 .dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
@@ -278,7 +291,7 @@ def _dash_html(db: Session) -> str:
         f"<form method=post action=/admin/trip/{t.trip_uuid}/reject style='display:inline-flex'><button class='mini danger'>{_IC['x']} reject</button></form>"
         f"</td></tr>" for t in flagged) or "<tr><td colspan=5 class=mut>nothing flagged — queue is clear</td></tr>"
 
-    riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(200).all()
+    riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(30).all()
     rhtml = "".join(
         f"<tr class=clk onclick=\"location='/admin/explorer/rider/{html.escape(r.store_id)}'\">"
         f"<td><code>{html.escape(r.store_id)}</code></td><td>{html.escape(r.display_name or '')}</td>"
@@ -286,7 +299,7 @@ def _dash_html(db: Session) -> str:
         f"<td>{_rider_badges(db, r)}</td></tr>"
         for r in riders) or "<tr><td colspan=5 class=mut>no riders</td></tr>"
 
-    trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(100).all()
+    trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(30).all()
     thtml = "".join(
         f"<tr class=clk onclick=\"location='/admin/explorer/trip/{html.escape(t.trip_uuid)}'\">"
         f"<td><code>{t.trip_uuid[:8]}</code></td><td>{html.escape(t.rider_store_id or '')}</td>"
@@ -314,11 +327,11 @@ def _dash_html(db: Session) -> str:
       <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>distance</th><th>reasons</th><th>action</th></tr>{fhtml}</table></div>
     </div>
     <div class=card>
-      <h2>Riders <span class=mut>· newest 200</span></h2>
+      <h2>Riders <span class=mut>· newest 30</span> <a href="/admin/explorer" class=mut style="float:right;font-size:12px">all riders →</a></h2>
       <div class=scrollbox><table><tr><th>store id</th><th>name</th><th>flag</th><th>platform</th><th>status</th></tr>{rhtml}</table></div>
     </div>
     <div class=card>
-      <h2>Recent trips <span class=mut>· newest 100</span></h2>
+      <h2>Recent trips <span class=mut>· newest 30</span> <a href="/admin/explorer/trips" class=mut style="float:right;font-size:12px">all trips →</a></h2>
       <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>km</th><th>country</th><th>status</th></tr>{thtml}</table></div>
     </div>"""
     return _admin_shell(inner, active="/admin")
@@ -431,18 +444,42 @@ def _trip_row(t: Trip) -> str:
       <td><span class="badge {t.validation_status or 'pending'}">{html.escape(t.validation_status or 'pending')}</span></td></tr>"""
 
 
-def _explorer_html(db: Session, q: str = "") -> str:
+PAGE_SIZE = 50
+
+
+def _pglink(label: str, url: str, enabled: bool) -> str:
+    return f'<a class="{"" if enabled else "off"}" href="{url if enabled else "#"}">{label}</a>'
+
+
+def _pager(base: str, page: int, has_next: bool, qs: str = "") -> str:
+    pre = f"{base}?{qs}{'&' if qs else ''}"
+    return (f'<div class=pager>{_pglink("← prev", pre + f"page={page-1}", page > 1)}'
+            f'<span class=cur>page {page}</span>'
+            f'{_pglink("next →", pre + f"page={page+1}", has_next)}</div>')
+
+
+def _explorer_html(db: Session, q: str = "", page: int = 1) -> str:
     q = (q or "").strip()
-    query = db.query(Rider, RiderStat).outerjoin(RiderStat, RiderStat.store_id == Rider.store_id)
+    page = max(1, page)
+    base = db.query(Rider, RiderStat).outerjoin(RiderStat, RiderStat.store_id == Rider.store_id)
+    cnt = db.query(func.count(Rider.store_id))
     if q:
         like = f"%{q}%"
-        query = query.filter(Rider.store_id.ilike(like) | Rider.display_name.ilike(like))
-    rows = query.order_by(desc(Rider.created_at)).limit(100).all()
+        cond = Rider.store_id.ilike(like) | Rider.display_name.ilike(like)
+        base = base.filter(cond)
+        cnt = cnt.filter(cond)
+    total = cnt.scalar() or 0
+    rows = (base.order_by(desc(Rider.created_at))
+            .offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE + 1).all())
+    has_next = len(rows) > PAGE_SIZE
+    rows = rows[:PAGE_SIZE]
     body = "".join(_rider_row(db, r, rs) for r, rs in rows) or \
         f"<tr><td colspan=6 class=mut>no riders{' match' if q else ''}</td></tr>"
     bn = settings.banned(db)
     banned_note = (f'<p class=hint>{len(bn)} rider(s) currently banned — excluded from public stats.</p>'
                    if bn else "")
+    qs = ("q=" + quote(q)) if q else ""
+    lo = (page - 1) * PAGE_SIZE + (1 if rows else 0)
     inner = f"""
     <h1>Explorer</h1>
     <p class=sub>Search and inspect riders and trips. Click any row for full detail.</p>
@@ -455,7 +492,8 @@ def _explorer_html(db: Session, q: str = "") -> str:
       </form>
       {banned_note}
       <table><tr><th>store id</th><th>name</th><th>flag</th><th>trips</th><th>distance</th><th>status</th></tr>{body}</table>
-      <p class=hint>Showing up to 100{' matching' if q else ' newest'} riders.</p>
+      <p class=hint>{total} rider(s){' matching' if q else ''} · showing {lo}–{lo + len(rows) - 1 if rows else 0}</p>
+      {_pager("/admin/explorer", page, has_next, qs)}
     </div>"""
     return _admin_shell(inner, active="/admin/explorer")
 
@@ -546,20 +584,31 @@ def _rider_detail_html(db: Session, store_id: str, msg: str = "") -> str | None:
     return _admin_shell(inner, active="/admin/explorer")
 
 
-def _trips_html(db: Session, status: str = "", country: str = "", store: str = "", q: str = "") -> str:
+def _trips_html(db: Session, status: str = "", country: str = "", store: str = "",
+                q: str = "", page: int = 1) -> str:
+    page = max(1, page)
     query = db.query(Trip)
+    cnt = db.query(func.count(Trip.trip_uuid))
     if status:
-        query = query.filter(Trip.validation_status == status)
+        query = query.filter(Trip.validation_status == status); cnt = cnt.filter(Trip.validation_status == status)
     if country:
-        query = query.filter(Trip.country == country.strip().upper())
+        cc = country.strip().upper()
+        query = query.filter(Trip.country == cc); cnt = cnt.filter(Trip.country == cc)
     if store:
-        query = query.filter(Trip.rider_store_id == store.strip())
+        query = query.filter(Trip.rider_store_id == store.strip()); cnt = cnt.filter(Trip.rider_store_id == store.strip())
     if q:
-        query = query.filter(Trip.trip_uuid.ilike(f"{q.strip()}%"))
-    trips = query.order_by(desc(Trip.start_utc)).limit(200).all()
+        query = query.filter(Trip.trip_uuid.ilike(f"{q.strip()}%")); cnt = cnt.filter(Trip.trip_uuid.ilike(f"{q.strip()}%"))
+    total = cnt.scalar() or 0
+    trips = (query.order_by(desc(Trip.start_utc))
+             .offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE + 1).all())
+    has_next = len(trips) > PAGE_SIZE
+    trips = trips[:PAGE_SIZE]
     opts = "".join(f'<option value="{s}"{" selected" if status == s else ""}>{s or "any status"}</option>'
                    for s in ("", "validated", "flagged", "rejected"))
     body = "".join(_trip_row(t) for t in trips) or "<tr><td colspan=6 class=mut>no trips match</td></tr>"
+    parts = [(k, v) for k, v in (("status", status), ("country", country), ("store", store), ("q", q)) if v]
+    qs = "&".join(f"{k}={quote(str(v))}" for k, v in parts)
+    lo = (page - 1) * PAGE_SIZE + (1 if trips else 0)
     inner = f"""
     <a class=bk href="/admin/explorer">{_IC['back']} explorer</a>
     <h1>Trip explorer</h1>
@@ -573,7 +622,8 @@ def _trips_html(db: Session, status: str = "", country: str = "", store: str = "
         <button>{_IC['search']} Filter</button>
       </form>
       <table><tr><th>id</th><th>start (UTC)</th><th>km</th><th>max km/h</th><th>country</th><th>status</th></tr>{body}</table>
-      <p class=hint>Showing up to 200 trips, newest first. ⟳ marks a freespin spike.</p>
+      <p class=hint>{total} trip(s) · showing {lo}–{lo + len(trips) - 1 if trips else 0}, newest first. ⟳ marks a freespin spike.</p>
+      {_pager("/admin/explorer/trips", page, has_next, qs)}
     </div>"""
     return _admin_shell(inner, active="/admin/explorer")
 
@@ -688,18 +738,18 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
 
 
 @admin_router.get("/explorer", response_class=HTMLResponse)
-def explorer_page(request: Request, db: Session = Depends(get_db), q: str = ""):
+def explorer_page(request: Request, db: Session = Depends(get_db), q: str = "", page: int = 1):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
-    return HTMLResponse(_explorer_html(db, q))
+    return HTMLResponse(_explorer_html(db, q, page))
 
 
 @admin_router.get("/explorer/trips", response_class=HTMLResponse)
 def explorer_trips(request: Request, db: Session = Depends(get_db),
-                   status: str = "", country: str = "", store: str = "", q: str = ""):
+                   status: str = "", country: str = "", store: str = "", q: str = "", page: int = 1):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
-    return HTMLResponse(_trips_html(db, status, country, store, q))
+    return HTMLResponse(_trips_html(db, status, country, store, q, page))
 
 
 @admin_router.get("/explorer/rider/{store_id}", response_class=HTMLResponse)
@@ -1047,31 +1097,39 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         f'<td>{n}</td></tr>'
         for sid, n in offenders) or '<tr><td colspan=3 class=mut>none</td></tr>'
 
-    # --- anti-fraud rule toggles + tunable thresholds ---
+    # --- anti-fraud rules, each shown WITH its own tunable thresholds ---
     disabled = settings.pipeline_disabled(db)
-    rule_rows = "".join(
-        f'<label class="krow{"" if k not in disabled else " off"}">'
-        f'<input type=checkbox name=rule value="{k}"{" checked" if k not in disabled else ""}>'
-        f'<span class=tw><span class=kl>{html.escape(lbl)}</span>'
-        f'<span class=kd>{html.escape(desc)}</span></span></label>'
-        for k, lbl, desc in settings.PIPELINE_RULES)
     thr = settings.get_thresholds(db)
-    thr_inputs = "".join(
-        f'<label style="display:inline-flex;flex-direction:column;gap:3px;margin:0 14px 10px 0;font-size:12px;color:#8ea0c8">'
-        f'{html.escape(lbl)}<input type=number name="thr_{key}" value="{thr[key]}" '
-        f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}" style="width:140px"></label>'
-        for key, lbl, _mk, _ca, kind, lo, hi in settings.PIPELINE_THRESHOLDS)
+    thrmap = {key: (lbl, kind, lo, hi)
+              for key, lbl, _mk, _ca, kind, lo, hi in settings.PIPELINE_THRESHOLDS}
+
+    def _thr_input(key):
+        lbl, kind, lo, hi = thrmap[key]
+        return (f'<label class=thr>{html.escape(lbl)}'
+                f'<input type=number name="thr_{key}" value="{thr[key]}" '
+                f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}"></label>')
+
+    rule_blocks = ""
+    for k, lbl, rdesc, *rest in settings.PIPELINE_RULES:
+        params = rest[0] if rest else []
+        on = k not in disabled
+        pin = ("".join(_thr_input(p) for p in params) if params
+               else '<span class=nopar>no tunable parameters — on/off only</span>')
+        rule_blocks += (
+            f'<div class="rblock{"" if on else " off"}">'
+            f'<label class=rhead><input type=checkbox name=rule value="{k}"{" checked" if on else ""}>'
+            f'<span class=tw><span class=kl>{html.escape(lbl)}</span>'
+            f'<span class=kd>{html.escape(rdesc)}</span></span></label>'
+            f'<div class=rparams>{pin}</div></div>')
     rules_card = f"""
     <div class=card>
       <h2>Anti-fraud rules <span class=mut>· what we check on every upload</span></h2>
-      <p class=hint>Ticked = the rule is active and will flag a matching trip for review. Untick to disable a
-      check entirely. Applies to new uploads (use “Rebuild stats” after to re-evaluate nothing — rules run at ingest).</p>
+      <p class=hint>Each rule can be turned off independently — unticking <b>skips that check entirely</b>
+      (its thresholds below then do nothing). Two rules are pure on/off (no parameters); the rest expose the
+      exact limits they use. Rules run at ingest, so changes apply to <b>new</b> uploads.</p>
       <form method=post action="/admin/pipeline/rules">
-        <div class=kids style="padding:0">{rule_rows}</div>
-        <h2 style="margin-top:16px">Thresholds</h2>
-        <p class=hint>Tune the limits each rule uses. Blank-safe; values clamp to sane ranges.</p>
-        <div style="display:flex;flex-wrap:wrap">{thr_inputs}</div>
-        <button>{_IC['check']} Save rules &amp; thresholds</button>
+        {rule_blocks}
+        <button style="margin-top:6px">{_IC['check']} Save rules &amp; thresholds</button>
       </form>
     </div>"""
 
