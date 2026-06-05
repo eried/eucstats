@@ -140,7 +140,10 @@ class IngestService:
         if len(samples) > config.MAX_SAMPLES:
             raise IngestError(413, "too_many_samples")
 
-        sm = summarize(samples, max_step_km=5.0, gps_tolerance=config.DIST_TOLERANCE)
+        cal = settings.get_calibration(self.db)        # admin-tunable physics limits
+        sm = summarize(samples, max_step_km=5.0, gps_tolerance=config.DIST_TOLERANCE,
+                       max_accel=cal["max_accel"], sustain_secs=cal["sustain_secs"],
+                       freespin_margin=cal["freespin_margin"])
         # prefer the app's authoritative UTC start/end (the CSV Date is local, no TZ)
         m_start = _parse_iso(meta.get("start_utc")) or _naive(sm.start_utc)
         m_end = _parse_iso(meta.get("end_utc")) or _naive(sm.end_utc)

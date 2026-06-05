@@ -227,11 +227,13 @@ def _corrob_speed(s: Sample) -> float | None:
     return min(s.speed, s.gps_speed) if s.gps_speed is not None else s.speed
 
 
-def _speeds(samples: list[Sample], wheel_speeds: list[float]) -> tuple[float | None, float | None]:
+def _speeds(samples: list[Sample], wheel_speeds: list[float],
+            max_accel: float = MAX_ACCEL_KMH_S,
+            freespin_margin: float = 5.0) -> tuple[float | None, float | None]:
     """Return (realistic_max_speed, max_freespin).
 
     A real top speed must be *reached through believable acceleration*. We walk
-    the samples in time order and clamp how fast the speed may rise (MAX_ACCEL_KMH_S);
+    the samples in time order and clamp how fast the speed may rise (max_accel);
     decelerations are always allowed. The realistic top speed is the peak of this
     acceleration-limited track. The raw peak that the cap rejected (an instantaneous
     jump with no ramp — a freespin or sensor spike) is reported separately as
@@ -249,7 +251,7 @@ def _speeds(samples: list[Sample], wheel_speeds: list[float]) -> tuple[float | N
             plausible = v                                      # slowing down: always believable
         else:
             dt = max((s.t - prev_t).total_seconds(), 0.0)
-            plausible = min(v, plausible + MAX_ACCEL_KMH_S * dt)   # speeding up: capped by accel
+            plausible = min(v, plausible + max_accel * dt)     # speeding up: capped by accel
         prev_t = s.t
         realistic = plausible if realistic is None else max(realistic, plausible)
 
@@ -257,13 +259,14 @@ def _speeds(samples: list[Sample], wheel_speeds: list[float]) -> tuple[float | N
     if realistic is None:
         return raw_max, None
     # The spike only counts as "freespin" when it's clearly beyond what real
-    # acceleration could have produced (>5 km/h over the believable peak).
-    freespin = raw_max if (raw_max is not None and raw_max > realistic + 5.0) else None
+    # acceleration could have produced (freespin_margin km/h over the believable peak).
+    freespin = raw_max if (raw_max is not None and raw_max > realistic + freespin_margin) else None
     return realistic, freespin
 
 
 def summarize(samples: list[Sample], max_step_km: float = 5.0,
-              gps_tolerance: float = 0.4) -> TripSummary:
+              gps_tolerance: float = 0.4, max_accel: float = MAX_ACCEL_KMH_S,
+              sustain_secs: float = 2.0, freespin_margin: float = 5.0) -> TripSummary:
     if not samples:
         raise ValueError("cannot summarize empty sample list")
     start, end = samples[0].t, samples[-1].t
@@ -280,14 +283,14 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
 
     speeds = [s.speed for s in samples if s.speed is not None]
     avg_speed = (sum(speeds) / len(speeds)) if speeds else None
-    max_speed, max_freespin = _speeds(samples, speeds)
+    max_speed, max_freespin = _speeds(samples, speeds, max_accel, freespin_margin)
 
-    # G-force: the leaderboard value is the SUSTAINED g (best 2s average) — real
-    # cornering/braking load, not a crash. The instantaneous peak (a fall spikes
-    # the wheel briefly) is kept separately as a warning, never as the metric.
+    # G-force: the leaderboard value is the SUSTAINED g (best `sustain_secs` average)
+    # — real cornering/braking load, not a crash. The instantaneous peak (a fall
+    # spikes the wheel briefly) is kept separately as a warning, never as the metric.
     gs = [abs(s.g) for s in samples if s.g is not None]
     max_gforce_spike = max(gs) if gs else None
-    max_gforce = _sustained_max(samples, lambda s: abs(s.g) if s.g is not None else None, 2.0)
+    max_gforce = _sustained_max(samples, lambda s: abs(s.g) if s.g is not None else None, sustain_secs)
 
     wh = _energy_wh(samples)
     wh_per_km = (wh / distance) if (wh is not None and distance > 0) else None
@@ -295,8 +298,8 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
     volts = [s.voltage for s in samples if s.voltage is not None]
     peak_voltage = max(volts) if volts else None
     max_voltage_sag = _max_voltage_sag(samples)
-    max_sustained_w = _sustained_max(samples, _power, 2.0)
-    max_sustained_a = _sustained_max(samples, lambda s: s.current, 2.0)
+    max_sustained_w = _sustained_max(samples, _power, sustain_secs)
+    max_sustained_a = _sustained_max(samples, lambda s: s.current, sustain_secs)
     fastest_0_40_s = _fastest_0_40(samples)
     sustained_accel = _max_sustained_accel(samples)
     ascent_m = _ascent_m(samples)

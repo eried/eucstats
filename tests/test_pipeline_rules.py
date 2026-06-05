@@ -8,6 +8,10 @@ from services import settings
 from services.retention import run_retention
 
 
+def _s(sec, **kw):
+    return Sample(t=datetime(2026, 6, 1, 10, 0, sec), **kw)
+
+
 def _fast_samples():
     return [Sample(t=datetime(2026, 6, 1, 10, 0, i), speed=999.0, g=1.0) for i in range(3)]
 
@@ -64,6 +68,24 @@ def test_thresholds_roundtrip_and_clamp(db):
     assert settings.get_thresholds(db)["max_kmh"] == 80.0
     settings.set_thresholds(db, {"max_kmh": "99999"})          # clamps to hi=500
     assert settings.get_thresholds(db)["max_kmh"] == 500.0
+
+
+def test_calibration_roundtrip_and_clamp(db):
+    c = settings.get_calibration(db)
+    assert c["max_accel"] == 20.0 and c["sustain_secs"] == 2.0 and c["freespin_margin"] == 5.0  # defaults
+    settings.set_calibration(db, {"max_accel": "10", "sustain_secs": "3", "freespin_margin": "8"})
+    c = settings.get_calibration(db)
+    assert c["max_accel"] == 10.0 and c["sustain_secs"] == 3.0 and c["freespin_margin"] == 8.0
+    settings.set_calibration(db, {"max_accel": "999"})           # clamp to hi=100
+    assert settings.get_calibration(db)["max_accel"] == 100.0
+
+
+def test_max_accel_param_changes_realistic_speed():
+    # 0 -> 50 km/h in 1s. With a 20 km/h/s cap the realistic max is ~20; with a
+    # 60 cap the same ramp is believable, so the realistic max reaches 50.
+    s = [_s(0, speed=0, gps_speed=0), _s(1, speed=50, gps_speed=50)]
+    assert summarize(s, max_accel=20).max_speed <= 21
+    assert summarize(s, max_accel=60).max_speed >= 49
 
 
 def test_retention_settings_roundtrip(db):

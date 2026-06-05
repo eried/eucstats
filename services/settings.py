@@ -143,6 +143,34 @@ def set_pipeline_enabled(db: Session, enabled_keys) -> None:
     set_meta(db, "pipeline_disabled", json.dumps(disabled))
 
 
+# Telemetry calibration used by ingest/summary (physics limits). Same tuple shape.
+CALIBRATION = [
+    ("max_accel", "Max believable acceleration (km/h per s)", "cal_max_accel", "MAX_ACCEL_KMH_S", "float", 1, 100),
+    ("sustain_secs", "Sustained-metric window (s)", "cal_sustain_secs", "SUSTAIN_SECS", "float", 0.5, 30),
+    ("freespin_margin", "Freespin margin over realistic (km/h)", "cal_freespin_margin", "FREESPIN_MARGIN_KMH", "float", 0, 200),
+]
+
+
+def get_calibration(db: Session) -> dict:
+    out = {}
+    for key, _lbl, mkey, cattr, kind, lo, hi in CALIBRATION:
+        default = getattr(config, cattr)
+        raw = get_meta(db, mkey, None)
+        val = raw if raw is not None else default
+        out[key] = _clamp_int(val, default, lo, hi) if kind == "int" else _clamp_float(val, default, lo, hi)
+    return out
+
+
+def set_calibration(db: Session, values: dict) -> None:
+    for key, _lbl, mkey, cattr, kind, lo, hi in CALIBRATION:
+        v = values.get(key)
+        if v in (None, ""):
+            continue
+        default = getattr(config, cattr)
+        v = _clamp_int(v, default, lo, hi) if kind == "int" else _clamp_float(v, default, lo, hi)
+        set_meta(db, mkey, str(v))
+
+
 def get_thresholds(db: Session) -> dict:
     out = {}
     for key, _lbl, mkey, cattr, kind, lo, hi in PIPELINE_THRESHOLDS:

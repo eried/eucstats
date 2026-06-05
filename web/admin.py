@@ -1121,6 +1121,12 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
             f'<span class=tw><span class=kl>{html.escape(lbl)}</span>'
             f'<span class=kd>{html.escape(rdesc)}</span></span></label>'
             f'<div class=rparams>{pin}</div></div>')
+    cal = settings.get_calibration(db)
+    cal_inputs = "".join(
+        f'<label class=thr>{html.escape(lbl)}'
+        f'<input type=number name="cal_{key}" value="{cal[key]}" '
+        f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}"></label>'
+        for key, lbl, _mk, _ca, kind, lo, hi in settings.CALIBRATION)
     rules_card = f"""
     <div class=card>
       <h2>Anti-fraud rules <span class=mut>· what we check on every upload</span></h2>
@@ -1129,7 +1135,11 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
       exact limits they use. Rules run at ingest, so changes apply to <b>new</b> uploads.</p>
       <form method=post action="/admin/pipeline/rules">
         {rule_blocks}
-        <button style="margin-top:6px">{_IC['check']} Save rules &amp; thresholds</button>
+        <h2 style="margin-top:18px">Telemetry calibration <span class=mut>· physics limits used to summarize every trip</span></h2>
+        <p class=hint>The acceleration cap defines the <b>realistic</b> top speed and what counts as a <b>freespin</b>
+        spike; the sustained window is how long power / current / g-force must hold to count as a record.</p>
+        <div class=rparams style="margin-left:0">{cal_inputs}</div>
+        <button style="margin-top:12px">{_IC['check']} Save rules, thresholds &amp; calibration</button>
       </form>
     </div>"""
 
@@ -1192,6 +1202,7 @@ async def pipeline_rules_save(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
     settings.set_pipeline_enabled(db, form.getlist("rule"))
     settings.set_thresholds(db, {key: form.get("thr_" + key) for key, *_ in settings.PIPELINE_THRESHOLDS})
+    settings.set_calibration(db, {key: form.get("cal_" + key) for key, *_ in settings.CALIBRATION})
     off = len(settings.pipeline_disabled(db))
     note = f"rules saved — {len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} active"
     return RedirectResponse("/admin/pipeline?msg=" + quote(note), status_code=303)

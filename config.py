@@ -47,3 +47,8 @@ TELEPORT_KMH = float(os.environ.get("EUCSTATS_TELEPORT_KMH", "150"))  # implied 
 TELEPORT_MAX_JUMPS = int(os.environ.get("EUCSTATS_TELEPORT_MAX_JUMPS", "8"))  # tolerate isolated spikes
 DIST_TOLERANCE = float(os.environ.get("EUCSTATS_DIST_TOLERANCE", "0.4"))      # odometer-vs-gps mismatch
 UNVERIFIED_DIST_KM = float(os.environ.get("EUCSTATS_UNVERIFIED_DIST_KM", "3.0"))  # flag long rides with no GPS at all
+
+# --- Telemetry calibration (physics limits used when summarizing a trip) ---
+MAX_ACCEL_KMH_S = float(os.environ.get("EUCSTATS_MAX_ACCEL_KMH_S", "20"))     # believable accel; faster rise = freespin/spike, not real speed
+SUSTAIN_SECS = float(os.environ.get("EUCSTATS_SUSTAIN_SECS", "2"))            # window for "sustained" power/current/g-force metrics
+FREESPIN_MARGIN_KMH = float(os.environ.get("EUCSTATS_FREESPIN_MARGIN_KMH", "5"))  # raw speed must beat realistic by this to count as a freespin
