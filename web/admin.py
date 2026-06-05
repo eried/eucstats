@@ -195,10 +195,13 @@ tr.active{background:rgba(46,168,255,.08)}
 .rhead{display:flex;align-items:flex-start;gap:11px;cursor:pointer}
 .rhead input{width:16px;height:16px;accent-color:#2ea8ff;margin-top:2px;flex:none}
 .rparams{display:flex;flex-wrap:wrap;gap:14px;margin:9px 0 1px 27px}
-.rparams .thr{display:inline-flex;flex-direction:column;gap:3px;font-size:11.5px;color:#8ea0c8}
-.rparams .thr input{width:140px}
 .rparams .nopar{color:#5d6f95;font-size:11.5px}
-.rparams .thr .calc{display:block;font-size:10.5px;color:#7fd0ff;margin-top:3px;max-width:220px;line-height:1.35;min-height:12px}
+.thr{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:#8ea0c8}
+.thr input{width:100%;max-width:160px}
+.thr .calc{display:block;font-size:10.5px;color:#7fd0ff;margin-top:3px;line-height:1.35;min-height:12px}
+.calgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 18px;margin:12px 0 2px}
+.calgrid .thr{background:#0b1124;border:1px solid #1d2945;border-radius:8px;padding:9px 11px}
+@media(max-width:720px){.calgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .searchbar{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap;align-items:center}
 .searchbar input,.searchbar select{flex:1;min-width:160px}
 .dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
@@ -1177,8 +1180,9 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         {rule_blocks}
         <h2 style="margin-top:18px">Telemetry calibration <span class=mut>· physics limits used to summarize every trip</span></h2>
         <p class=hint>The acceleration cap defines the <b>realistic</b> top speed and what counts as a <b>freespin</b>
-        spike; the sustained window is how long power / current / g-force must hold to count as a record.</p>
-        <div class=rparams style="margin-left:0">{cal_inputs}</div>
+        spike; the sustained window is how long power / current / g-force must hold to count as a record.
+        <b>Applies to new uploads only</b> — already-ingested trips keep their stored values.</p>
+        <div class=calgrid>{cal_inputs}</div>
         <button style="margin-top:12px">{_IC['check']} Save rules, thresholds &amp; calibration</button>
       </form>
     </div>""" + _PIPELINE_CALC_JS
