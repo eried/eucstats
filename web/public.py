@@ -47,7 +47,13 @@ body{position:fixed;inset:0;width:100%}
 @keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(-4px,3px)}50%{transform:translate(3px,-4px)}75%{transform:translate(-3px,-2px)}100%{transform:translate(0,0)}}
 .cbtn{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;color:var(--mut);font-size:11px;padding:7px 11px;cursor:pointer;letter-spacing:.4px;width:100%;text-align:center;transition:color .2s,border-color .2s,background .2s}
 .cbtn:hover{color:var(--acc);border-color:var(--acc)}
-.cbtn:disabled,.cbtn.on{color:var(--gold);border-color:rgba(255,210,74,.55);background:rgba(255,210,74,.12);cursor:default}
+.cbtn:disabled{color:var(--mut);border-color:var(--line);background:rgba(0,0,0,.18);opacity:.5;cursor:not-allowed}
+.cbtn.on{color:var(--gold);border-color:rgba(255,210,74,.55);background:rgba(255,210,74,.12);cursor:default;opacity:1}
+.introctl{display:flex;gap:8px;align-items:center}
+.introctl .cbtn{width:auto;flex:1;white-space:nowrap}
+.cck{display:inline-flex;gap:5px;align-items:center;font-size:11px;color:var(--mut);cursor:pointer;white-space:nowrap}
+.cck input{accent-color:var(--acc);cursor:pointer;margin:0}
+.cck.dis{opacity:.45;cursor:not-allowed}
 tr.gold1,tr.silv,tr.brnz{background-size:300% 100%;background-repeat:no-repeat}
 tr.gold1{background-image:linear-gradient(100deg,rgba(255,213,80,.14) 0,rgba(255,226,130,.20) 30%,rgba(255,243,185,.58) 50%,rgba(255,226,130,.20) 70%,rgba(255,213,80,.14) 100%)!important;box-shadow:inset 0 0 22px rgba(255,214,90,.30)}
 tr.silv{background-image:linear-gradient(100deg,rgba(205,211,224,.07) 0,rgba(220,226,238,.11) 30%,rgba(238,242,250,.38) 50%,rgba(220,226,238,.11) 70%,rgba(205,211,224,.07) 100%)!important;box-shadow:inset 0 0 20px rgba(220,226,238,.17)}
@@ -634,13 +640,20 @@ function addHeat(){
 function setupCfg(){
   const gear=document.getElementById("gear"),cfg=document.getElementById("cfg");
   function render(){
+    const _C=window.__CFG__||{};
+    const adminOff=_C.intro_enabled===false;              // intro turned off site-wide by admin
+    const on=!adminOff && localStorage.getItem("eucstats_intro_off")!=="1";   // this visitor's choice
     cfg.innerHTML=`<div class="crow"><span>Units</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">km/h</button><button data-u="mph" class="${UNIT==='mph'?'on':''}">mph</button></div></div>`+
       `<div class="crow"><span>Map</span><select id="mapsel" class="csel">${[["dark","Dark"],["light","Light"],["voyager","Voyager"],["satellite","Satellite"],["terrain","Topo"]].map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
-      `<div class="crow"><span>Intro</span><button id="introbtn" class="cbtn">Replay intro</button></div>`;
+      `<div class="crow"><span>Intro</span><span class="introctl">`+
+        `<label class="cck${adminOff?' dis':''}" title="${adminOff?'Disabled site-wide':'Play the cinematic intro on load'}"><input type="checkbox" id="introchk"${on?' checked':''}${adminOff?' disabled':''}> Enabled</label>`+
+        `<button id="introbtn" class="cbtn"${on?'':' disabled'}>Replay</button>`+
+      `</span></div>`;
     cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
-    const ib=cfg.querySelector("#introbtn");
-    if(ib) ib.onclick=()=>{ try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; ib.classList.add("on"); ib.textContent="Replaying…"; setTimeout(()=>location.reload(),260); };
+    const chk=cfg.querySelector("#introchk"),ib=cfg.querySelector("#introbtn");
+    if(chk) chk.onchange=()=>{ if(chk.checked){localStorage.removeItem("eucstats_intro_off");}else{localStorage.setItem("eucstats_intro_off","1");} if(ib)ib.disabled=!chk.checked; };
+    if(ib) ib.onclick=()=>{ if(ib.disabled)return; try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; ib.classList.add("on"); ib.textContent="Replaying…"; setTimeout(()=>location.reload(),260); };
   }
   render(); gear.onclick=()=>cfg.classList.toggle("open");
 }
@@ -676,7 +689,8 @@ async function init(){
   }
   const vid=document.getElementById("intro"),fx=document.getElementById("introfx");
   const _C=window.__CFG__||{};
-  if(_C.intro_enabled===false){ if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; }
+  const _introOff=localStorage.getItem("eucstats_intro_off")==="1";   // visitor opted out via the gear menu
+  if(_C.intro_enabled===false||_introOff){ if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; }
   else {
   if(vid&&_C.intro_src){const _so=vid.querySelector("source"); if(_so&&_so.getAttribute("src")!==_C.intro_src){_so.setAttribute("src",_C.intro_src); vid.load();}}
   const introSeen=localStorage.getItem("eucstats_intro_seen");
