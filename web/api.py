@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 import config
 from database import get_db
-from services import ratelimit, settings, stats
+from services import ratelimit, sandbox, settings, stats
 from services.identity import ChangeNotAllowed, IdentityService
 from services.ingest import IngestError, IngestService
 
@@ -32,6 +32,15 @@ def register_rider(payload: dict, request: Request, db: Session = Depends(get_db
     store = payload.get("store_id")
     if not store or not payload.get("display_name"):
         raise HTTPException(400, "store_id and display_name are required")
+    if settings.sandbox_enabled():                 # deterministic test responses for QA
+        c = sandbox.case(store)
+        if c:
+            _, status, pl, _d = c
+            if status == 201:
+                return {"store_id": store, "display_name": payload["display_name"],
+                        "flag": payload.get("flag"), "has_avatar": False,
+                        "banned": False, "ban_reason": None, "sandbox": True}
+            raise HTTPException(status, pl)
     # rate-limit only the creation of NEW accounts (re-registering an existing
     # store_id is idempotent). Pre-account the only signal we have is the IP.
     if IdentityService(db).repo.get(store) is None:
@@ -187,6 +196,15 @@ async def upload_trip(request: Request, meta: str = Form(...), trip: UploadFile 
         meta_obj = json.loads(meta)
     except Exception:
         raise HTTPException(400, "meta is not valid JSON")
+    if settings.sandbox_enabled():                 # deterministic test responses for QA
+        c = sandbox.case(meta_obj.get("store_id"))
+        if c:
+            _, status, pl, _d = c
+            if status == 201:
+                return JSONResponse({"trip_uuid": meta_obj.get("trip_uuid") or "sandbox-trip",
+                                     "validation_status": pl, "verdict": sandbox.VERDICT[pl],
+                                     "duplicate": False, "sandbox": True}, status_code=201)
+            raise HTTPException(status, pl)
     # flood guard: cap uploads per rider and per IP per hour (0 disables)
     rl = settings.get_rate_limits(db)
     store = meta_obj.get("store_id") or "?"

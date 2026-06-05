@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 import config
 from database import get_db
 from models import RawUpload, Rider, RiderStat, Trip, Wheel, utcnow
-from services import audit, datasets, settings
+from services import audit, datasets, sandbox, settings
 from services.aggregator import Aggregator
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -1458,6 +1458,16 @@ def _settings_html(db: Session, msg: str = "") -> str:
         <input type=text name=test_text value="{html.escape(tm['text'])}" placeholder="TEST DATA" style="width:min(300px,100%)">
       </div>
       <div class=card>
+        <h2>Sandbox test responses <span class=mut>· for Android QA</span></h2>
+        <label class=toggle style="display:inline-flex"><input type=checkbox name=sandbox_enabled value=1{ck(settings.sandbox_enabled())}> Enable simulated users</label>
+        <p class=hint style="margin:12px 0 6px">When ON, set a rider's <code>store_id</code> to one of these magic values to get that
+        exact response from <code>POST /api/v1/riders</code> and <code>POST /api/v1/trips</code> — like Stripe test cards.
+        They never collide with real riders (those are UUIDs). <b>Turn OFF for production.</b> Copy this for the testing agent:</p>
+        <table><tr><th>store_id</th><th>response</th></tr>
+        {"".join(f'<tr><td><code>{sid}</code></td><td>{html.escape(desc)}</td></tr>' for sid, _st, _pl, desc in sandbox.CASES)}
+        </table>
+      </div>
+      <div class=card>
         <h2>Live refresh</h2>
         <p class=hint>How often the top champions + global stats auto-refresh. 0 = off.</p>
         <label>Refresh every <input type=number name=poll_secs min=0 max=3600 value="{b['poll_secs']}" style="width:90px"> seconds</label>
@@ -1496,13 +1506,16 @@ def settings_save(request: Request, db: Session = Depends(get_db),
                   intro_src: str = Form("/static/intro.mp4"), map_style: str = Form("dark"),
                   glitch_enabled: str = Form(""), glitch_secs: int = Form(4),
                   glitch_intensity: int = Form(2),
-                  test_enabled: str = Form(""), test_text: str = Form("TEST DATA")):
+                  test_enabled: str = Form(""), test_text: str = Form("TEST DATA"),
+                  sandbox_enabled: str = Form("")):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     settings.set_test_mode(bool(test_enabled), test_text)
+    settings.set_sandbox(bool(sandbox_enabled))
     settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
                            bool(glitch_enabled), glitch_secs, glitch_intensity)
-    audit.log("settings_save", f"banner={'on' if test_enabled else 'off'} map={map_style}")
+    audit.log("settings_save", f"banner={'on' if test_enabled else 'off'} "
+                               f"sandbox={'on' if sandbox_enabled else 'off'} map={map_style}")
     return RedirectResponse("/admin/settings?msg=" + quote("settings saved — live on next page load"),
                             status_code=303)
 

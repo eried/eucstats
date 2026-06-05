@@ -97,3 +97,30 @@ per IP). When a cap is hit the response is **HTTP 429** with a body telling you 
 Rule of thumb: **only 429 (and a one-shot 401 token refresh) should auto-retry.**
 Everything else is terminal for that upload. We don't send a `Retry-After` header today
 — use your own backoff; tell us if you'd prefer we add one.
+
+## 4. Sandbox test responses (QA) — magic store_ids
+
+The admin can flip on **Sandbox** mode (Settings → "Sandbox test responses"). While it's
+on, set a rider's `store_id` to one of these reserved values to make `POST /api/v1/riders`
+and `POST /api/v1/trips` return that exact response — Stripe-test-card style. They never
+collide with real riders (real ones are UUIDs), and the full live list is printed on that
+Settings page so QA always has it.
+
+| store_id | response |
+|---|---|
+| `sandbox-ok` | 201 — `validation_status: validated` (verdict `accepted`) |
+| `sandbox-flagged` | 201 — `flagged` (verdict `under_review`) |
+| `sandbox-rejected` | 201 — `rejected` |
+| `sandbox-400` | 400 `sandbox_bad_request` |
+| `sandbox-401` | 401 `attestation_failed:sandbox` |
+| `sandbox-banned` | 403 `rider_banned` |
+| `sandbox-allowlist` | 403 `rider_not_allowlisted` |
+| `sandbox-unregistered` | 400 `rider_not_registered` |
+| `sandbox-413` | 413 `payload_too_large` |
+| `sandbox-422` | 422 `parse_failed:sandbox` |
+| `sandbox-429` | 429 `rate_limited:sandbox` |
+
+Notes: these short-circuit BEFORE attestation/rate-limit/parse, so you can fire them with
+any dummy payload. A `sandbox-*` registration returns a synthetic profile (`"sandbox": true`)
+and does NOT create a real rider. When sandbox is OFF, these store_ids behave like any normal
+(unregistered) id, so leaving them in your test suite is safe.

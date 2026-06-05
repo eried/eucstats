@@ -339,6 +339,18 @@ def is_test_mode() -> bool:
     return get_test_mode()["enabled"]
 
 
+def sandbox_enabled() -> bool:
+    """Global (not per-dataset) flag: when on, reserved sandbox-* store_ids return
+    deterministic test responses on /riders and /trips. Off by default."""
+    return bool(_site_state().get("sandbox", False))
+
+
+def set_sandbox(enabled) -> None:
+    s = _site_state()
+    s["sandbox"] = bool(enabled)
+    _save_site_state(s)
+
+
 def ingest_allow(db: Session) -> dict:
     """Ingest allowlist: {enabled, ids}. Admin (app_meta) overrides the env
     default (config.INGEST_ALLOW). When disabled, any registered rider can upload."""
