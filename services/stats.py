@@ -30,7 +30,7 @@ def _rider_brief(db, store_id: str) -> dict:
 
 def _board(db, column, limit, positive_only=False):
     q = (db.query(RiderStat).join(Rider, Rider.store_id == RiderStat.store_id)
-         .filter(Rider.store_id.isnot(None)))
+         .filter(Rider.consent_public.isnot(False)))
     if positive_only:
         q = q.filter(column > 0)
     rows = q.order_by(desc(column)).limit(limit).all()
@@ -65,7 +65,7 @@ def daily_leaderboard(db, limit=50):
            .group_by(DailyDistance.store_id).subquery())
     rows = (db.query(sub.c.sid, sub.c.best)
             .join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None))
+            .filter(Rider.consent_public.isnot(False))
             .order_by(desc(sub.c.best)).limit(limit).all())
     return [{**_rider_brief(db, sid), "best_day_km": round(best or 0, 2)} for sid, best in rows]
 
@@ -108,7 +108,7 @@ def _period_leaderboard(db, fmt, key, limit):
     best = (db.query(per.c.sid.label("sid"), func.max(per.c.km).label("best"))
             .group_by(per.c.sid).subquery())
     rows = (db.query(best.c.sid, best.c.best).join(Rider, Rider.store_id == best.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(best.c.best)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(best.c.best)).limit(limit).all())
     return [{**_rider_brief(db, sid), key: round(b or 0, 2)} for sid, b in rows]
 
 
@@ -123,7 +123,7 @@ def month_leaderboard(db, limit=50):
 def accel_leaderboard(db, limit=50):
     """Fastest launch from a near-stop to 40 km/h (lower is better)."""
     rows = (db.query(RiderStat).join(Rider, Rider.store_id == RiderStat.store_id)
-            .filter(Rider.store_id.isnot(None), RiderStat.fastest_0_40_s.isnot(None),
+            .filter(Rider.consent_public.isnot(False), RiderStat.fastest_0_40_s.isnot(None),
                     RiderStat.fastest_0_40_s > 0)
             .order_by(RiderStat.fastest_0_40_s.asc()).limit(limit).all())
     return [{**_rider_brief(db, rs.store_id), "accel_s": round(rs.fastest_0_40_s, 2)} for rs in rows]
@@ -142,7 +142,7 @@ def range_leaderboard(db, limit=50):
 def efficiency_leaderboard(db, limit=50):
     """Lowest Wh/km = most efficient (ascending)."""
     rows = (db.query(RiderStat).join(Rider, Rider.store_id == RiderStat.store_id)
-            .filter(Rider.store_id.isnot(None), RiderStat.best_wh_per_km.isnot(None),
+            .filter(Rider.consent_public.isnot(False), RiderStat.best_wh_per_km.isnot(None),
                     RiderStat.best_wh_per_km > 0)
             .order_by(RiderStat.best_wh_per_km.asc()).limit(limit).all())
     return [{**_rider_brief(db, rs.store_id), "wh_per_km": round(rs.best_wh_per_km, 1)} for rs in rows]
@@ -163,7 +163,7 @@ def globe_trotter(db, limit=50):
            .filter(Trip.validation_status == "validated", Trip.country.isnot(None), Trip.country != "")
            .group_by(Trip.rider_store_id).subquery())
     rows = (db.query(sub.c.sid, sub.c.n).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(sub.c.n.desc()).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(sub.c.n.desc()).limit(limit).all())
     return [{**_rider_brief(db, sid), "countries": n} for sid, n in rows]
 
 
@@ -174,7 +174,7 @@ def sunday_cruiser(db, limit=50):
                    Trip.avg_speed < 10, Trip.distance_km > 2)
            .group_by(Trip.rider_store_id).subquery())
     rows = (db.query(sub.c.sid, sub.c.d).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(sub.c.d.desc()).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(sub.c.d.desc()).limit(limit).all())
     return [{**_rider_brief(db, sid), "slow_km": round(d or 0, 2)} for sid, d in rows]
 
 
@@ -187,7 +187,7 @@ def _trip_max_board(db, col, key, limit, transform, flt=None):
         sub = sub.filter(flt)
     sub = sub.group_by(Trip.rider_store_id).subquery()
     rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(sub.c.v)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
     return [{**_rider_brief(db, sid), key: transform(v)} for sid, v in rows]
 
 
@@ -198,7 +198,7 @@ def _trip_count_board(db, key, limit, flt=None):
         sub = sub.filter(flt)
     sub = sub.group_by(Trip.rider_store_id).subquery()
     rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(sub.c.v)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
     return [{**_rider_brief(db, sid), key: int(n or 0)} for sid, n in rows]
 
 
@@ -233,7 +233,7 @@ def weekend_warrior(db, limit=50):
            .filter(Trip.validation_status == "validated", Trip.start_utc.isnot(None), dow.in_(["0", "6"]))
            .group_by(Trip.rider_store_id).subquery())
     rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(sub.c.v)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
     return [{**_rider_brief(db, sid), "weekend_km": round(v or 0, 2)} for sid, v in rows]
 
 
@@ -254,7 +254,7 @@ def power_plant(db, limit=50):
            .filter(Trip.validation_status == "validated", Trip.wh_per_km.isnot(None), Trip.distance_km > 0)
            .group_by(Trip.rider_store_id).subquery())
     rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(sub.c.v)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
     return [{**_rider_brief(db, sid), "energy_kwh": round((v or 0) / 1000.0, 1)} for sid, v in rows]
 
 
@@ -263,7 +263,7 @@ def explorer(db, limit=50):
            .filter(Trip.validation_status == "validated", Trip.start_cell.isnot(None))
            .group_by(Trip.rider_store_id).subquery())
     rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(sub.c.v)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
     return [{**_rider_brief(db, sid), "areas": int(v or 0)} for sid, v in rows]
 
 
@@ -274,7 +274,7 @@ def big_day(db, limit=50):
            .group_by(Trip.rider_store_id, day).subquery())
     best = (db.query(per.c.sid.label("sid"), func.max(per.c.c).label("v")).group_by(per.c.sid).subquery())
     rows = (db.query(best.c.sid, best.c.v).join(Rider, Rider.store_id == best.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(best.c.v)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(best.c.v)).limit(limit).all())
     return [{**_rider_brief(db, sid), "rides_in_day": int(v or 0)} for sid, v in rows]
 
 
@@ -285,7 +285,7 @@ def commuter(db, limit=50):
                    dow.in_(["1", "2", "3", "4", "5"]))
            .group_by(Trip.rider_store_id).subquery())
     rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
-            .filter(Rider.store_id.isnot(None)).order_by(desc(sub.c.v)).limit(limit).all())
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
     return [{**_rider_brief(db, sid), "weekday_km": round(v or 0, 2)} for sid, v in rows]
 
 
@@ -337,7 +337,7 @@ def records(db):
     out = []
     for rec in db.query(Record).all():
         r = db.get(Rider, rec.store_id)
-        if r is None:                               # only skip records held by purged riders
+        if r is None or r.consent_public is False:  # skip purged + opted-out riders
             continue
         out.append({"key": rec.key, "value": rec.value,
                     "rider": _rider_brief(db, rec.store_id), "trip_uuid": rec.trip_uuid})
@@ -415,7 +415,7 @@ def by_wheel(db, limit=50):
 def by_country(db, limit=50):
     rows = (db.query(Trip.country, *_grp_aggs())
             .join(Rider, Rider.store_id == Trip.rider_store_id)
-            .filter(Trip.validation_status == "validated", Rider.store_id.isnot(None),
+            .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False),
                     Trip.country.isnot(None), Trip.country != "")
             .group_by(Trip.country).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
     coords = {c: (la, lo) for c, la, lo in
@@ -445,7 +445,7 @@ def champions(db):
     rows = (db.query(Trip.rider_store_id, Trip.distance_km, Trip.duration_s,
                      Trip.max_speed, Trip.start_utc)
             .join(Rider, Rider.store_id == Trip.rider_store_id)
-            .filter(Trip.validation_status == "validated", Rider.store_id.isnot(None),
+            .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False),
                     Trip.start_utc.isnot(None)).all())
     agg = {k: {} for k in windows}   # period -> sid -> [dist, dur_s, vmax]
     for sid, dist, dur, vmax, t in rows:
@@ -489,7 +489,7 @@ def version_stats(db):
     device/SDK object). Representative per rider = their latest validated trip."""
     rows = (db.query(Trip.rider_store_id, Trip.app_version, Trip.meta_json)
             .join(Rider, Rider.store_id == Trip.rider_store_id)
-            .filter(Trip.validation_status == "validated", Rider.store_id.isnot(None))
+            .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False))
             .order_by(Trip.start_utc.asc()).all())
     rep = {}
     for sid, appv, mj in rows:
@@ -537,7 +537,7 @@ def _rider_rank(db, column, value):
         return None
     better = (db.query(func.count())
               .select_from(RiderStat).join(Rider, Rider.store_id == RiderStat.store_id)
-              .filter(Rider.store_id.isnot(None), column > value).scalar())
+              .filter(Rider.consent_public.isnot(False), column > value).scalar())
     return int(better or 0) + 1
 
 
@@ -637,7 +637,7 @@ def global_summary(db):
     import services.settings as settings
     total_km = db.query(func.coalesce(func.sum(RiderStat.total_km), 0.0)).scalar() or 0.0
     banned = set(settings.banned(db).keys())                     # excluded from public counts
-    riders_q = db.query(func.count(Rider.store_id)).filter(Rider.store_id.isnot(None))
+    riders_q = db.query(func.count(Rider.store_id)).filter(Rider.consent_public.isnot(False))
     trips_q = db.query(func.count(Trip.trip_uuid)).filter(Trip.validation_status == "validated")
     if banned:
         riders_q = riders_q.filter(~Rider.store_id.in_(banned))

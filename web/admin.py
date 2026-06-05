@@ -443,7 +443,7 @@ def _rider_row(db: Session, r: Rider, rs, banned: set | None = None) -> str:
 
 def _trip_row(t: Trip) -> str:
     fr = t.max_freespin
-    frs = f' <span class=chip flagged title="freespin">⟳{fr}</span>' if fr else ""
+    frs = f' <span class="chip flagged" title="freespin">⟳{fr}</span>' if fr else ""
     return f"""<tr class=clk onclick="location='/admin/explorer/trip/{html.escape(t.trip_uuid)}'">
       <td><code>{html.escape(t.trip_uuid[:8])}</code></td><td>{_fmt_dt(t.start_utc)}</td>
       <td>{_num(t.distance_km)}</td><td>{_num(t.max_speed)}{frs}</td>
@@ -1096,6 +1096,7 @@ _PIPELINE_CALC_JS = """
         sag_window_s:function(v){return 'compare voltage to its peak over the last '+v+'s';},
         ascent_hysteresis_m:function(v){return 'ignore climbs / dips under '+v+' m';},
         odo_max_step_km:function(v){return 'reject odometer jumps over '+v+' km ('+Math.round(v*1000)+' m) per reading';},
+        range_min_battery_pct:function(v){return 'only estimate full-charge range after at least '+v+'% battery used';},
         rider_create_per_ip:function(v){return v>0?('≈ 1 new account every '+(60/v).toFixed(1)+' min from one IP'):'unlimited';},
         trip_per_rider:function(v){return v>0?('≈ 1 upload every '+(60/v).toFixed(1)+' min per rider'):'unlimited';},
         trip_per_ip:function(v){return v>0?('≈ 1 upload every '+(60/v).toFixed(2)+' min from one IP'):'unlimited';}

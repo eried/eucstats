@@ -12,6 +12,18 @@ from collections import defaultdict, deque
 
 _hits: dict[str, deque] = defaultdict(deque)
 _lock = threading.Lock()
+_calls = 0
+
+
+def _sweep(now: float, window_s: float) -> None:
+    """Drop keys whose events have all expired — keeps the dict bounded to active keys."""
+    cutoff = now - window_s
+    for k in list(_hits.keys()):
+        dq = _hits[k]
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+        if not dq:
+            del _hits[k]
 
 
 def hit(key: str, limit: int, window_s: float = 3600.0) -> bool:
@@ -22,15 +34,17 @@ def hit(key: str, limit: int, window_s: float = 3600.0) -> bool:
         return True
     now = time.monotonic()
     cutoff = now - window_s
+    global _calls
     with _lock:
+        _calls += 1
+        if _calls % 500 == 0:           # periodic GC of quiet keys (bounds memory)
+            _sweep(now, window_s)
         dq = _hits[key]
         while dq and dq[0] < cutoff:
             dq.popleft()
         if len(dq) >= limit:
             return False
         dq.append(now)
-        if not dq:                      # keep the dict from growing unbounded
-            _hits.pop(key, None)
         return True
 
 
