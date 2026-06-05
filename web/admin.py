@@ -1662,43 +1662,62 @@ def _heatmap_card(db: Session) -> str:
     hm = settings.get_heatmap(db)
     rsel = lambda v: " selected" if hm["route_mode"] == v else ""
     return f"""
-    <div class=card>
+    <style>
+    .hmcard .thr{{position:relative}}
+    .hmcard .thr small{{display:block;margin-top:5px;font-size:10.5px;color:#8aa0c8;font-weight:400;line-height:1.4;letter-spacing:.2px}}
+    .hmcard .calc{{color:#5fd0a0;font-size:10.5px}}
+    </style>
+    <div class="card hmcard">
       <h2>Heatmap</h2>
-      <p class=hint>Per-dataset. <b>Cell size</b> and <b>route mode</b> are baked into the cells —
-      after changing them, hit <a href="/admin/ingest">Rebuild stats</a> to re-bake (from the stored
-      tracks). <b>Privacy floor</b> and the <b>look</b> apply live on the next page load.</p>
+      <p class=hint>How rides are drawn on the map. The mental model: each ride is snapped onto grid
+      <b>squares</b>; a glow's <b>size grows as you zoom in</b>, and its <b>brightness grows with how many
+      different riders</b> used that square. Per-dataset. <b>Cell size</b> &amp; <b>route mode</b> are baked
+      into the data — after changing them hit <a href="/admin/ingest">Rebuild stats</a>. Everything else is
+      live on the next page load.</p>
       <form method=post action="/admin/system/heatmap">
-        <h2 style="font-size:12.5px;margin-top:6px">Baked (need a Rebuild)</h2>
+        <h2 style="font-size:12.5px;margin-top:6px">Grid &amp; privacy <span class=mut>· first two need a Rebuild</span></h2>
         <div class=calgrid>
           <label class=thr>Cell size (degrees)
             <input type=number step=0.005 min=0.005 max=5 name=cell_size data-k=hm_cell value="{hm['cell_size']}">
-            <span class=calc data-for=hm_cell></span></label>
+            <span class=calc data-for=hm_cell></span>
+            <small>Grid resolution — width of each square. Smaller = finer detail but more squares. Needs a Rebuild.</small></label>
           <label class=thr>Route mode
             <select name=route_mode style="background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:7px;border-radius:8px">
               <option value=route{rsel('route')}>whole route (corridors light up)</option>
               <option value=start{rsel('start')}>start point only</option>
-            </select></label>
-        </div>
-        <h2 style="font-size:12.5px;margin-top:10px">Live (no rebuild)</h2>
-        <div class=calgrid>
-          <label class=thr>Privacy floor (min riders/cell)
+            </select>
+            <small>Whole route lights every square a ride crosses; start-only lights where rides began. Needs a Rebuild.</small></label>
+          <label class=thr>Privacy floor (riders/square)
             <input type=number step=1 min=1 max=1000 name=floor data-k=hm_floor value="{hm['floor']}">
-            <span class=calc data-for=hm_floor></span></label>
-          <label class=thr>Heat radius
-            <input type=number step=1 min=4 max=400 name=radius value="{hm['radius']}"></label>
-          <label class=thr>Intensity
-            <input type=number step=0.1 min=0.1 max=10 name=intensity value="{hm['intensity']}"></label>
-          <label class=thr>Opacity (0–1)
-            <input type=number step=0.01 min=0 max=1 name=opacity value="{hm['opacity']}"></label>
+            <span class=calc data-for=hm_floor></span>
+            <small>Hide a square until this many <b>different</b> riders have used it. 2+ protects a lone rider's area; 1 shows every square.</small></label>
         </div>
-        <button style="margin-top:10px">{_IC['check']} Save heatmap</button>
+        <h2 style="font-size:12.5px;margin-top:14px">Look <span class=mut>· live, no rebuild</span></h2>
+        <div class=calgrid>
+          <label class=thr>Glow size (base px)
+            <input type=number step=1 min=4 max=400 name=radius value="{hm['radius']}">
+            <small>Size of each glow at city zoom. It expands automatically as you zoom in. Bigger = fatter blobs.</small></label>
+          <label class=thr>Zoom growth
+            <input type=number step=0.05 min=0.2 max=2 name=zoom_growth value="{hm['zoom_growth']}">
+            <small>How fast the glow expands as you zoom in. 1.0 = doubles each zoom level (sticks to the ground); lower = grows slower; higher = explodes faster.</small></label>
+          <label class=thr>Brightness
+            <input type=number step=0.1 min=0.1 max=10 name=intensity value="{hm['intensity']}">
+            <small>Overall glow strength. Higher = hotter / whiter everywhere.</small></label>
+          <label class=thr>Lone-rider brightness (0–1)
+            <input type=number step=0.05 min=0 max=1 name=glow_floor value="{hm['glow_floor']}">
+            <small>How visible a square with just 1 rider looks. Lower = quiet areas fade out; higher = even a single rider glows. Busy squares always outshine quiet ones.</small></label>
+          <label class=thr>Opacity (0–1)
+            <input type=number step=0.01 min=0 max=1 name=opacity value="{hm['opacity']}">
+            <small>See-through-ness of the whole heat layer. 0 = invisible, 1 = solid (hides more of the map underneath).</small></label>
+        </div>
+        <button style="margin-top:12px">{_IC['check']} Save heatmap</button>
       </form>
     </div>
     <script>
     (function(){{
-      var T={{hm_cell:function(v){{var lat=2.8/0.025;return (v*111).toFixed(1)+' km N–S · ~'+(v*111*0.35).toFixed(1)+' km E–W at 70°N';}},
-              hm_floor:function(v){{return 'a cell appears only once '+v+' different riders have passed through it';}}}};
-      function u(i){{var f=T[i.dataset.k];if(!f)return;var s=document.querySelector('.calc[data-for="'+i.dataset.k+'"]');if(s){{var x=parseFloat(i.value);s.textContent=isFinite(x)?('→ '+f(x)):'';}}}}
+      var T={{hm_cell:function(v){{return '→ '+(v*111).toFixed(1)+' km N–S · ~'+(v*111*0.35).toFixed(1)+' km E–W at 70°N';}},
+              hm_floor:function(v){{return '→ a square appears only once '+v+' different riders have ridden through it';}}}};
+      function u(i){{var f=T[i.dataset.k];if(!f)return;var s=document.querySelector('.calc[data-for="'+i.dataset.k+'"]');if(s){{var x=parseFloat(i.value);s.textContent=isFinite(x)?f(x):'';}}}}
       document.querySelectorAll('input[data-k^="hm_"]').forEach(function(i){{u(i);i.addEventListener('input',function(){{u(i);}});}});
     }})();
     </script>"""
@@ -1739,11 +1758,13 @@ def system_save(request: Request, db: Session = Depends(get_db),
 def heatmap_save(request: Request, db: Session = Depends(get_db),
                  cell_size: float = Form(0.025), route_mode: str = Form("route"),
                  floor: int = Form(2), radius: int = Form(60),
-                 intensity: float = Form(1.0), opacity: float = Form(0.62)):
+                 zoom_growth: float = Form(1.0), intensity: float = Form(1.0),
+                 glow_floor: float = Form(0.45), opacity: float = Form(0.62)):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     before = settings.get_heatmap(db)
-    settings.set_heatmap(db, cell_size, route_mode, floor, radius, intensity, opacity)
+    settings.set_heatmap(db, cell_size, route_mode, floor, radius, intensity, opacity,
+                         zoom_growth=zoom_growth, glow_floor=glow_floor)
     after = settings.get_heatmap(db)
     audit.log("heatmap_save", f"cell={after['cell_size']} mode={after['route_mode']} floor={after['floor']}")
     # changing the baked knobs needs a rebuild to take effect

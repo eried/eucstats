@@ -11,10 +11,13 @@ from services.aggregator import Aggregator
 def test_heatmap_settings_roundtrip(db):
     hm = settings.get_heatmap(db)
     assert hm["cell_size"] == 0.025 and hm["route_mode"] == "route" and hm["floor"] == 2
+    assert hm["zoom_growth"] == 1.0 and hm["glow_floor"] == 0.45    # new look knobs default
     settings.set_heatmap(db, cell_size=0.05, route_mode="start", floor=3,
-                         radius=80, intensity=2.0, opacity=0.5)
+                         radius=80, intensity=2.0, opacity=0.5,
+                         zoom_growth=0.6, glow_floor=0.2)
     hm = settings.get_heatmap(db)
     assert hm["cell_size"] == 0.05 and hm["route_mode"] == "start" and hm["floor"] == 3
+    assert hm["zoom_growth"] == 0.6 and hm["glow_floor"] == 0.2
     assert settings.heatmap_zooms(db)[-1] == 0.05      # finest tier follows cell_size
 
 

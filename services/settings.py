@@ -302,17 +302,22 @@ def get_heatmap(db: Session) -> dict:
         "route_mode": mode if mode in ("route", "start") else "route",
         "floor": _clamp_int(get_meta(db, "hm_floor", 2), 2, 1, 1000),
         "radius": _clamp_int(get_meta(db, "hm_radius", 60), 60, 4, 400),
+        "zoom_growth": _clamp_float(get_meta(db, "hm_zoom_growth", 1.0), 1.0, 0.2, 2.0),
         "intensity": _clamp_float(get_meta(db, "hm_intensity", 1.0), 1.0, 0.1, 10.0),
+        "glow_floor": _clamp_float(get_meta(db, "hm_glow_floor", 0.45), 0.45, 0.0, 1.0),
         "opacity": _clamp_float(get_meta(db, "hm_opacity", 0.62), 0.62, 0.0, 1.0),
     }
 
 
-def set_heatmap(db: Session, cell_size, route_mode, floor, radius, intensity, opacity) -> None:
+def set_heatmap(db: Session, cell_size, route_mode, floor, radius, intensity, opacity,
+                zoom_growth=1.0, glow_floor=0.45) -> None:
     set_meta(db, "hm_cell_size", str(_clamp_float(cell_size, 0.025, 0.005, 5.0)))
     set_meta(db, "hm_route_mode", route_mode if route_mode in ("route", "start") else "route")
     set_meta(db, "hm_floor", str(_clamp_int(floor, 2, 1, 1000)))
     set_meta(db, "hm_radius", str(_clamp_int(radius, 60, 4, 400)))
+    set_meta(db, "hm_zoom_growth", str(_clamp_float(zoom_growth, 1.0, 0.2, 2.0)))
     set_meta(db, "hm_intensity", str(_clamp_float(intensity, 1.0, 0.1, 10.0)))
+    set_meta(db, "hm_glow_floor", str(_clamp_float(glow_floor, 0.45, 0.0, 1.0)))
     set_meta(db, "hm_opacity", str(_clamp_float(opacity, 0.62, 0.0, 1.0)))
 
 

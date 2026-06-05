@@ -234,7 +234,7 @@ __TESTWM__
 const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
 const HIDE=Object.assign({boards:[],sections:[],app:[],groups:[],records:[]},window.__HIDE__||{});
-const HEAT=Object.assign({zoom:0.1,radius:60,intensity:1,opacity:0.62},window.__HEAT__||{});
+const HEAT=Object.assign({zoom:0.1,radius:60,zoom_growth:1,intensity:1,glow_floor:0.45,opacity:0.62},window.__HEAT__||{});
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -618,18 +618,19 @@ function addHeat(){
   // "Heat radius" at Zref=11; clamped tiny far out, and capped so a massive zoom fills
   // with heat rather than overflowing the GPU. ["exponential",2] makes the interpolation
   // between stops follow 2^zoom exactly.
-  const Rb=HEAT.radius,Zref=11,RMIN=4,RMAX=Math.min(Rb*16,1024);
-  const rAt=z=>Math.max(RMIN,Math.min(RMAX,Rb*Math.pow(2,z-Zref)));
+  const Rb=HEAT.radius,Zref=11,k=HEAT.zoom_growth,RMIN=4,RMAX=Math.min(Rb*16,1024);
+  const rAt=z=>Math.max(RMIN,Math.min(RMAX,Rb*Math.pow(2,(z-Zref)*k)));
   const rRadius=["interpolate",["exponential",2],["zoom"]].concat(
     [3,7,10,12,14,16,20].reduce((a,z)=>a.concat([z,Math.round(rAt(z))]),[]));
   map.addLayer({id:"heat",type:"heatmap",source:"activity",paint:{
-    // BRIGHTNESS tracks how many distinct riders share the cell: a lone rider (r=1) is a
-    // faint navy glow; it climbs blue->cyan->green->white as others ride the same square
-    // (maxes ~12 riders). log2 so each doubling of riders is one even step.
-    "heatmap-weight":["min",1,["+",0.12,["*",0.26,["/",["ln",["max",1,["get","r"]]],["ln",2]]]]],
-    // INTENSITY is kept nearly flat across zoom so zooming in EXPANDS the glow (via the
-    // exponential radius) without also brightening it — size and brightness stay decoupled.
-    "heatmap-intensity":["interpolate",["linear"],["zoom"],3,0.9*HEAT.intensity,12,1.4*HEAT.intensity],
+    // BRIGHTNESS = a steady, always-visible floor that scales up with distinct riders.
+    // A lone rider (r=1) reads as a clear cyan glow (~0.45); each doubling of riders steps
+    // it toward white (~8+ riders). Quiet cells stay visibly fainter than busy ones but
+    // never disappear. log2 so each doubling of riders is one even step.
+    "heatmap-weight":["min",1,["+",HEAT.glow_floor,["*",0.20,["/",["ln",["max",1,["get","r"]]],["ln",2]]]]],
+    // INTENSITY kept nearly flat across zoom so brightness stays STEADY while the
+    // exponential radius makes the glow EXPAND as you zoom in (size grows, not brightness).
+    "heatmap-intensity":["interpolate",["linear"],["zoom"],3,1.05*HEAT.intensity,13,1.3*HEAT.intensity],
     "heatmap-radius":rRadius,
     "heatmap-opacity":0,
     "heatmap-color":["interpolate",["linear"],["heatmap-density"],
@@ -740,8 +741,8 @@ def _hide_cfg(db):
     import json
     h = settings.get_hidden(db)
     hm = settings.get_heatmap(db)
-    heat = {"zoom": hm["cell_size"], "radius": hm["radius"],
-            "intensity": hm["intensity"], "opacity": hm["opacity"]}
+    heat = {"zoom": hm["cell_size"], "radius": hm["radius"], "zoom_growth": hm["zoom_growth"],
+            "intensity": hm["intensity"], "glow_floor": hm["glow_floor"], "opacity": hm["opacity"]}
     return ('<script>window.__HIDE__='
             + json.dumps({"boards": h["boards"], "sections": h["sections"],
                           "app": h.get("app", []), "groups": h.get("groups", []),
