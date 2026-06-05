@@ -2,11 +2,21 @@
 import gzip
 import json
 
+import pyotp
 from fastapi.testclient import TestClient
 
+import config
 import models
 from main import app
 from services import settings
+
+
+def _auth(client):
+    if config.ADMIN_STATE_FILE.exists():
+        config.ADMIN_STATE_FILE.unlink()
+    client.get("/admin")
+    secret = json.loads(config.ADMIN_STATE_FILE.read_text())["totp_secret"]
+    client.post("/admin/verify-totp", data={"code": pyotp.TOTP(secret).now()})
 
 
 _CSV = (b"Date,Speed,Voltage,Temperature,Battery level,Altitude,Latitude,Longitude,Total mileage,GPS speed,Current,PWM,G-Force,G-Force X,G-Force Y\n"
@@ -53,3 +63,19 @@ def test_sandbox_register_paths(db, monkeypatch, tmp_path):
         # a magic register does NOT persist a real rider
         db.expire_all()
         assert db.get(models.Rider, "sandbox-ok") is None
+
+
+def test_admin_sandbox_toggle_route(db, monkeypatch, tmp_path):
+    monkeypatch.setattr(__import__("config"), "SITE_STATE_FILE", tmp_path / "site.json")
+    with TestClient(app) as client:
+        _auth(client)
+        # the sandbox card + magic-id table live on the System page now
+        sysp = client.get("/admin/system")
+        assert "Sandbox test responses" in sysp.text and "sandbox-banned" in sysp.text
+        # toggle on via the dedicated route
+        r = client.post("/admin/sandbox", data={"sandbox_enabled": "1"}, follow_redirects=False)
+        assert r.status_code == 303
+        assert settings.sandbox_enabled() is True
+        # and off (unchecked box submits nothing)
+        client.post("/admin/sandbox", data={}, follow_redirects=False)
+        assert settings.sandbox_enabled() is False

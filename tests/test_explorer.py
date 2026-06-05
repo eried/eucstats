@@ -114,12 +114,13 @@ def test_trip_explorer_pagination(db):
 def test_metrics_tree_shows_descriptions(db):
     with TestClient(app) as client:
         _auth(client)
-        r = client.get("/admin/metrics")
+        r = client.get("/admin/appearance")   # metrics tree lives under Appearance now
         assert r.status_code == 200
         assert "Mile Muncher" in r.text and "Most distance ever ridden" in r.text
         assert "class=mnode" in r.text and 'data-parent="riders"' in r.text   # nested tree
         assert 'data-parent="records"' in r.text and "Top Speed" in r.text    # records have children now
         assert "Freespin King" in r.text and "Sag Lord" in r.text and "Rocket" in r.text   # new boards hideable
+        assert "Heatmap" in r.text and "Site banner" in r.text                # appearance also owns these
 
 
 def test_records_visibility_save(db):
@@ -138,14 +139,19 @@ def test_records_visibility_save(db):
         assert "top_speed" in settings.get_hidden(db)["records"]
 
 
-def test_system_and_pipeline_pages(db):
+def test_system_and_ingest_pages(db):
     with TestClient(app) as client:
         _auth(client)
         sp = client.get("/admin/system")
         assert sp.status_code == 200 and "Data retention" in sp.text and "Server resources" in sp.text
-        pp = client.get("/admin/pipeline")
-        assert pp.status_code == 200 and "Anti-fraud rules" in pp.text
-        assert "Max wheel speed" in pp.text and "no tunable parameters" in pp.text   # per-rule thresholds
+        assert "Sandbox test responses" in sp.text and "Audit log" in sp.text   # folded into System
+        ip = client.get("/admin/ingest")
+        assert ip.status_code == 200 and "Anti-fraud rules" in ip.text
+        assert "Max wheel speed" in ip.text and "no tunable parameters" in ip.text   # per-rule thresholds
+        # old bookmarks still resolve (back-compat redirects)
+        assert client.get("/admin/pipeline").status_code == 200
+        assert client.get("/admin/metrics").status_code == 200
+        assert client.get("/admin/settings").status_code == 200
 
 
 def test_pipeline_rules_save(db):

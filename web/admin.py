@@ -93,9 +93,8 @@ def _counts(db: Session) -> dict:
 
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Explorer"),
-        ("/admin/datasets", "Datasets"), ("/admin/pipeline", "Pipeline"),
-        ("/admin/metrics", "Metrics"), ("/admin/system", "System"),
-        ("/admin/audit", "Audit"), ("/admin/settings", "Settings")]
+        ("/admin/ingest", "Ingest"), ("/admin/appearance", "Appearance"),
+        ("/admin/datasets", "Datasets"), ("/admin/system", "System")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -314,16 +313,16 @@ def _dash_html(db: Session) -> str:
 
     inner = f"""
     <h1>Overview</h1>
-    <p class=sub>Site banner: {'<span class="b test">ON</span>' if cur_test else '<span class="b live">OFF</span>'} &nbsp;{'— a red banner is showing across the public site' if cur_test else '— clean public site, no banner'} &nbsp;·&nbsp; <a href="/admin/settings">change in Settings</a></p>
+    <p class=sub>Site banner: {'<span class="b test">ON</span>' if cur_test else '<span class="b live">OFF</span>'} &nbsp;{'— a red banner is showing across the public site' if cur_test else '— clean public site, no banner'} &nbsp;·&nbsp; <a href="/admin/appearance">change in Appearance</a></p>
     <div class=card><div class=kpi>{kpis}</div></div>
     <div class=card>
       <h2>Quick actions</h2>
       <div class=qa>
         <a class=btn href="/admin/explorer">{_IC['search']} Explore riders &amp; trips</a>
+        <a class=btn href="/admin/ingest">{_IC['pulse']} Ingest &amp; validation</a>
+        <a class=btn href="/admin/appearance">{_IC['sliders']} Appearance</a>
         <a class=btn href="/admin/datasets">{_IC['db']} Datasets &amp; backups</a>
-        <a class=btn href="/admin/pipeline">{_IC['pulse']} Ingest pipeline</a>
-        <a class=btn href="/admin/metrics">{_IC['sliders']} Metrics &amp; sections</a>
-        <a class=btn href="/admin/system">{_IC['pulse']} System &amp; retention</a>
+        <a class=btn href="/admin/system">{_IC['pulse']} System</a>
       </div>
     </div>
     <div class=card>
@@ -931,7 +930,7 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
     {banner}
     <h1>Datasets &amp; backups</h1>
     <p class=sub>Save, swap, import and back up the whole database as portable snapshots.
-    The site banner is a <a href="/admin/settings">site setting</a> now — datasets are just data.</p>
+    The site banner is a <a href="/admin/appearance">site setting</a> now — datasets are just data.</p>
     <div class=card>
       <h2>Create / import</h2>
       <form method=post action="/admin/datasets/new" class=inline
@@ -1264,14 +1263,19 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     <h2>Recent uploads (newest 60)</h2>
     <table><tr><th>created (UTC)</th><th>rider</th><th>km</th><th>country</th><th>status</th><th>flag/reject reasons</th></tr>{rrows}</table>
     """
-    return _ds_page(inner, "/admin/pipeline")
+    return _ds_page(inner, "/admin/ingest")
 
 
-@admin_router.get("/pipeline", response_class=HTMLResponse)
-def pipeline_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+@admin_router.get("/ingest", response_class=HTMLResponse)
+def ingest_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     return HTMLResponse(_pipeline_html(db, msg))
+
+
+@admin_router.get("/pipeline")           # back-compat: old bookmark -> Ingest
+def pipeline_redirect():
+    return RedirectResponse("/admin/ingest", status_code=307)
 
 
 @admin_router.post("/rebuild")
@@ -1281,7 +1285,7 @@ def admin_rebuild(request: Request, db: Session = Depends(get_db)):
     from services.aggregator import rebuild_all
     n = rebuild_all(db)
     audit.log("rebuild_stats", f"{n} validated trips")
-    return RedirectResponse("/admin/pipeline?msg=" + quote(f"rebuilt stats from {n} validated trips"),
+    return RedirectResponse("/admin/ingest?msg=" + quote(f"rebuilt stats from {n} validated trips"),
                             status_code=303)
 
 
@@ -1292,7 +1296,7 @@ def pipeline_reprocess(request: Request, db: Session = Depends(get_db)):
     from services.reprocess import reprocess_with_calibration
     r = reprocess_with_calibration(db)
     audit.log("reprocess", f"reprocessed={r['reprocessed']} failed={r['failed']} of {r['available']} with raw")
-    return RedirectResponse("/admin/pipeline?msg=" + quote(
+    return RedirectResponse("/admin/ingest?msg=" + quote(
         f"re-processed {r['reprocessed']} trip(s) with current calibration"
         + (f" ({r['failed']} failed)" if r['failed'] else "")), status_code=303)
 
@@ -1309,7 +1313,7 @@ async def pipeline_rules_save(request: Request, db: Session = Depends(get_db)):
     off = len(settings.pipeline_disabled(db))
     audit.log("rules_save", f"{len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} rules active")
     note = f"rules saved — {len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} active"
-    return RedirectResponse("/admin/pipeline?msg=" + quote(note), status_code=303)
+    return RedirectResponse("/admin/ingest?msg=" + quote(note), status_code=303)
 
 
 @admin_router.post("/allowlist")
@@ -1321,7 +1325,7 @@ def allowlist_save(request: Request, db: Session = Depends(get_db),
     settings.set_ingest_allow(db, bool(enabled), id_list)
     state = f"on ({len(id_list)} id{'s' if len(id_list) != 1 else ''})" if enabled else "off — open to all"
     audit.log("allowlist", state)
-    return RedirectResponse("/admin/pipeline?msg=" + quote("allowlist " + state), status_code=303)
+    return RedirectResponse("/admin/ingest?msg=" + quote("allowlist " + state), status_code=303)
 
 
 # --- metric / section show-hide toggles ---
@@ -1346,7 +1350,7 @@ _METRICS_JS = """
     </script>"""
 
 
-def _metrics_html(db: Session, msg: str = "") -> str:
+def _metrics_section(db: Session) -> str:
     h = settings.get_hidden(db)
     secmeta = {k: (lbl, desc) for k, lbl, desc in settings.METRIC_SECTIONS}
     # section_key -> (child form field, items, hidden list)
@@ -1389,27 +1393,23 @@ def _metrics_html(db: Session, msg: str = "") -> str:
                 f'<div class=kids>{body}</div></div>')
 
     tree = "".join(node(k) for k, *_ in settings.METRIC_SECTIONS)
-    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
-    inner = f"""
-    {banner}
-    <h1>Metrics &amp; sections</h1>
-    <p class=mut>Each dock section is a parent toggle; its metrics are nested underneath. Ticked = shown
-    on the public site. Untick a parent to hide the whole section, or individual rows to hide single metrics.
-    Countries / Wheels / Brands share the same group tabs (editing one updates all three). Changes are live on save.</p>
-    <form method=post action="/admin/metrics/save">
-      <div class=mtree2>{tree}</div>
-      <button>{_IC['check']} Save visibility</button>
-    </form>
-    {_METRICS_JS}
-    """
-    return _ds_page(inner, "/admin/metrics")
+    return f"""
+    <div class=card>
+      <h2>Metric visibility</h2>
+      <p class=hint>Each dock section is a parent toggle; its metrics nested underneath. Ticked = shown on the
+      public site. Untick a parent to hide the whole section, or rows for single metrics. Countries / Wheels /
+      Brands share group tabs (editing one updates all three). Live on save.</p>
+      <form method=post action="/admin/metrics/save">
+        <div class=mtree2>{tree}</div>
+        <button>{_IC['check']} Save visibility</button>
+      </form>
+    </div>
+    {_METRICS_JS}"""
 
 
-@admin_router.get("/metrics", response_class=HTMLResponse)
-def metrics_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
-    if not _is_authenticated(request):
-        return RedirectResponse("/admin", status_code=303)
-    return HTMLResponse(_metrics_html(db, msg))
+@admin_router.get("/metrics")            # back-compat: old bookmark -> Appearance
+def metrics_redirect():
+    return RedirectResponse("/admin/appearance", status_code=307)
 
 
 @admin_router.post("/metrics/save")
@@ -1427,13 +1427,13 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
     settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app, hidden_groups, hidden_records)
     audit.log("metrics_save", f"hidden: {len(hidden_sections)} sec / {len(hidden_boards)} board / "
                               f"{len(hidden_groups)} grp / {len(hidden_app)} app / {len(hidden_records)} rec")
-    return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved — live now"),
+    return RedirectResponse("/admin/appearance?msg=" + quote("visibility saved — live now"),
                             status_code=303)
 
 
-# --- page behaviour settings ---
+# --- appearance: everything visitors see (metrics, heatmap, look, banner) ---
 
-def _settings_html(db: Session, msg: str = "") -> str:
+def _appearance_html(db: Session, msg: str = "") -> str:
     b = settings.get_behaviour(db)
     tm = settings.get_test_mode()
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
@@ -1448,8 +1448,11 @@ def _settings_html(db: Session, msg: str = "") -> str:
     ck = lambda v: " checked" if v else ""
     inner = f"""
     {banner}
-    <h1>Page behaviour</h1>
-    <p class=sub>How the public site behaves. Changes apply on the next page load.</p>
+    <h1>Appearance</h1>
+    <p class=sub>Everything visitors see — which metrics show, the heatmap, the look of the map, and the
+    site banner. Changes apply on the next page load.</p>
+    {_metrics_section(db)}
+    {_heatmap_card(db)}
     <form method=post action="/admin/settings/save">
       <div class=card>
         <h2>Site banner</h2>
@@ -1457,16 +1460,6 @@ def _settings_html(db: Session, msg: str = "") -> str:
         <label class=toggle style="display:inline-flex"><input type=checkbox name=test_enabled value=1{ck(tm['enabled'])}> Show the red banner on the site</label>
         <p class=hint style="margin:12px 0 4px">Banner text (anything you like — e.g. TEST DATA, BETA, SHAKEDOWN):</p>
         <input type=text name=test_text value="{html.escape(tm['text'])}" placeholder="TEST DATA" style="width:min(300px,100%)">
-      </div>
-      <div class=card>
-        <h2>Sandbox test responses <span class=mut>· for Android QA</span></h2>
-        <label class=toggle style="display:inline-flex"><input type=checkbox name=sandbox_enabled value=1{ck(settings.sandbox_enabled())}> Enable simulated users</label>
-        <p class=hint style="margin:12px 0 6px">When ON, set a rider's <code>store_id</code> to one of these magic values to get that
-        exact response from <code>POST /api/v1/riders</code> and <code>POST /api/v1/trips</code> — like Stripe test cards.
-        They never collide with real riders (those are UUIDs). <b>Turn OFF for production.</b> Copy this for the testing agent:</p>
-        <table><tr><th>store_id</th><th>response</th></tr>
-        {"".join(f'<tr><td><code>{sid}</code></td><td>{html.escape(desc)}</td></tr>' for sid, _st, _pl, desc in sandbox.CASES)}
-        </table>
       </div>
       <div class=card>
         <h2>Live refresh</h2>
@@ -1488,17 +1481,22 @@ def _settings_html(db: Session, msg: str = "") -> str:
         <label>roughly every <input type=number name=glitch_secs min=1 max=60 value="{b['glitch_secs']}" style="width:72px"> s</label>
         &nbsp;&nbsp;<label>intensity <select name=glitch_intensity style="{sel}">{intensity_opts}</select></label>
       </div>
-      <button>{_IC['check']} Save behaviour</button>
+      <button>{_IC['check']} Save look &amp; banner</button>
     </form>
     """
-    return _ds_page(inner, "/admin/settings")
+    return _ds_page(inner, "/admin/appearance")
 
 
-@admin_router.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+@admin_router.get("/appearance", response_class=HTMLResponse)
+def appearance_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
-    return HTMLResponse(_settings_html(db, msg))
+    return HTMLResponse(_appearance_html(db, msg))
+
+
+@admin_router.get("/settings")           # back-compat: old bookmark -> Appearance
+def settings_redirect():
+    return RedirectResponse("/admin/appearance", status_code=307)
 
 
 @admin_router.post("/settings/save")
@@ -1507,17 +1505,14 @@ def settings_save(request: Request, db: Session = Depends(get_db),
                   intro_src: str = Form("/static/intro.mp4"), map_style: str = Form("dark"),
                   glitch_enabled: str = Form(""), glitch_secs: int = Form(4),
                   glitch_intensity: int = Form(2),
-                  test_enabled: str = Form(""), test_text: str = Form("TEST DATA"),
-                  sandbox_enabled: str = Form("")):
+                  test_enabled: str = Form(""), test_text: str = Form("TEST DATA")):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     settings.set_test_mode(bool(test_enabled), test_text)
-    settings.set_sandbox(bool(sandbox_enabled))
     settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
                            bool(glitch_enabled), glitch_secs, glitch_intensity)
-    audit.log("settings_save", f"banner={'on' if test_enabled else 'off'} "
-                               f"sandbox={'on' if sandbox_enabled else 'off'} map={map_style}")
-    return RedirectResponse("/admin/settings?msg=" + quote("settings saved — live on next page load"),
+    audit.log("settings_save", f"banner={'on' if test_enabled else 'off'} map={map_style}")
+    return RedirectResponse("/admin/appearance?msg=" + quote("appearance saved — live on next page load"),
                             status_code=303)
 
 
@@ -1585,13 +1580,45 @@ def _resources_html() -> str:
     return res
 
 
+def _sandbox_card() -> str:
+    """QA sandbox toggle + the magic store_id table to hand to the testing agent."""
+    ck = " checked" if settings.sandbox_enabled() else ""
+    rows = "".join(f'<tr><td><code>{sid}</code></td><td>{html.escape(desc)}</td></tr>'
+                   for sid, _st, _pl, desc in sandbox.CASES)
+    return f"""
+    <div class=card>
+      <h2>Sandbox test responses <span class=mut>· for Android QA</span></h2>
+      <p class=hint>When ON, set a rider's <code>store_id</code> to one of these magic values to get that exact
+      response from <code>POST /api/v1/riders</code> and <code>POST /api/v1/trips</code> — like Stripe test cards.
+      They never collide with real riders (those are UUIDs). <b>Turn OFF for production.</b> Copy this table for the testing agent:</p>
+      <form method=post action="/admin/sandbox">
+        <label class=toggle style="display:inline-flex"><input type=checkbox name=sandbox_enabled value=1{ck}> Enable simulated users</label>
+        <table style="margin-top:12px"><tr><th>store_id</th><th>response</th></tr>{rows}</table>
+        <button style="margin-top:10px">{_IC['check']} Save sandbox</button>
+      </form>
+    </div>"""
+
+
+def _audit_card() -> str:
+    """Inline tail of the admin audit log (flat file, survives dataset switches)."""
+    lines = audit.tail(400)
+    body = html.escape("\n".join(lines)) if lines else "no admin actions logged yet"
+    return f"""
+    <div class=card>
+      <h2>Audit log</h2>
+      <p class=hint>Append-only record of admin actions, read from <code>data/audit.log</code> — a flat file,
+      not stored in any dataset, so it survives dataset switches. Newest first; last 400 lines.</p>
+      <pre class=j style="max-height:420px">{body}</pre>
+    </div>"""
+
+
 def _system_html(db: Session, msg: str = "") -> str:
     r = settings.get_retention(db)
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
     <h1>System</h1>
-    <p class=sub>Live server resources and data-retention controls.</p>
+    <p class=sub>Server health, data retention, the QA sandbox, and the admin audit log.</p>
     <div class=card>
       <h2>Server resources <span class=mut id=resage>· live · auto-refreshing</span></h2>
       <div id=resbox>{_resources_html()}</div>
@@ -1626,7 +1653,8 @@ def _system_html(db: Session, msg: str = "") -> str:
         <button>{_IC['check']} Save retention</button>
       </form>
     </div>
-    {_heatmap_card(db)}"""
+    {_sandbox_card()}
+    {_audit_card()}"""
     return _ds_page(inner, "/admin/system")
 
 
@@ -1637,7 +1665,7 @@ def _heatmap_card(db: Session) -> str:
     <div class=card>
       <h2>Heatmap</h2>
       <p class=hint>Per-dataset. <b>Cell size</b> and <b>route mode</b> are baked into the cells —
-      after changing them, hit <a href="/admin/pipeline">Rebuild stats</a> to re-bake (from the stored
+      after changing them, hit <a href="/admin/ingest">Rebuild stats</a> to re-bake (from the stored
       tracks). <b>Privacy floor</b> and the <b>look</b> apply live on the next page load.</p>
       <form method=post action="/admin/system/heatmap">
         <h2 style="font-size:12.5px;margin-top:6px">Baked (need a Rebuild)</h2>
@@ -1691,18 +1719,9 @@ def system_resources(request: Request):
     return HTMLResponse(_resources_html())
 
 
-@admin_router.get("/audit", response_class=HTMLResponse)
-def audit_page(request: Request):
-    if not _is_authenticated(request):
-        return RedirectResponse("/admin", status_code=303)
-    lines = audit.tail(400)
-    body = html.escape("\n".join(lines)) if lines else "no admin actions logged yet"
-    inner = f"""
-    <h1>Audit log</h1>
-    <p class=sub>Append-only record of admin actions, read from <code>data/audit.log</code> — a flat file,
-    not stored in any dataset, so it survives dataset switches. Newest first; last 400 lines.</p>
-    <div class=card><pre class=j style="max-height:600px">{body}</pre></div>"""
-    return HTMLResponse(_admin_shell(inner, active="/admin/audit"))
+@admin_router.get("/audit")              # back-compat: audit folded into System
+def audit_redirect():
+    return RedirectResponse("/admin/system", status_code=307)
 
 
 @admin_router.post("/system/save")
@@ -1731,4 +1750,15 @@ def heatmap_save(request: Request, db: Session = Depends(get_db),
     needs_rebuild = (before["cell_size"] != after["cell_size"] or before["route_mode"] != after["route_mode"])
     note = ("heatmap saved — cell size / route mode changed: hit Rebuild stats to re-bake the cells"
             if needs_rebuild else "heatmap saved — live now")
-    return RedirectResponse("/admin/system?msg=" + quote(note), status_code=303)
+    return RedirectResponse("/admin/appearance?msg=" + quote(note), status_code=303)
+
+
+@admin_router.post("/sandbox")
+def sandbox_save(request: Request, db: Session = Depends(get_db),
+                 sandbox_enabled: str = Form("")):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    settings.set_sandbox(bool(sandbox_enabled))
+    audit.log("sandbox_save", f"sandbox={'on' if sandbox_enabled else 'off'}")
+    state = "enabled" if sandbox_enabled else "disabled"
+    return RedirectResponse("/admin/system?msg=" + quote(f"sandbox {state}"), status_code=303)

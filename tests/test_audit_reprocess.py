@@ -42,7 +42,7 @@ def test_ban_writes_audit_and_page_shows_it(db):
     with TestClient(app) as client:
         _auth(client)
         client.post("/admin/rider/z/ban", data={"reason": "spoofing"}, follow_redirects=False)
-        page = client.get("/admin/audit")
+        page = client.get("/admin/system")   # audit log folded into System now
         assert page.status_code == 200
         assert "ban" in page.text and "rider=z" in page.text
 
