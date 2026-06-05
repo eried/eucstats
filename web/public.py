@@ -653,7 +653,7 @@ function setupCfg(){
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
     const chk=cfg.querySelector("#introchk"),ib=cfg.querySelector("#introbtn");
     if(chk) chk.onchange=()=>{ if(chk.checked){localStorage.removeItem("eucstats_intro_off");}else{localStorage.setItem("eucstats_intro_off","1");} if(ib)ib.disabled=!chk.checked; };
-    if(ib) ib.onclick=()=>{ if(ib.disabled)return; try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; ib.classList.add("on"); ib.textContent="Replaying…"; setTimeout(()=>location.reload(),260); };
+    if(ib) ib.onclick=()=>{ if(ib.disabled)return; try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; location.reload(); };
   }
   render(); gear.onclick=()=>cfg.classList.toggle("open");
 }
