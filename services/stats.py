@@ -345,8 +345,11 @@ def records(db):
 
 
 def map_cells(db, zoom: float):
+    import services.settings as settings
+    floor = settings.get_heatmap(db)["floor"]      # privacy: hide cells with < floor distinct riders
     out = []
-    for c in db.query(MapCell).filter(MapCell.zoom == zoom).all():
+    for c in db.query(MapCell).filter(MapCell.zoom == zoom,
+                                      MapCell.rider_count >= floor).all():
         try:
             _, la, lo = c.cell.split(":")
             lat = int(la) * zoom + zoom / 2

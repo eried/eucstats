@@ -228,6 +228,7 @@ __TESTWM__
 const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
 const HIDE=Object.assign({boards:[],sections:[],app:[],groups:[],records:[]},window.__HIDE__||{});
+const HEAT=Object.assign({zoom:0.1,radius:60,intensity:1,opacity:0.62},window.__HEAT__||{});
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -606,13 +607,13 @@ function addHeat(){
     features:CELLS.map(c=>({type:"Feature",geometry:{type:"Point",coordinates:[c.lon,c.lat]},properties:{r:c.rider_count||0}}))}});
   map.addLayer({id:"heat",type:"heatmap",source:"activity",paint:{
     "heatmap-weight":["min",1,["+",0.25,["/",["ln",["+",1,["get","r"]]],["ln",7]]]],
-    "heatmap-intensity":["interpolate",["linear"],["zoom"],0,1.0,9,3.2],
-    "heatmap-radius":["interpolate",["linear"],["zoom"],0,34,5,62,12,98],
+    "heatmap-intensity":["interpolate",["linear"],["zoom"],0,1.0*HEAT.intensity,9,3.2*HEAT.intensity],
+    "heatmap-radius":["interpolate",["linear"],["zoom"],0,HEAT.radius*0.55,5,HEAT.radius*1.0,12,HEAT.radius*1.6],
     "heatmap-opacity":0,
     "heatmap-color":["interpolate",["linear"],["heatmap-density"],
       0,"rgba(0,0,0,0)",0.1,"rgba(22,35,94,0.6)",0.3,"#2b6fd6",0.5,"#1fb6c9",0.7,"#3fe6a8",0.86,"#c8f7e6",1,"#ffffff"]}});
   map.setPaintProperty("heat","heatmap-opacity-transition",{duration:1500});
-  requestAnimationFrame(()=>map.setPaintProperty("heat","heatmap-opacity",0.62));   // softer, more organic
+  requestAnimationFrame(()=>map.setPaintProperty("heat","heatmap-opacity",HEAT.opacity));   // softer, more organic
 }
 function setupCfg(){
   const gear=document.getElementById("gear"),cfg=document.getElementById("cfg");
@@ -679,7 +680,7 @@ async function init(){
   } else { videoDone=true; }
   }
   map.on("load",async ()=>{
-    CELLS=await j("/map/cells?zoom=0.1"); addHeat();
+    CELLS=await j("/map/cells?zoom="+HEAT.zoom); addHeat();
     mapReady=true; doIntro();
   });
 }
@@ -708,11 +709,15 @@ def _clarity_tag():
 def _hide_cfg(db):
     import json
     h = settings.get_hidden(db)
+    hm = settings.get_heatmap(db)
+    heat = {"zoom": hm["cell_size"], "radius": hm["radius"],
+            "intensity": hm["intensity"], "opacity": hm["opacity"]}
     return ('<script>window.__HIDE__='
             + json.dumps({"boards": h["boards"], "sections": h["sections"],
                           "app": h.get("app", []), "groups": h.get("groups", []),
                           "records": h.get("records", [])})
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
+            + ';window.__HEAT__=' + json.dumps(heat)
             + ';</script>')
 
 

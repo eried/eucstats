@@ -291,6 +291,36 @@ def set_behaviour(db: Session, poll_secs, intro_enabled, intro_src, map_style, g
     set_meta(db, "cfg_glitch_intensity", str(_clamp_int(glitch_intensity, 2, 1, 5)))
 
 
+# --- heatmap (per-dataset; cell_size/route_mode are DESTRUCTIVE -> need a Rebuild) ---
+HEATMAP_COARSE_ZOOMS = [2.0, 0.5]          # always-present coarse tiers for zoomed-out views
+
+
+def get_heatmap(db: Session) -> dict:
+    mode = (get_meta(db, "hm_route_mode", "route") or "route").strip().lower()
+    return {
+        "cell_size": _clamp_float(get_meta(db, "hm_cell_size", 0.025), 0.025, 0.005, 5.0),
+        "route_mode": mode if mode in ("route", "start") else "route",
+        "floor": _clamp_int(get_meta(db, "hm_floor", 2), 2, 1, 1000),
+        "radius": _clamp_int(get_meta(db, "hm_radius", 60), 60, 4, 400),
+        "intensity": _clamp_float(get_meta(db, "hm_intensity", 1.0), 1.0, 0.1, 10.0),
+        "opacity": _clamp_float(get_meta(db, "hm_opacity", 0.62), 0.62, 0.0, 1.0),
+    }
+
+
+def set_heatmap(db: Session, cell_size, route_mode, floor, radius, intensity, opacity) -> None:
+    set_meta(db, "hm_cell_size", str(_clamp_float(cell_size, 0.025, 0.005, 5.0)))
+    set_meta(db, "hm_route_mode", route_mode if route_mode in ("route", "start") else "route")
+    set_meta(db, "hm_floor", str(_clamp_int(floor, 2, 1, 1000)))
+    set_meta(db, "hm_radius", str(_clamp_int(radius, 60, 4, 400)))
+    set_meta(db, "hm_intensity", str(_clamp_float(intensity, 1.0, 0.1, 10.0)))
+    set_meta(db, "hm_opacity", str(_clamp_float(opacity, 0.62, 0.0, 1.0)))
+
+
+def heatmap_zooms(db: Session) -> list[float]:
+    """Grid tiers to bake: coarse tiers for zoomed-out + the admin's finest cell size."""
+    return HEATMAP_COARSE_ZOOMS + [get_heatmap(db)["cell_size"]]
+
+
 def get_meta(db: Session, key: str, default: str | None = None) -> str | None:
     row = db.get(Meta, key)
     return row.value if row else default

@@ -29,8 +29,9 @@ def test_aggregate_two_consecutive_days(db):
 
     cs = db.get(models.CountryStat, "NO")
     assert cs.total_km == 15.0 and cs.rider_count == 1
-    assert db.get(models.MapCell, (0.1, "0.1:690:180")).rider_count == 1
-    assert db.get(models.MapCell, (0.1, "0.1:690:180")).total_km == 15.0
+    # finest grid tier is now 0.025 deg (lat 69.0 -> 2760, lon 18.0 -> 720)
+    assert db.get(models.MapCell, (0.025, "0.025:2760:720")).rider_count == 1
+    assert db.get(models.MapCell, (0.025, "0.025:2760:720")).total_km == 15.0
     assert db.get(models.Record, "top_speed").value == 40.0
     assert db.get(models.Record, "mileage_king").value == 15.0
     assert db.get(models.Record, "longest_trip").value == 10.0

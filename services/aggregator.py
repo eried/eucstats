@@ -1,8 +1,6 @@
 """Apply a validated trip to the materialized tables (idempotent per trip)."""
 from __future__ import annotations
 
-import config
-from ingest.geo import cells_for
 from models import DailyDistance, utcnow
 from repository.aggregates import AggregateRepo
 
@@ -61,8 +59,7 @@ class Aggregator:
             self.agg.recompute_country(trip.country)
 
         if trip.start_lat is not None and trip.start_lon is not None:
-            for z, cell in cells_for(trip.start_lat, trip.start_lon, config.GRID_ZOOMS).items():
-                self.agg.bump_map_cell(z, cell, store, dist, when)
+            self._bump_cells(trip, store, dist, when)
 
         self.agg.set_record_if_better("mileage_king", store, rs.total_km, trip.trip_uuid, when)
         self.agg.set_record_if_better("top_speed", store, trip.max_speed, trip.trip_uuid, when)
@@ -74,6 +71,39 @@ class Aggregator:
 
         trip.aggregated = True
         self.db.commit()
+
+    def _route_points(self, trip):
+        """(lat, lon) points along the trip from its stored track; [] if none."""
+        from ingest.downsample import decode_track
+        from models import TripTrack
+        tt = self.db.get(TripTrack, trip.trip_uuid)
+        if not tt or not tt.points:
+            return []
+        try:
+            return [(r[1], r[2]) for r in decode_track(tt.points)
+                    if r[1] is not None and r[2] is not None]
+        except Exception:
+            return []
+
+    def _bump_cells(self, trip, store, dist, when) -> None:
+        """Mark the grid cells this trip occupies. In 'route' mode the whole GPS path
+        is spread across cells (distance shared evenly); in 'start' mode only the start
+        cell. Distinct riders per cell drive the public heatmap weight."""
+        import services.settings as settings
+        from ingest.geo import cell_id
+        zooms = settings.heatmap_zooms(self.db)
+        mode = settings.get_heatmap(self.db)["route_mode"]
+        pts = self._route_points(trip) if mode == "route" else []
+        if not pts:
+            pts = [(trip.start_lat, trip.start_lon)]
+        for z in zooms:
+            cells = {cell_id(la, lo, z) for la, lo in pts}
+            cells.discard(None)
+            if not cells:
+                continue
+            share = dist / len(cells)          # split distance so per-cell totals stay sane
+            for cid in cells:
+                self.agg.bump_map_cell(z, cid, store, share, when)
 
     def _recompute_streak(self, rs, store) -> None:
         """Recompute streaks from the rider's daily rows — robust to out-of-order

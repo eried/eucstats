@@ -1624,8 +1624,55 @@ def _system_html(db: Session, msg: str = "") -> str:
           <input type=number name=ret_interval_s min=60 max=86400 value="{r['interval_s']}" style="width:100px"> seconds</label></p>
         <button>{_IC['check']} Save retention</button>
       </form>
-    </div>"""
+    </div>
+    {_heatmap_card(db)}"""
     return _ds_page(inner, "/admin/system")
+
+
+def _heatmap_card(db: Session) -> str:
+    hm = settings.get_heatmap(db)
+    rsel = lambda v: " selected" if hm["route_mode"] == v else ""
+    return f"""
+    <div class=card>
+      <h2>Heatmap</h2>
+      <p class=hint>Per-dataset. <b>Cell size</b> and <b>route mode</b> are baked into the cells —
+      after changing them, hit <a href="/admin/pipeline">Rebuild stats</a> to re-bake (from the stored
+      tracks). <b>Privacy floor</b> and the <b>look</b> apply live on the next page load.</p>
+      <form method=post action="/admin/system/heatmap">
+        <h2 style="font-size:12.5px;margin-top:6px">Baked (need a Rebuild)</h2>
+        <div class=calgrid>
+          <label class=thr>Cell size (degrees)
+            <input type=number step=0.005 min=0.005 max=5 name=cell_size data-k=hm_cell value="{hm['cell_size']}">
+            <span class=calc data-for=hm_cell></span></label>
+          <label class=thr>Route mode
+            <select name=route_mode style="background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:7px;border-radius:8px">
+              <option value=route{rsel('route')}>whole route (corridors light up)</option>
+              <option value=start{rsel('start')}>start point only</option>
+            </select></label>
+        </div>
+        <h2 style="font-size:12.5px;margin-top:10px">Live (no rebuild)</h2>
+        <div class=calgrid>
+          <label class=thr>Privacy floor (min riders/cell)
+            <input type=number step=1 min=1 max=1000 name=floor data-k=hm_floor value="{hm['floor']}">
+            <span class=calc data-for=hm_floor></span></label>
+          <label class=thr>Heat radius
+            <input type=number step=1 min=4 max=400 name=radius value="{hm['radius']}"></label>
+          <label class=thr>Intensity
+            <input type=number step=0.1 min=0.1 max=10 name=intensity value="{hm['intensity']}"></label>
+          <label class=thr>Opacity (0–1)
+            <input type=number step=0.05 min=0 max=1 name=opacity value="{hm['opacity']}"></label>
+        </div>
+        <button style="margin-top:10px">{_IC['check']} Save heatmap</button>
+      </form>
+    </div>
+    <script>
+    (function(){{
+      var T={{hm_cell:function(v){{var lat=2.8/0.025;return (v*111).toFixed(1)+' km N–S · ~'+(v*111*0.35).toFixed(1)+' km E–W at 70°N';}},
+              hm_floor:function(v){{return 'a cell appears only once '+v+' different riders have passed through it';}}}};
+      function u(i){{var f=T[i.dataset.k];if(!f)return;var s=document.querySelector('.calc[data-for="'+i.dataset.k+'"]');if(s){{var x=parseFloat(i.value);s.textContent=isFinite(x)?('→ '+f(x)):'';}}}}
+      document.querySelectorAll('input[data-k^="hm_"]').forEach(function(i){{u(i);i.addEventListener('input',function(){{u(i);}});}});
+    }})();
+    </script>"""
 
 
 @admin_router.get("/system", response_class=HTMLResponse)
@@ -1666,3 +1713,21 @@ def system_save(request: Request, db: Session = Depends(get_db),
     settings.set_retention(db, ret_days, ret_floor_gb, ret_interval_s)
     audit.log("retention_save", f"days={ret_days} floor_gb={ret_floor_gb} interval_s={ret_interval_s}")
     return RedirectResponse("/admin/system?msg=" + quote("retention saved"), status_code=303)
+
+
+@admin_router.post("/system/heatmap")
+def heatmap_save(request: Request, db: Session = Depends(get_db),
+                 cell_size: float = Form(0.025), route_mode: str = Form("route"),
+                 floor: int = Form(2), radius: int = Form(60),
+                 intensity: float = Form(1.0), opacity: float = Form(0.62)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    before = settings.get_heatmap(db)
+    settings.set_heatmap(db, cell_size, route_mode, floor, radius, intensity, opacity)
+    after = settings.get_heatmap(db)
+    audit.log("heatmap_save", f"cell={after['cell_size']} mode={after['route_mode']} floor={after['floor']}")
+    # changing the baked knobs needs a rebuild to take effect
+    needs_rebuild = (before["cell_size"] != after["cell_size"] or before["route_mode"] != after["route_mode"])
+    note = ("heatmap saved — cell size / route mode changed: hit Rebuild stats to re-bake the cells"
+            if needs_rebuild else "heatmap saved — live now")
+    return RedirectResponse("/admin/system?msg=" + quote(note), status_code=303)
