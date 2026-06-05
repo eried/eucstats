@@ -655,7 +655,7 @@ async function init(){
   function doIntro(){
     if(introRan||!mapReady||!videoDone) return; introRan=true;
     const [tlon,tlat,tz]=pickTarget();
-    map.flyTo({center:[tlon,tlat],zoom:tz,duration:5000,curve:1.5,easing:easeInOutCubic,essential:true});
+    map.flyTo({center:[tlon,tlat],zoom:Math.max(1.5,tz-0.5),duration:5000,curve:1.5,easing:easeInOutCubic,essential:true});  // -0.5: settle slightly further out
     runIntro();
   }
   const vid=document.getElementById("intro"),fx=document.getElementById("introfx");
