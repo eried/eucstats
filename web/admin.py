@@ -290,7 +290,7 @@ def _dash_html(db: Session) -> str:
 
     inner = f"""
     <h1>Overview</h1>
-    <p class=sub>Site mode: {_badge(cur_test)} &nbsp;{'— the TEST DATA banner is showing publicly' if cur_test else '— serving as live data'} &nbsp;·&nbsp; <a href="/admin/settings">change in Settings</a></p>
+    <p class=sub>Site banner: {'<span class="b test">ON</span>' if cur_test else '<span class="b live">OFF</span>'} &nbsp;{'— a red banner is showing across the public site' if cur_test else '— clean public site, no banner'} &nbsp;·&nbsp; <a href="/admin/settings">change in Settings</a></p>
     <div class=card><div class=kpi>{kpis}</div></div>
     <div class=card>
       <h2>Quick actions</h2>
@@ -837,7 +837,7 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
     {banner}
     <h1>Datasets &amp; backups</h1>
     <p class=sub>Save, swap, import and back up the whole database as portable snapshots.
-    Test mode is a <a href="/admin/settings">site setting</a> now — datasets are just data.</p>
+    The site banner is a <a href="/admin/settings">site setting</a> now — datasets are just data.</p>
     <div class=card>
       <h2>Create / import</h2>
       <form method=post action="/admin/datasets/new" class=inline
@@ -1243,10 +1243,10 @@ def _settings_html(db: Session, msg: str = "") -> str:
     <p class=sub>How the public site behaves. Changes apply on the next page load.</p>
     <form method=post action="/admin/settings/save">
       <div class=card>
-        <h2>Test mode</h2>
-        <p class=hint>Site-wide — independent of which dataset is active. When on, the public site shows a banner marking the data as not-yet-real.</p>
-        <label class=toggle style="display:inline-flex"><input type=checkbox name=test_enabled value=1{ck(tm['enabled'])}> Show the TEST DATA banner</label>
-        <p class=hint style="margin:12px 0 4px">Banner text:</p>
+        <h2>Site banner</h2>
+        <p class=hint>Shows a big red banner across the whole public site — use it to flag a testing / in-development phase. Site-wide, independent of the active dataset.</p>
+        <label class=toggle style="display:inline-flex"><input type=checkbox name=test_enabled value=1{ck(tm['enabled'])}> Show the red banner on the site</label>
+        <p class=hint style="margin:12px 0 4px">Banner text (anything you like — e.g. TEST DATA, BETA, SHAKEDOWN):</p>
         <input type=text name=test_text value="{html.escape(tm['text'])}" placeholder="TEST DATA" style="width:min(300px,100%)">
       </div>
       <div class=card>
