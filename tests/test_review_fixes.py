@@ -40,7 +40,7 @@ def test_retention_evicts_flagged_raw(db):
     db.add(models.RawUpload(trip_uuid="t1", blob=b"x", bytes=1))
     db.commit()
     ru = db.get(models.RawUpload, "t1")
-    ru.received_at = datetime.utcnow() - timedelta(days=999)
+    ru.received_at = models.utcnow() - timedelta(days=999)
     db.commit()
     run_retention(db, retention_days=30)
     assert db.get(models.RawUpload, "t1") is None     # flagged raw now evicted

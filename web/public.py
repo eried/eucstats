@@ -689,7 +689,7 @@ init().catch(()=>{const c=document.getElementById("chips");c.classList.add("show
 
 def _build_date():
     try:
-        return datetime.datetime.utcfromtimestamp(os.path.getmtime(__file__)).strftime("%Y-%m-%d %H:%M")
+        return datetime.datetime.fromtimestamp(os.path.getmtime(__file__), datetime.timezone.utc).strftime("%Y-%m-%d %H:%M")
     except Exception:
         return ""
 

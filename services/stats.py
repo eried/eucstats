@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import desc, func
 
-from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip, Wheel
+from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip, Wheel, utcnow
 
 
 def _rider_loc(db, store_id: str):
@@ -439,7 +439,7 @@ def champions(db):
     """Champion of the day/week/month by the EUC Planet Score: distance rewarded,
     boosted by top speed and time on the wheel. Computed in Python so it works
     whether start_utc is stored tz-aware or naive."""
-    now = datetime.utcnow()
+    now = utcnow()
     windows = {"day": now - timedelta(days=1), "week": now - timedelta(days=7),
                "month": now - timedelta(days=30)}
     rows = (db.query(Trip.rider_store_id, Trip.distance_km, Trip.duration_s,

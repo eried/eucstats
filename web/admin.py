@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 import config
 from database import get_db
-from models import RawUpload, Rider, RiderStat, Trip, Wheel
+from models import RawUpload, Rider, RiderStat, Trip, Wheel, utcnow
 from services import datasets, settings
 from services.aggregator import Aggregator
 
@@ -296,11 +296,12 @@ def _dash_html(db: Session) -> str:
         f"</td></tr>" for t in flagged) or "<tr><td colspan=5 class=mut>nothing flagged — queue is clear</td></tr>"
 
     riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(30).all()
+    bset = set(settings.banned(db))          # fetched once; reused per row (no N+1)
     rhtml = "".join(
         f"<tr class=clk onclick=\"location='/admin/explorer/rider/{html.escape(r.store_id)}'\">"
         f"<td><code>{html.escape(r.store_id)}</code></td><td>{html.escape(r.display_name or '')}</td>"
         f"<td>{html.escape(r.flag or '')}</td><td>{html.escape(r.platform or '')}</td>"
-        f"<td>{_rider_badges(db, r)}</td></tr>"
+        f"<td>{_rider_badges(db, r, bset)}</td></tr>"
         for r in riders) or "<tr><td colspan=5 class=mut>no riders</td></tr>"
 
     trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(30).all()
@@ -421,21 +422,23 @@ def _field(k: str, v, hi: bool = False) -> str:
     return f'<div class="f{" hi" if hi else ""}"><div class=k>{html.escape(k)}</div><div class=v>{v}</div></div>'
 
 
-def _rider_badges(db: Session, r: Rider) -> str:
+def _rider_badges(db: Session, r: Rider, banned: set | None = None) -> str:
+    # pass `banned` (a set of banned store_ids) to avoid a per-row query in lists
+    is_banned = (r.store_id in banned) if banned is not None else settings.is_banned(db, r.store_id)
     parts = ['<span class="badge rejected">deleted</span>' if r.deleted_at
              else '<span class="badge validated">active</span>']
-    if settings.is_banned(db, r.store_id):
+    if is_banned:
         parts.append('<span class="badge rejected">banned</span>')
     return " ".join(parts)
 
 
-def _rider_row(db: Session, r: Rider, rs) -> str:
+def _rider_row(db: Session, r: Rider, rs, banned: set | None = None) -> str:
     km = _num(rs.total_km if rs else 0, 1)
     n = int((rs.trip_count if rs else 0) or 0)
     return f"""<tr class=clk onclick="location='/admin/explorer/rider/{html.escape(r.store_id)}'">
       <td><code>{html.escape((r.store_id or '')[:12])}…</code></td>
       <td>{html.escape(r.display_name or '')}</td><td>{html.escape(r.flag or '')}</td>
-      <td>{n}</td><td>{km} km</td><td>{_rider_badges(db, r)}</td></tr>"""
+      <td>{n}</td><td>{km} km</td><td>{_rider_badges(db, r, banned)}</td></tr>"""
 
 
 def _trip_row(t: Trip) -> str:
@@ -477,9 +480,10 @@ def _explorer_html(db: Session, q: str = "", page: int = 1) -> str:
             .offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE + 1).all())
     has_next = len(rows) > PAGE_SIZE
     rows = rows[:PAGE_SIZE]
-    body = "".join(_rider_row(db, r, rs) for r, rs in rows) or \
+    bn = settings.banned(db)                 # fetched once; reused per row (no N+1)
+    bset = set(bn)
+    body = "".join(_rider_row(db, r, rs, bset) for r, rs in rows) or \
         f"<tr><td colspan=6 class=mut>no riders{' match' if q else ''}</td></tr>"
-    bn = settings.banned(db)
     banned_note = (f'<p class=hint>{len(bn)} rider(s) currently banned — excluded from public stats.</p>'
                    if bn else "")
     qs = ("q=" + quote(q)) if q else ""
@@ -1107,10 +1111,10 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         f'<span class="chip {html.escape(str(s or "pending"))}">{html.escape(str(s or "pending"))}: {n}</span>'
         for s, n in sorted(by_status.items(), key=lambda kv: -kv[1])) or '<span class=mut>no trips yet</span>'
 
-    since = datetime.utcnow() - timedelta(days=13)
+    since = utcnow() - timedelta(days=13)
     daily = dict(db.query(func.date(Trip.created_at), func.count(Trip.trip_uuid))
                  .filter(Trip.created_at >= since).group_by(func.date(Trip.created_at)).all())
-    today = datetime.utcnow().date()
+    today = utcnow().date()
     days = [today - timedelta(days=i) for i in range(13, -1, -1)]
     counts = [int(daily.get(d.isoformat(), 0)) for d in days]
     peak = max(counts + [1])
@@ -1132,9 +1136,11 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
                  .filter(Trip.validation_status.in_(["flagged", "rejected"]))
                  .group_by(Trip.rider_store_id)
                  .order_by(func.count(Trip.trip_uuid).desc()).limit(15).all())
+    onames = dict(db.query(Rider.store_id, Rider.display_name)        # one query, not 2 per row
+                  .filter(Rider.store_id.in_([sid for sid, _ in offenders])).all()) if offenders else {}
     ohtml = "".join(
         f'<tr><td><code>{html.escape(sid or "")}</code></td>'
-        f'<td>{html.escape((db.get(Rider, sid).display_name if db.get(Rider, sid) else "") or "")}</td>'
+        f'<td>{html.escape(onames.get(sid) or "")}</td>'
         f'<td>{n}</td></tr>'
         for sid, n in offenders) or '<tr><td colspan=3 class=mut>none</td></tr>'
 

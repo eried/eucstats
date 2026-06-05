@@ -17,6 +17,8 @@ import re
 import shutil
 import sqlite3
 from datetime import date, datetime
+
+from models import utcnow
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -71,7 +73,7 @@ def _save(m: dict) -> None:
 
 
 def _now() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds")
+    return utcnow().isoformat(timespec="seconds")
 
 
 def _slugify(name: str) -> str:
@@ -324,4 +326,4 @@ def auto_backup(keep: int = 14, today: Optional[date] = None) -> Optional[str]:
 
 
 def _timestamped(prefix: str) -> str:
-    return f"{prefix}-{datetime.utcnow().strftime('%Y-%m-%d-%H%M%S')}"
+    return f"{prefix}-{utcnow().strftime('%Y-%m-%d-%H%M%S')}"

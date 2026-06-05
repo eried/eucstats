@@ -159,7 +159,7 @@ def main():
     if not templates:
         print("no sample templates found"); return
     big = max(templates, key=lambda t: len(t["data"]))      # richest/longest
-    today = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(tzinfo=None, minute=0, second=0, microsecond=0)
     total = 0
     with httpx.Client(base_url=BASE, timeout=120) as cl:
         for idx, m in enumerate(MEMBERS):
