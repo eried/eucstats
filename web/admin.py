@@ -196,7 +196,8 @@ tr.clk{cursor:pointer}tr.clk:hover{background:rgba(46,168,255,.08)}
 .banbar input{flex:1;min-width:160px}
 pre.j{background:#0b1124;border:1px solid #1d2945;border-radius:9px;padding:11px 13px;overflow:auto;font-size:12px;color:#cfe4ff;margin:0;max-height:280px}
 .acts{display:flex;flex-direction:column;gap:5px}
-.acts form{display:flex;gap:5px;align-items:center;margin:0}
+.acts form{display:flex;gap:5px;align-items:center;justify-content:flex-end;margin:0}
+.acts form button{min-width:74px;justify-content:center}
 .acts input{width:118px;padding:6px 8px}
 .mini,.acts button,.acts a.btn{padding:6px 10px;font-size:12px}
 .center{max-width:430px;margin:60px auto;padding:0 18px;text-align:center}
