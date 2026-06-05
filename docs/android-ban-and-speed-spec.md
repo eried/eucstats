@@ -145,6 +145,11 @@ Important nuances:
   `store_id` ignores the `display_name` field entirely (no rename, no 422/409). To rename,
   use `PATCH` — which is still limited to **once per calendar month** (returns `429` with a
   message + the date it can change again).
+- **A deleted account cannot rejoin.** Once a rider closes their account
+  (`DELETE /riders/{store_id}`), re-registering that same `store_id` is refused with
+  `403 account_closed`. Closing is permanent for that id — a returning user needs a fresh
+  install / new `store_id`. (Sandbox tip: use a throwaway `store_id` when testing the
+  delete → re-register path.)
 - `PATCH` name edits are checked in this order: format (`422`) → uniqueness (`409`) →
   monthly limit (`429`). So a too-short or taken name is rejected even if the rider is
   inside their monthly cooldown.

@@ -74,6 +74,15 @@ def test_reregistration_ignores_name_rules(db):
         assert again.status_code == 200 and again.json()["display_name"] == "Original"
 
 
+def test_deleted_account_cannot_rejoin(db):
+    # a closed account must not be revived by re-registering the same store_id
+    with TestClient(app) as client:
+        assert _reg(client, "gone", "Ghost Rider").status_code == 200
+        assert client.delete("/api/v1/riders/gone").status_code == 200
+        again = _reg(client, "gone", "Ghost Rider")
+        assert again.status_code == 403 and "account_closed" in again.text
+
+
 # ---------- API: edit (PATCH) ----------
 
 def test_patch_rejects_short_and_duplicate(db):

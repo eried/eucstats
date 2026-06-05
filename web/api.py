@@ -43,7 +43,11 @@ def register_rider(payload: dict, request: Request, db: Session = Depends(get_db
                         "banned": False, "ban_reason": None, "sandbox": True}
             raise HTTPException(status, pl)
     svc = IdentityService(db)
-    is_new = svc.repo.get(store) is None
+    existing = svc.repo.get(store)
+    if existing is not None and existing.deleted_at is not None:
+        # a closed account cannot be revived by re-registering the same store_id
+        raise HTTPException(403, "account_closed")
+    is_new = existing is None
     name = payload["display_name"]
     if is_new:
         # rate-limit only the creation of NEW accounts (re-registering an existing

@@ -27,11 +27,12 @@ class RiderRepo:
             )
             self.db.add(r)
         else:
-            # Re-registration: refresh platform/consent, undelete; name/flag/avatar
-            # changes must go through apply_change() so monthly limits apply.
+            # Re-registration of an ACTIVE account: refresh platform/consent only.
+            # Name/flag/avatar changes go through apply_change() (monthly limits).
+            # Closed accounts (deleted_at set) are NOT revived here — the API rejects
+            # re-registration of a deleted store_id before reaching this path.
             r.platform = platform
             r.consent_public = consent_public
-            r.deleted_at = None
         self.db.commit()
         return r
 
