@@ -141,21 +141,20 @@ class IngestService:
             raise IngestError(413, "too_many_samples")
 
         cal = settings.get_calibration(self.db)        # admin-tunable physics limits
-        sm = summarize(samples, max_step_km=5.0, gps_tolerance=config.DIST_TOLERANCE,
-                       max_accel=cal["max_accel"], sustain_secs=cal["sustain_secs"],
-                       freespin_margin=cal["freespin_margin"])
+        thr0 = settings.get_thresholds(self.db)
+        sm = summarize(samples, gps_tolerance=thr0["dist_tolerance"], cal=cal)
         # prefer the app's authoritative UTC start/end (the CSV Date is local, no TZ)
         m_start = _parse_iso(meta.get("start_utc")) or _naive(sm.start_utc)
         m_end = _parse_iso(meta.get("end_utc")) or _naive(sm.end_utc)
         is_mock = bool(meta.get("is_mock_location", False))
-        thr = settings.get_thresholds(self.db)          # admin-tunable; config defaults
+        thr = thr0                                      # admin-tunable; config defaults (fetched above)
         disabled = settings.pipeline_disabled(self.db)  # admin-switched-off rules
         status, reasons = check(
             samples, sm, is_mock,
             max_kmh=thr["max_kmh"], max_g=thr["max_g"],
             teleport_kmh=thr["teleport_kmh"], teleport_max_jumps=thr["teleport_max_jumps"],
             dist_tolerance=thr["dist_tolerance"], unverified_dist_km=thr["unverified_dist_km"],
-            disabled=disabled,
+            mismatch_min_km=thr["mismatch_min_km"], disabled=disabled,
         )
 
         # same rider with a time-overlapping (non-rejected) trip is physically

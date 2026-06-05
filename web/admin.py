@@ -198,6 +198,7 @@ tr.active{background:rgba(46,168,255,.08)}
 .rparams .thr{display:inline-flex;flex-direction:column;gap:3px;font-size:11.5px;color:#8ea0c8}
 .rparams .thr input{width:140px}
 .rparams .nopar{color:#5d6f95;font-size:11.5px}
+.rparams .thr .calc{display:block;font-size:10.5px;color:#7fd0ff;margin-top:3px;max-width:220px;line-height:1.35;min-height:12px}
 .searchbar{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap;align-items:center}
 .searchbar input,.searchbar select{flex:1;min-width:160px}
 .dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
@@ -1057,6 +1058,43 @@ def datasets_export(slug: str, request: Request):
 
 # --- ingest / pipeline monitor (read-only) ---
 
+# Live "plain-English" helpers under each threshold/calibration input. Keyed by the
+# bare param key; each maps a numeric value to an easy-to-grasp sentence.
+_PIPELINE_CALC_JS = """
+    <script>
+    (function(){
+      function mph(v){return (v*0.621371).toFixed(0)+' mph';}
+      var CALC = {
+        max_kmh:function(v){return mph(v)+' — wheel-speed ceiling';},
+        max_g:function(v){return (v*9.81).toFixed(0)+' m/s², '+v+'× gravity';},
+        teleport_kmh:function(v){return (v/3.6).toFixed(0)+' m/s between GPS fixes';},
+        teleport_max_jumps:function(v){return v+' noisy GPS jumps tolerated before flagging';},
+        dist_tolerance:function(v){return Math.round(v*100)+'% odometer-vs-GPS disagreement allowed';},
+        mismatch_min_km:function(v){return 'only judged on rides longer than '+v+' km';},
+        unverified_dist_km:function(v){return 'flag a GPS-less ride longer than '+v+' km';},
+        max_accel:function(v){return '0–100 km/h in '+(100/v).toFixed(1)+'s · 0–50 in '+(50/v).toFixed(1)+'s';},
+        sustain_secs:function(v){return 'power / current / g-force must hold '+v+'s to count';},
+        freespin_margin:function(v){return 'a spike must beat realistic speed by '+v+' km/h to be a freespin';},
+        accel_target_kmh:function(v){return 'launch metric measures 0 → '+v+' km/h';},
+        accel_min_s:function(v){return 'launches under '+v+'s are treated as sensor noise';},
+        accel_max_s:function(v){return 'only count a launch reaching target within '+v+'s';},
+        sustain_accel_lo_s:function(v){return 'sustained acceleration held at least '+v+'s';},
+        sustain_accel_hi_s:function(v){return '…measured over at most '+v+'s';},
+        sag_window_s:function(v){return 'compare voltage to its peak over the last '+v+'s';},
+        ascent_hysteresis_m:function(v){return 'ignore climbs / dips under '+v+' m';},
+        odo_max_step_km:function(v){return 'reject odometer jumps over '+v+' km ('+Math.round(v*1000)+' m) per reading';}
+      };
+      function upd(inp){
+        var f=CALC[inp.dataset.k]; if(!f) return;
+        var s=document.querySelector('.calc[data-for="'+inp.dataset.k+'"]'); if(!s) return;
+        var v=parseFloat(inp.value);
+        try{ s.textContent=(isFinite(v))?('→ '+f(v)):''; }catch(e){ s.textContent=''; }
+      }
+      document.querySelectorAll('input[data-k]').forEach(function(inp){upd(inp);inp.addEventListener('input',function(){upd(inp);});});
+    })();
+    </script>"""
+
+
 def _pipeline_html(db: Session, msg: str = "") -> str:
     total = db.query(func.count(Trip.trip_uuid)).scalar() or 0
     allow = settings.ingest_allow(db)
@@ -1106,8 +1144,9 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     def _thr_input(key):
         lbl, kind, lo, hi = thrmap[key]
         return (f'<label class=thr>{html.escape(lbl)}'
-                f'<input type=number name="thr_{key}" value="{thr[key]}" '
-                f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}"></label>')
+                f'<input type=number name="thr_{key}" data-k="{key}" value="{thr[key]}" '
+                f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}">'
+                f'<span class=calc data-for="{key}"></span></label>')
 
     rule_blocks = ""
     for k, lbl, rdesc, *rest in settings.PIPELINE_RULES:
@@ -1124,8 +1163,9 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     cal = settings.get_calibration(db)
     cal_inputs = "".join(
         f'<label class=thr>{html.escape(lbl)}'
-        f'<input type=number name="cal_{key}" value="{cal[key]}" '
-        f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}"></label>'
+        f'<input type=number name="cal_{key}" data-k="{key}" value="{cal[key]}" '
+        f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}">'
+        f'<span class=calc data-for="{key}"></span></label>'
         for key, lbl, _mk, _ca, kind, lo, hi in settings.CALIBRATION)
     rules_card = f"""
     <div class=card>
@@ -1141,7 +1181,7 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         <div class=rparams style="margin-left:0">{cal_inputs}</div>
         <button style="margin-top:12px">{_IC['check']} Save rules, thresholds &amp; calibration</button>
       </form>
-    </div>"""
+    </div>""" + _PIPELINE_CALC_JS
 
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""

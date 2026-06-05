@@ -52,3 +52,13 @@ UNVERIFIED_DIST_KM = float(os.environ.get("EUCSTATS_UNVERIFIED_DIST_KM", "3.0"))
 MAX_ACCEL_KMH_S = float(os.environ.get("EUCSTATS_MAX_ACCEL_KMH_S", "20"))     # believable accel; faster rise = freespin/spike, not real speed
 SUSTAIN_SECS = float(os.environ.get("EUCSTATS_SUSTAIN_SECS", "2"))            # window for "sustained" power/current/g-force metrics
 FREESPIN_MARGIN_KMH = float(os.environ.get("EUCSTATS_FREESPIN_MARGIN_KMH", "5"))  # raw speed must beat realistic by this to count as a freespin
+ASCENT_HYSTERESIS_M = float(os.environ.get("EUCSTATS_ASCENT_HYSTERESIS_M", "3"))  # ignore elevation wiggles under this (GPS noise)
+ODO_MAX_STEP_KM = float(os.environ.get("EUCSTATS_ODO_MAX_STEP_KM", "5"))      # reject odometer jumps bigger than this per reading
+SAG_WINDOW_S = float(os.environ.get("EUCSTATS_SAG_WINDOW_S", "5"))            # voltage-sag look-back window
+ACCEL_TARGET_KMH = float(os.environ.get("EUCSTATS_ACCEL_TARGET_KMH", "40"))   # launch metric target speed (0 -> target)
+ACCEL_MIN_S = float(os.environ.get("EUCSTATS_ACCEL_MIN_S", "1.5"))            # launches faster than this are sensor noise
+ACCEL_MAX_S = float(os.environ.get("EUCSTATS_ACCEL_MAX_S", "20"))             # only count a launch reaching target within this
+SUSTAIN_ACCEL_LO_S = float(os.environ.get("EUCSTATS_SUSTAIN_ACCEL_LO_S", "2"))  # sustained-acceleration min window
+SUSTAIN_ACCEL_HI_S = float(os.environ.get("EUCSTATS_SUSTAIN_ACCEL_HI_S", "6"))  # sustained-acceleration max window
+RANGE_MIN_BATTERY_PCT = float(os.environ.get("EUCSTATS_RANGE_MIN_BATTERY_PCT", "10"))  # min battery drop to estimate full-charge range
+MISMATCH_MIN_KM = float(os.environ.get("EUCSTATS_MISMATCH_MIN_KM", "0.5"))    # min distance before odo-vs-GPS mismatch is judged

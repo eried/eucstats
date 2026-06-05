@@ -9,7 +9,7 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           max_kmh: float = 120.0, max_g: float = 12.0,
           teleport_kmh: float = 150.0, teleport_max_jumps: int = 8,
           dist_tolerance: float = 0.4, unverified_dist_km: float = 3.0,
-          disabled=frozenset()):
+          mismatch_min_km: float = 0.5, disabled=frozenset()):
     reasons: list[str] = []
 
     def add(key):
@@ -50,7 +50,7 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
         add("teleport")
 
     # odometer vs GPS distance disagreement (only when both are meaningful)
-    if summary.gps_distance_km > 0.5 and summary.distance_km > 0.5:
+    if summary.gps_distance_km > mismatch_min_km and summary.distance_km > mismatch_min_km:
         diff = abs(summary.distance_km - summary.gps_distance_km) / max(
             summary.distance_km, summary.gps_distance_km)
         if diff > dist_tolerance:

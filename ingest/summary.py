@@ -8,10 +8,24 @@ from datetime import datetime
 from .parser import Sample
 
 EARTH_KM = 6371.0088
-# Believable peak acceleration for an EUC. Real wheels reach 100 km/h in well
-# over 5 s, so ~20 km/h per second is a generous ceiling — any rise faster than
-# this is a sensor spike or a freespin (wheel lifted), not a real top speed.
-MAX_ACCEL_KMH_S = 20.0
+
+# All admin-tunable physics knobs, with their built-in fallback defaults. The
+# ingest layer overrides these from settings; tests/direct callers get sane defaults.
+CALIBRATION_DEFAULTS = {
+    "max_accel": 20.0,            # km/h per s — believable accel; faster = freespin/spike
+    "sustain_secs": 2.0,          # s — window for sustained power/current/g-force
+    "freespin_margin": 5.0,       # km/h — raw speed must beat realistic by this to be a freespin
+    "ascent_hysteresis_m": 3.0,   # m — ignore elevation wiggles under this
+    "odo_max_step_km": 5.0,       # km — reject odometer jumps bigger than this
+    "sag_window_s": 5.0,          # s — voltage-sag look-back window
+    "accel_target_kmh": 40.0,     # km/h — launch metric target (0 -> target)
+    "accel_min_s": 1.5,           # s — launches faster than this are sensor noise
+    "accel_max_s": 20.0,          # s — only count a launch reaching target within this
+    "sustain_accel_lo_s": 2.0,    # s — sustained-acceleration min window
+    "sustain_accel_hi_s": 6.0,    # s — sustained-acceleration max window
+    "range_min_battery_pct": 10.0,  # % — min battery drop to estimate full-charge range
+}
+MAX_ACCEL_KMH_S = CALIBRATION_DEFAULTS["max_accel"]   # kept for backward compatibility
 
 
 def _haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -123,8 +137,9 @@ def _power(s: Sample):
     return None
 
 
-def _fastest_0_40(samples: list[Sample]) -> float | None:
-    """Shortest time (s) to launch from a near-stop (<=2 km/h) up to 40 km/h —
+def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
+                  min_s: float = 1.5, max_s: float = 20.0) -> float | None:
+    """Shortest time (s) to launch from a near-stop (<=2 km/h) up to target_kmh —
     an EUC '0-60'-style acceleration metric. Lower is better."""
     best = None
     start = None
@@ -134,11 +149,11 @@ def _fastest_0_40(samples: list[Sample]) -> float | None:
             continue
         if sp <= 2.0:
             start = s.t
-        elif start is not None and sp >= 40.0:
+        elif start is not None and sp >= target_kmh:
             dt = (s.t - start).total_seconds()
-            # 1.5s floor rejects sensor noise; 20s ceiling rejects casual coasts
-            # (only a genuine hard launch from a stop to 40 km/h counts)
-            if 1.5 <= dt <= 20 and (best is None or dt < best):
+            # min_s floor rejects sensor noise; max_s ceiling rejects casual coasts
+            # (only a genuine hard launch from a stop to the target counts)
+            if min_s <= dt <= max_s and (best is None or dt < best):
                 best = dt
             start = None
     return best
@@ -182,18 +197,18 @@ def _max_sustained_accel(samples: list[Sample], lo: float = 2.0, hi: float = 6.0
     return round(best, 2) if best > 0 else None
 
 
-def _ascent_m(samples: list[Sample]) -> float | None:
-    """Elevation gain from altitude samples, 3 m hysteresis to filter GPS noise."""
+def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
+    """Elevation gain from altitude samples, with a hysteresis to filter GPS noise."""
     alts = [s.alt for s in samples if s.alt is not None]
     if len(alts) < 2:
         return None
     gain = 0.0
     ref = alts[0]
     for a in alts[1:]:
-        if a - ref > 3.0:
+        if a - ref > hysteresis_m:
             gain += a - ref
             ref = a
-        elif ref - a > 3.0:
+        elif ref - a > hysteresis_m:
             ref = a
     return round(gain, 1)
 
@@ -264,16 +279,16 @@ def _speeds(samples: list[Sample], wheel_speeds: list[float],
     return realistic, freespin
 
 
-def summarize(samples: list[Sample], max_step_km: float = 5.0,
-              gps_tolerance: float = 0.4, max_accel: float = MAX_ACCEL_KMH_S,
-              sustain_secs: float = 2.0, freespin_margin: float = 5.0) -> TripSummary:
+def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
+              cal: dict | None = None) -> TripSummary:
     if not samples:
         raise ValueError("cannot summarize empty sample list")
+    c = {**CALIBRATION_DEFAULTS, **(cal or {})}     # admin overrides on top of defaults
     start, end = samples[0].t, samples[-1].t
     duration = (end - start).total_seconds()
 
     gps_km = gps_distance_km(samples)
-    odo_km, has_odo = odometer_distance_km(samples, max_step_km)
+    odo_km, has_odo = odometer_distance_km(samples, c["odo_max_step_km"])
     # Prefer the wheel odometer when it's meaningful and not severely under GPS
     # (a coarse/non-updating odometer should defer to GPS-measured movement).
     if has_odo and odo_km > 0.1 and (gps_km <= 0 or odo_km >= gps_km * (1 - gps_tolerance)):
@@ -283,30 +298,30 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
 
     speeds = [s.speed for s in samples if s.speed is not None]
     avg_speed = (sum(speeds) / len(speeds)) if speeds else None
-    max_speed, max_freespin = _speeds(samples, speeds, max_accel, freespin_margin)
+    max_speed, max_freespin = _speeds(samples, speeds, c["max_accel"], c["freespin_margin"])
 
     # G-force: the leaderboard value is the SUSTAINED g (best `sustain_secs` average)
     # — real cornering/braking load, not a crash. The instantaneous peak (a fall
     # spikes the wheel briefly) is kept separately as a warning, never as the metric.
     gs = [abs(s.g) for s in samples if s.g is not None]
     max_gforce_spike = max(gs) if gs else None
-    max_gforce = _sustained_max(samples, lambda s: abs(s.g) if s.g is not None else None, sustain_secs)
+    max_gforce = _sustained_max(samples, lambda s: abs(s.g) if s.g is not None else None, c["sustain_secs"])
 
     wh = _energy_wh(samples)
     wh_per_km = (wh / distance) if (wh is not None and distance > 0) else None
 
     volts = [s.voltage for s in samples if s.voltage is not None]
     peak_voltage = max(volts) if volts else None
-    max_voltage_sag = _max_voltage_sag(samples)
-    max_sustained_w = _sustained_max(samples, _power, sustain_secs)
-    max_sustained_a = _sustained_max(samples, lambda s: s.current, sustain_secs)
-    fastest_0_40_s = _fastest_0_40(samples)
-    sustained_accel = _max_sustained_accel(samples)
-    ascent_m = _ascent_m(samples)
+    max_voltage_sag = _max_voltage_sag(samples, c["sag_window_s"])
+    max_sustained_w = _sustained_max(samples, _power, c["sustain_secs"])
+    max_sustained_a = _sustained_max(samples, lambda s: s.current, c["sustain_secs"])
+    fastest_0_40_s = _fastest_0_40(samples, c["accel_target_kmh"], c["accel_min_s"], c["accel_max_s"])
+    sustained_accel = _max_sustained_accel(samples, c["sustain_accel_lo_s"], c["sustain_accel_hi_s"])
+    ascent_m = _ascent_m(samples, c["ascent_hysteresis_m"])
     alt_range_m = _alt_range(samples)
     battery_used_pct = _battery_used(samples)
     est_range_km = (round(distance * 100.0 / battery_used_pct, 1)
-                    if (battery_used_pct and battery_used_pct >= 10 and distance > 0) else None)
+                    if (battery_used_pct and battery_used_pct >= c["range_min_battery_pct"] and distance > 0) else None)
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,

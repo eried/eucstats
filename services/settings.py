@@ -116,7 +116,7 @@ PIPELINE_RULES = [
      ["teleport_kmh", "teleport_max_jumps"]),
     ("distance_mismatch", "Odometer vs GPS mismatch",
      "Flag when odometer distance and GPS-measured distance disagree beyond tolerance.",
-     ["dist_tolerance"]),
+     ["dist_tolerance", "mismatch_min_km"]),
     ("overlapping_trip", "Overlapping trips",
      "Flag a trip whose time window overlaps another of the rider's trips "
      "(two wheels at once / the same ride uploaded twice).", []),
@@ -128,6 +128,7 @@ PIPELINE_THRESHOLDS = [
     ("teleport_kmh", "Teleport speed (km/h)", "thr_teleport_kmh", "TELEPORT_KMH", "float", 1, 2000),
     ("teleport_max_jumps", "Teleport jumps allowed", "thr_teleport_jumps", "TELEPORT_MAX_JUMPS", "int", 0, 1000),
     ("dist_tolerance", "Odo/GPS mismatch tolerance (0–1)", "thr_dist_tol", "DIST_TOLERANCE", "float", 0, 1),
+    ("mismatch_min_km", "Min distance before mismatch is judged (km)", "thr_mismatch_min", "MISMATCH_MIN_KM", "float", 0, 1000),
     ("unverified_dist_km", "Unverified distance limit (km)", "thr_unverified_km", "UNVERIFIED_DIST_KM", "float", 0, 10000),
 ]
 
@@ -144,10 +145,20 @@ def set_pipeline_enabled(db: Session, enabled_keys) -> None:
 
 
 # Telemetry calibration used by ingest/summary (physics limits). Same tuple shape.
+# Keys match ingest.summary.CALIBRATION_DEFAULTS.
 CALIBRATION = [
     ("max_accel", "Max believable acceleration (km/h per s)", "cal_max_accel", "MAX_ACCEL_KMH_S", "float", 1, 100),
     ("sustain_secs", "Sustained-metric window (s)", "cal_sustain_secs", "SUSTAIN_SECS", "float", 0.5, 30),
     ("freespin_margin", "Freespin margin over realistic (km/h)", "cal_freespin_margin", "FREESPIN_MARGIN_KMH", "float", 0, 200),
+    ("accel_target_kmh", "Launch metric target (km/h)", "cal_accel_target", "ACCEL_TARGET_KMH", "float", 5, 200),
+    ("accel_min_s", "Fastest believable launch (s)", "cal_accel_min", "ACCEL_MIN_S", "float", 0.1, 30),
+    ("accel_max_s", "Longest counted launch (s)", "cal_accel_max", "ACCEL_MAX_S", "float", 1, 120),
+    ("sustain_accel_lo_s", "Sustained-accel min window (s)", "cal_saccel_lo", "SUSTAIN_ACCEL_LO_S", "float", 0.5, 30),
+    ("sustain_accel_hi_s", "Sustained-accel max window (s)", "cal_saccel_hi", "SUSTAIN_ACCEL_HI_S", "float", 1, 60),
+    ("sag_window_s", "Voltage-sag look-back (s)", "cal_sag_window", "SAG_WINDOW_S", "float", 1, 60),
+    ("ascent_hysteresis_m", "Ascent noise filter (m)", "cal_ascent_hyst", "ASCENT_HYSTERESIS_M", "float", 0, 100),
+    ("odo_max_step_km", "Max odometer jump per reading (km)", "cal_odo_step", "ODO_MAX_STEP_KM", "float", 0.1, 1000),
+    ("range_min_battery_pct", "Min battery drop to estimate range (%)", "cal_range_minbatt", "RANGE_MIN_BATTERY_PCT", "float", 1, 100),
 ]
 
 

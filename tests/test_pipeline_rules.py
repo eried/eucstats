@@ -72,20 +72,39 @@ def test_thresholds_roundtrip_and_clamp(db):
 
 def test_calibration_roundtrip_and_clamp(db):
     c = settings.get_calibration(db)
-    assert c["max_accel"] == 20.0 and c["sustain_secs"] == 2.0 and c["freespin_margin"] == 5.0  # defaults
-    settings.set_calibration(db, {"max_accel": "10", "sustain_secs": "3", "freespin_margin": "8"})
+    # all knobs present with their defaults
+    for k in ("max_accel", "sustain_secs", "freespin_margin", "accel_target_kmh",
+              "sag_window_s", "ascent_hysteresis_m", "odo_max_step_km", "range_min_battery_pct"):
+        assert k in c
+    assert c["max_accel"] == 20.0 and c["accel_target_kmh"] == 40.0 and c["ascent_hysteresis_m"] == 3.0
+    settings.set_calibration(db, {"max_accel": "10", "accel_target_kmh": "50"})
     c = settings.get_calibration(db)
-    assert c["max_accel"] == 10.0 and c["sustain_secs"] == 3.0 and c["freespin_margin"] == 8.0
+    assert c["max_accel"] == 10.0 and c["accel_target_kmh"] == 50.0
     settings.set_calibration(db, {"max_accel": "999"})           # clamp to hi=100
     assert settings.get_calibration(db)["max_accel"] == 100.0
+
+
+def test_ascent_hysteresis_param_changes_metric():
+    # altitude oscillating ±2 m (noise): counted with a 0.5 m filter, ignored with 3 m
+    alts = [100, 102, 100, 102, 100]
+    s = [_s(i, speed=10, alt=a) for i, a in enumerate(alts)]
+    assert summarize(s, cal={"ascent_hysteresis_m": 0.5}).ascent_m > 0
+    assert (summarize(s, cal={"ascent_hysteresis_m": 3.0}).ascent_m or 0) == 0
+
+
+def test_launch_target_param_changes_metric():
+    # ramp 0..50 over 5s; "0->40" finds a launch, "0->100" does not
+    s = [_s(i, speed=10 * i) for i in range(6)]
+    assert summarize(s, cal={"accel_target_kmh": 40}).fastest_0_40_s is not None
+    assert summarize(s, cal={"accel_target_kmh": 100}).fastest_0_40_s is None
 
 
 def test_max_accel_param_changes_realistic_speed():
     # 0 -> 50 km/h in 1s. With a 20 km/h/s cap the realistic max is ~20; with a
     # 60 cap the same ramp is believable, so the realistic max reaches 50.
     s = [_s(0, speed=0, gps_speed=0), _s(1, speed=50, gps_speed=50)]
-    assert summarize(s, max_accel=20).max_speed <= 21
-    assert summarize(s, max_accel=60).max_speed >= 49
+    assert summarize(s, cal={"max_accel": 20}).max_speed <= 21
+    assert summarize(s, cal={"max_accel": 60}).max_speed >= 49
 
 
 def test_retention_settings_roundtrip(db):
