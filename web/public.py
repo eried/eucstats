@@ -62,8 +62,8 @@ tr.brnz{background-image:linear-gradient(100deg,rgba(150,104,64,.05) 0,rgba(168,
 .pod.brnz::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(206,150,100,0) 30%,rgba(206,150,100,.22) 50%,rgba(206,150,100,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 5.5s ease-in-out 1.8s infinite;pointer-events:none}
 .maplibregl-ctrl-attrib{background:none!important;box-shadow:none!important;font-size:9px;opacity:.4}.maplibregl-ctrl-attrib a{color:#7a86ad;text-shadow:0 1px 2px #000}.maplibregl-ctrl-attrib-button{display:none!important}.maplibregl-ctrl-group{background:var(--glass)!important;border:1px solid var(--line)!important}
 svg.ic{width:18px;height:18px;display:block}
-.intro{opacity:0}
-.intro.show{opacity:1;transition:opacity 1s ease}
+.intro{opacity:0;pointer-events:none}
+.intro.show{opacity:1;pointer-events:auto;transition:opacity 1s ease}
 @keyframes rowin{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 .topbar{position:fixed;top:16px;left:16px;z-index:500;max-width:min(92vw,380px);background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
 .champ{display:block;padding:10px 14px 11px;font-size:13px;border-bottom:1px solid var(--line);background:rgba(255,210,74,.06);position:relative;overflow:hidden;animation:champvhs 10s infinite}
