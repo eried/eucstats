@@ -853,9 +853,10 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
       <h2>Create / import</h2>
       <form method=post action="/admin/datasets/new" class=inline>
         <input name=name placeholder="new dataset name" required>
-        <label><input type=checkbox name=is_test value=1> test</label>
+        <label title="Flags the new slot as test data. When you later switch to it, the public site shows the TEST DATA banner; unchecked = LIVE (banner off). Shown as the TEST/LIVE badge below."><input type=checkbox name=is_test value=1> test</label>
         <button>Create empty (keep current active)</button>
       </form>
+      <p class=hint style="margin:6px 0 0">“test” marks the new slot as test data (TEST badge below, and the public TEST DATA banner once you switch to it). Leave it off for a LIVE slot.</p>
       <form method=post action="/admin/datasets/import" enctype="multipart/form-data" class=inline>
         <input type=file name=file accept=".sqlite,.db" required><input name=name placeholder="name for import">
         <button>Import .sqlite</button>

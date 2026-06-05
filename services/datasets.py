@@ -135,6 +135,12 @@ def _file_stats(path: Path) -> dict:
     return out
 
 
+def _is_empty(path: Path) -> bool:
+    """True when the dataset holds no riders and no trips — not worth backing up."""
+    st = _file_stats(path)
+    return (st.get("riders") or 0) == 0 and (st.get("trips") or 0) == 0
+
+
 def _validate_sqlite(path: Path) -> tuple[bool, str]:
     try:
         con = sqlite3.connect(str(path))
@@ -280,8 +286,9 @@ def switch_to(slug: str, reload_app: Optional[Callable[[], None]] = None) -> str
     if not snap.exists():
         raise DatasetError("snapshot file is missing on disk")
     active = _active()
-    # 1) safety backup of whatever is live right now
-    if active.exists():
+    # 1) safety backup of whatever is live right now — but skip it when the current
+    # dataset is empty (a fresh/empty slot is nothing worth snapshotting)
+    if active.exists() and not _is_empty(active):
         save_current(_timestamped("pre-switch"),
                      note=f"auto backup before switching to {entry['name']}",
                      origin="pre-switch")

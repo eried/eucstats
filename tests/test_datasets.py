@@ -115,6 +115,14 @@ def test_switch_makes_safety_backup(clean):
     assert len(pre) == 1
 
 
+def test_switch_skips_backup_when_active_is_empty(clean):
+    # active dataset has no riders/trips -> no pre-switch backup should be made
+    target = datasets.create_empty("target", is_test=False)
+    datasets.switch_to(target)
+    pre = [d for d in datasets.list_datasets()["datasets"] if d["origin"] == "pre-switch"]
+    assert pre == []
+
+
 def test_auto_backup_idempotent_and_rotates(clean):
     _seed_active_rider()
     datasets.auto_backup(keep=2, today=date(2026, 6, 1))
