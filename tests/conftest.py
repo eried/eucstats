@@ -14,6 +14,17 @@ os.environ.setdefault("EUCSTATS_ATTESTATION_MODE", "stub")
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _clear_ratelimit():
+    # the limiter is a process-wide in-memory store; reset it between tests
+    try:
+        from services import ratelimit
+        ratelimit.clear()
+    except Exception:
+        pass
+    yield
+
+
 @pytest.fixture
 def db():
     # Fresh schema per test — materialized tables (records) use global keys,

@@ -1089,7 +1089,10 @@ _PIPELINE_CALC_JS = """
         sustain_accel_hi_s:function(v){return '…measured over at most '+v+'s';},
         sag_window_s:function(v){return 'compare voltage to its peak over the last '+v+'s';},
         ascent_hysteresis_m:function(v){return 'ignore climbs / dips under '+v+' m';},
-        odo_max_step_km:function(v){return 'reject odometer jumps over '+v+' km ('+Math.round(v*1000)+' m) per reading';}
+        odo_max_step_km:function(v){return 'reject odometer jumps over '+v+' km ('+Math.round(v*1000)+' m) per reading';},
+        rider_create_per_ip:function(v){return v>0?('≈ 1 new account every '+(60/v).toFixed(1)+' min from one IP'):'unlimited';},
+        trip_per_rider:function(v){return v>0?('≈ 1 upload every '+(60/v).toFixed(1)+' min per rider'):'unlimited';},
+        trip_per_ip:function(v){return v>0?('≈ 1 upload every '+(60/v).toFixed(2)+' min from one IP'):'unlimited';}
       };
       function upd(inp){
         var f=CALC[inp.dataset.k]; if(!f) return;
@@ -1176,6 +1179,12 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         f'step="{"1" if kind == "int" else "any"}" min="{lo}" max="{hi}">'
         f'<span class=calc data-for="{key}"></span></label>'
         for key, lbl, _mk, _ca, kind, lo, hi in settings.CALIBRATION)
+    rl = settings.get_rate_limits(db)
+    rl_inputs = "".join(
+        f'<label class=thr>{html.escape(lbl)}'
+        f'<input type=number name="rl_{key}" data-k="{key}" value="{rl[key]}" step="1" min="{lo}" max="{hi}">'
+        f'<span class=calc data-for="{key}"></span></label>'
+        for key, lbl, _mk, _ca, _kind, lo, hi in settings.RATE_LIMITS)
     rules_card = f"""
     <div class=card>
       <h2>Anti-fraud rules <span class=mut>· what we check on every upload</span></h2>
@@ -1189,7 +1198,12 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         spike; the sustained window is how long power / current / g-force must hold to count as a record.
         <b>Applies to new uploads only</b> — already-ingested trips keep their stored values.</p>
         <div class=calgrid>{cal_inputs}</div>
-        <button style="margin-top:12px">{_IC['check']} Save rules, thresholds &amp; calibration</button>
+        <h2 style="margin-top:18px">Rate limits <span class=mut>· flood protection (per hour; 0 = off)</span></h2>
+        <p class=hint>New accounts are capped <b>per IP</b> (pre-account there's no other signal — note shared
+        carriers/VPNs share an IP, so keep it generous). Uploads are capped <b>per rider</b> and <b>per IP</b>.
+        Over the cap returns HTTP 429.</p>
+        <div class=calgrid>{rl_inputs}</div>
+        <button style="margin-top:12px">{_IC['check']} Save rules, thresholds, calibration &amp; limits</button>
       </form>
     </div>""" + _PIPELINE_CALC_JS
 
@@ -1253,6 +1267,7 @@ async def pipeline_rules_save(request: Request, db: Session = Depends(get_db)):
     settings.set_pipeline_enabled(db, form.getlist("rule"))
     settings.set_thresholds(db, {key: form.get("thr_" + key) for key, *_ in settings.PIPELINE_THRESHOLDS})
     settings.set_calibration(db, {key: form.get("cal_" + key) for key, *_ in settings.CALIBRATION})
+    settings.set_rate_limits(db, {key: form.get("rl_" + key) for key, *_ in settings.RATE_LIMITS})
     off = len(settings.pipeline_disabled(db))
     note = f"rules saved — {len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} active"
     return RedirectResponse("/admin/pipeline?msg=" + quote(note), status_code=303)

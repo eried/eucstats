@@ -62,3 +62,8 @@ SUSTAIN_ACCEL_LO_S = float(os.environ.get("EUCSTATS_SUSTAIN_ACCEL_LO_S", "2"))  
 SUSTAIN_ACCEL_HI_S = float(os.environ.get("EUCSTATS_SUSTAIN_ACCEL_HI_S", "6"))  # sustained-acceleration max window
 RANGE_MIN_BATTERY_PCT = float(os.environ.get("EUCSTATS_RANGE_MIN_BATTERY_PCT", "10"))  # min battery drop to estimate full-charge range
 MISMATCH_MIN_KM = float(os.environ.get("EUCSTATS_MISMATCH_MIN_KM", "0.5"))    # min distance before odo-vs-GPS mismatch is judged
+
+# --- Rate limits (per hour; 0 disables a given limit) ---
+RATE_RIDER_CREATE_PER_IP = int(os.environ.get("EUCSTATS_RATE_RIDER_CREATE_PER_IP", "20"))  # new accounts / hour / IP
+RATE_TRIP_PER_RIDER = int(os.environ.get("EUCSTATS_RATE_TRIP_PER_RIDER", "60"))            # uploads / hour / rider
+RATE_TRIP_PER_IP = int(os.environ.get("EUCSTATS_RATE_TRIP_PER_IP", "200"))                 # uploads / hour / IP

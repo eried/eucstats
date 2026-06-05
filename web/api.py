@@ -4,26 +4,40 @@ from __future__ import annotations
 import base64
 import json
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 import config
 from database import get_db
-from services import stats
+from services import ratelimit, settings, stats
 from services.identity import ChangeNotAllowed, IdentityService
 from services.ingest import IngestError, IngestService
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
 
+def _client_ip(request: Request) -> str:
+    """Real client IP behind nginx (X-Forwarded-For first hop, else X-Real-IP)."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
+
+
 # --- riders / profile ---
 
 @router.post("/riders")
-def register_rider(payload: dict, db: Session = Depends(get_db)):
+def register_rider(payload: dict, request: Request, db: Session = Depends(get_db)):
     store = payload.get("store_id")
     if not store or not payload.get("display_name"):
         raise HTTPException(400, "store_id and display_name are required")
+    # rate-limit only the creation of NEW accounts (re-registering an existing
+    # store_id is idempotent). Pre-account the only signal we have is the IP.
+    if IdentityService(db).repo.get(store) is None:
+        rl = settings.get_rate_limits(db)
+        if not ratelimit.hit(f"rc:{_client_ip(request)}", rl["rider_create_per_ip"]):
+            raise HTTPException(429, "rate_limited:rider_create")
     avatar = None
     if payload.get("avatar_png_base64"):
         try:
@@ -167,12 +181,19 @@ def weekly_champion(db: Session = Depends(get_db)):
 # --- trip ingest ---
 
 @router.post("/trips")
-async def upload_trip(meta: str = Form(...), trip: UploadFile = File(...),
+async def upload_trip(request: Request, meta: str = Form(...), trip: UploadFile = File(...),
                       db: Session = Depends(get_db)):
     try:
         meta_obj = json.loads(meta)
     except Exception:
         raise HTTPException(400, "meta is not valid JSON")
+    # flood guard: cap uploads per rider and per IP per hour (0 disables)
+    rl = settings.get_rate_limits(db)
+    store = meta_obj.get("store_id") or "?"
+    if not ratelimit.hit(f"tr:{store}", rl["trip_per_rider"]):
+        raise HTTPException(429, "rate_limited:trip_per_rider")
+    if not ratelimit.hit(f"ti:{_client_ip(request)}", rl["trip_per_ip"]):
+        raise HTTPException(429, "rate_limited:trip_per_ip")
     raw = await trip.read()
     if len(raw) > config.MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(413, "trip file too large")

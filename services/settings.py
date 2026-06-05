@@ -202,6 +202,32 @@ def set_thresholds(db: Session, values: dict) -> None:
         set_meta(db, mkey, str(v))
 
 
+# --- rate limits (per hour; 0 disables). Same tuple shape as thresholds. ---
+RATE_LIMITS = [
+    ("rider_create_per_ip", "New riders / hour / IP", "rl_rider_ip", "RATE_RIDER_CREATE_PER_IP", "int", 0, 100000),
+    ("trip_per_rider", "Trip uploads / hour / rider", "rl_trip_rider", "RATE_TRIP_PER_RIDER", "int", 0, 100000),
+    ("trip_per_ip", "Trip uploads / hour / IP", "rl_trip_ip", "RATE_TRIP_PER_IP", "int", 0, 100000),
+]
+
+
+def get_rate_limits(db: Session) -> dict:
+    out = {}
+    for key, _lbl, mkey, cattr, _kind, lo, hi in RATE_LIMITS:
+        default = getattr(config, cattr)
+        raw = get_meta(db, mkey, None)
+        out[key] = _clamp_int(raw if raw is not None else default, default, lo, hi)
+    return out
+
+
+def set_rate_limits(db: Session, values: dict) -> None:
+    for key, _lbl, mkey, cattr, _kind, lo, hi in RATE_LIMITS:
+        v = values.get(key)
+        if v in (None, ""):
+            continue
+        default = getattr(config, cattr)
+        set_meta(db, mkey, str(_clamp_int(v, default, lo, hi)))
+
+
 # --- data retention (admin-overridable; falls back to env/config defaults) ---
 
 def get_retention(db: Session) -> dict:
