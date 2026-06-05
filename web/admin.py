@@ -1292,9 +1292,6 @@ def _settings_html(db: Session, msg: str = "") -> str:
         <label class=toggle style="display:inline-flex"><input type=checkbox name=intro_enabled value=1{ck(b['intro_enabled'])}> Show the cinematic intro</label>
         <p class=hint style="margin:12px 0 4px">Video path or URL:</p>
         <input type=text name=intro_src value="{html.escape(b['intro_src'])}" style="width:min(440px,100%)">
-        <p class=hint style="margin:12px 0 4px">On a <b>return</b> visit, replay the intro for
-          <input type=number name=intro_replay_secs min=0 max=60 value="{b['intro_replay_secs']}" style="width:70px"> seconds
-          <span class=hint>(0 = skip it entirely; the first-ever visit always plays in full)</span></p>
       </div>
       <div class=card>
         <h2>Look &amp; feel</h2>
@@ -1323,13 +1320,13 @@ def settings_save(request: Request, db: Session = Depends(get_db),
                   poll_secs: int = Form(30), intro_enabled: str = Form(""),
                   intro_src: str = Form("/static/intro.mp4"), map_style: str = Form("dark"),
                   glitch_enabled: str = Form(""), glitch_secs: int = Form(4),
-                  glitch_intensity: int = Form(2), intro_replay_secs: int = Form(0),
+                  glitch_intensity: int = Form(2),
                   test_enabled: str = Form(""), test_text: str = Form("TEST DATA")):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     settings.set_test_mode(bool(test_enabled), test_text)
     settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
-                           bool(glitch_enabled), glitch_secs, glitch_intensity, intro_replay_secs)
+                           bool(glitch_enabled), glitch_secs, glitch_intensity)
     return RedirectResponse("/admin/settings?msg=" + quote("settings saved — live on next page load"),
                             status_code=303)
 
