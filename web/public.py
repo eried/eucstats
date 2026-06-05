@@ -605,18 +605,25 @@ function addHeat(){
   if(!CELLS||map.getSource("activity")) return;
   map.addSource("activity",{type:"geojson",data:{type:"FeatureCollection",
     features:CELLS.map(c=>({type:"Feature",geometry:{type:"Point",coordinates:[c.lon,c.lat]},properties:{r:c.rider_count||0}}))}});
-  // Heat radius tracks zoom the way the map itself does: web-mercator pixels-per-metre
-  // double every zoom level, so scale the base radius by 2^((zoom-Zref)*k) to keep each
-  // cell's glow ~a constant ground size — bigger as you zoom in, smaller far out. k<1
-  // softens it; clamped so it never vanishes (far) or floods the view (near). The admin
-  // "Heat radius" is the value at the reference zoom Zref; raise it to lift the whole curve.
-  const Rb=HEAT.radius,Zref=10,k=0.55,RMIN=6,RMAX=Rb*5;
-  const rAt=z=>Math.max(RMIN,Math.min(RMAX,Rb*Math.pow(2,(z-Zref)*k)));
-  const rRadius=["interpolate",["linear"],["zoom"]].concat(
-    [2,5,8,11,14,17,20].reduce((a,z)=>a.concat([z,Math.round(rAt(z))]),[]));
+  // Heat radius grows EXPONENTIALLY with zoom — true web-mercator scaling (k=1):
+  // pixels-per-metre double every zoom level, so the glow doubles too. A couple of cells
+  // that look like dots when zoomed out blend into a broad warm area as you zoom in
+  // (their on-screen gap and their glow grow at the same rate). Anchored to the admin
+  // "Heat radius" at Zref=11; clamped tiny far out, and capped so a massive zoom fills
+  // with heat rather than overflowing the GPU. ["exponential",2] makes the interpolation
+  // between stops follow 2^zoom exactly.
+  const Rb=HEAT.radius,Zref=11,RMIN=4,RMAX=Math.min(Rb*16,1024);
+  const rAt=z=>Math.max(RMIN,Math.min(RMAX,Rb*Math.pow(2,z-Zref)));
+  const rRadius=["interpolate",["exponential",2],["zoom"]].concat(
+    [3,7,10,12,14,16,20].reduce((a,z)=>a.concat([z,Math.round(rAt(z))]),[]));
   map.addLayer({id:"heat",type:"heatmap",source:"activity",paint:{
-    "heatmap-weight":["min",1,["+",0.25,["/",["ln",["+",1,["get","r"]]],["ln",7]]]],
-    "heatmap-intensity":["interpolate",["linear"],["zoom"],0,1.0*HEAT.intensity,9,3.2*HEAT.intensity],
+    // BRIGHTNESS tracks how many distinct riders share the cell: a lone rider (r=1) is a
+    // faint navy glow; it climbs blue->cyan->green->white as others ride the same square
+    // (maxes ~12 riders). log2 so each doubling of riders is one even step.
+    "heatmap-weight":["min",1,["+",0.12,["*",0.26,["/",["ln",["max",1,["get","r"]]],["ln",2]]]]],
+    // INTENSITY is kept nearly flat across zoom so zooming in EXPANDS the glow (via the
+    // exponential radius) without also brightening it — size and brightness stay decoupled.
+    "heatmap-intensity":["interpolate",["linear"],["zoom"],3,0.9*HEAT.intensity,12,1.4*HEAT.intensity],
     "heatmap-radius":rRadius,
     "heatmap-opacity":0,
     "heatmap-color":["interpolate",["linear"],["heatmap-density"],
