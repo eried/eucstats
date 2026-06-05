@@ -258,7 +258,7 @@ def _login_html(error: str = "") -> str:
 
 def _dash_html(db: Session) -> str:
     c = _counts(db)
-    cur_test = settings.is_test_dataset(db)
+    cur_test = settings.is_test_mode()
     kpis = "".join(f'<div class=box><div class=n>{c[k]}</div><div class=l>{k}</div></div>'
                    for k in ("riders", "trips", "validated", "flagged"))
 
@@ -289,7 +289,7 @@ def _dash_html(db: Session) -> str:
 
     inner = f"""
     <h1>Overview</h1>
-    <p class=sub>Active dataset: {_badge(cur_test)} &nbsp;{'— seeded test data (TEST DATA banner is showing)' if cur_test else '— serving live data'}</p>
+    <p class=sub>Site mode: {_badge(cur_test)} &nbsp;{'— the TEST DATA banner is showing publicly' if cur_test else '— serving as live data'} &nbsp;·&nbsp; <a href="/admin/settings">change in Settings</a></p>
     <div class=card><div class=kpi>{kpis}</div></div>
     <div class=card>
       <h2>Quick actions</h2>
@@ -801,7 +801,6 @@ def _reload_app() -> None:
 
 def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
     c = _counts(db)
-    cur_test = settings.is_test_dataset(db)
     listing = datasets.list_datasets()
     active = listing["active"]
     banner = ""
@@ -818,11 +817,11 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
         trips = d["trips"] if d["trips"] is not None else "?"
         rows += (
             f'<tr class="{"active" if is_active else ""}">'
-            f'<td>{nm}{" • active" if is_active else ""}</td><td>{_badge(d["is_test"])}</td>'
+            f'<td>{nm}{" • active" if is_active else ""}</td>'
             f'<td>{riders}</td><td>{trips}</td><td>{_fmt_size(d["size"])}</td>'
             f'<td>{d.get("created","")}</td><td>{html.escape(d.get("origin",""))}</td>'
             f'<td class=acts>'
-            f'<a class=btn href="/admin/datasets/export/{d["slug"]}">download</a>'
+            f'<form method=get action="/admin/datasets/export/{d["slug"]}"><button class=ghost>download</button></form>'
             f'<form method=post action="/admin/datasets/switch"><input type=hidden name=slug value="{d["slug"]}">'
             f'<input name=confirm placeholder="type name"><button>switch</button></form>'
             f'<form method=post action="/admin/datasets/rename"><input type=hidden name=slug value="{d["slug"]}">'
@@ -831,46 +830,38 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
             f'<input name=confirm placeholder="type name"><button class=danger>delete</button></form>'
             f'</td></tr>')
     if not rows:
-        rows = '<tr><td colspan=8 class=mut>no saved datasets yet</td></tr>'
+        rows = '<tr><td colspan=7 class=mut>no saved datasets yet</td></tr>'
 
     inner = f"""
     {banner}
     <h1>Datasets &amp; backups</h1>
-    <p class=sub>Save, swap, import and back up the whole database as portable snapshots.</p>
+    <p class=sub>Save, swap, import and back up the whole database as portable snapshots.
+    Test mode is a <a href="/admin/settings">site setting</a> now — datasets are just data.</p>
     <div class=card>
-      <h2>Active dataset {_badge(cur_test)}</h2>
+      <h2>Create / import</h2>
+      <form method=post action="/admin/datasets/new" class=inline
+            onsubmit="return confirm('Create a fresh empty dataset and switch the site to it now? The current dataset is backed up first (unless it is empty).')">
+        <input name=name placeholder="new dataset name" required>
+        <button class=go>Create empty &amp; activate</button>
+      </form>
+      <p class=hint style="margin:6px 0 10px">Creates a brand-new empty dataset and switches the site to it immediately.</p>
+      <form method=post action="/admin/datasets/import" enctype="multipart/form-data" class=inline>
+        <input type=file name=file accept=".sqlite,.db" required><input name=name placeholder="name for import">
+        <button>Import .sqlite</button>
+      </form>
+    </div>
+    <h2>Saved datasets</h2>
+    <table><tr><th>name</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
+    <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
+    current dataset (unless it's empty), then reconnects instantly — no restart, no downtime.</p>
+    <div class=card>
+      <h2>Active dataset</h2>
       <p>{c['riders']} riders · {c['trips']} trips · {c['validated']} validated · {c['flagged']} flagged</p>
       <form method=post action="/admin/datasets/save" class=inline>
         <input name=name placeholder="snapshot name" required><input name=note placeholder="note (optional)">
         <button>Save current as snapshot</button>
       </form>
-      <form method=post action="/admin/datasets/flag" class=inline>
-        <button name=test value="0">Mark current LIVE</button>
-        <button name=test value="1">Mark current TEST</button>
-      </form>
     </div>
-    <div class=card>
-      <h2>Create / import</h2>
-      <form method=post action="/admin/datasets/new" class=inline>
-        <input name=name placeholder="new dataset name" required>
-        <label title="Flags the new slot as test data. When you later switch to it, the public site shows the TEST DATA banner; unchecked = LIVE (banner off). Shown as the TEST/LIVE badge below."><input type=checkbox name=is_test value=1> test</label>
-        <button>Create empty (keep current active)</button>
-      </form>
-      <p class=hint style="margin:6px 0 0">“test” marks the new slot as test data (TEST badge below, and the public TEST DATA banner once you switch to it). Leave it off for a LIVE slot.</p>
-      <form method=post action="/admin/datasets/import" enctype="multipart/form-data" class=inline>
-        <input type=file name=file accept=".sqlite,.db" required><input name=name placeholder="name for import">
-        <button>Import .sqlite</button>
-      </form>
-      <form method=post action="/admin/datasets/golive" class=inline
-            onsubmit="return confirm('Create a fresh EMPTY live dataset and switch to it now? The current dataset is backed up first, then the site goes live (TEST DATA banner off).')">
-        <input name=name value="live" placeholder="live dataset name">
-        <button class=go>🚀 Go live (new empty live &amp; switch)</button>
-      </form>
-    </div>
-    <h2>Saved datasets</h2>
-    <table><tr><th>name</th><th>type</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
-    <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
-    current dataset, then reconnects instantly — no restart, no downtime.</p>
     """
     return _ds_page(inner, "/admin/datasets")
 
@@ -899,12 +890,13 @@ def datasets_save(request: Request, name: str = Form(...), note: str = Form(""))
 
 
 @admin_router.post("/datasets/new")
-def datasets_new(request: Request, name: str = Form(...), is_test: str = Form("")):
+def datasets_new(request: Request, name: str = Form(...)):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     try:
-        datasets.create_empty(name, is_test=bool(is_test))
-        return _redir(msg=f"created empty dataset “{name}”")
+        slug = datasets.create_empty(name)
+        datasets.switch_to(slug, reload_app=_reload_app)        # create AND activate
+        return _redir(msg=f"created and switched to empty dataset “{name}”")
     except datasets.DatasetError as e:
         return _redir(err=str(e))
 
@@ -952,14 +944,6 @@ def datasets_delete(request: Request, slug: str = Form(...), confirm: str = Form
     return _redir(msg=f"deleted “{entry['name']}”")
 
 
-@admin_router.post("/datasets/flag")
-def datasets_flag(request: Request, db: Session = Depends(get_db), test: str = Form("0")):
-    if not _is_authenticated(request):
-        return RedirectResponse("/admin", status_code=303)
-    settings.set_test(db, test == "1")
-    return _redir(msg="marked current dataset " + ("TEST" if test == "1" else "LIVE"))
-
-
 @admin_router.post("/datasets/switch")
 def datasets_switch(request: Request, slug: str = Form(...), confirm: str = Form("")):
     if not _is_authenticated(request):
@@ -974,18 +958,6 @@ def datasets_switch(request: Request, slug: str = Form(...), confirm: str = Form
     except datasets.DatasetError as e:
         return _redir(err=str(e))
     return _redir(msg=f"now serving “{entry['name']}” (a safety backup of the previous dataset was saved)")
-
-
-@admin_router.post("/datasets/golive")
-def datasets_golive(request: Request, name: str = Form("live")):
-    if not _is_authenticated(request):
-        return RedirectResponse("/admin", status_code=303)
-    try:
-        slug = datasets.create_empty(name or "live", is_test=False, note="go-live empty dataset")
-        datasets.switch_to(slug, reload_app=_reload_app)
-    except datasets.DatasetError as e:
-        return _redir(err=str(e))
-    return _redir(msg="🚀 now live with a fresh empty dataset — TEST DATA banner is off")
 
 
 @admin_router.get("/datasets/export/{slug}")
@@ -1253,6 +1225,7 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
 
 def _settings_html(db: Session, msg: str = "") -> str:
     b = settings.get_behaviour(db)
+    tm = settings.get_test_mode()
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     sel = "background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:8px 10px;border-radius:9px"
     styles = "".join(
@@ -1268,6 +1241,13 @@ def _settings_html(db: Session, msg: str = "") -> str:
     <h1>Page behaviour</h1>
     <p class=sub>How the public site behaves. Changes apply on the next page load.</p>
     <form method=post action="/admin/settings/save">
+      <div class=card>
+        <h2>Test mode</h2>
+        <p class=hint>Site-wide — independent of which dataset is active. When on, the public site shows a banner marking the data as not-yet-real.</p>
+        <label class=toggle style="display:inline-flex"><input type=checkbox name=test_enabled value=1{ck(tm['enabled'])}> Show the TEST DATA banner</label>
+        <p class=hint style="margin:12px 0 4px">Banner text:</p>
+        <input type=text name=test_text value="{html.escape(tm['text'])}" placeholder="TEST DATA" style="width:min(300px,100%)">
+      </div>
       <div class=card>
         <h2>Live refresh</h2>
         <p class=hint>How often the top champions + global stats auto-refresh. 0 = off.</p>
@@ -1306,12 +1286,14 @@ def settings_save(request: Request, db: Session = Depends(get_db),
                   poll_secs: int = Form(30), intro_enabled: str = Form(""),
                   intro_src: str = Form("/static/intro.mp4"), map_style: str = Form("dark"),
                   glitch_enabled: str = Form(""), glitch_secs: int = Form(4),
-                  glitch_intensity: int = Form(2)):
+                  glitch_intensity: int = Form(2),
+                  test_enabled: str = Form(""), test_text: str = Form("TEST DATA")):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
+    settings.set_test_mode(bool(test_enabled), test_text)
     settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
                            bool(glitch_enabled), glitch_secs, glitch_intensity)
-    return RedirectResponse("/admin/settings?msg=" + quote("behaviour saved — live on next page load"),
+    return RedirectResponse("/admin/settings?msg=" + quote("settings saved — live on next page load"),
                             status_code=303)
 
 

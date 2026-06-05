@@ -110,7 +110,7 @@ def _online_backup(src_path: Path, dst_path: Path) -> None:
 
 
 def _file_stats(path: Path) -> dict:
-    out = {"size": 0, "riders": None, "trips": None, "is_test": True}
+    out = {"size": 0, "riders": None, "trips": None}
     try:
         out["size"] = os.path.getsize(path)
     except OSError:
@@ -125,9 +125,6 @@ def _file_stats(path: Path) -> dict:
                     return None
             out["riders"] = scalar("SELECT COUNT(*) FROM riders")
             out["trips"] = scalar("SELECT COUNT(*) FROM trips")
-            v = scalar("SELECT value FROM app_meta WHERE key='is_test'")
-            if v is not None:
-                out["is_test"] = str(v) not in ("0", "false", "False", "")
         finally:
             con.close()
     except Exception:
@@ -176,7 +173,7 @@ def _record(slug: str, name: str, note: str, origin: str) -> None:
     m["datasets"] = [d for d in m["datasets"] if d["slug"] != slug]
     m["datasets"].append({
         "slug": slug, "name": name, "created": _now(),
-        "is_test": st["is_test"], "note": note, "origin": origin,
+        "note": note, "origin": origin,
         "size": st["size"], "riders": st["riders"], "trips": st["trips"],
     })
     _save(m)
@@ -206,8 +203,9 @@ def save_current(name: str, note: str = "", origin: str = "manual") -> str:
     return slug
 
 
-def create_empty(name: str, is_test: bool = False, note: str = "") -> str:
-    """Create a fresh, schema-only dataset (zero rows)."""
+def create_empty(name: str, note: str = "") -> str:
+    """Create a fresh, schema-only dataset (zero rows). Test mode is a site
+    setting now, so the new dataset carries no test/live flag of its own."""
     from sqlalchemy import create_engine
     from database import Base
     import models  # noqa: F401  (registers tables on Base.metadata)
@@ -220,13 +218,6 @@ def create_empty(name: str, is_test: bool = False, note: str = "") -> str:
         Base.metadata.create_all(eng)
     finally:
         eng.dispose()
-    con = sqlite3.connect(str(path))
-    try:
-        con.execute("INSERT OR REPLACE INTO app_meta(key,value) VALUES('is_test',?)",
-                    ("1" if is_test else "0",))
-        con.commit()
-    finally:
-        con.close()
     _record(slug, name, note, origin="empty")
     return slug
 

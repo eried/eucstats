@@ -8,6 +8,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = DATA_DIR / "eucstats.sqlite"
 ADMIN_STATE_FILE = DATA_DIR / "admin.json"
+# Site-level settings that must NOT travel with a dataset (e.g. test-mode banner).
+SITE_STATE_FILE = DATA_DIR / "site.json"
 
 # --- Retention (full-resolution raw uploads only; summaries/tracks are permanent) ---
 RETENTION_DAYS = int(os.environ.get("EUCSTATS_RETENTION_DAYS", "30"))

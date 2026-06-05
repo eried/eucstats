@@ -1,8 +1,7 @@
-"""Tiny key/value settings stored in the active dataset's app_meta table.
-
-Because app_meta lives *inside* the SQLite file, per-dataset flags such as
-``is_test`` travel automatically when the dataset is swapped. Values are stored
-as strings; helpers coerce the few typed ones we use.
+"""Settings: most live in the active dataset's app_meta table (so per-dataset
+toggles travel with the file when swapped); the SITE test-mode banner is the
+exception — it lives in a global file so it never moves with the data.
+Values are stored as strings; helpers coerce the few typed ones we use.
 """
 from __future__ import annotations
 
@@ -12,8 +11,6 @@ from sqlalchemy.orm import Session
 
 import config
 from models import Meta
-
-IS_TEST = "is_test"
 
 # Canonical metric/section lists for the admin show/hide UI.
 # Keep keys in sync with web/public.py BOARDS (board `k`) and the dock `data-p`.
@@ -238,14 +235,38 @@ def set_meta(db: Session, key: str, value: str) -> None:
     db.commit()
 
 
-def is_test_dataset(db: Session) -> bool:
-    """Whether the active dataset is test data. Defaults to True when unset so
-    a dataset of unknown provenance shows the TEST DATA banner (fail safe)."""
-    return get_meta(db, IS_TEST, "1") not in ("0", "false", "False", "")
+# --- site test mode (GLOBAL, not per-dataset) -----------------------------
+# Stored outside any dataset (config.SITE_STATE_FILE) so switching datasets never
+# changes it: test mode is a property of the SITE, not of the data it holds.
+
+def _site_state() -> dict:
+    try:
+        return json.loads(config.SITE_STATE_FILE.read_text())
+    except Exception:
+        return {}
 
 
-def set_test(db: Session, value: bool) -> None:
-    set_meta(db, IS_TEST, "1" if value else "0")
+def _save_site_state(s: dict) -> None:
+    config.SITE_STATE_FILE.write_text(json.dumps(s, indent=2))
+
+
+def get_test_mode() -> dict:
+    """{enabled, text}. Defaults to enabled (fail-safe: show the banner until the
+    admin explicitly turns it off) with the text 'TEST DATA'."""
+    s = _site_state()
+    return {"enabled": s.get("test_mode", True),
+            "text": (s.get("test_banner") or "").strip() or "TEST DATA"}
+
+
+def set_test_mode(enabled, text) -> None:
+    s = _site_state()
+    s["test_mode"] = bool(enabled)
+    s["test_banner"] = (text or "").strip() or "TEST DATA"
+    _save_site_state(s)
+
+
+def is_test_mode() -> bool:
+    return get_test_mode()["enabled"]
 
 
 def ingest_allow(db: Session) -> dict:

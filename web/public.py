@@ -718,7 +718,9 @@ def _hide_cfg(db):
 
 @public_router.get("/", response_class=HTMLResponse)
 def home(db: Session = Depends(get_db)):
-    testwm = '<div id="testwm">TEST DATA</div>' if settings.is_test_dataset(db) else ''
+    import html as _html
+    tm = settings.get_test_mode()
+    testwm = f'<div id="testwm">{_html.escape(tm["text"])}</div>' if tm["enabled"] else ''
     return HTMLResponse(_PAGE.replace("__BUILD__", _build_date())
                         .replace("__CLARITY__", _clarity_tag())
                         .replace("__HIDECFG__", _hide_cfg(db))

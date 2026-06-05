@@ -52,12 +52,12 @@ def test_save_lists_with_counts(clean):
 
 
 def test_create_empty_has_schema_and_zero_rows(clean):
-    slug = datasets.create_empty("fresh", is_test=True)
+    slug = datasets.create_empty("fresh")
     path = datasets._datasets_dir() / f"{slug}.sqlite"
     st = datasets._file_stats(path)
     assert st["riders"] == 0
     assert st["trips"] == 0
-    assert st["is_test"] is True
+    assert "is_test" not in st             # datasets no longer carry a test flag
 
 
 def test_import_rejects_non_sqlite(clean, tmp_path):
@@ -88,28 +88,26 @@ def test_import_accepts_valid(clean, tmp_path):
     assert datasets._get_entry(slug)["origin"] == "imported"
 
 
-def test_switch_roundtrip_and_is_test_travels(clean):
+def test_switch_roundtrip(clean):
     _seed_active_rider("s1", "Alice")
-    with_alice = datasets.save_current("with-alice")          # is_test default True
-    empty_live = datasets.create_empty("go-live", is_test=False)
+    with_alice = datasets.save_current("with-alice")
+    empty = datasets.create_empty("go-live")
 
-    datasets.switch_to(empty_live)
+    datasets.switch_to(empty)
     st = datasets._file_stats(datasets._active())
     assert st["riders"] == 0
-    assert st["is_test"] is False                              # live flag travelled
-    assert datasets.list_datasets()["active"] == empty_live
+    assert datasets.list_datasets()["active"] == empty
 
     from database import engine
     engine.dispose()
     datasets.switch_to(with_alice)
     st = datasets._file_stats(datasets._active())
     assert st["riders"] == 1
-    assert st["is_test"] is True
 
 
 def test_switch_makes_safety_backup(clean):
     _seed_active_rider()
-    target = datasets.create_empty("target", is_test=False)
+    target = datasets.create_empty("target")
     datasets.switch_to(target)
     pre = [d for d in datasets.list_datasets()["datasets"] if d["origin"] == "pre-switch"]
     assert len(pre) == 1
@@ -117,7 +115,7 @@ def test_switch_makes_safety_backup(clean):
 
 def test_switch_skips_backup_when_active_is_empty(clean):
     # active dataset has no riders/trips -> no pre-switch backup should be made
-    target = datasets.create_empty("target", is_test=False)
+    target = datasets.create_empty("target")
     datasets.switch_to(target)
     pre = [d for d in datasets.list_datasets()["datasets"] if d["origin"] == "pre-switch"]
     assert pre == []
