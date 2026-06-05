@@ -159,8 +159,11 @@ def rebuild_all(db):
     """Clear every materialized table and replay all validated trips from scratch.
     Use after rejecting an already-counted trip, banning a rider, or to repair drift.
     Banned riders' trips stay in the DB (reversible) but produce no public stats."""
-    from models import CountryStat, DailyDistance, MapCell, Record, RiderStat, Trip
-    for model in (RiderStat, CountryStat, DailyDistance, MapCell, Record):
+    from models import CountryStat, DailyDistance, MapCell, MapCellRider, Record, RiderStat, Trip
+    # MapCellRider must be cleared too: bump_map_cell only increments MapCell.rider_count
+    # when the (cell, rider) row is new, so leaving these behind makes every rebuilt cell
+    # come back with rider_count=0 — silently emptying the whole heatmap.
+    for model in (RiderStat, CountryStat, DailyDistance, MapCell, MapCellRider, Record):
         db.query(model).delete()
     db.query(Trip).update({Trip.aggregated: False})
     db.commit()

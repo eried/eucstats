@@ -46,6 +46,19 @@ def test_start_mode_single_cell(db):
     assert len(stats.map_cells(db, 0.025)) == 1                  # only the start cell
 
 
+def test_rebuild_preserves_rider_count(db):
+    # regression: rebuild_all must clear MapCellRider too, else rebuilt cells come back
+    # with rider_count=0 and the heatmap silently empties (privacy floor hides everything).
+    from services.aggregator import rebuild_all
+    settings.set_heatmap(db, 0.025, "start", 1, 60, 1.0, 0.62)   # floor 1
+    _trip_with_track(db, "rr", "trr", [(69.60, 18.90)])
+    assert len(stats.map_cells(db, 0.025)) == 1                  # shows before rebuild
+    rebuild_all(db)
+    db.expire_all()
+    cells = stats.map_cells(db, 0.025)
+    assert len(cells) == 1 and cells[0]["rider_count"] == 1      # still shows, count intact
+
+
 def test_privacy_floor_hides_low_rider_cells(db):
     settings.set_heatmap(db, 0.025, "start", 2, 60, 1.0, 0.62)   # floor 2
     _trip_with_track(db, "a", "ta", [(60.0, 10.0)])             # 1 rider in this cell
