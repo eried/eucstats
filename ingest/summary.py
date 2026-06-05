@@ -38,7 +38,9 @@ class TripSummary:
     max_sustained_w: float | None
     max_sustained_a: float | None
     peak_voltage: float | None
+    max_voltage_sag: float | None
     fastest_0_40_s: float | None
+    sustained_accel: float | None
     ascent_m: float | None
     battery_used_pct: float | None
     est_range_km: float | None
@@ -140,6 +142,44 @@ def _fastest_0_40(samples: list[Sample]) -> float | None:
                 best = dt
             start = None
     return best
+
+
+def _max_voltage_sag(samples: list[Sample], window_s: float = 5.0) -> float | None:
+    """Biggest voltage dip under load: for each sample, how far voltage dropped
+    below its recent peak (within a trailing window). Using a short rolling window
+    measures transient sag during a hard pull, not the slow drain over the ride."""
+    pts = [(s.t, s.voltage) for s in samples if s.voltage is not None]
+    if len(pts) < 2:
+        return None
+    best = 0.0
+    left = 0
+    for right in range(len(pts)):
+        while (pts[right][0] - pts[left][0]).total_seconds() > window_s:
+            left += 1
+        base = max(v for _, v in pts[left:right + 1])
+        sag = base - pts[right][1]
+        if sag > best:
+            best = sag
+    return round(best, 2) if best > 0 else None
+
+
+def _max_sustained_accel(samples: list[Sample], lo: float = 2.0, hi: float = 6.0) -> float | None:
+    """Highest acceleration (km/h per second) held for at least `lo` seconds — a
+    real, sustained pull rather than a one-sample sensor jump. Capped at `hi`s so a
+    long gradual climb to speed doesn't dilute a strong launch."""
+    pts = [(s.t, s.speed) for s in samples if s.speed is not None]
+    best = 0.0
+    for i in range(len(pts)):
+        for j in range(i + 1, len(pts)):
+            dt = (pts[j][0] - pts[i][0]).total_seconds()
+            if dt < lo:
+                continue
+            if dt > hi:
+                break
+            a = (pts[j][1] - pts[i][1]) / dt
+            if a > best:
+                best = a
+    return round(best, 2) if best > 0 else None
 
 
 def _ascent_m(samples: list[Sample]) -> float | None:
@@ -254,9 +294,11 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
 
     volts = [s.voltage for s in samples if s.voltage is not None]
     peak_voltage = max(volts) if volts else None
+    max_voltage_sag = _max_voltage_sag(samples)
     max_sustained_w = _sustained_max(samples, _power, 2.0)
     max_sustained_a = _sustained_max(samples, lambda s: s.current, 2.0)
     fastest_0_40_s = _fastest_0_40(samples)
+    sustained_accel = _max_sustained_accel(samples)
     ascent_m = _ascent_m(samples)
     alt_range_m = _alt_range(samples)
     battery_used_pct = _battery_used(samples)
@@ -270,6 +312,7 @@ def summarize(samples: list[Sample], max_step_km: float = 5.0,
         max_gforce=max_gforce, max_gforce_spike=max_gforce_spike,
         wh_per_km=wh_per_km, max_sustained_w=max_sustained_w,
         max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
+        max_voltage_sag=max_voltage_sag, sustained_accel=sustained_accel,
         fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m,
         battery_used_pct=battery_used_pct, est_range_km=est_range_km,
         alt_range_m=alt_range_m, sample_count=len(samples),

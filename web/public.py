@@ -266,7 +266,10 @@ const IC={
  hours:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>',
  cruise:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h12v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M7 3c0 1.2-1 1.2-1 2.5M11 3c0 1.2-1 1.2-1 2.5"/></svg>',
  globe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>',
- altking:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 20l6-11 4 6 2-3 6 8z"/><path d="M9 9l1.4-3"/></svg>'};
+ altking:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 20l6-11 4 6 2-3 6 8z"/><path d="M9 9l1.4-3"/></svg>',
+ freespin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/></svg>',
+ sag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="15" height="10" rx="2"/><path d="M21 10v4"/><path d="M8 9l3 3-3 3"/></svg>',
+ rocket:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 3c4 .5 6.5 3.5 7 7-3 .5-4.6 2.2-6 5l-3-3c1.4-3.6 1.2-6.6 2-9zM8 16l-4 4m6-2l-4 4m0-6l-2 2"/></svg>'};
 const GIC_PPL='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0z"/></svg>';
 const GIC_TRIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c3-2 4-6 4-9a3 3 0 0 1 6 0c0 4 1 7 4 9"/></svg>';
 const BOARDS=[
@@ -299,7 +302,10 @@ const BOARDS=[
  {k:"energy",t:"Power Plant",c:"energy_kwh",u:" kWh",d:"Most total energy used across all rides"},
  {k:"explorer",t:"Explorer",c:"areas",u:"",d:"Most distinct map areas ridden"},
  {k:"bigday",t:"Big Day",c:"rides_in_day",u:"",d:"Most rides in a single day"},
- {k:"commuter",t:"Commuter",c:"weekday_km",conv:"dist",d:"Most distance ridden on weekdays"}];
+ {k:"commuter",t:"Commuter",c:"weekday_km",conv:"dist",d:"Most distance ridden on weekdays"},
+ {k:"freespin",t:"Freespin King",c:"freespin_kmh",conv:"spd",d:"Biggest freespin / spin-up spike (wheel lifted or a crash)"},
+ {k:"sag",t:"Sag Lord",c:"voltage_sag",u:" V",d:"Biggest voltage drop under load — the hardest battery pull"},
+ {k:"rocket",t:"Rocket",c:"sustained_accel",u:" km/h/s",d:"Hardest sustained acceleration held for 2s+"}];
 const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];

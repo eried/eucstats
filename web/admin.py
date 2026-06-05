@@ -415,7 +415,7 @@ def _rider_row(db: Session, r: Rider, rs) -> str:
 
 
 def _trip_row(t: Trip) -> str:
-    fr = (t.meta_json or {}).get("max_freespin") if isinstance(t.meta_json, dict) else None
+    fr = t.max_freespin
     frs = f' <span class=chip flagged title="freespin">⟳{fr}</span>' if fr else ""
     return f"""<tr class=clk onclick="location='/admin/explorer/trip/{html.escape(t.trip_uuid)}'">
       <td><code>{html.escape(t.trip_uuid[:8])}</code></td><td>{_fmt_dt(t.start_utc)}</td>
@@ -605,7 +605,7 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
         return None
     raw = db.get(RawUpload, trip_uuid)
     mj = t.meta_json if isinstance(t.meta_json, dict) else {}
-    fr = mj.get("max_freespin")
+    fr = t.max_freespin
     gspike = mj.get("max_gforce_spike")
     fields = "".join([
         _field("rider", f'<a href="/admin/explorer/rider/{quote(t.rider_store_id or "")}">{html.escape(t.rider_store_id or "—")}</a>'),
@@ -615,8 +615,10 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
         _field("max speed (realistic)", f"{_num(t.max_speed)} km/h"),
     ] + ([_field("⚠ freespin spike", f"{fr} km/h", hi=True)] if fr else []) + [
         _field("avg speed", f"{_num(t.avg_speed)} km/h"),
+        _field("sustained accel", f"{_num(t.sustained_accel, 2)} km/h/s" if t.sustained_accel else "—"),
         _field("g-force (2s sustained)", _num(t.max_gforce, 2)),
     ] + ([_field("⚠ g-force spike", _num(gspike, 2), hi=True)] if gspike else []) + [
+        _field("voltage sag", f"{_num(t.max_voltage_sag, 2)} V" if t.max_voltage_sag else "—"),
         _field("sustained W", _num(t.max_sustained_w, 0)),
         _field("sustained A", _num(t.max_sustained_a, 0)),
         _field("peak voltage", f"{_num(t.peak_voltage)} V"),

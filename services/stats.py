@@ -85,6 +85,21 @@ def voltage_leaderboard(db, limit=50):
             for rs in _board(db, RiderStat.peak_voltage, limit, positive_only=True)]
 
 
+def freespin_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "freespin_kmh": round(rs.best_freespin or 0, 1)}
+            for rs in _board(db, RiderStat.best_freespin, limit, positive_only=True)]
+
+
+def sag_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "voltage_sag": round(rs.best_voltage_sag or 0, 2)}
+            for rs in _board(db, RiderStat.best_voltage_sag, limit, positive_only=True)]
+
+
+def rocket_leaderboard(db, limit=50):
+    return [{**_rider_brief(db, rs.store_id), "sustained_accel": round(rs.best_sustained_accel or 0, 2)}
+            for rs in _board(db, RiderStat.best_sustained_accel, limit, positive_only=True)]
+
+
 def _period_leaderboard(db, fmt, key, limit):
     """Biggest single ISO-week / calendar-month distance per rider (from daily rows)."""
     p = func.strftime(fmt, DailyDistance.date)
@@ -305,6 +320,9 @@ BOARDS = {
     "explorer": explorer,
     "bigday": big_day,
     "commuter": commuter,
+    "freespin": freespin_leaderboard,
+    "sag": sag_leaderboard,
+    "rocket": rocket_leaderboard,
 }
 
 

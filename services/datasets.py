@@ -294,7 +294,13 @@ def switch_to(slug: str, reload_app: Optional[Callable[[], None]] = None) -> str
         stale = Path(str(active) + ext)
         if stale.exists():
             stale.unlink()
-    # 4) record + make the running app reconnect to the new file
+    # 4) bring an older snapshot's schema up to date (adds any missing columns)
+    try:
+        from database import ensure_schema
+        ensure_schema(str(active))
+    except Exception:
+        pass
+    # 5) record + make the running app reconnect to the new file
     m = _load()
     m["active"] = slug
     _save(m)

@@ -46,6 +46,12 @@ class Aggregator:
         if trip.wh_per_km and (trip.distance_km or 0) >= 2:
             rs.best_wh_per_km = (trip.wh_per_km if rs.best_wh_per_km is None
                                  else min(rs.best_wh_per_km, trip.wh_per_km))
+        if trip.max_freespin:
+            rs.best_freespin = max(rs.best_freespin or 0.0, trip.max_freespin)
+        if trip.max_voltage_sag:
+            rs.best_voltage_sag = max(rs.best_voltage_sag or 0.0, trip.max_voltage_sag)
+        if trip.sustained_accel:
+            rs.best_sustained_accel = max(rs.best_sustained_accel or 0.0, trip.sustained_accel)
 
         if trip.start_utc:
             self.agg.add_daily(store, trip.start_utc.date(), dist)

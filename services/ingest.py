@@ -192,6 +192,8 @@ class IngestService:
                 wh_per_km=sm.wh_per_km, max_sustained_w=sm.max_sustained_w,
                 max_sustained_a=sm.max_sustained_a, peak_voltage=sm.peak_voltage,
                 fastest_0_40_s=sm.fastest_0_40_s,
+                max_freespin=sm.max_freespin, max_voltage_sag=sm.max_voltage_sag,
+                sustained_accel=sm.sustained_accel,
                 ascent_m=sm.ascent_m, alt_range_m=sm.alt_range_m,
                 battery_used_pct=sm.battery_used_pct, est_range_km=sm.est_range_km,
                 country=country, start_cell=start_cell, start_lat=start_lat, start_lon=start_lon,
@@ -202,7 +204,6 @@ class IngestService:
                 os_name=("ios" if meta.get("platform") == "apple" else "android"),
                 meta_json=(({k: meta.get(k) for k in ("gps", "os_version", "sample_count")
                              if meta.get(k) is not None}
-                            | ({"max_freespin": round(sm.max_freespin, 1)} if sm.max_freespin else {})
                             | ({"max_gforce_spike": round(sm.max_gforce_spike, 3)}
                                if (sm.max_gforce_spike and sm.max_gforce
                                    and sm.max_gforce_spike > sm.max_gforce * 1.3) else {}))

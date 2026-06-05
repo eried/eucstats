@@ -19,8 +19,9 @@ def _seed(db):
     TripRepo(db).insert_trip(trip_uuid="tr1", rider_store_id="ex1", distance_km=12.0,
                              start_utc=datetime(2026, 6, 1), country="NO",
                              start_lat=69.6, start_lon=18.9, max_speed=45.0,
-                             validation_status="validated",
-                             meta_json={"max_freespin": 88.0})
+                             validation_status="validated", max_freespin=88.0,
+                             max_voltage_sag=9.5, sustained_accel=12.0,
+                             meta_json={"max_gforce_spike": 6.2})
     db.commit()
 
 
@@ -87,6 +88,7 @@ def test_metrics_tree_shows_descriptions(db):
         assert "Mile Muncher" in r.text and "Most distance ever ridden" in r.text
         assert "class=mnode" in r.text and 'data-parent="riders"' in r.text   # nested tree
         assert 'data-parent="records"' in r.text and "Top Speed" in r.text    # records have children now
+        assert "Freespin King" in r.text and "Sag Lord" in r.text and "Rocket" in r.text   # new boards hideable
 
 
 def test_records_visibility_save(db):

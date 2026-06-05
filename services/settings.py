@@ -59,6 +59,9 @@ METRIC_BOARDS = [
     ("explorer", "Explorer", "Most distinct map areas ridden"),
     ("bigday", "Big Day", "Most rides in a single day"),
     ("commuter", "Commuter", "Most distance ridden on weekdays"),
+    ("freespin", "Freespin King", "Biggest freespin / spin-up spike (wheel lifted or a crash)"),
+    ("sag", "Sag Lord", "Biggest voltage drop under load — the hardest battery pull"),
+    ("rocket", "Rocket", "Hardest sustained acceleration held for 2s or more"),
 ]
 # Inner sub-panels of the "App & OS" section (keys match version_stats output).
 METRIC_APP = [

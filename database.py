@@ -33,6 +33,39 @@ def get_db():
         db.close()
 
 
+# Columns added after the original schema. SQLite's create_all() will NOT add
+# columns to an existing table, so we ALTER them in idempotently (also when an
+# older dataset snapshot is swapped in). type is the SQLite column affinity.
+NEW_COLUMNS = {
+    "trips": [("max_freespin", "FLOAT"), ("max_voltage_sag", "FLOAT"),
+              ("sustained_accel", "FLOAT")],
+    "rider_stats": [("best_freespin", "FLOAT"), ("best_voltage_sag", "FLOAT"),
+                    ("best_sustained_accel", "FLOAT")],
+}
+
+
+def ensure_schema(db_path: str | None = None) -> list[str]:
+    """Idempotently add any missing columns to an existing SQLite file.
+    Returns the list of columns added (empty when already up to date)."""
+    import sqlite3
+    path = db_path or str(config.DB_PATH)
+    added = []
+    con = sqlite3.connect(path)
+    try:
+        for table, cols in NEW_COLUMNS.items():
+            existing = {row[1] for row in con.execute(f"PRAGMA table_info({table})")}
+            if not existing:
+                continue                      # table doesn't exist yet (fresh file)
+            for name, typ in cols:
+                if name not in existing:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {typ}")
+                    added.append(f"{table}.{name}")
+        con.commit()
+    finally:
+        con.close()
+    return added
+
+
 def init_db():
     """Create all tables. Importing `models` registers them on Base.metadata."""
     try:
@@ -40,3 +73,4 @@ def init_db():
     except ImportError:
         pass
     Base.metadata.create_all(bind=engine)
+    ensure_schema()                           # backfill columns on pre-existing DBs
