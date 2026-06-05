@@ -555,6 +555,44 @@ def _trips_html(db: Session, status: str = "", country: str = "", store: str = "
     return _admin_shell(inner, active="/admin/explorer")
 
 
+_TRIP_MAP_TMPL = """
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <div class=card><h2>Route <span class=mut>· admin view · exact GPS path</span></h2>
+      <div id=tmap style="height:360px;border-radius:10px;overflow:hidden;border:1px solid #26345e"></div>
+      <p class=hint>Green = start, red = end. Full downsampled GPS path (admin only — public maps obfuscate rider locations).</p></div>
+    <script>
+    (function(){
+      if(!window.maplibregl){return;}
+      var m=new maplibregl.Map({container:"tmap",style:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",center:[__LON__,__LAT__],zoom:12,attributionControl:false});
+      m.addControl(new maplibregl.NavigationControl({showCompass:false}));
+      m.on("load",function(){
+        fetch("/admin/explorer/trip/__UUID__/track.geojson").then(function(r){return r.json();}).then(function(g){
+          if(!g.features||!g.features.length){return;}
+          m.addSource("trk",{type:"geojson",data:g});
+          m.addLayer({id:"trk-glow",type:"line",source:"trk",filter:["==",["get","role"],"path"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#2ea8ff","line-width":9,"line-blur":6,"line-opacity":0.3}});
+          m.addLayer({id:"trk-line",type:"line",source:"trk",filter:["==",["get","role"],"path"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#7fd0ff","line-width":3}});
+          m.addLayer({id:"trk-start",type:"circle",source:"trk",filter:["==",["get","role"],"start"],paint:{"circle-radius":6,"circle-color":"#39d98a","circle-stroke-color":"#eaffff","circle-stroke-width":2}});
+          m.addLayer({id:"trk-end",type:"circle",source:"trk",filter:["==",["get","role"],"end"],paint:{"circle-radius":6,"circle-color":"#ff8585","circle-stroke-color":"#ffecec","circle-stroke-width":2}});
+          var b=new maplibregl.LngLatBounds();
+          g.features.forEach(function(f){
+            if(f.geometry.type==="LineString"){f.geometry.coordinates.forEach(function(c){b.extend(c);});}
+            else if(f.geometry.type==="Point"){b.extend(f.geometry.coordinates);}
+          });
+          if(!b.isEmpty()){m.fitBounds(b,{padding:40,maxZoom:15,duration:0});}
+        }).catch(function(){});
+      });
+    })();
+    </script>"""
+
+
+def _trip_map_card(trip_uuid: str, lat, lon) -> str:
+    if lat is None or lon is None:
+        return '<div class=card><h2>Route</h2><p class=mut>No GPS location recorded for this trip.</p></div>'
+    return (_TRIP_MAP_TMPL.replace("__LON__", repr(float(lon))).replace("__LAT__", repr(float(lat)))
+            .replace("__UUID__", quote(trip_uuid)))
+
+
 def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
     t = db.get(Trip, trip_uuid)
     if t is None:
@@ -608,6 +646,7 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
         mj_pretty = html.escape(json.dumps(mj, indent=2, ensure_ascii=False)) if mj else "{}"
     except Exception:
         mj_pretty = "{}"
+    route_card = _trip_map_card(trip_uuid, t.start_lat, t.start_lon)
     inner = f"""
     <a class=bk href="/admin/explorer/trips">{_IC['back']} trip explorer</a>
     <h1>Trip <code style="font-size:16px">{html.escape(trip_uuid[:8])}</code>
@@ -615,6 +654,7 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
     <p class=sub><code>{html.escape(trip_uuid)}</code></p>
     {reasons_card}
     {actions_card}
+    {route_card}
     <div class=card><h2>Metrics</h2><div class=dl>{fields}</div></div>
     <div class=card><h2>meta_json <span class=mut>· device / gps extras</span></h2><pre class=j>{mj_pretty}</pre></div>"""
     return _admin_shell(inner, active="/admin/explorer")
@@ -665,6 +705,38 @@ def explorer_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db
         return HTMLResponse(_admin_shell('<a class=bk href="/admin/explorer/trips">← back</a><div class=card><h1>Trip not found</h1></div>',
                                          active="/admin/explorer"), status_code=404)
     return HTMLResponse(page)
+
+
+@admin_router.get("/explorer/trip/{trip_uuid}/track.geojson")
+def explorer_trip_track(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
+    """The trip's downsampled GPS path as GeoJSON (admin only — exact coords)."""
+    if not _is_authenticated(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from ingest.downsample import decode_track
+    from models import TripTrack
+    t = db.get(Trip, trip_uuid)
+    coords = []
+    tr = db.get(TripTrack, trip_uuid)
+    if tr and tr.points:
+        try:
+            for row in decode_track(tr.points):     # [iso_t, lat, lon, speed, g]
+                lat, lon = row[1], row[2]
+                if lat is not None and lon is not None:
+                    coords.append([lon, lat])
+        except Exception:
+            coords = []
+    feats = []
+    if len(coords) >= 2:
+        feats.append({"type": "Feature", "properties": {"role": "path"},
+                      "geometry": {"type": "LineString", "coordinates": coords}})
+        feats.append({"type": "Feature", "properties": {"role": "start"},
+                      "geometry": {"type": "Point", "coordinates": coords[0]}})
+        feats.append({"type": "Feature", "properties": {"role": "end"},
+                      "geometry": {"type": "Point", "coordinates": coords[-1]}})
+    elif t and t.start_lat is not None and t.start_lon is not None:
+        feats.append({"type": "Feature", "properties": {"role": "start"},
+                      "geometry": {"type": "Point", "coordinates": [t.start_lon, t.start_lat]}})
+    return JSONResponse({"type": "FeatureCollection", "features": feats})
 
 
 @admin_router.post("/rider/{store_id}/ban")

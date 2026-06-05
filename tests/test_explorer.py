@@ -46,8 +46,37 @@ def test_explorer_pages_render(db):
         td = client.get("/admin/explorer/trip/tr1")
         assert td.status_code == 200
         assert "Metrics" in td.text and "freespin spike" in td.text   # meta_json freespin surfaced
+        assert 'id=tmap' in td.text                                   # route map present (has start coords)
         assert client.get("/admin/explorer/rider/nope").status_code == 404
         assert client.get("/admin/explorer/trip/nope").status_code == 404
+
+
+def test_trip_track_geojson(db):
+    from datetime import datetime
+    from ingest.downsample import encode_track
+    from ingest.parser import Sample
+    from repository.trips import TripRepo
+    _seed(db)
+    pts = [Sample(t=datetime(2026, 6, 1, 10, 0, i), lat=69.6 + i * 0.001,
+                  lon=18.9 + i * 0.001, speed=20.0, g=1.0) for i in range(5)]
+    TripRepo(db).save_track("tr1", encode_track(pts))
+    db.commit()
+    with TestClient(app) as client:
+        _auth(client)
+        r = client.get("/admin/explorer/trip/tr1/track.geojson")
+        assert r.status_code == 200
+        g = r.json()
+        roles = {f["properties"]["role"] for f in g["features"]}
+        assert roles == {"path", "start", "end"}
+        line = next(f for f in g["features"] if f["properties"]["role"] == "path")
+        assert len(line["geometry"]["coordinates"]) == 5
+        assert line["geometry"]["coordinates"][0] == [18.9, 69.6]   # [lon, lat] order
+
+
+def test_trip_track_requires_auth(db):
+    _seed(db)
+    with TestClient(app) as client:
+        assert client.get("/admin/explorer/trip/tr1/track.geojson").status_code == 401
 
 
 def test_metrics_tree_shows_descriptions(db):
