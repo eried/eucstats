@@ -153,7 +153,7 @@ def test_ingest_persists_new_metrics_end_to_end(db):
             "tz": "Europe/Oslo", "tz_offset_min": 120, "tz_known": True,
             "is_mock_location": False, "wheel": {"serial": "X", "model": "Master"}}
     with TestClient(app) as client:
-        client.post("/api/v1/riders", json={"store_id": "m_test", "display_name": "M", "flag": "NO"})
+        client.post("/api/v1/riders", json={"store_id": "m_test", "display_name": "Metric", "flag": "NO"})
         files = {"trip": ("t.csv.gz", gzip.compress(_E2E_CSV), "application/gzip")}
         r = client.post("/api/v1/trips", data={"meta": json.dumps(meta)}, files=files)
         assert r.status_code == 201, r.text

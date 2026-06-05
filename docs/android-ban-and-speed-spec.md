@@ -124,3 +124,27 @@ Notes: these short-circuit BEFORE attestation/rate-limit/parse, so you can fire 
 any dummy payload. A `sandbox-*` registration returns a synthetic profile (`"sandbox": true`)
 and does NOT create a real rider. When sandbox is OFF, these store_ids behave like any normal
 (unregistered) id, so leaving them in your test suite is safe.
+
+## 5. Display-name rules — validate before submit, handle 422 / 409
+
+`POST /riders` (new accounts) and `PATCH /riders/{store_id}` (name edits) now enforce
+display-name rules. Validate client-side too, for instant feedback.
+
+| Rule | Detail |
+|---|---|
+| Length | **3–20 characters** (counted in characters, so an emoji = 1). |
+| Cleaning | We trim ends, collapse runs of whitespace to one space, and strip control characters. The **cleaned** name is what gets stored — show the user the cleaned result. |
+| Uniqueness | Names are **unique, case- and space-insensitive**: `"John Doe"`, `"johndoe"`, `"JOHN DOE"` all collide. |
+
+Responses:
+- `422` body `display_name must be at least 3 characters` / `… at most 20 characters` — too short/long. Show inline.
+- `409` body `display_name_taken` — name already used by someone else. Ask for another.
+
+Important nuances:
+- **Re-registration keeps the existing name.** Calling `POST /riders` again with the same
+  `store_id` ignores the `display_name` field entirely (no rename, no 422/409). To rename,
+  use `PATCH` — which is still limited to **once per calendar month** (returns `429` with a
+  message + the date it can change again).
+- `PATCH` name edits are checked in this order: format (`422`) → uniqueness (`409`) →
+  monthly limit (`429`). So a too-short or taken name is rejected even if the rider is
+  inside their monthly cooldown.

@@ -2,14 +2,57 @@
 avatar processing (64x64 PNG, EXIF stripped), delete/export."""
 from __future__ import annotations
 
+import re
 from datetime import date
 from io import BytesIO
 
 from PIL import Image
+from sqlalchemy import func
 
 import config
 from models import Rider, utcnow
 from repository.riders import RiderRepo
+
+NAME_MIN = 3
+NAME_MAX = 20
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")        # control chars (newlines/tabs/etc.)
+_WS = re.compile(r"\s+")
+
+
+class InvalidName(ValueError):
+    """Display name fails the length/format rules (message is user-facing)."""
+
+
+def clean_display_name(raw) -> str:
+    """Normalise a display name and enforce length 3..20 characters. Trims, collapses
+    internal whitespace to single spaces, and strips control characters. Length is
+    counted in characters (so an emoji counts as one). Raises InvalidName."""
+    if raw is None:
+        raise InvalidName("display_name is required")
+    name = _WS.sub(" ", _CTRL.sub("", str(raw))).strip()
+    n = len(name)
+    if n < NAME_MIN:
+        raise InvalidName(f"display_name must be at least {NAME_MIN} characters")
+    if n > NAME_MAX:
+        raise InvalidName(f"display_name must be at most {NAME_MAX} characters")
+    return name
+
+
+def _name_key(name) -> str:
+    """Uniqueness comparison key: lower-cased with all whitespace removed."""
+    return _WS.sub("", str(name)).lower()
+
+
+def name_taken(db, cleaned: str, exclude_store_id=None) -> bool:
+    """True if another rider already uses this display name (case- and
+    space-insensitive). Stored names are already cleaned, so a SQL lower+strip-spaces
+    compare matches _name_key()."""
+    key = _name_key(cleaned)
+    q = db.query(Rider.store_id).filter(
+        func.replace(func.lower(Rider.display_name), " ", "") == key)
+    if exclude_store_id is not None:
+        q = q.filter(Rider.store_id != exclude_store_id)
+    return db.query(q.exists()).scalar()
 
 
 def purge_rider(db, store_id) -> bool:

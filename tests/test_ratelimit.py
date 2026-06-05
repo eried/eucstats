@@ -29,9 +29,9 @@ def test_rider_create_rate_limited_per_ip(db):
     settings.set_rate_limits(db, {"rider_create_per_ip": "2"})
     with TestClient(app) as client:
         ratelimit.clear()
-        ok1 = client.post("/api/v1/riders", json={"store_id": "a", "display_name": "A"})
-        ok2 = client.post("/api/v1/riders", json={"store_id": "b", "display_name": "B"})
-        blocked = client.post("/api/v1/riders", json={"store_id": "c", "display_name": "C"})
+        ok1 = client.post("/api/v1/riders", json={"store_id": "a", "display_name": "Alpha"})
+        ok2 = client.post("/api/v1/riders", json={"store_id": "b", "display_name": "Bravo"})
+        blocked = client.post("/api/v1/riders", json={"store_id": "c", "display_name": "Charlie"})
         assert ok1.status_code == 200 and ok2.status_code == 200
         assert blocked.status_code == 429 and "rider_create" in blocked.text
         # re-registering an EXISTING rider is idempotent and never rate-limited
@@ -48,7 +48,7 @@ def test_trip_upload_rate_limited_per_rider(db):
     settings.set_rate_limits(db, {"trip_per_rider": "2", "trip_per_ip": "0"})  # ip limit off
     with TestClient(app) as client:
         ratelimit.clear()
-        client.post("/api/v1/riders", json={"store_id": "u", "display_name": "U", "flag": "NO"})
+        client.post("/api/v1/riders", json={"store_id": "u", "display_name": "Uniglide", "flag": "NO"})
         meta = {"store_id": "u", "platform": "google_play", "source_app": "eucplanet",
                 "schema_version": "eucplanet-v3-gforce", "tz": "Europe/Oslo"}
         codes = []

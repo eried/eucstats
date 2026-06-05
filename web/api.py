@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 import config
 from database import get_db
 from services import ratelimit, sandbox, settings, stats
-from services.identity import ChangeNotAllowed, IdentityService
+from services.identity import (ChangeNotAllowed, IdentityService, InvalidName,
+                               clean_display_name, name_taken)
 from services.ingest import IngestError, IngestService
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
@@ -41,20 +42,30 @@ def register_rider(payload: dict, request: Request, db: Session = Depends(get_db
                         "flag": payload.get("flag"), "has_avatar": False,
                         "banned": False, "ban_reason": None, "sandbox": True}
             raise HTTPException(status, pl)
-    # rate-limit only the creation of NEW accounts (re-registering an existing
-    # store_id is idempotent). Pre-account the only signal we have is the IP.
-    if IdentityService(db).repo.get(store) is None:
+    svc = IdentityService(db)
+    is_new = svc.repo.get(store) is None
+    name = payload["display_name"]
+    if is_new:
+        # rate-limit only the creation of NEW accounts (re-registering an existing
+        # store_id is idempotent). Pre-account the only signal we have is the IP.
         rl = settings.get_rate_limits(db)
         if not ratelimit.hit(f"rc:{_client_ip(request)}", rl["rider_create_per_ip"]):
             raise HTTPException(429, "rate_limited:rider_create")
+        # validate + enforce a unique display name. Re-registration keeps the existing
+        # name (upsert ignores this field), so these rules only apply to new accounts.
+        try:
+            name = clean_display_name(name)
+        except InvalidName as e:
+            raise HTTPException(422, str(e))
+        if name_taken(db, name):
+            raise HTTPException(409, "display_name_taken")
     avatar = None
     if payload.get("avatar_png_base64"):
         try:
             avatar = base64.b64decode(payload["avatar_png_base64"])
         except Exception:
             raise HTTPException(400, "avatar_png_base64 is not valid base64")
-    svc = IdentityService(db)
-    svc.register(store, payload.get("platform", "google_play"), payload["display_name"],
+    svc.register(store, payload.get("platform", "google_play"), name,
                  payload.get("flag"), avatar, bool(payload.get("consent_public", True)))
     return svc.get_profile(store)
 
@@ -81,7 +92,13 @@ def patch_rider(store_id: str, payload: dict, db: Session = Depends(get_db)):
     svc = IdentityService(db)
     changes = []
     if "display_name" in payload:
-        changes.append(("name", payload["display_name"]))
+        try:
+            nm = clean_display_name(payload["display_name"])
+        except InvalidName as e:
+            raise HTTPException(422, str(e))
+        if name_taken(db, nm, exclude_store_id=store_id):
+            raise HTTPException(409, "display_name_taken")
+        changes.append(("name", nm))
     if "flag" in payload:
         changes.append(("flag", payload["flag"]))
     if "avatar_png_base64" in payload:

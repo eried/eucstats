@@ -61,7 +61,7 @@ def test_reprocess_applies_new_calibration(db):
             "schema_version": "eucplanet-v3-gforce", "tz": "Europe/Oslo"}
     with TestClient(app) as client:
         _auth(client)
-        client.post("/api/v1/riders", json={"store_id": "rp", "display_name": "RP", "flag": "NO"})
+        client.post("/api/v1/riders", json={"store_id": "rp", "display_name": "Ripley", "flag": "NO"})
         files = {"trip": ("t.gz", gzip.compress(_CSV), "application/gzip")}
         r = client.post("/api/v1/trips", data={"meta": json.dumps({**meta, "trip_uuid": "tp1"})}, files=files)
         assert r.status_code == 201
