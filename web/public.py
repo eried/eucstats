@@ -668,14 +668,15 @@ async function init(){
     if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} doIntro(); };
   if(vid){
     vid.onended=endVideo; vid.onerror=endVideo;
-    if(introSeen){   // repeat visit: hide frame 0, seek to the final second, then reveal
-      vid.style.filter="brightness(0)";
-      const reveal1=()=>{vid.style.filter="";};
-      vid.onseeked=reveal1;
-      const seekEnd=()=>{try{if(isFinite(vid.duration)&&vid.duration>1.3){vid.currentTime=vid.duration-0.9;}else{reveal1();}}catch(e){reveal1();}};
-      if(vid.readyState>=2)seekEnd(); else vid.onloadeddata=seekEnd; setTimeout(endVideo,4500);
-    } else { setTimeout(endVideo,14000); }   // first visit: full intro (with a safety timeout)
-    const pp=vid.play&&vid.play(); if(pp&&pp.catch)pp.catch(()=>{});
+    const rep=(_C.intro_replay_secs==null)?0:(+_C.intro_replay_secs||0);  // seconds to replay on return visits
+    if(introSeen && rep<=0){
+      // return visit, replay disabled: show nothing — remove instantly, no reveal animation
+      if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; doIntro();
+    } else {
+      if(introSeen){ setTimeout(endVideo, rep*1000); }   // return visit: play only the first `rep` seconds
+      else { setTimeout(endVideo,14000); }               // first-ever visit: full intro (with a safety cap)
+      const pp=vid.play&&vid.play(); if(pp&&pp.catch)pp.catch(()=>{});
+    }
   } else { videoDone=true; }
   }
   map.on("load",async ()=>{

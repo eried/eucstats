@@ -149,6 +149,8 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th{text-align:left;color:#8ea0c8;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #26345e;padding:8px}
 td{border-bottom:1px solid rgba(38,52,94,.5);padding:9px 8px;vertical-align:middle}
 tr.active{background:rgba(46,168,255,.08)}
+.scrollbox{max-height:330px;overflow:auto;border:1px solid #1d2945;border-radius:9px}
+.scrollbox table th{position:sticky;top:0;background:#10182e;z-index:1}
 .b,.chip,.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px}
 .chip{margin:0 6px 6px 0}
 .b.test,.badge.test,.chip.rejected,.badge.rejected{background:rgba(255,107,107,.16);color:#ff9d9d}
@@ -212,7 +214,11 @@ code{background:#0b1124;border:1px solid #26345e;padding:3px 8px;border-radius:6
 def _admin_shell(inner: str, active: str = "", chrome: bool = True) -> str:
     head = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
-            "<title>eucstats admin</title>" + _ADMIN_CSS + "</head><body>")
+            "<link rel=icon href=\"data:image/svg+xml,"
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+            "<rect width='16' height='16' rx='3' fill='%230a0f1e'/>"
+            "<text x='8' y='12' font-size='11' text-anchor='middle'>%E2%9A%99%EF%B8%8F</text></svg>\">"
+            "<title>EUCSTATS · admin</title>" + _ADMIN_CSS + "</head><body>")
     if not chrome:
         return head + '<div class=center>' + inner + '</div></body></html>'
     tabs = "".join('<a href="%s"%s>%s</a>' % (h, " class=on" if h == active else "", lbl)
@@ -280,7 +286,7 @@ def _dash_html(db: Session) -> str:
         f"<td>{_rider_badges(db, r)}</td></tr>"
         for r in riders) or "<tr><td colspan=5 class=mut>no riders</td></tr>"
 
-    trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(30).all()
+    trips = db.query(Trip).order_by(desc(Trip.created_at)).limit(100).all()
     thtml = "".join(
         f"<tr class=clk onclick=\"location='/admin/explorer/trip/{html.escape(t.trip_uuid)}'\">"
         f"<td><code>{t.trip_uuid[:8]}</code></td><td>{html.escape(t.rider_store_id or '')}</td>"
@@ -305,15 +311,15 @@ def _dash_html(db: Session) -> str:
     <div class=card>
       <h2>Flagged trips — review queue</h2>
       <p class=hint>Trips held back by plausibility checks. Approve to count them toward leaderboards, or reject to drop them.</p>
-      <table><tr><th>id</th><th>rider</th><th>distance</th><th>reasons</th><th>action</th></tr>{fhtml}</table>
+      <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>distance</th><th>reasons</th><th>action</th></tr>{fhtml}</table></div>
     </div>
     <div class=card>
       <h2>Riders <span class=mut>· newest 200</span></h2>
-      <table><tr><th>store id</th><th>name</th><th>flag</th><th>platform</th><th>status</th></tr>{rhtml}</table>
+      <div class=scrollbox><table><tr><th>store id</th><th>name</th><th>flag</th><th>platform</th><th>status</th></tr>{rhtml}</table></div>
     </div>
     <div class=card>
-      <h2>Recent trips <span class=mut>· newest 30</span></h2>
-      <table><tr><th>id</th><th>rider</th><th>km</th><th>country</th><th>status</th></tr>{thtml}</table>
+      <h2>Recent trips <span class=mut>· newest 100</span></h2>
+      <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>km</th><th>country</th><th>status</th></tr>{thtml}</table></div>
     </div>"""
     return _admin_shell(inner, active="/admin")
 
@@ -1286,6 +1292,9 @@ def _settings_html(db: Session, msg: str = "") -> str:
         <label class=toggle style="display:inline-flex"><input type=checkbox name=intro_enabled value=1{ck(b['intro_enabled'])}> Show the cinematic intro</label>
         <p class=hint style="margin:12px 0 4px">Video path or URL:</p>
         <input type=text name=intro_src value="{html.escape(b['intro_src'])}" style="width:min(440px,100%)">
+        <p class=hint style="margin:12px 0 4px">On a <b>return</b> visit, replay the intro for
+          <input type=number name=intro_replay_secs min=0 max=60 value="{b['intro_replay_secs']}" style="width:70px"> seconds
+          <span class=hint>(0 = skip it entirely; the first-ever visit always plays in full)</span></p>
       </div>
       <div class=card>
         <h2>Look &amp; feel</h2>
@@ -1314,13 +1323,13 @@ def settings_save(request: Request, db: Session = Depends(get_db),
                   poll_secs: int = Form(30), intro_enabled: str = Form(""),
                   intro_src: str = Form("/static/intro.mp4"), map_style: str = Form("dark"),
                   glitch_enabled: str = Form(""), glitch_secs: int = Form(4),
-                  glitch_intensity: int = Form(2),
+                  glitch_intensity: int = Form(2), intro_replay_secs: int = Form(0),
                   test_enabled: str = Form(""), test_text: str = Form("TEST DATA")):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     settings.set_test_mode(bool(test_enabled), test_text)
     settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
-                           bool(glitch_enabled), glitch_secs, glitch_intensity)
+                           bool(glitch_enabled), glitch_secs, glitch_intensity, intro_replay_secs)
     return RedirectResponse("/admin/settings?msg=" + quote("settings saved — live on next page load"),
                             status_code=303)
 
