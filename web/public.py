@@ -208,6 +208,15 @@ td.sub{color:var(--mut)}
 __TESTWM__
 <video id="intro" autoplay muted playsinline preload="auto"><source src="/static/intro.mp4" type="video/mp4"></video>
 <div id="introfx"></div>
+<script>
+/* Synchronous: if the intro is off (admin site-wide OR this visitor's gear-menu choice),
+   kill the autoplaying video BEFORE first paint so no frame ever flashes. */
+(function(){try{var c=window.__CFG__||{};
+  if(c.intro_enabled===false||localStorage.getItem("eucstats_intro_off")==="1"){
+    var v=document.getElementById("intro"),f=document.getElementById("introfx");
+    if(v){try{v.pause();}catch(e){}v.remove();} if(f)f.remove();
+  }}catch(e){}})();
+</script>
 <div class="topbar intro">
   <div id="champ" class="champ" style="display:none"></div>
   <div id="chips" class="chips"></div>
@@ -615,10 +624,10 @@ function addHeat(){
   // pixels-per-metre double every zoom level, so the glow doubles too. A couple of cells
   // that look like dots when zoomed out blend into a broad warm area as you zoom in
   // (their on-screen gap and their glow grow at the same rate). Anchored to the admin
-  // "Heat radius" at Zref=11; clamped tiny far out, and capped so a massive zoom fills
-  // with heat rather than overflowing the GPU. ["exponential",2] makes the interpolation
-  // between stops follow 2^zoom exactly.
-  const Rb=HEAT.radius,Zref=11,k=HEAT.zoom_growth,RMIN=4,RMAX=Math.min(Rb*16,1024);
+  // "Heat radius" at Zref=11; held to a clearly VISIBLE floor when zoomed out (RMIN, so far
+  // views are a soft blob, not an invisible pinprick) and capped so a massive zoom fills with
+  // heat rather than overflowing the GPU. ["exponential",2] makes the interpolation follow 2^zoom.
+  const Rb=HEAT.radius,Zref=11,k=HEAT.zoom_growth,RMIN=Math.max(20,Rb*0.4),RMAX=Math.min(Rb*16,1024);
   const rAt=z=>Math.max(RMIN,Math.min(RMAX,Rb*Math.pow(2,(z-Zref)*k)));
   const rRadius=["interpolate",["exponential",2],["zoom"]].concat(
     [3,7,10,12,14,16,20].reduce((a,z)=>a.concat([z,Math.round(rAt(z))]),[]));
@@ -628,9 +637,9 @@ function addHeat(){
     // it toward white (~8+ riders). Quiet cells stay visibly fainter than busy ones but
     // never disappear. log2 so each doubling of riders is one even step.
     "heatmap-weight":["min",1,["+",HEAT.glow_floor,["*",0.20,["/",["ln",["max",1,["get","r"]]],["ln",2]]]]],
-    // INTENSITY kept nearly flat across zoom so brightness stays STEADY while the
-    // exponential radius makes the glow EXPAND as you zoom in (size grows, not brightness).
-    "heatmap-intensity":["interpolate",["linear"],["zoom"],3,1.05*HEAT.intensity,13,1.3*HEAT.intensity],
+    // INTENSITY a touch stronger when zoomed OUT (sparse far cells read better) and settles
+    // to the dialed value as you zoom in, where the exponential radius does the work.
+    "heatmap-intensity":["interpolate",["linear"],["zoom"],3,1.45*HEAT.intensity,11,1.3*HEAT.intensity],
     "heatmap-radius":rRadius,
     "heatmap-opacity":0,
     "heatmap-color":["interpolate",["linear"],["heatmap-density"],
