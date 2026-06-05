@@ -227,7 +227,7 @@ __TESTWM__
 <script>
 const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
-const HIDE=Object.assign({boards:[],sections:[],app:[],groups:[]},window.__HIDE__||{});
+const HIDE=Object.assign({boards:[],sections:[],app:[],groups:[],records:[]},window.__HIDE__||{});
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -526,7 +526,7 @@ function showCountries(){showGroupPanel("country","countries","Countries",{flag:
 function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+(e.riders||0)+" riders"});}
 function showBrands(){showGroupPanel("brand","brands","Wheel brands",{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
-  const recs=(await j("/records")).filter(r=>r.value!=null);
+  const recs=(await j("/records")).filter(r=>r.value!=null&&!HIDE.records.includes(r.key));
   setPanel("records","All-time records",`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${RECLABEL[r.key]||r.key}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">no records yet</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
@@ -704,7 +704,8 @@ def _hide_cfg(db):
     h = settings.get_hidden(db)
     return ('<script>window.__HIDE__='
             + json.dumps({"boards": h["boards"], "sections": h["sections"],
-                          "app": h.get("app", []), "groups": h.get("groups", [])})
+                          "app": h.get("app", []), "groups": h.get("groups", []),
+                          "records": h.get("records", [])})
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';</script>')
 

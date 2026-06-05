@@ -1170,6 +1170,7 @@ def _metrics_html(db: Session, msg: str = "") -> str:
         "countries": ("show_group", settings.METRIC_GROUPS, h["groups"]),
         "wheels": ("show_group", settings.METRIC_GROUPS, h["groups"]),
         "brands": ("show_group", settings.METRIC_GROUPS, h["groups"]),
+        "records": ("show_record", settings.METRIC_RECORDS, h["records"]),
         "tech": ("show_app", settings.METRIC_APP, h["app"]),
     }
 
@@ -1229,14 +1230,16 @@ def metrics_page(request: Request, db: Session = Depends(get_db), msg: str = "")
 @admin_router.post("/metrics/save")
 def metrics_save(request: Request, db: Session = Depends(get_db),
                  show_section: list[str] = Form([]), show_board: list[str] = Form([]),
-                 show_app: list[str] = Form([]), show_group: list[str] = Form([])):
+                 show_app: list[str] = Form([]), show_group: list[str] = Form([]),
+                 show_record: list[str] = Form([])):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     hidden_sections = [k for k, *_ in settings.METRIC_SECTIONS if k not in show_section]
     hidden_boards = [k for k, *_ in settings.METRIC_BOARDS if k not in show_board]
     hidden_app = [k for k, *_ in settings.METRIC_APP if k not in show_app]
     hidden_groups = [k for k, *_ in settings.METRIC_GROUPS if k not in show_group]
-    settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app, hidden_groups)
+    hidden_records = [k for k, *_ in settings.METRIC_RECORDS if k not in show_record]
+    settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app, hidden_groups, hidden_records)
     return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved — live now"),
                             status_code=303)
 
@@ -1325,14 +1328,43 @@ def _resbar(label: str, pct, sub: str) -> str:
             f'<p class=hint style="margin:1px 0 12px 0">{html.escape(sub)}</p>')
 
 
+def _disk_card(disk, app) -> str:
+    """Disk bar with our eucstats footprint highlighted inside the used portion."""
+    if not disk:
+        return '<p class=mut>disk stats unavailable</p>'
+    total, used, used_pct = disk["total"], disk["used"], disk["pct"]
+    app_b = (app or {}).get("bytes") or 0
+    app_pct = round(app_b / total * 100, 2) if total else 0
+    bar = (f'<div class=bar><span class=d style="width:54px">Disk</span>'
+           f'<div class=track style="position:relative">'
+           f'<div class=fill style="width:{min(100, used_pct)}%;background:#3a6ea5"></div>'
+           f'<div class=fill style="position:absolute;left:0;top:0;height:100%;width:{min(100, app_pct)}%;background:#ffd24a"></div>'
+           f'</div><span class=n>{used_pct}%</span></div>'
+           f'<p class=hint style="margin:1px 0 10px 0">'
+           f'<span style="color:#ffd24a">●</span> eucstats {_gb(app_b)} &nbsp;·&nbsp; '
+           f'<span style="color:#3a6ea5">●</span> other used {_gb(used - app_b)} &nbsp;·&nbsp; '
+           f'{_gb(disk["free"])} free of {_gb(total)}</p>')
+    # per-folder breakdown of our footprint
+    bd = (app or {}).get("breakdown") or []
+    if bd and app_b:
+        top = bd[:8]
+        rows = "".join(
+            f'<div class=bar><span class=d style="width:120px;overflow:hidden;text-overflow:ellipsis">{html.escape(name)}</span>'
+            f'<div class=track><div class=fill style="width:{int(100 * b / app_b)}%"></div></div>'
+            f'<span class=n style="width:64px">{_gb(b)}</span></div>'
+            for name, b in top)
+        bar += (f'<details style="margin-top:4px"><summary class=hint style="cursor:pointer">'
+                f'eucstats breakdown ({html.escape((app or {}).get("path", ""))})</summary>'
+                f'<div style="margin-top:8px">{rows}</div></details>')
+    return bar
+
+
 def _system_html(db: Session, msg: str = "") -> str:
     from services.sysinfo import system_stats
     s = system_stats()
     r = settings.get_retention(db)
     disk, mem, cpu = s["disk"], s["mem"], s["cpu"]
-    res = ""
-    res += (_resbar("Disk", disk["pct"], f'{_gb(disk["used"])} used of {_gb(disk["total"])} · {_gb(disk["free"])} free')
-            if disk else '<p class=mut>disk stats unavailable</p>')
+    res = _disk_card(disk, s.get("app"))
     res += (_resbar("RAM", mem["pct"], f'{_gb(mem["used"])} used of {_gb(mem["total"])} · {_gb(mem["avail"])} available')
             if mem else '<p class=mut>memory stats unavailable</p>')
     load = (" / ".join(str(x) for x in cpu["load"]) + " (1·5·15 min)") if cpu.get("load") else "load unavailable"

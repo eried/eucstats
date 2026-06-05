@@ -86,6 +86,23 @@ def test_metrics_tree_shows_descriptions(db):
         assert r.status_code == 200
         assert "Mile Muncher" in r.text and "Most distance ever ridden" in r.text
         assert "class=mnode" in r.text and 'data-parent="riders"' in r.text   # nested tree
+        assert 'data-parent="records"' in r.text and "Top Speed" in r.text    # records have children now
+
+
+def test_records_visibility_save(db):
+    with TestClient(app) as client:
+        _auth(client)
+        data = {
+            "show_section": [k for k, *_ in settings.METRIC_SECTIONS],
+            "show_board": [k for k, *_ in settings.METRIC_BOARDS],
+            "show_group": [k for k, *_ in settings.METRIC_GROUPS],
+            "show_app": [k for k, *_ in settings.METRIC_APP],
+            "show_record": [k for k, *_ in settings.METRIC_RECORDS if k != "top_speed"],
+        }
+        r = client.post("/admin/metrics/save", data=data, follow_redirects=False)
+        assert r.status_code == 303
+        db.expire_all()
+        assert "top_speed" in settings.get_hidden(db)["records"]
 
 
 def test_system_and_pipeline_pages(db):

@@ -84,6 +84,16 @@ METRIC_GROUPS = [
     ("range", "Long Hauler", "Longest est. range"),
     ("eff", "Eco Rider", "Lowest Wh/km · best"),
 ]
+# All-time single records shown in the Records section (keys match Record.key / RECLABEL).
+METRIC_RECORDS = [
+    ("mileage_king", "Mileage King", "Most lifetime distance ridden"),
+    ("top_speed", "Top Speed", "Fastest speed ever recorded"),
+    ("longest_trip", "Longest Trip", "Longest single ride by distance"),
+    ("max_gforce", "Max G-Force", "Strongest g-force ever recorded"),
+    ("sustained_w", "Sustained Power", "Highest power held for 2 seconds"),
+    ("sustained_a", "Sustained Current", "Highest current held for 2 seconds"),
+    ("peak_voltage", "Voltage Peak", "Highest battery voltage observed"),
+]
 
 # --- ingest pipeline plausibility rules (admin-toggleable) ---
 # (key, label, description). Keys match plausibility.check()'s flag reasons.
@@ -296,15 +306,17 @@ def _json_list(db: Session, key: str) -> list:
 
 
 def get_hidden(db: Session) -> dict:
-    """Keys of boards / dock-sections / App-panels / group-tabs to hide publicly."""
+    """Keys of boards / dock-sections / App-panels / group-tabs / records to hide publicly."""
     return {"boards": _json_list(db, "hidden_boards"),
             "sections": _json_list(db, "hidden_sections"),
             "app": _json_list(db, "hidden_app"),
-            "groups": _json_list(db, "hidden_groups")}
+            "groups": _json_list(db, "hidden_groups"),
+            "records": _json_list(db, "hidden_records")}
 
 
-def set_hidden(db: Session, boards, sections, app=(), groups=()) -> None:
+def set_hidden(db: Session, boards, sections, app=(), groups=(), records=()) -> None:
     set_meta(db, "hidden_boards", json.dumps(list(boards)))
     set_meta(db, "hidden_sections", json.dumps(list(sections)))
     set_meta(db, "hidden_app", json.dumps(list(app)))
     set_meta(db, "hidden_groups", json.dumps(list(groups)))
+    set_meta(db, "hidden_records", json.dumps(list(records)))

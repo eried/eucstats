@@ -51,5 +51,12 @@ def test_run_retention_uses_admin_days(db):
 def test_system_stats_shape():
     from services.sysinfo import system_stats
     s = system_stats(".")
-    assert "disk" in s and "mem" in s and "cpu" in s
+    assert "disk" in s and "mem" in s and "cpu" in s and "app" in s
     assert s["cpu"]["count"] >= 1
+
+
+def test_app_footprint():
+    from services.sysinfo import app_footprint
+    fp = app_footprint(".")
+    assert fp is not None and fp["bytes"] > 0
+    assert isinstance(fp["breakdown"], list) and fp["breakdown"]

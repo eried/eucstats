@@ -37,6 +37,42 @@ def _mem() -> dict | None:
         return None
 
 
+def _dir_size(path: str) -> int:
+    total = 0
+    try:
+        with os.scandir(path) as it:
+            for entry in it:
+                try:
+                    if entry.is_file(follow_symlinks=False):
+                        total += entry.stat(follow_symlinks=False).st_size
+                    elif entry.is_dir(follow_symlinks=False):
+                        total += _dir_size(entry.path)
+                except OSError:
+                    continue
+    except OSError:
+        pass
+    return total
+
+
+def app_footprint(path: str) -> dict | None:
+    """Our whole install's disk usage + a per-child (file/folder) breakdown."""
+    try:
+        items = []
+        with os.scandir(path) as it:
+            for entry in it:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        items.append((entry.name + "/", _dir_size(entry.path)))
+                    elif entry.is_file(follow_symlinks=False):
+                        items.append((entry.name, entry.stat(follow_symlinks=False).st_size))
+                except OSError:
+                    continue
+        items.sort(key=lambda kv: -kv[1])
+        return {"path": path, "bytes": sum(b for _, b in items), "breakdown": items}
+    except OSError:
+        return None
+
+
 def _cpu() -> dict:
     count = os.cpu_count() or 1
     try:
@@ -49,4 +85,5 @@ def _cpu() -> dict:
 
 def system_stats(path: str | None = None) -> dict:
     path = path or str(config.DATA_DIR)
-    return {"disk": _disk(path), "mem": _mem(), "cpu": _cpu()}
+    return {"disk": _disk(path), "mem": _mem(), "cpu": _cpu(),
+            "app": app_footprint(str(config.BASE_DIR))}
