@@ -149,7 +149,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th{text-align:left;color:#8ea0c8;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #26345e;padding:8px}
 td{border-bottom:1px solid rgba(38,52,94,.5);padding:9px 8px;vertical-align:middle}
 tr.active{background:rgba(46,168,255,.08)}
-.scrollbox{max-height:200px;overflow:auto;border:1px solid #1d2945;border-radius:9px}
+.scrollbox{height:210px;overflow:auto;border:1px solid #1d2945;border-radius:9px}
 .scrollbox table th{position:sticky;top:0;background:#10182e;z-index:1}
 .pager{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:13px}
 .pager a,.pager span.cur{padding:6px 11px;border:1px solid #26345e;border-radius:8px;color:#cfe4ff}
@@ -935,10 +935,6 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
         <button>Import .sqlite</button>
       </form>
     </div>
-    <h2>Saved datasets</h2>
-    <table><tr><th>name</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
-    <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
-    current dataset (unless it's empty), then reconnects instantly — no restart, no downtime.</p>
     <div class=card>
       <h2>Active dataset</h2>
       <p>{c['riders']} riders · {c['trips']} trips · {c['validated']} validated · {c['flagged']} flagged</p>
@@ -947,6 +943,10 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
         <button>Save current as snapshot</button>
       </form>
     </div>
+    <h2>Saved datasets</h2>
+    <table><tr><th>name</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
+    <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
+    current dataset (unless it's empty), then reconnects instantly — no restart, no downtime.</p>
     """
     return _ds_page(inner, "/admin/datasets")
 
