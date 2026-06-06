@@ -55,7 +55,7 @@ def test_register_rejects_duplicate_name(db):
         assert _reg(client, "u1", "Rider One").status_code == 200
         # different person, same name (different case/spacing) -> rejected
         dup = _reg(client, "u2", "riderone")
-        assert dup.status_code == 409 and "display_name_taken" in dup.text
+        assert dup.status_code == 409 and "already taken" in dup.text
         # a distinct name is fine
         assert _reg(client, "u3", "Rider Two").status_code == 200
 
@@ -80,7 +80,7 @@ def test_deleted_account_cannot_rejoin(db):
         assert _reg(client, "gone", "Ghost Rider").status_code == 200
         assert client.delete("/api/v1/riders/gone").status_code == 200
         again = _reg(client, "gone", "Ghost Rider")
-        assert again.status_code == 403 and "account_closed" in again.text
+        assert again.status_code == 403 and "closed" in again.text
 
 
 # ---------- API: edit (PATCH) ----------
@@ -93,4 +93,4 @@ def test_patch_rejects_short_and_duplicate(db):
         short = client.patch("/api/v1/riders/me", json={"display_name": "ab"})
         assert short.status_code == 422
         dup = client.patch("/api/v1/riders/me", json={"display_name": "existing one"})
-        assert dup.status_code == 409 and "display_name_taken" in dup.text
+        assert dup.status_code == 409 and "already taken" in dup.text

@@ -136,9 +136,9 @@ display-name rules. Validate client-side too, for instant feedback.
 | Cleaning | We trim ends, collapse runs of whitespace to one space, and strip control characters. The **cleaned** name is what gets stored — show the user the cleaned result. |
 | Uniqueness | Names are **unique, case- and space-insensitive**: `"John Doe"`, `"johndoe"`, `"JOHN DOE"` all collide. |
 
-Responses:
-- `422` body `display_name must be at least 3 characters` / `… at most 20 characters` — too short/long. Show inline.
-- `409` body `display_name_taken` — name already used by someone else. Ask for another.
+Responses (the `detail` is a ready-to-display English sentence, not a machine code — show it as-is):
+- `422` — bad length, e.g. `Display name must be at least 3 characters` / `Display name must be 20 characters or fewer`. Show inline.
+- `409` `That display name is already taken` — used by someone else. Ask for another.
 
 Important nuances:
 - **Re-registration keeps the existing name.** Calling `POST /riders` again with the same
@@ -147,9 +147,9 @@ Important nuances:
   message + the date it can change again).
 - **A deleted account cannot rejoin.** Once a rider closes their account
   (`DELETE /riders/{store_id}`), re-registering that same `store_id` is refused with
-  `403 account_closed`. Closing is permanent for that id — a returning user needs a fresh
-  install / new `store_id`. (Sandbox tip: use a throwaway `store_id` when testing the
-  delete → re-register path.)
+  `403 This account was closed and can't be reopened`. Closing is permanent for that id — a
+  returning user needs a fresh install / new `store_id`. (Sandbox tip: use a throwaway
+  `store_id` when testing the delete → re-register path.)
 - `PATCH` name edits are checked in this order: format (`422`) → uniqueness (`409`) →
   monthly limit (`429`). So a too-short or taken name is rejected even if the rider is
   inside their monthly cooldown.

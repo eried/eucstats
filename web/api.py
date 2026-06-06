@@ -46,7 +46,7 @@ def register_rider(payload: dict, request: Request, db: Session = Depends(get_db
     existing = svc.repo.get(store)
     if existing is not None and existing.deleted_at is not None:
         # a closed account cannot be revived by re-registering the same store_id
-        raise HTTPException(403, "account_closed")
+        raise HTTPException(403, "This account was closed and can't be reopened")
     is_new = existing is None
     name = payload["display_name"]
     if is_new:
@@ -62,7 +62,7 @@ def register_rider(payload: dict, request: Request, db: Session = Depends(get_db
         except InvalidName as e:
             raise HTTPException(422, str(e))
         if name_taken(db, name):
-            raise HTTPException(409, "display_name_taken")
+            raise HTTPException(409, "That display name is already taken")
     avatar = None
     if payload.get("avatar_png_base64"):
         try:
@@ -101,7 +101,7 @@ def patch_rider(store_id: str, payload: dict, db: Session = Depends(get_db)):
         except InvalidName as e:
             raise HTTPException(422, str(e))
         if name_taken(db, nm, exclude_store_id=store_id):
-            raise HTTPException(409, "display_name_taken")
+            raise HTTPException(409, "That display name is already taken")
         changes.append(("name", nm))
     if "flag" in payload:
         changes.append(("flag", payload["flag"]))

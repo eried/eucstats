@@ -28,13 +28,13 @@ def clean_display_name(raw) -> str:
     internal whitespace to single spaces, and strips control characters. Length is
     counted in characters (so an emoji counts as one). Raises InvalidName."""
     if raw is None:
-        raise InvalidName("display_name is required")
+        raise InvalidName("Please enter a display name")
     name = _WS.sub(" ", _CTRL.sub("", str(raw))).strip()
     n = len(name)
     if n < NAME_MIN:
-        raise InvalidName(f"display_name must be at least {NAME_MIN} characters")
+        raise InvalidName(f"Display name must be at least {NAME_MIN} characters")
     if n > NAME_MAX:
-        raise InvalidName(f"display_name must be at most {NAME_MAX} characters")
+        raise InvalidName(f"Display name must be {NAME_MAX} characters or fewer")
     return name
 
 
