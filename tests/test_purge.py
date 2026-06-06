@@ -1,4 +1,4 @@
-"""Admin hard-delete (purge) vs a rider's own account close (keeps portal presence)."""
+"""Admin hard-delete (purge) vs a rider's own account close (hidden from public, row kept)."""
 import json
 
 import pyotp
@@ -25,18 +25,19 @@ def _rider_with_trip(db, sid="s", name="Sheep"):
     Aggregator(db).apply(db.get(models.Trip, "tr-" + sid))
 
 
-def test_self_delete_keeps_rider_on_portal(db):
+def test_self_delete_hides_from_public_keeps_row(db):
     _rider_with_trip(db, "s", "Sheep")
     assert any(e["store_id"] == "s" for e in stats.mileage_leaderboard(db))
     IdentityService(db).delete("s")                 # rider closes their own account
     db.expire_all()
-    board = stats.mileage_leaderboard(db)
-    assert any(e["store_id"] == "s" for e in board)   # still on the leaderboard
+    # gone from public boards + card — a closed account no longer counts publicly
+    assert not any(e["store_id"] == "s" for e in stats.mileage_leaderboard(db))
+    assert stats.rider_card(db, "s") is None
+    # but the row is KEPT (not purged): name preserved, marked closed + opted out, so the
+    # store_id can't be reused and the close is permanent. Only an admin purge erases data.
     r = db.get(models.Rider, "s")
-    assert r.display_name == "Sheep"                  # name NOT anonymized
-    assert r.deleted_at is not None                   # but marked closed
-    # the public stats card still loads (portal presence preserved)
-    assert stats.rider_card(db, "s") is not None
+    assert r is not None and r.display_name == "Sheep"
+    assert r.deleted_at is not None and r.consent_public is False
 
 
 def test_purge_removes_everything(db):

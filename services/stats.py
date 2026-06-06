@@ -549,7 +549,7 @@ def rider_card(db, store_id):
     rider with no validated trips yet, so the app never shows 'couldn't load'."""
     import services.settings as settings
     r = db.get(Rider, store_id)
-    if r is None:                       # purged riders 404; self-deleted ones still show
+    if r is None or r.deleted_at is not None:   # purged or self-closed accounts: no card
         return None
     rs = db.get(RiderStat, store_id)
     countries = (db.query(func.count(func.distinct(Trip.country)))
@@ -637,14 +637,18 @@ def brand_flow(db, brand):
 
 
 def global_summary(db):
-    import services.settings as settings
-    total_km = db.query(func.coalesce(func.sum(RiderStat.total_km), 0.0)).scalar() or 0.0
-    banned = set(settings.banned(db).keys())                     # excluded from public counts
-    riders_q = db.query(func.count(Rider.store_id)).filter(Rider.consent_public.isnot(False))
+    from services.aggregator import _excluded_ids
+    excluded = _excluded_ids(db)          # banned + self-deleted, kept out of public counts
+    pub = Rider.consent_public.isnot(False)
+    # total_km: only consent-public riders' totals — excludes deleted (consent cleared on
+    # close) and opted-out riders; banned riders have no RiderStat row after a rebuild.
+    total_km = (db.query(func.coalesce(func.sum(RiderStat.total_km), 0.0))
+                .join(Rider, Rider.store_id == RiderStat.store_id).filter(pub).scalar()) or 0.0
+    riders_q = db.query(func.count(Rider.store_id)).filter(pub)
     trips_q = db.query(func.count(Trip.trip_uuid)).filter(Trip.validation_status == "validated")
-    if banned:
-        riders_q = riders_q.filter(~Rider.store_id.in_(banned))
-        trips_q = trips_q.filter(~Trip.rider_store_id.in_(banned))
+    if excluded:
+        riders_q = riders_q.filter(~Rider.store_id.in_(excluded))
+        trips_q = trips_q.filter(~Trip.rider_store_id.in_(excluded))
     return {
         "riders": riders_q.scalar(),
         "trips": trips_q.scalar(),

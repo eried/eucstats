@@ -27,6 +27,22 @@ def test_consent_false_hidden_from_public(db):
     assert stats.global_summary(db)["riders"] == 1  # headline count excludes the opted-out rider
 
 
+def test_deleted_rider_excluded_from_public(db):
+    """A rider who closes their account drops out of public counts and boards."""
+    from repository.riders import RiderRepo
+    _rider_trip(db, "keep", True, km=10.0)
+    _rider_trip(db, "gone", True, km=50.0)
+    assert stats.global_summary(db)["riders"] == 2
+    assert "gone" in [e["store_id"] for e in stats.mileage_leaderboard(db)]
+
+    RiderRepo(db).soft_delete("gone")               # rider closes their own account
+    db.expire_all()
+    s = stats.global_summary(db)
+    assert s["riders"] == 1                          # deleted rider no longer counted
+    assert s["trips"] == 1 and s["total_km"] == 10.0 # nor its trip / distance
+    assert "gone" not in [e["store_id"] for e in stats.mileage_leaderboard(db)]
+
+
 def test_consent_default_true_is_public(db):
     # a rider created without specifying consent defaults to public
     db.add(models.Rider(store_id="d", display_name="D", platform="google_play"))

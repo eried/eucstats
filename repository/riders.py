@@ -53,11 +53,13 @@ class RiderRepo:
         return rider
 
     def soft_delete(self, store_id) -> Rider | None:
-        """Rider closed their own account: mark it closed but KEEP their public
-        presence (name, flag, avatar, stats) on the portal — only an admin purge
-        removes data. The app may stop showing the account; the leaderboards don't."""
+        """Rider closed their own account: mark it closed AND drop it from public
+        stats (consent_public=False) so it no longer shows on leaderboards or in the
+        rider count. The row is kept (not purged) so the store_id can't be reused and
+        the close stays permanent; only an admin purge erases the data."""
         r = self.get(store_id)
         if r:
             r.deleted_at = utcnow()
+            r.consent_public = False
             self.db.commit()
         return r

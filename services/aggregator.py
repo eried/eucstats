@@ -138,6 +138,17 @@ def _banned_ids(db):
     return set(settings.banned(db).keys())
 
 
+def _deleted_ids(db):
+    from models import Rider
+    return {sid for (sid,) in db.query(Rider.store_id)
+            .filter(Rider.deleted_at.isnot(None)).all()}
+
+
+def _excluded_ids(db):
+    """Riders kept out of every public stat: banned (admin) + self-deleted (closed)."""
+    return _banned_ids(db) | _deleted_ids(db)
+
+
 def reconcile_unaggregated(db, limit=5000):
     """Apply any validated trips that were never aggregated (e.g. a crash between
     the trip insert and aggregation). Idempotent via the `aggregated` flag.
@@ -145,9 +156,9 @@ def reconcile_unaggregated(db, limit=5000):
     from models import Trip
     q = (db.query(Trip)
          .filter(Trip.validation_status == "validated", Trip.aggregated.is_(False)))
-    banned = _banned_ids(db)
-    if banned:
-        q = q.filter(~Trip.rider_store_id.in_(banned))
+    excluded = _excluded_ids(db)
+    if excluded:
+        q = q.filter(~Trip.rider_store_id.in_(excluded))
     trips = q.order_by(Trip.created_at).limit(limit).all()
     agg = Aggregator(db)
     for t in trips:
@@ -169,9 +180,9 @@ def rebuild_all(db):
     db.commit()
     agg = Aggregator(db)
     q = db.query(Trip).filter(Trip.validation_status == "validated")
-    banned = _banned_ids(db)
-    if banned:
-        q = q.filter(~Trip.rider_store_id.in_(banned))
+    excluded = _excluded_ids(db)
+    if excluded:
+        q = q.filter(~Trip.rider_store_id.in_(excluded))
     trips = q.order_by(Trip.created_at).all()
     for t in trips:
         agg.apply(t)
