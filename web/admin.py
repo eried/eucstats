@@ -1334,17 +1334,15 @@ _METRICS_JS = """
     <script>
     (function(){
       function offc(cb){var r=cb.closest('.krow');if(r){r.classList.toggle('off',!cb.checked);}}
-      document.querySelectorAll('.krow input').forEach(function(cb){
-        cb.addEventListener('change',function(){
-          offc(cb);
-          document.querySelectorAll('.krow input[data-k="'+cb.dataset.k+'"]').forEach(function(o){
-            if(o!==cb){o.checked=cb.checked;offc(o);}     // group tabs are shared across Countries/Wheels/Brands
-          });
-        });
-      });
-      document.querySelectorAll('.mhead input[data-parent]').forEach(function(p){
-        function upd(){var n=p.closest('.mnode'),k=n&&n.querySelector('.kids');if(k){k.classList.toggle('dim',!p.checked);}}
-        p.addEventListener('change',upd);upd();
+      document.querySelectorAll('.mnode').forEach(function(node){
+        var p=node.querySelector('.psel');
+        var kids=node.querySelectorAll('.kids input[type=checkbox]');
+        function sync(){var on=0;kids.forEach(function(c){if(c.checked)on++;});
+          if(p){p.checked=(on===kids.length&&kids.length>0);p.indeterminate=(on>0&&on<kids.length);}}
+        kids.forEach(function(c){c.addEventListener('change',function(){offc(c);sync();});});
+        if(p)p.addEventListener('change',function(){     // header ticks / unticks every metric below it
+          kids.forEach(function(c){c.checked=p.checked;offc(c);});p.indeterminate=false;});
+        sync();
       });
     })();
     </script>"""
@@ -1352,13 +1350,14 @@ _METRICS_JS = """
 
 def _metrics_section(db: Session) -> str:
     h = settings.get_hidden(db)
+    g = h["groups"]
     secmeta = {k: (lbl, desc) for k, lbl, desc in settings.METRIC_SECTIONS}
-    # section_key -> (child form field, items, hidden list)
+    # section_key -> (child form field, items, that section's own hidden list)
     kids_of = {
         "riders": ("show_board", settings.METRIC_BOARDS, h["boards"]),
-        "countries": ("show_group", settings.METRIC_GROUPS, h["groups"]),
-        "wheels": ("show_group", settings.METRIC_GROUPS, h["groups"]),
-        "brands": ("show_group", settings.METRIC_GROUPS, h["groups"]),
+        "countries": ("show_gcountries", settings.METRIC_GROUPS, g["countries"]),
+        "wheels": ("show_gwheels", settings.METRIC_GROUPS, g["wheels"]),
+        "brands": ("show_gbrands", settings.METRIC_GROUPS, g["brands"]),
         "records": ("show_record", settings.METRIC_RECORDS, h["records"]),
         "tech": ("show_app", settings.METRIC_APP, h["app"]),
     }
@@ -1366,39 +1365,33 @@ def _metrics_section(db: Session) -> str:
     def krow(field, k, label, desc, hidden):
         on = k not in hidden
         return (f'<label class="krow{"" if on else " off"}">'
-                f'<input type=checkbox name={field} value="{k}" data-k="{field}:{k}"{" checked" if on else ""}>'
+                f'<input type=checkbox name={field} value="{k}"{" checked" if on else ""}>'
                 f'<span class=tw><span class=kl>{html.escape(label)}</span>'
                 f'<span class=kd>{html.escape(desc)}</span></span></label>')
 
-    def field_is_group(fi):
-        return bool(fi) and fi[0] == "show_group"
-
     def node(sec_key):
         lbl, desc = secmeta[sec_key]
-        son = sec_key not in h["sections"]
-        fi = kids_of.get(sec_key)
-        if fi:
-            field, items, hidden = fi
-            shown = sum(1 for k, *_ in items if k not in hidden)
-            body = "".join(krow(field, k, l, d, hidden) for k, l, d in items)
-            cnt = f'<span class=cnt>{shown}/{len(items)} on</span>'
-        else:
-            body = '<div class=mnone>No sub-metrics — the section toggle controls it.</div>'
-            cnt = ""
-        shared = ' · shared tabs' if field_is_group(fi) else ''
+        field, items, hidden = kids_of[sec_key]
+        shown = sum(1 for k, *_ in items if k not in hidden)
+        allon = shown == len(items)
+        body = "".join(krow(field, k, l, d, hidden) for k, l, d in items)
+        cnt = f'<span class=cnt>{shown}/{len(items)} on</span>'
+        # the header checkbox is a UI master-toggle only (no name -> not submitted); a section
+        # is hidden purely because all its metrics are off.
         return (f'<div class=mnode>'
-                f'<label class=mhead><input type=checkbox name=show_section value="{sec_key}" data-parent="{sec_key}"{" checked" if son else ""}>'
+                f'<label class=mhead><input type=checkbox class=psel data-parent="{sec_key}"{" checked" if allon else ""}>'
                 f'<span class=tw><span class=t>{html.escape(lbl)}</span>'
-                f'<span class=d>{html.escape(desc)}{shared}</span></span>{cnt}</label>'
+                f'<span class=d>{html.escape(desc)}</span></span>{cnt}</label>'
                 f'<div class=kids>{body}</div></div>')
 
     tree = "".join(node(k) for k, *_ in settings.METRIC_SECTIONS)
     return f"""
     <div class=card>
       <h2>Metric visibility</h2>
-      <p class=hint>Each dock section is a parent toggle; its metrics nested underneath. Ticked = shown on the
-      public site. Untick a parent to hide the whole section, or rows for single metrics. Countries / Wheels /
-      Brands share group tabs (editing one updates all three). Live on save.</p>
+      <p class=hint>Tick = shown on the public site. The section header ticks or unticks every metric under it
+      at once; a section only disappears from the site when all of its metrics are off. Countries / Wheels /
+      Brands are independent now. Live on save. (When you visit the site logged in here, hidden metrics still
+      show, dimmed, so you can sanity-check the numbers.)</p>
       <form method=post action="/admin/metrics/save">
         <div class=mtree2>{tree}</div>
         <button>{_IC['check']} Save visibility</button>
@@ -1414,19 +1407,23 @@ def metrics_redirect():
 
 @admin_router.post("/metrics/save")
 def metrics_save(request: Request, db: Session = Depends(get_db),
-                 show_section: list[str] = Form([]), show_board: list[str] = Form([]),
-                 show_app: list[str] = Form([]), show_group: list[str] = Form([]),
-                 show_record: list[str] = Form([])):
+                 show_board: list[str] = Form([]), show_app: list[str] = Form([]),
+                 show_record: list[str] = Form([]),
+                 show_gcountries: list[str] = Form([]), show_gwheels: list[str] = Form([]),
+                 show_gbrands: list[str] = Form([])):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
-    hidden_sections = [k for k, *_ in settings.METRIC_SECTIONS if k not in show_section]
+    gk = [k for k, *_ in settings.METRIC_GROUPS]
     hidden_boards = [k for k, *_ in settings.METRIC_BOARDS if k not in show_board]
     hidden_app = [k for k, *_ in settings.METRIC_APP if k not in show_app]
-    hidden_groups = [k for k, *_ in settings.METRIC_GROUPS if k not in show_group]
     hidden_records = [k for k, *_ in settings.METRIC_RECORDS if k not in show_record]
-    settings.set_hidden(db, hidden_boards, hidden_sections, hidden_app, hidden_groups, hidden_records)
-    audit.log("metrics_save", f"hidden: {len(hidden_sections)} sec / {len(hidden_boards)} board / "
-                              f"{len(hidden_groups)} grp / {len(hidden_app)} app / {len(hidden_records)} rec")
+    groups = {"countries": [k for k in gk if k not in show_gcountries],
+              "wheels": [k for k in gk if k not in show_gwheels],
+              "brands": [k for k in gk if k not in show_gbrands]}
+    settings.set_hidden(db, boards=hidden_boards, app=hidden_app, records=hidden_records, groups=groups)
+    audit.log("metrics_save", "hidden boards=%d app=%d rec=%d grp c/w/b=%d/%d/%d" % (
+        len(hidden_boards), len(hidden_app), len(hidden_records),
+        len(groups["countries"]), len(groups["wheels"]), len(groups["brands"])))
     return RedirectResponse("/admin/appearance?msg=" + quote("visibility saved — live now"),
                             status_code=303)
 

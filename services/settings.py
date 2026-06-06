@@ -448,18 +448,50 @@ def _json_list(db: Session, key: str) -> list:
         return []
 
 
+_GROUP_KINDS = ("countries", "wheels", "brands")
+
+
 def get_hidden(db: Session) -> dict:
-    """Keys of boards / dock-sections / App-panels / group-tabs / records to hide publicly."""
+    """Keys of metrics to hide publicly. There is no standalone 'section' flag any more:
+    a dock section is hidden only when every metric under it is hidden. Group tabs are
+    independent per section (Countries / Wheels / Brands each keep their own list)."""
+    legacy = _json_list(db, "hidden_groups")        # pre-split shared list -> migrate per kind
+
+    def grp(kind):
+        raw = get_meta(db, "hidden_groups_" + kind, None)
+        if raw is None:
+            return list(legacy)
+        try:
+            return list(json.loads(raw))
+        except Exception:
+            return []
+
     return {"boards": _json_list(db, "hidden_boards"),
-            "sections": _json_list(db, "hidden_sections"),
             "app": _json_list(db, "hidden_app"),
-            "groups": _json_list(db, "hidden_groups"),
-            "records": _json_list(db, "hidden_records")}
+            "records": _json_list(db, "hidden_records"),
+            "groups": {k: grp(k) for k in _GROUP_KINDS}}
 
 
-def set_hidden(db: Session, boards, sections, app=(), groups=(), records=()) -> None:
+def set_hidden(db: Session, boards=(), app=(), records=(), groups=None) -> None:
+    groups = groups or {}
     set_meta(db, "hidden_boards", json.dumps(list(boards)))
-    set_meta(db, "hidden_sections", json.dumps(list(sections)))
     set_meta(db, "hidden_app", json.dumps(list(app)))
-    set_meta(db, "hidden_groups", json.dumps(list(groups)))
     set_meta(db, "hidden_records", json.dumps(list(records)))
+    for kind in _GROUP_KINDS:
+        set_meta(db, "hidden_groups_" + kind, json.dumps(list(groups.get(kind, []))))
+
+
+def sections_fully_hidden(db: Session) -> dict:
+    """Per dock section: True when every metric under it is hidden (so the section
+    itself should disappear from the public site, or dim for an admin previewing)."""
+    h = get_hidden(db)
+    allk = lambda items: {k for k, *_ in items}
+    g = h["groups"]
+    return {
+        "riders": allk(METRIC_BOARDS).issubset(set(h["boards"])),
+        "countries": allk(METRIC_GROUPS).issubset(set(g["countries"])),
+        "wheels": allk(METRIC_GROUPS).issubset(set(g["wheels"])),
+        "brands": allk(METRIC_GROUPS).issubset(set(g["brands"])),
+        "records": allk(METRIC_RECORDS).issubset(set(h["records"])),
+        "tech": allk(METRIC_APP).issubset(set(h["app"])),
+    }

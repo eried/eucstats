@@ -3,7 +3,7 @@ monochrome/silhouette UI, openable tool panels, and fly-to-winner. /api/v1."""
 import datetime
 import os
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
@@ -157,6 +157,7 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tab svg{flex:0 0 auto}
 .tab svg{width:14px;height:14px}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
+.peek{opacity:.5!important}   /* admin preview: hidden-from-public metric, shown dimmed */
 .podium{display:flex;gap:12px;justify-content:center;align-items:flex-end;padding:8px 0}
 .pod{background:var(--surf);border:1px solid var(--line);border-top-width:3px;border-radius:9px;padding:14px 12px;text-align:center;flex:1 1 0;min-width:0;max-width:158px;cursor:pointer;transition:transform .15s;box-shadow:var(--shadow)}
 .pod:hover{transform:translateY(-3px)}.pod .av{width:54px;height:54px;margin:0 auto 8px;display:block}
@@ -243,7 +244,8 @@ __TESTWM__
 <script>
 const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
-const HIDE=Object.assign({boards:[],sections:[],app:[],groups:[],records:[]},window.__HIDE__||{});
+const HIDE=Object.assign({boards:[],app:[],records:[],groups:{countries:[],wheels:[],brands:[]},sec:{}},window.__HIDE__||{});
+const ADMIN=!!window.__ADMIN__;   // logged-in admin: show hidden metrics dimmed instead of removing them
 const HEAT=Object.assign({zoom:0.1,radius:60,zoom_growth:1,intensity:1,glow_floor:0.45,opacity:0.62},window.__HEAT__||{});
 // --- i18n: browser auto-detect or saved cogwheel choice, English fallback per key ---
 const I18N=window.__I18N__||{en:{}};
@@ -521,8 +523,9 @@ function podList(rows,cfg){
   return pod+list;
 }
 function showRiders(){
-  const vis=BOARDS.filter(b=>!HIDE.boards.includes(b.k));
-  setPanel("riders",t("title.riders"),`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  const isH=b=>HIDE.boards.includes(b.k);
+  const vis=ADMIN?BOARDS:BOARDS.filter(b=>!isH(b));
+  setPanel("riders",t("title.riders"),`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
 }
@@ -563,8 +566,10 @@ function renderGroup(b,cfg){
 }
 async function showGroupPanel(kind,name,title,cfg){
   GROWS=(await j("/groups/"+kind)).entries;
-  const vis=GBOARDS.filter(b=>!HIDE.groups.includes(b.k));
-  setPanel(name,title,`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  const hid=(HIDE.groups&&HIDE.groups[name])||[];   // each section keeps its own hidden tabs
+  const isH=b=>hid.includes(b.k);
+  const vis=ADMIN?GBOARDS:GBOARDS.filter(b=>!isH(b));
+  setPanel(name,title,`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
   bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
 }
@@ -572,15 +577,15 @@ function showCountries(){showGroupPanel("country","countries",t("title.countries
 function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+t("u.riders",{n:e.riders||0})});}
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
-  const recs=(await j("/records")).filter(r=>r.value!=null&&!HIDE.records.includes(r.key));
-  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
+  const recs=(await j("/records")).filter(r=>r.value!=null&&(ADMIN||!HIDE.records.includes(r.key)));
+  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
 async function showTech(){
   const d=await j("/stats/versions");
   const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
   const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
-  const sec=(key,t,h)=>HIDE.app.includes(key)?"":`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
+  const sec=(key,t,h)=>{var hid=HIDE.app.includes(key);if(hid&&!ADMIN)return "";return `<div class="vsec${hid?' peek':''}"><div class="vtitle">${t}</div>${h}</div>`;};
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>'+t("empty.nodata")+'</td></tr>'}</table>`;
   const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>'+t("empty.nodata")+'</p>';};
   const body=sec("adoption","📊 "+t("tech.adoption"),d.latest?`<p class=mut style="margin:2px 0 0">${t("tech.adoptionPct",{pct:d.latest_pct,ver:d.latest})}</p>`:'<p class=mut>'+t("empty.nodata")+'</p>')+
@@ -593,7 +598,7 @@ async function showTech(){
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>{if(openPanel===b.dataset.p)closePanel();else HANDLERS[b.dataset.p]();});
-HIDE.sections.forEach(s=>{const b=document.querySelector('.dock button[data-p="'+s+'"]');if(b)b.style.display='none';});
+document.querySelectorAll('.dock button[data-p]').forEach(b=>{if((HIDE.sec||{})[b.dataset.p]){if(ADMIN)b.classList.add('peek');else b.style.display='none';}});
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
 function runIntro(){
@@ -776,17 +781,17 @@ def _clarity_tag():
             '(window,document,"clarity","script","' + cid + '");</script>')
 
 
-def _hide_cfg(db):
+def _hide_cfg(db, admin=False):
     import json
     from web import i18n
     h = settings.get_hidden(db)
+    hide = {"boards": h["boards"], "app": h["app"], "records": h["records"],
+            "groups": h["groups"], "sec": settings.sections_fully_hidden(db)}
     hm = settings.get_heatmap(db)
     heat = {"zoom": hm["cell_size"], "radius": hm["radius"], "zoom_growth": hm["zoom_growth"],
             "intensity": hm["intensity"], "glow_floor": hm["glow_floor"], "opacity": hm["opacity"]}
-    return ('<script>window.__HIDE__='
-            + json.dumps({"boards": h["boards"], "sections": h["sections"],
-                          "app": h.get("app", []), "groups": h.get("groups", []),
-                          "records": h.get("records", [])})
+    return ('<script>window.__HIDE__=' + json.dumps(hide)
+            + ';window.__ADMIN__=' + ('true' if admin else 'false')
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';window.__HEAT__=' + json.dumps(heat)
             + ';window.__I18N__=' + json.dumps(i18n.langs_payload(), ensure_ascii=False)
@@ -795,11 +800,12 @@ def _hide_cfg(db):
 
 
 @public_router.get("/", response_class=HTMLResponse)
-def home(db: Session = Depends(get_db)):
+def home(request: Request, db: Session = Depends(get_db)):
     import html as _html
+    admin = bool(request.session.get("admin_auth"))   # logged-in admin previews hidden metrics dimmed
     tm = settings.get_test_mode()
     testwm = f'<div id="testwm">{_html.escape(tm["text"])}</div>' if tm["enabled"] else ''
     return HTMLResponse(_PAGE.replace("__BUILD__", _build_date())
                         .replace("__CLARITY__", _clarity_tag())
-                        .replace("__HIDECFG__", _hide_cfg(db))
+                        .replace("__HIDECFG__", _hide_cfg(db, admin))
                         .replace("__TESTWM__", testwm))

@@ -126,17 +126,24 @@ def test_metrics_tree_shows_descriptions(db):
 def test_records_visibility_save(db):
     with TestClient(app) as client:
         _auth(client)
+        gk = [k for k, *_ in settings.METRIC_GROUPS]
         data = {
-            "show_section": [k for k, *_ in settings.METRIC_SECTIONS],
             "show_board": [k for k, *_ in settings.METRIC_BOARDS],
-            "show_group": [k for k, *_ in settings.METRIC_GROUPS],
             "show_app": [k for k, *_ in settings.METRIC_APP],
             "show_record": [k for k, *_ in settings.METRIC_RECORDS if k != "top_speed"],
+            # Countries hides "speed"; Wheels/Brands keep everything -> independent per section
+            "show_gcountries": [k for k in gk if k != "speed"],
+            "show_gwheels": gk,
+            "show_gbrands": gk,
         }
         r = client.post("/admin/metrics/save", data=data, follow_redirects=False)
         assert r.status_code == 303
         db.expire_all()
-        assert "top_speed" in settings.get_hidden(db)["records"]
+        h = settings.get_hidden(db)
+        assert "top_speed" in h["records"]
+        assert h["groups"]["countries"] == ["speed"]       # only Countries hides speed
+        assert h["groups"]["wheels"] == [] and h["groups"]["brands"] == []
+        assert "sections" not in h                          # no standalone section flag any more
 
 
 def test_system_and_ingest_pages(db):
