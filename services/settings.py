@@ -95,6 +95,66 @@ METRIC_RECORDS = [
     ("peak_voltage", "Voltage Peak", "Highest battery voltage observed"),
 ]
 
+# --- gated boards: an anti-gaming qualifying ride length + distance ---
+# Each gated metric expands into one board per tier, sharing the display name; the
+# tier's minimums live in the description (shown km/mi to match the UI). Computed live
+# from the Trip column (max or min) over qualifying trips. Absolute physical extremes
+# (altitude, top speed, g) need no gate — a trivial ride can't move their max/min.
+GATE_TIERS = [("b", 300, 1.5), ("s", 600, 3.0), ("m", 1800, 15.0), ("l", 3600, 40.0)]   # (suffix, min_seconds, min_km)
+
+# (base, name, desc, trip_col, direction, unit, conv, icon)  -- gated (spikeable/fakeable)
+_GATED_SPEC = [
+    ("power",    "Watt Beast",       "Highest power held for 2 seconds",        "max_sustained_w",  "max", " W",       "",     "power"),
+    ("current",  "Amp Demon",        "Highest current held for 2 seconds",      "max_sustained_a",  "max", " A",       "",     "current"),
+    ("sag",      "Sag Lord",         "Biggest voltage drop under load",         "max_voltage_sag",  "max", " V",       "",     "sag"),
+    ("rocket",   "Rocket",           "Hardest sustained acceleration (2s+)",    "sustained_accel",  "max", " km/h/s",  "",     "rocket"),
+    ("battery",  "Battery Vampire",  "Biggest battery drain in one ride",       "battery_used_pct", "max", " %",       "",     "battery"),
+    ("temphigh", "Hot Rod",          "Hottest the board ever ran",              "max_temp",         "max", "°",   "",     "rocket"),
+    ("templow",  "Frostbite",        "Coldest ride",                            "min_temp",         "min", "°",   "",     "streak"),
+    ("pwm",      "Redline",          "Closest to maxing the motor (PWM)",       "max_pwm",          "max", " %",       "",     "speed"),
+    ("battlow",  "Running on Fumes", "Lowest battery % reached",                "min_battery_pct",  "min", " %",       "",     "range"),
+]
+# (base, name, desc, trip_col, direction, unit, conv, icon)  -- ungated absolute extremes
+_UNGATED_NEW = [
+    ("althigh",  "Sky High",         "Highest altitude ever reached", "max_altitude_m", "max", " m", "", "ascent"),
+    ("altlow",   "Below Sea Level",  "Lowest altitude ever reached",  "min_altitude_m", "min", " m", "", "altking"),
+]
+_GATED_BASES = {s[0] for s in _GATED_SPEC}        # existing ungated boards these replace
+
+
+def gated_boards() -> list[dict]:
+    """Every gated board variant: one per (metric, tier)."""
+    out = []
+    for base, name, desc, col, d, unit, conv, icon in _GATED_SPEC:
+        for suf, ms, mk in GATE_TIERS:
+            out.append({"k": f"{base}_{suf}", "base": base, "name": name, "desc": desc,
+                        "col": col, "dir": d, "u": unit, "conv": conv, "ic": icon,
+                        "min_s": ms, "min_km": mk})
+    return out
+
+
+def ungated_new_boards() -> list[dict]:
+    return [{"k": base, "base": base, "name": name, "desc": desc, "col": col, "dir": d,
+             "u": unit, "conv": conv, "ic": icon, "min_s": 0, "min_km": 0}
+            for base, name, desc, col, d, unit, conv, icon in _UNGATED_NEW]
+
+
+def new_board_keys() -> list[str]:
+    return [b["k"] for b in gated_boards()] + [b["k"] for b in ungated_new_boards()]
+
+
+# Rebuild the board catalogue: drop the now-gated ungated originals, append every
+# gated tier + the ungated newcomers. Each ships hidden (see DEFAULT_OFF_BOARDS).
+def _gate_note(ms, mk):
+    return f" · ≥{ms // 60} min & ≥{mk:g} km" if ms else ""
+
+
+METRIC_BOARDS = [b for b in METRIC_BOARDS if b[0] not in _GATED_BASES]
+METRIC_BOARDS += [(b["k"], b["name"], b["desc"] + _gate_note(b["min_s"], b["min_km"]))
+                  for b in gated_boards()]
+METRIC_BOARDS += [(b["k"], b["name"], b["desc"]) for b in ungated_new_boards()]
+DEFAULT_OFF_BOARDS = set(new_board_keys())        # ship every new board hidden until enabled
+
 # --- ingest pipeline plausibility rules (admin-toggleable) ---
 # (key, label, description, [threshold keys it uses]). Keys match plausibility.check()'s
 # flag reasons; the threshold keys reference PIPELINE_THRESHOLDS below. Some rules are
@@ -466,10 +526,21 @@ def get_hidden(db: Session) -> dict:
         except Exception:
             return []
 
-    return {"boards": _json_list(db, "hidden_boards"),
+    # new boards ship hidden until an admin explicitly enables them at least once
+    stored = set(_json_list(db, "hidden_boards"))
+    shown_ever = set(_json_list(db, "shown_boards"))
+    boards = sorted(stored | {k for k in DEFAULT_OFF_BOARDS if k not in shown_ever})
+    return {"boards": boards,
             "app": _json_list(db, "hidden_app"),
             "records": _json_list(db, "hidden_records"),
             "groups": {k: grp(k) for k in _GROUP_KINDS}}
+
+
+def mark_boards_shown(db: Session, keys) -> None:
+    """Remember boards the admin has explicitly enabled, so default-off newcomers
+    stay off only until first ticked."""
+    cur = set(_json_list(db, "shown_boards")) | set(keys)
+    set_meta(db, "shown_boards", json.dumps(sorted(cur)))
 
 
 def set_hidden(db: Session, boards=(), app=(), records=(), groups=None) -> None:

@@ -1,5 +1,5 @@
 """Auto-generated public-site translations. Source: web/i18n.py EN.
-Regenerate via the localize-eucstats-public / -extra workflows. Do not hand-edit casually."""
+Regenerate via the localize-eucstats-* workflows. Do not hand-edit casually."""
 
 TRANSLATIONS = {
  "fr": {
@@ -147,7 +147,19 @@ TRANSLATIONS = {
   "g.trips.d": "Trajets enregistrés",
   "g.ascent.d": "Dénivelé total grimpé",
   "g.range.d": "Plus grande autonomie est.",
-  "g.eff.d": "Plus faible Wh/km · le meilleur"
+  "g.eff.d": "Plus faible Wh/km · le meilleur",
+  "b.temphigh.n": "Plaque Chauffante",
+  "b.temphigh.d": "Température la plus élevée jamais atteinte par la roue",
+  "b.templow.n": "Doigts Gelés",
+  "b.templow.d": "Sortie la plus froide",
+  "b.pwm.n": "Zone Rouge",
+  "b.pwm.d": "Au plus près de la saturation du moteur (PWM)",
+  "b.battlow.n": "Sur la Réserve",
+  "b.battlow.d": "Pourcentage de batterie le plus bas atteint",
+  "b.althigh.n": "Tête dans les Nuages",
+  "b.althigh.d": "Altitude la plus haute jamais atteinte",
+  "b.altlow.n": "Sous le Niveau de la Mer",
+  "b.altlow.d": "Altitude la plus basse jamais atteinte"
  },
  "es": {
   "dock.riders": "Riders",
@@ -294,7 +306,19 @@ TRANSLATIONS = {
   "g.trips.d": "Viajes registrados",
   "g.ascent.d": "Desnivel total acumulado",
   "g.range.d": "Mayor autonomía est.",
-  "g.eff.d": "Menor Wh/km · mejor"
+  "g.eff.d": "Menor Wh/km · mejor",
+  "b.temphigh.n": "Plancha al Rojo",
+  "b.temphigh.d": "Lo más caliente que ha llegado a estar la rueda",
+  "b.templow.n": "Pingüino",
+  "b.templow.d": "La ruta más fría",
+  "b.pwm.n": "Al Límite",
+  "b.pwm.d": "Lo más cerca de exprimir el motor (PWM)",
+  "b.battlow.n": "Tirando de Reservas",
+  "b.battlow.d": "El % de batería más bajo alcanzado",
+  "b.althigh.n": "Por las Nubes",
+  "b.althigh.d": "La altitud más alta jamás alcanzada",
+  "b.altlow.n": "Bajo el Mar",
+  "b.altlow.d": "La altitud más baja jamás alcanzada"
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -441,7 +465,19 @@ TRANSLATIONS = {
   "g.trips.d": "Viagens registradas",
   "g.ascent.d": "Subida total acumulada",
   "g.range.d": "Maior autonomia est.",
-  "g.eff.d": "Menor Wh/km · melhor"
+  "g.eff.d": "Menor Wh/km · melhor",
+  "b.temphigh.n": "Fervendo",
+  "b.temphigh.d": "Temperatura mais alta que a roda já atingiu",
+  "b.templow.n": "Congelando",
+  "b.templow.d": "Pedal mais gelado",
+  "b.pwm.n": "No Talo",
+  "b.pwm.d": "Mais perto de estourar o motor (PWM)",
+  "b.battlow.n": "Na Reserva",
+  "b.battlow.d": "Menor % de bateria atingido",
+  "b.althigh.n": "Lá no Alto",
+  "b.althigh.d": "Maior altitude já alcançada",
+  "b.altlow.n": "Abaixo do Nível do Mar",
+  "b.altlow.d": "Menor altitude já alcançada"
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -588,7 +624,19 @@ TRANSLATIONS = {
   "g.trips.d": "Geregistreerde ritten",
   "g.ascent.d": "Totale geklommen hoogte",
   "g.range.d": "Langste gesch. actieradius",
-  "g.eff.d": "Laagste Wh/km · beste"
+  "g.eff.d": "Laagste Wh/km · beste",
+  "b.temphigh.n": "Heethoofd",
+  "b.temphigh.d": "Heetste dat het board ooit liep",
+  "b.templow.n": "IJskonijn",
+  "b.templow.d": "Koudste rit",
+  "b.pwm.n": "Vol Gas",
+  "b.pwm.d": "Dichtst bij het uitknijpen van de motor (PWM)",
+  "b.battlow.n": "Op de Laatste Druppel",
+  "b.battlow.d": "Laagste accupercentage bereikt",
+  "b.althigh.n": "Hoog in de Wolken",
+  "b.althigh.d": "Hoogste hoogte ooit bereikt",
+  "b.altlow.n": "Onder Zeeniveau",
+  "b.altlow.d": "Laagste hoogte ooit bereikt"
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -735,7 +783,19 @@ TRANSLATIONS = {
   "g.trips.d": "Aufgezeichnete Fahrten",
   "g.ascent.d": "Gesamte überwundene Höhe",
   "g.range.d": "Längste gesch. Reichweite",
-  "g.eff.d": "Geringste Wh/km · beste"
+  "g.eff.d": "Geringste Wh/km · beste",
+  "b.temphigh.n": "Heißsporn",
+  "b.temphigh.d": "Höchste Temperatur, die das Board je hatte",
+  "b.templow.n": "Frostbeule",
+  "b.templow.d": "Kälteste Fahrt",
+  "b.pwm.n": "Drehzahlbegrenzer",
+  "b.pwm.d": "Am nächsten am Motor-Limit (PWM)",
+  "b.battlow.n": "Auf der Felge",
+  "b.battlow.d": "Niedrigster erreichter Akkustand in %",
+  "b.althigh.n": "Himmelsstürmer",
+  "b.althigh.d": "Höchste je erreichte Höhe",
+  "b.altlow.n": "Unter dem Meeresspiegel",
+  "b.altlow.d": "Niedrigste je erreichte Höhe"
  },
  "da": {
   "dock.riders": "Ryttere",
@@ -882,7 +942,19 @@ TRANSLATIONS = {
   "g.trips.d": "Loggede ture",
   "g.ascent.d": "Samlet højdestigning klatret",
   "g.range.d": "Længste est. rækkevidde",
-  "g.eff.d": "Lavest Wh/km · bedst"
+  "g.eff.d": "Lavest Wh/km · bedst",
+  "b.temphigh.n": "Gloende Glohede",
+  "b.temphigh.d": "Det varmeste board nogensinde har koert",
+  "b.templow.n": "Iskold Killer",
+  "b.templow.d": "Den koldeste tur",
+  "b.pwm.n": "Fuld Gas",
+  "b.pwm.d": "Taettest paa at maksimere motoren (PWM)",
+  "b.battlow.n": "Koerer paa Dampene",
+  "b.battlow.d": "Laveste batteriprocent naaet",
+  "b.althigh.n": "Helt Oppe i Skyerne",
+  "b.althigh.d": "Den hoejeste hoejde nogensinde naaet",
+  "b.altlow.n": "Under Havets Overflade",
+  "b.altlow.d": "Den laveste hoejde nogensinde naaet"
  },
  "zh": {
   "dock.riders": "骑友",
@@ -1029,7 +1101,19 @@ TRANSLATIONS = {
   "g.trips.d": "已记录行程",
   "g.ascent.d": "累计爬升高度",
   "g.range.d": "续航估算最长",
-  "g.eff.d": "最低 Wh/km · 最佳"
+  "g.eff.d": "最低 Wh/km · 最佳",
+  "b.temphigh.n": "热血战车",
+  "b.temphigh.d": "车子运行过的最高温度",
+  "b.templow.n": "冰封之刃",
+  "b.templow.d": "最冷的一次骑行",
+  "b.pwm.n": "极限红线",
+  "b.pwm.d": "最接近电机满载的一次 (PWM)",
+  "b.battlow.n": "干电飞奔",
+  "b.battlow.d": "电量跌到过的最低百分比",
+  "b.althigh.n": "云端飞客",
+  "b.althigh.d": "到达过的最高海拔",
+  "b.altlow.n": "深入海平面",
+  "b.altlow.d": "到达过的最低海拔"
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -1176,7 +1260,19 @@ TRANSLATIONS = {
   "g.trips.d": "Записано поездок",
   "g.ascent.d": "Суммарный набор высоты",
   "g.range.d": "Наибольший расч. запас хода",
-  "g.eff.d": "Наименьший Wh/km · лучший"
+  "g.eff.d": "Наименьший Wh/km · лучший",
+  "b.temphigh.n": "Раскалённый",
+  "b.temphigh.d": "Самый сильный нагрев борда за всё время",
+  "b.templow.n": "Дубак",
+  "b.templow.d": "Самая холодная поездка",
+  "b.pwm.n": "На пределе",
+  "b.pwm.d": "Ближе всего к максимуму мотора (PWM)",
+  "b.battlow.n": "На последнем проценте",
+  "b.battlow.d": "Самый низкий заряд батареи в %",
+  "b.althigh.n": "Под облака",
+  "b.althigh.d": "Самая большая высота за всё время",
+  "b.altlow.n": "Ниже уровня моря",
+  "b.altlow.d": "Самая малая высота за всё время"
  },
  "no": {
   "dock.riders": "Førere",
@@ -1323,7 +1419,19 @@ TRANSLATIONS = {
   "g.trips.d": "Loggede turer",
   "g.ascent.d": "Total høydemeter klatret",
   "g.range.d": "Lengste est. rekkevidde",
-  "g.eff.d": "Lavest Wh/km · best"
+  "g.eff.d": "Lavest Wh/km · best",
+  "b.temphigh.n": "Glødeheten",
+  "b.temphigh.d": "Det varmeste hjulet noen gang har kjørt",
+  "b.templow.n": "Frostbiten",
+  "b.templow.d": "Kaldeste tur",
+  "b.pwm.n": "Strikken",
+  "b.pwm.d": "Nærmest å presse motoren maks (PWM)",
+  "b.battlow.n": "På Felgen",
+  "b.battlow.d": "Laveste batteriprosent nådd",
+  "b.althigh.n": "Til Værs",
+  "b.althigh.d": "Høyeste høyde noen gang nådd",
+  "b.altlow.n": "Under Havflaten",
+  "b.altlow.d": "Laveste høyde noen gang nådd"
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -1470,7 +1578,19 @@ TRANSLATIONS = {
   "g.trips.d": "Loggade turer",
   "g.ascent.d": "Total stigning klättrad",
   "g.range.d": "Längsta uppsk. räckvidd",
-  "g.eff.d": "Lägst Wh/km · bäst"
+  "g.eff.d": "Lägst Wh/km · bäst",
+  "b.temphigh.n": "Hetluft",
+  "b.temphigh.d": "Hetast brädan någonsin gått",
+  "b.templow.n": "Kylslag",
+  "b.templow.d": "Kallaste åket",
+  "b.pwm.n": "Maxvarv",
+  "b.pwm.d": "Närmast att maxa motorn (PWM)",
+  "b.battlow.n": "På sista andan",
+  "b.battlow.d": "Lägsta batteri-% som nåtts",
+  "b.althigh.n": "Skyhögt",
+  "b.althigh.d": "Högsta höjd någonsin nådd",
+  "b.altlow.n": "Under havsytan",
+  "b.altlow.d": "Lägsta höjd någonsin nådd"
  },
  "it": {
   "dock.riders": "Rider",
@@ -1617,7 +1737,19 @@ TRANSLATIONS = {
   "g.trips.d": "Viaggi registrati",
   "g.ascent.d": "Salita totale accumulata",
   "g.range.d": "Autonomia stim. più lunga",
-  "g.eff.d": "Wh/km più bassi · migliore"
+  "g.eff.d": "Wh/km più bassi · migliore",
+  "b.temphigh.n": "Padella Rovente",
+  "b.temphigh.d": "Temperatura massima mai raggiunta dalla ruota",
+  "b.templow.n": "Congelato",
+  "b.templow.d": "La pedalata più gelida",
+  "b.pwm.n": "Al Limite",
+  "b.pwm.d": "Il punto più vicino al massimo del motore (PWM)",
+  "b.battlow.n": "In Riserva",
+  "b.battlow.d": "Percentuale di batteria più bassa raggiunta",
+  "b.althigh.n": "Tra le Nuvole",
+  "b.althigh.d": "Altitudine massima mai raggiunta",
+  "b.altlow.n": "Sotto il Livello del Mare",
+  "b.altlow.d": "Altitudine minima mai raggiunta"
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1764,7 +1896,19 @@ TRANSLATIONS = {
   "g.trips.d": "Viajes registrados",
   "g.ascent.d": "Ascenso total acumulado",
   "g.range.d": "Mayor autonomía est.",
-  "g.eff.d": "Menor Wh/km · mejor"
+  "g.eff.d": "Menor Wh/km · mejor",
+  "b.temphigh.n": "Plancha Ardiente",
+  "b.temphigh.d": "La temperatura más alta que alcanzó la tabla",
+  "b.templow.n": "Congelado",
+  "b.templow.d": "El viaje más frío",
+  "b.pwm.n": "Al Límite",
+  "b.pwm.d": "Lo más cerca de exigir al máximo el motor (PWM)",
+  "b.battlow.n": "Con las Justas",
+  "b.battlow.d": "El porcentaje de batería más bajo alcanzado",
+  "b.althigh.n": "Por las Nubes",
+  "b.althigh.d": "La altitud más alta jamás alcanzada",
+  "b.altlow.n": "Bajo el Mar",
+  "b.altlow.d": "La altitud más baja jamás alcanzada"
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -1911,7 +2055,19 @@ TRANSLATIONS = {
   "g.trips.d": "Записано поїздок",
   "g.ascent.d": "Загальний набір висоти",
   "g.range.d": "Найбільший розрах. запас ходу",
-  "g.eff.d": "Найменше Wh/km · найкраще"
+  "g.eff.d": "Найменше Wh/km · найкраще",
+  "b.temphigh.n": "Розжарений",
+  "b.temphigh.d": "Найвища температура моноколеса за весь час",
+  "b.templow.n": "Морозко",
+  "b.templow.d": "Найхолодніша поїздка",
+  "b.pwm.n": "На червоному",
+  "b.pwm.d": "Найближче до максимуму мотора (PWM)",
+  "b.battlow.n": "На останніх краплях",
+  "b.battlow.d": "Найнижчий відсоток заряду батареї",
+  "b.althigh.n": "Підкорювач небес",
+  "b.althigh.d": "Найвища висота за весь час",
+  "b.altlow.n": "Нижче рівня моря",
+  "b.altlow.d": "Найнижча висота за весь час"
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -2058,7 +2214,19 @@ TRANSLATIONS = {
   "g.trips.d": "Zapisane przejazdy",
   "g.ascent.d": "Łączne wzniesienie",
   "g.range.d": "Najdłuższy szac. zasięg",
-  "g.eff.d": "Najniższe Wh/km · najlepszy"
+  "g.eff.d": "Najniższe Wh/km · najlepszy",
+  "b.temphigh.n": "Rozgrzany do czerwoności",
+  "b.temphigh.d": "Najwyższa temperatura, jaką osiągnęła deska",
+  "b.templow.n": "Zmrożony",
+  "b.templow.d": "Najzimniejsza jazda",
+  "b.pwm.n": "Na czerwonym polu",
+  "b.pwm.d": "Najbliżej wyciśnięcia maksa z silnika (PWM)",
+  "b.battlow.n": "Na ostatnich oparach",
+  "b.battlow.d": "Najniższy osiągnięty poziom baterii (%)",
+  "b.althigh.n": "Pod niebiosa",
+  "b.althigh.d": "Najwyższa osiągnięta wysokość",
+  "b.altlow.n": "Poniżej poziomu morza",
+  "b.altlow.d": "Najniższa osiągnięta wysokość"
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -2205,7 +2373,19 @@ TRANSLATIONS = {
   "g.trips.d": "Kaydedilen sürüşler",
   "g.ascent.d": "Toplam tırmanılan yükseklik",
   "g.range.d": "Tahmini en uzun menzil",
-  "g.eff.d": "En düşük Wh/km · en iyi"
+  "g.eff.d": "En düşük Wh/km · en iyi",
+  "b.temphigh.n": "Ateş Topu",
+  "b.temphigh.d": "Kartın ulaştığı en yüksek sıcaklık",
+  "b.templow.n": "Buz Adam",
+  "b.templow.d": "En soğuk sürüş",
+  "b.pwm.n": "Son Sınır",
+  "b.pwm.d": "Motoru zorlamaya en yakın an (PWM)",
+  "b.battlow.n": "Son Damla",
+  "b.battlow.d": "Ulaşılan en düşük batarya yüzdesi",
+  "b.althigh.n": "Göklerin Efendisi",
+  "b.althigh.d": "Ulaşılan en yüksek rakım",
+  "b.altlow.n": "Deniz Dibi",
+  "b.altlow.d": "Ulaşılan en düşük rakım"
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -2352,7 +2532,19 @@ TRANSLATIONS = {
   "g.trips.d": "走行記録数",
   "g.ascent.d": "総獲得標高",
   "g.range.d": "推定最長航続距離",
-  "g.eff.d": "最小Wh/km · 最高効率"
+  "g.eff.d": "最小Wh/km · 最高効率",
+  "b.temphigh.n": "灼熱ホットロッド",
+  "b.temphigh.d": "ボードが記録した最高温度",
+  "b.templow.n": "凍結アイスバーン",
+  "b.templow.d": "最も寒かったライド",
+  "b.pwm.n": "レッドゾーン",
+  "b.pwm.d": "モーター限界（PWM）への最接近",
+  "b.battlow.n": "ガス欠寸前",
+  "b.battlow.d": "到達した最低バッテリー残量（％）",
+  "b.althigh.n": "天空ライダー",
+  "b.althigh.d": "到達した最高標高",
+  "b.altlow.n": "海面下ダイバー",
+  "b.altlow.d": "到達した最低標高"
  },
  "ko": {
   "dock.riders": "라이더",
@@ -2499,7 +2691,19 @@ TRANSLATIONS = {
   "g.trips.d": "기록된 주행",
   "g.ascent.d": "누적 등반 고도",
   "g.range.d": "추정 최장 거리",
-  "g.eff.d": "최소 Wh/km · 최고"
+  "g.eff.d": "최소 Wh/km · 최고",
+  "b.temphigh.n": "용광로",
+  "b.temphigh.d": "보드가 기록한 최고 온도",
+  "b.templow.n": "꽁꽁 언 라이드",
+  "b.templow.d": "가장 추웠던 라이드",
+  "b.pwm.n": "레드라인",
+  "b.pwm.d": "모터 한계에 가장 근접한 순간 (PWM)",
+  "b.battlow.n": "방전 직전",
+  "b.battlow.d": "도달한 최저 배터리 %",
+  "b.althigh.n": "구름 위",
+  "b.althigh.d": "기록한 최고 고도",
+  "b.altlow.n": "해수면 아래",
+  "b.altlow.d": "기록한 최저 고도"
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -2646,6 +2850,18 @@ TRANSLATIONS = {
   "g.trips.d": "已記錄行程",
   "g.ascent.d": "累積爬升總高度",
   "g.range.d": "預估續航最遠",
-  "g.eff.d": "Wh/km 最低 · 最佳"
+  "g.eff.d": "Wh/km 最低 · 最佳",
+  "b.temphigh.n": "燒胎魔人",
+  "b.temphigh.d": "車子跑過的最高溫度",
+  "b.templow.n": "冷到凍傷",
+  "b.templow.d": "最寒冷的一趟騎乘",
+  "b.pwm.n": "紅線狂魔",
+  "b.pwm.d": "最接近壓榨馬達極限（PWM）",
+  "b.battlow.n": "油箱見底",
+  "b.battlow.d": "達到的最低電量百分比",
+  "b.althigh.n": "飛上天際",
+  "b.althigh.d": "曾經抵達的最高海拔",
+  "b.altlow.n": "海平面以下",
+  "b.altlow.d": "曾經抵達的最低海拔"
  }
 }

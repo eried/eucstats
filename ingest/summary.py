@@ -59,6 +59,12 @@ class TripSummary:
     battery_used_pct: float | None
     est_range_km: float | None
     alt_range_m: float | None
+    max_altitude_m: float | None
+    min_altitude_m: float | None
+    max_temp: float | None
+    min_temp: float | None
+    max_pwm: float | None
+    min_battery_pct: float | None
     sample_count: int
 
 
@@ -323,6 +329,18 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     est_range_km = (round(distance * 100.0 / battery_used_pct, 1)
                     if (battery_used_pct and battery_used_pct >= c["range_min_battery_pct"] and distance > 0) else None)
 
+    # absolute per-trip extremes (feed gated min/max boards; computed live with a gate)
+    alts = [s.alt for s in samples if s.alt is not None]
+    temps = [s.temp for s in samples if s.temp is not None]
+    pwms = [s.pwm for s in samples if s.pwm is not None]
+    batts = [s.battery for s in samples if s.battery is not None]
+    max_altitude_m = round(max(alts), 1) if alts else None
+    min_altitude_m = round(min(alts), 1) if alts else None
+    max_temp = round(max(temps), 1) if temps else None
+    min_temp = round(min(temps), 1) if temps else None
+    max_pwm = round(max(pwms), 1) if pwms else None
+    min_battery_pct = round(min(batts), 1) if batts else None
+
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
         distance_km=distance, gps_distance_km=gps_km,
@@ -333,5 +351,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         max_voltage_sag=max_voltage_sag, sustained_accel=sustained_accel,
         fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m,
         battery_used_pct=battery_used_pct, est_range_km=est_range_km,
-        alt_range_m=alt_range_m, sample_count=len(samples),
+        alt_range_m=alt_range_m, max_altitude_m=max_altitude_m, min_altitude_m=min_altitude_m,
+        max_temp=max_temp, min_temp=min_temp, max_pwm=max_pwm, min_battery_pct=min_battery_pct,
+        sample_count=len(samples),
     )

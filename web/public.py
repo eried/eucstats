@@ -320,8 +320,6 @@ const BOARDS=[
  {k:"speed",c:"best_speed",u:" km/h",conv:"spd"},
  {k:"accel",c:"accel_s",u:" s"},
  {k:"gforce",c:"best_gforce",u:" g"},
- {k:"power",c:"sustained_w",u:" W"},
- {k:"current",c:"sustained_a",u:" A"},
  {k:"voltage",c:"peak_voltage",u:" V"},
  {k:"streak",c:"longest_streak",u:" d"},
  {k:"ascent",c:"ascent_m",u:" m"},
@@ -334,7 +332,6 @@ const BOARDS=[
  {k:"frequent",c:"trips_total",u:""},
  {k:"marathon",c:"ride_hours",u:" h"},
  {k:"pace",c:"avg_speed",conv:"spd"},
- {k:"battery",c:"batt_pct",u:" %"},
  {k:"night",c:"night_rides",u:""},
  {k:"weekend",c:"weekend_km",conv:"dist"},
  {k:"early",c:"morning_rides",u:""},
@@ -343,10 +340,10 @@ const BOARDS=[
  {k:"explorer",c:"areas",u:""},
  {k:"bigday",c:"rides_in_day",u:""},
  {k:"commuter",c:"weekday_km",conv:"dist"},
- {k:"freespin",c:"freespin_kmh",conv:"spd"},
- {k:"sag",c:"voltage_sag",u:" V"},
- {k:"rocket",c:"sustained_accel",u:" km/h/s"}];
+ {k:"freespin",c:"freespin_kmh",conv:"spd"}];
 BOARDS.forEach(b=>{b.nk="b."+b.k+".n";b.dk="b."+b.k+".d";});   // i18n keys (English lives in i18n.py)
+// gated boards (server spec): same name per metric, gate baked in, value under "v"
+(window.__GATED__||[]).forEach(g=>{BOARDS.push({k:g.k,nk:"b."+g.base+".n",dk:"b."+g.base+".d",c:"v",u:g.u,conv:g.conv||undefined,ic:g.ic,min_s:g.min_s,min_km:g.min_km});});
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
 function defaultUnit(){try{const r=((navigator.language||"").split("-")[1]||"").toUpperCase();return MPH_REGIONS.includes(r)?"mph":"kmh";}catch(e){return "kmh";}}
@@ -360,7 +357,9 @@ const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
 function bval(b,v){if(v==null)v=0;if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+b.u;}
 function bt(b){return t(b.nk);}
-function bd(b){return (b.dk==="b.accel.d"&&mph())?t("b.accel.d_mph"):t(b.dk);}
+function bd(b){var s=(b.dk==="b.accel.d"&&mph())?t("b.accel.d_mph"):t(b.dk);
+  if(b.min_s){s+=" · ≥"+Math.round(b.min_s/60)+"min ≥"+dnum(b.min_km)+dunit();}   // gate, unit-aware
+  return s;}
 const RECCONV={mileage_king:"dist",longest_trip:"dist",top_speed:"spd"};
 const RECUNIT={sustained_w:" W",sustained_a:" A",peak_voltage:" V",max_gforce:" g"};
 function recval(k,v){const c=RECCONV[k];if(c==="dist")return dnum(v)+" "+dunit();if(c==="spd")return snum(v)+" "+sunit();return (Math.round(v*100)/100)+(RECUNIT[k]||"");}
@@ -526,14 +525,14 @@ function podList(rows,cfg){
 function showRiders(){
   const isH=b=>HIDE.boards.includes(b.k);
   const vis=ADMIN?BOARDS:BOARDS.filter(b=>!isH(b));
-  setPanel("riders",t("title.riders"),`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  setPanel("riders",t("title.riders"),`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||IC[b.ic]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
 }
 async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
   if(!cont)return;
-  if(b)setCap(IC[b.k]||'',bd(b));
+  if(b)setCap(IC[b.k]||IC[b.ic]||'',bd(b));
   cont.innerHTML=podList(rows,{av:true,flag:e=>e.flag,label:e=>e.name||e.store_id,val:e=>bval(b,e[b.c]),click:true});
   cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToRider(rows[+el.dataset.i]));
   fitTop3(rows,e=>[e.lon,e.lat]);
@@ -791,7 +790,11 @@ def _hide_cfg(db, admin=False):
     hm = settings.get_heatmap(db)
     heat = {"zoom": hm["cell_size"], "radius": hm["radius"], "zoom_growth": hm["zoom_growth"],
             "intensity": hm["intensity"], "glow_floor": hm["glow_floor"], "opacity": hm["opacity"]}
+    gated = [{"k": b["k"], "base": b["base"], "u": b["u"], "conv": b["conv"], "ic": b["ic"],
+              "min_s": b["min_s"], "min_km": b["min_km"]}
+             for b in settings.gated_boards() + settings.ungated_new_boards()]
     return ('<script>window.__HIDE__=' + json.dumps(hide)
+            + ';window.__GATED__=' + json.dumps(gated)
             + ';window.__ADMIN__=' + ('true' if admin else 'false')
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';window.__HEAT__=' + json.dumps(heat)

@@ -289,6 +289,30 @@ def commuter(db, limit=50):
     return [{**_rider_brief(db, sid), "weekday_km": round(v or 0, 2)} for sid, v in rows]
 
 
+def gated_leaderboard(db, col, direction, min_s, min_km, limit=50):
+    """Live max/min of a per-trip column over QUALIFYING trips (ride >= min_s seconds
+    AND >= min_km km). Anti-gaming gate for spikeable / fakeable metrics. Excludes
+    banned / self-deleted / opted-out riders."""
+    from services.aggregator import _excluded_ids
+    colattr = getattr(Trip, col)
+    agg = func.min(colattr) if direction == "min" else func.max(colattr)
+    q = (db.query(Trip.rider_store_id.label("sid"), agg.label("v"))
+         .join(Rider, Rider.store_id == Trip.rider_store_id)
+         .filter(Trip.validation_status == "validated",
+                 Rider.consent_public.isnot(False), colattr.isnot(None)))
+    if min_s:
+        q = q.filter(Trip.duration_s >= min_s)
+    if min_km:
+        q = q.filter(Trip.distance_km >= min_km)
+    excl = _excluded_ids(db)
+    if excl:
+        q = q.filter(~Trip.rider_store_id.in_(excl))
+    sub = q.group_by(Trip.rider_store_id).subquery()
+    order = sub.c.v.asc() if direction == "min" else desc(sub.c.v)
+    rows = db.query(sub.c.sid, sub.c.v).order_by(order).limit(limit).all()
+    return [{**_rider_brief(db, sid), "v": round(v, 2)} for sid, v in rows]
+
+
 BOARDS = {
     "mileage": mileage_leaderboard,
     "daily": daily_leaderboard,
@@ -297,8 +321,6 @@ BOARDS = {
     "speed": speed_leaderboard,
     "accel": accel_leaderboard,
     "gforce": gforce_leaderboard,
-    "power": power_leaderboard,
-    "current": current_leaderboard,
     "voltage": voltage_leaderboard,
     "streak": streak_leaderboard,
     "ascent": ascent_leaderboard,
@@ -311,7 +333,6 @@ BOARDS = {
     "frequent": frequent_flyer,
     "marathon": marathoner,
     "pace": pace_maker,
-    "battery": battery_vampire,
     "night": night_rider,
     "weekend": weekend_warrior,
     "early": early_bird,
@@ -321,9 +342,18 @@ BOARDS = {
     "bigday": big_day,
     "commuter": commuter,
     "freespin": freespin_leaderboard,
-    "sag": sag_leaderboard,
-    "rocket": rocket_leaderboard,
 }
+
+
+def _register_gated_boards():
+    import services.settings as _s
+    for b in _s.gated_boards() + _s.ungated_new_boards():
+        col, d, ms, mk = b["col"], b["dir"], b["min_s"], b["min_km"]
+        BOARDS[b["k"]] = (lambda db, limit=50, col=col, d=d, ms=ms, mk=mk:
+                          gated_leaderboard(db, col, d, ms, mk, limit))
+
+
+_register_gated_boards()
 
 
 def countries(db):

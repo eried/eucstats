@@ -38,7 +38,10 @@ def get_db():
 # older dataset snapshot is swapped in). type is the SQLite column affinity.
 NEW_COLUMNS = {
     "trips": [("max_freespin", "FLOAT"), ("max_voltage_sag", "FLOAT"),
-              ("sustained_accel", "FLOAT")],
+              ("sustained_accel", "FLOAT"),
+              ("max_altitude_m", "FLOAT"), ("min_altitude_m", "FLOAT"),
+              ("max_temp", "FLOAT"), ("min_temp", "FLOAT"),
+              ("max_pwm", "FLOAT"), ("min_battery_pct", "FLOAT")],
     "rider_stats": [("best_freespin", "FLOAT"), ("best_voltage_sag", "FLOAT"),
                     ("best_sustained_accel", "FLOAT")],
 }

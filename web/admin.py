@@ -1421,6 +1421,7 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
               "wheels": [k for k in gk if k not in show_gwheels],
               "brands": [k for k in gk if k not in show_gbrands]}
     settings.set_hidden(db, boards=hidden_boards, app=hidden_app, records=hidden_records, groups=groups)
+    settings.mark_boards_shown(db, show_board)   # default-off newcomers stay off until ticked once
     audit.log("metrics_save", "hidden boards=%d app=%d rec=%d grp c/w/b=%d/%d/%d" % (
         len(hidden_boards), len(hidden_app), len(hidden_records),
         len(groups["countries"]), len(groups["wheels"]), len(groups["brands"])))

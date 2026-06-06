@@ -164,6 +164,20 @@ EN: dict[str, str] = {
     "b.sag.d": "Biggest voltage drop under load — the hardest battery pull",
     "b.rocket.n": "Rocket",
     "b.rocket.d": "Hardest sustained acceleration held for 2s+",
+    # new gated / extreme boards (ship disabled). The qualifying ride length + distance
+    # is appended on the client, unit-aware, so it's not part of the description string.
+    "b.temphigh.n": "Hot Rod",
+    "b.temphigh.d": "Hottest the board ever ran",
+    "b.templow.n": "Frostbite",
+    "b.templow.d": "Coldest ride",
+    "b.pwm.n": "Redline",
+    "b.pwm.d": "Closest to maxing the motor (PWM)",
+    "b.battlow.n": "Running on Fumes",
+    "b.battlow.d": "Lowest battery % reached",
+    "b.althigh.n": "Sky High",
+    "b.althigh.d": "Highest altitude ever reached",
+    "b.altlow.n": "Below Sea Level",
+    "b.altlow.d": "Lowest altitude ever reached",
 
     # --- group-panel boards (countries / wheels / brands) descriptions ---
     "g.dist.d": "Most distance ridden",
