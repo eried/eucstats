@@ -15,9 +15,10 @@ on that below, because it's the whole point).
 
 ## What's on it
 
-**33 leaderboards.** Distance, top speed, g-force, sustained power and current,
+**Lots of leaderboards.** Distance, top speed, g-force, sustained power and current,
 voltage, streaks, climbing, range, efficiency, and a stack of sillier ones (Battery
-Vampire, Sunday Cruiser, Freespin King). Tap a rider to fly to their area on the map.
+Vampire, Sunday Cruiser, Freespin King), all crunched at once. Which ones are shown is
+a toggle, so the lineup grows and shifts over time. Tap a rider to fly to their area on the map.
 
 **Heatmap.** Where the community actually rides, as a glowing grid. Brighter where
 more riders go, fainter where it's just one lonely soul.
@@ -25,11 +26,10 @@ more riders go, fainter where it's just one lonely soul.
 **Country, wheel and brand boards.** The same stats, grouped. Settle whether your
 brand is genuinely fast or just loud.
 
-**All-time records and app/OS stats.** The single best ever for each metric, plus
-who's on the latest app and who's still riding on a build from 2021.
+**App and OS stats.** Who's on the latest app, and who's still riding a build from 2021.
 
-**19 languages**, auto-detected and switchable, with the menus and even the trophy
-names translated.
+**Multi-language support.** It picks up your browser's language on its own, and you can
+switch any time from the menu. Even the trophy names get translated, not just the buttons.
 
 ## Privacy (the whole point)
 
@@ -69,8 +69,7 @@ heatmap tuning, metric visibility, an activity/health log, and a sandbox of magi
 
 ## Why does this exist?
 
-- a public scoreboard makes riding more fun, and nobody had one that wasn't bolted to a paid app,
-- the heatmaps that do exist either skip EUCs or quietly leak where you live,
+- a free public scoreboard makes riding more fun, and nobody had one,
 - the numbers from [EUC Planet](https://github.com/eried/eucplanet) deserved somewhere nice to land.
 
 ## Contributing
