@@ -185,7 +185,9 @@ LANG_NAMES: dict[str, str] = {
     "en": "English", "da": "Dansk", "de": "Deutsch", "es": "Español",
     "es-419": "Español (LatAm)", "fr": "Français", "it": "Italiano",
     "nl": "Nederlands", "no": "Norsk", "pl": "Polski", "pt-BR": "Português (BR)",
-    "ru": "Русский", "sv": "Svenska", "uk": "Українська", "zh": "中文",
+    "ru": "Русский", "sv": "Svenska", "uk": "Українська",
+    "zh": "中文 (简体)", "zh-Hant": "中文 (繁體)", "ja": "日本語", "ko": "한국어",
+    "tr": "Türkçe",
 }
 
 # Filled by the translation workflow (web/i18n_data.py). Imported lazily so the
