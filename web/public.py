@@ -145,15 +145,15 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .avph{background:linear-gradient(135deg,#2a3566,#141a30)}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
-.tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:176px;gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
+.tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:minmax(176px,max-content);gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
 .tabs .tab{scroll-snap-align:start}
 .tabcap{display:flex;align-items:center;gap:7px;min-height:16px;margin:-1px 2px 9px;font-size:12px;color:var(--mut);line-height:1.3}
 .tabcap svg{width:14px;height:14px;flex:0 0 auto;opacity:.9}
 .tabcap:empty{display:none}
 .tabs::-webkit-scrollbar{height:6px}.tabs::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 .pbody::-webkit-scrollbar{width:7px}.pbody::-webkit-scrollbar-track{background:transparent}.pbody::-webkit-scrollbar-thumb{background:rgba(130,170,255,.28);border-radius:4px;border:2px solid transparent;background-clip:padding-box}.pbody::-webkit-scrollbar-thumb:hover{background:rgba(130,170,255,.5)}
-.tab{display:flex;align-items:center;justify-content:flex-start;gap:7px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:0 10px;height:36px;font-size:12px;cursor:pointer;letter-spacing:.3px;overflow:hidden}
-.tab>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.tab{display:flex;align-items:center;justify-content:flex-start;gap:7px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:0 12px;height:36px;font-size:12px;cursor:pointer;letter-spacing:.3px;overflow:visible;white-space:nowrap}
+.tab>span{white-space:nowrap;text-align:left}
 .tab svg{flex:0 0 auto}
 .tab svg{width:14px;height:14px}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
@@ -194,9 +194,10 @@ td.sub{color:var(--mut)}
 #gear{position:fixed;left:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
 #gear:hover{color:var(--acc)}#gear svg{width:18px;height:18px}
 #gear.show{opacity:.45;transition:opacity .3s ease,color .2s}#gear.show:hover{opacity:1}
-.cfgpop{position:fixed;left:14px;bottom:60px;z-index:560;display:none;flex-direction:column;gap:12px;min-width:240px;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);padding:14px}
+.cfgpop{position:fixed;left:14px;bottom:60px;z-index:900;display:none;flex-direction:column;gap:12px;min-width:264px;max-width:calc(100vw - 28px);background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);padding:14px}
 .cfgpop.open{display:flex}
-.crow{display:grid;grid-template-columns:48px 1fr;align-items:center;gap:12px;font-size:12px;color:var(--mut);letter-spacing:.4px}
+.crow{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:10px;font-size:12px;color:var(--mut);letter-spacing:.4px}
+.crow>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:3px}
 .seg button{background:transparent;border:0;color:var(--mut);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer}
 .seg button.on{background:var(--acc);color:#04101f;font-weight:700}
@@ -222,20 +223,20 @@ __TESTWM__
   <div id="chips" class="chips"></div>
 </div>
 <div class="rfoot intro">
-  <a href="https://eucplanet.ried.no" target="_blank" rel="noopener"><img src="/static/euc-planet.svg" alt=""/><span>powered by <b>EUC&nbsp;Planet</b></span></a>
+  <a href="https://eucplanet.ried.no" target="_blank" rel="noopener"><img src="/static/euc-planet.svg" alt=""/><span><span data-i18n="foot.poweredby">powered by</span> <b>EUC&nbsp;Planet</b></span></a>
   <a href="https://github.com/eried/eucstats" target="_blank" rel="noopener" aria-label="eucstats on GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
   <span class="ver" title="HTML last-modified date (auto-updated on deploy)">build __BUILD__</span>
 </div>
-<div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="prefresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
+<div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="prefresh" data-i18n-title="act.refresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
 <div class="dock intro">
-  <button class="intro" data-p="riders" aria-label="Riders"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><circle cx="17" cy="9" r="2.6"/><path d="M14.6 14.4c2.8-.7 5.6 1 6.4 4.6h-4.8z"/></svg><span class="lbl">Riders</span></button>
-  <button class="intro" data-p="countries" aria-label="Countries"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg><span class="lbl">Countries</span></button>
-  <button class="intro" data-p="wheels" aria-label="Wheel models"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg><span class="lbl">Wheels</span></button>
-  <button class="intro" data-p="brands" aria-label="Wheel brands"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="lbl">Brands</span></button>
-  <button class="intro" data-p="records" aria-label="All-time records"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg><span class="lbl">Records</span></button>
-  <button class="intro" data-p="tech" aria-label="App & devices"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2.6"/><path d="M10.5 18.5h3" stroke-linecap="round"/></svg><span class="lbl">App</span></button>
+  <button class="intro" data-p="riders" data-i18n-aria="dock.riders" aria-label="Riders"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><circle cx="17" cy="9" r="2.6"/><path d="M14.6 14.4c2.8-.7 5.6 1 6.4 4.6h-4.8z"/></svg><span class="lbl" data-i18n="dock.riders">Riders</span></button>
+  <button class="intro" data-p="countries" data-i18n-aria="dock.countries" aria-label="Countries"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg><span class="lbl" data-i18n="dock.countries">Countries</span></button>
+  <button class="intro" data-p="wheels" data-i18n-aria="title.wheels" aria-label="Wheel models"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg><span class="lbl" data-i18n="dock.wheels">Wheels</span></button>
+  <button class="intro" data-p="brands" data-i18n-aria="title.brands" aria-label="Wheel brands"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="lbl" data-i18n="dock.brands">Brands</span></button>
+  <button class="intro" data-p="records" data-i18n-aria="title.records" aria-label="All-time records"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg><span class="lbl" data-i18n="dock.records">Records</span></button>
+  <button class="intro" data-p="tech" data-i18n-aria="title.tech" aria-label="App & devices"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2.6"/><path d="M10.5 18.5h3" stroke-linecap="round"/></svg><span class="lbl" data-i18n="dock.app">App</span></button>
 </div>
-<button id="gear" class="intro" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg></button>
+<button id="gear" class="intro" data-i18n-title="aria.settings" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg></button>
 <div id="cfg" class="cfgpop"></div>
 <div id="tip"></div>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -244,6 +245,24 @@ const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
 const HIDE=Object.assign({boards:[],sections:[],app:[],groups:[],records:[]},window.__HIDE__||{});
 const HEAT=Object.assign({zoom:0.1,radius:60,zoom_growth:1,intensity:1,glow_floor:0.45,opacity:0.62},window.__HEAT__||{});
+// --- i18n: browser auto-detect or saved cogwheel choice, English fallback per key ---
+const I18N=window.__I18N__||{en:{}};
+const LANGS=window.__LANGS__||{en:"English"};
+function _mapLang(raw){if(!raw)return null;const lc=(""+raw).toLowerCase(),base=lc.split("-")[0],reg=(lc.split("-")[1]||"").toUpperCase();
+  if(base==="pt")return "pt-BR"; if(base==="zh")return "zh"; if(base==="nb"||base==="nn"||base==="no")return "no";
+  if(base==="es"){const LAT=["419","MX","AR","CO","CL","PE","VE","EC","GT","CU","BO","DO","HN","PY","SV","NI","CR","PA","UY","PR"];return LAT.indexOf(reg)>=0?"es-419":"es";}
+  return I18N[base]?base:null;}
+function _detectLang(){try{const s=localStorage.getItem("eucstats_lang");if(s&&I18N[s])return s;
+  const navs=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||"en"];
+  for(let i=0;i<navs.length;i++){const m=_mapLang(navs[i]);if(m&&I18N[m])return m;}}catch(e){}return "en";}
+let LANG=_detectLang();
+function t(k,vars){let s=(I18N[LANG]&&I18N[LANG][k]);if(s==null)s=(I18N.en&&I18N.en[k]);if(s==null)s=k;
+  if(vars)for(const p in vars)s=s.split("{"+p+"}").join(vars[p]);return s;}
+function applyI18n(){
+  document.querySelectorAll("[data-i18n]").forEach(e=>{e.textContent=t(e.getAttribute("data-i18n"));});
+  document.querySelectorAll("[data-i18n-aria]").forEach(e=>{e.setAttribute("aria-label",t(e.getAttribute("data-i18n-aria")));});
+  document.querySelectorAll("[data-i18n-title]").forEach(e=>{e.title=t(e.getAttribute("data-i18n-title"));});
+  try{document.documentElement.lang=LANG;}catch(e){}}
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -322,7 +341,7 @@ const BOARDS=[
  {k:"freespin",t:"Freespin King",c:"freespin_kmh",conv:"spd",d:"Biggest freespin / spin-up spike (wheel lifted or a crash)"},
  {k:"sag",t:"Sag Lord",c:"voltage_sag",u:" V",d:"Biggest voltage drop under load — the hardest battery pull"},
  {k:"rocket",t:"Rocket",c:"sustained_accel",u:" km/h/s",d:"Hardest sustained acceleration held for 2s+"}];
-const RECLABEL={mileage_king:"Mileage King",top_speed:"Top Speed",longest_trip:"Longest Trip",max_gforce:"Max G-Force",sustained_w:"Sustained Power",sustained_a:"Sustained Current",peak_voltage:"Voltage Peak"};
+BOARDS.forEach(b=>{b.nk="b."+b.k+".n";b.dk="b."+b.k+".d";});   // i18n keys (English lives in i18n.py)
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
 function defaultUnit(){try{const r=((navigator.language||"").split("-")[1]||"").toUpperCase();return MPH_REGIONS.includes(r)?"mph":"kmh";}catch(e){return "kmh";}}
@@ -335,8 +354,8 @@ const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
 function bval(b,v){if(v==null)v=0;if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+b.u;}
-function bt(b){return b.t;}
-function bd(b){return (b.k==="accel"&&mph())?"Fastest launch from a stop to ≈25 mph (40 km/h) · lower is better":b.d;}
+function bt(b){return t(b.nk);}
+function bd(b){return (b.dk==="b.accel.d"&&mph())?t("b.accel.d_mph"):t(b.dk);}
 const RECCONV={mileage_king:"dist",longest_trip:"dist",top_speed:"spd"};
 const RECUNIT={sustained_w:" W",sustained_a:" A",peak_voltage:" V",max_gforce:" g"};
 function recval(k,v){const c=RECCONV[k];if(c==="dist")return dnum(v)+" "+dunit();if(c==="spd")return snum(v)+" "+sunit();return (Math.round(v*100)/100)+(RECUNIT[k]||"");}
@@ -492,8 +511,8 @@ const BRANDSLUG=n=>(""+n).toLowerCase().replace(/[^a-z0-9]+/g,"");
 function brandLogo(name){const mono=(name||"?").replace(/[^A-Za-z0-9]/g,"").slice(0,2).toUpperCase();
   return `<span class="blogo"><span class="bmono">${mono}</span><img alt="" src="/static/brands/${BRANDSLUG(name)}.png" onerror="this.remove()"></span>`;}
 function podList(rows,cfg){
-  if(!rows||!rows.length) return '<div class="empty">no data yet</div>';
-  const o=[1,0,2],rkn=["1ST","2ND","3RD"],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>cfg.flag?cc(cfg.flag(e)):'';
+  if(!rows||!rows.length) return '<div class="empty">'+t("empty.nodata")+'</div>';
+  const o=[1,0,2],rkn=[t("pod.1"),t("pod.2"),t("pod.3")],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>cfg.flag?cc(cfg.flag(e)):'';
   const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.store_id,e.has_avatar):(cfg.iconFn?`<div class="podic">${cfg.iconFn(e)}</div>`:(cfg.icon?`<div class="podic">${cfg.icon}</div>`:''))}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
   const rest=rows.slice(3);let list='';
   if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td><span class="celln">${cfg.av?av(e.store_id,e.has_avatar):''}${fl(e)}<span>${cfg.label(e)}</span></span></td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
@@ -501,7 +520,7 @@ function podList(rows,cfg){
 }
 function showRiders(){
   const vis=BOARDS.filter(b=>!HIDE.boards.includes(b.k));
-  setPanel("riders","Riders",`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  setPanel("riders",t("title.riders"),`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
 }
@@ -526,13 +545,16 @@ const GBOARDS=[
  {k:"ascent",t:"Everest Climber",key:"ascent_m",u:" m",ic:IC.ascent,d:"Total elevation climbed"},
  {k:"range",t:"Long Hauler",key:"range_km",conv:"dist",ic:IC.range,d:"Longest est. range"},
  {k:"eff",t:"Eco Rider",key:"wh_per_km",u:" Wh/km",asc:true,ic:IC.efficiency,d:"Lowest Wh/km · best"}];
+// group-board i18n keys: names reuse the rider trophies where they match; descs are the short "g.*" set
+const GNK={dist:"b.mileage.n",speed:"b.speed.n",accel:"b.accel.n",gforce:"b.gforce.n",power:"b.power.n",current:"b.current.n",voltage:"b.voltage.n",riders:"g.riders",trips:"g.rides",ascent:"b.ascent.n",range:"b.range.n",eff:"b.efficiency.n"};
+GBOARDS.forEach(b=>{b.nk=GNK[b.k]||("b."+b.k+".n");b.dk="g."+b.k+".d";});
 let GROWS=null;
 function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+(b.u||"");}
 function renderGroup(b,cfg){
   const cont=document.getElementById("lb");if(!cont||!GROWS)return;
   setCap(b.ic||'',bd(b));
   const rows=GROWS.filter(e=>e[b.key]!=null).slice().sort((x,y)=>b.asc?((x[b.key]||1e9)-(y[b.key]||1e9)):((y[b.key]||0)-(x[b.key]||0)));
-  cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>e.riders+" riders"},cfg));
+  cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>t("u.riders",{n:e.riders})},cfg));
   if(cfg.click){cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToCountry(rows[+el.dataset.i]));
     fitTop3(rows,e=>{const c=CENTROIDS[(e.country||"").toUpperCase()];return c?[c[0],c[1]]:null;});}
   if(cfg.flow) cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>brandFlow(rows[+el.dataset.i].name));
@@ -544,12 +566,12 @@ async function showGroupPanel(kind,name,title,cfg){
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
   bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
 }
-function showCountries(){showGroupPanel("country","countries","Countries",{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
-function showWheels(){showGroupPanel("wheel","wheels","Wheel models",{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+(e.riders||0)+" riders"});}
-function showBrands(){showGroupPanel("brand","brands","Wheel brands",{iconFn:e=>brandLogo(e.name),flow:true});}
+function showCountries(){showGroupPanel("country","countries",t("title.countries"),{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
+function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+t("u.riders",{n:e.riders||0})});}
+function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
   const recs=(await j("/records")).filter(r=>r.value!=null&&!HIDE.records.includes(r.key));
-  setPanel("records","All-time records",`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${RECLABEL[r.key]||r.key}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">no records yet</div>'}</div>`);
+  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
 async function showTech(){
@@ -557,15 +579,15 @@ async function showTech(){
   const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
   const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
   const sec=(key,t,h)=>HIDE.app.includes(key)?"":`<div class="vsec"><div class="vtitle">${t}</div>${h}</div>`;
-  const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>no data yet</td></tr>'}</table>`;
-  const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>no data yet</p>';};
-  const body=sec("adoption","📊 Adoption",d.latest?`<p class=mut style="margin:2px 0 0">${d.latest_pct}% of riders on the latest app · v${d.latest}</p>`:'<p class=mut>no data yet</p>')+
-    sec("adopters","🚀 Bleeding Edge · newest app",tbl(d.adopters,rl,e=>"v"+(e.ver||"?")))+
-    sec("laggards","🐢 Living in the past · oldest app",tbl(d.laggards,rl,e=>"v"+(e.ver||"?")))+
-    sec("appvers","📱 App versions",bars(d.appvers,e=>"v"+e.version))+
-    sec("osvers","🤖 OS versions",bars(d.osvers,e=>e.version))+
-    sec("countries","🌍 Up-to-date countries",bars(d.countries,e=>`${cc(e.country)} ${cname(e.country)||e.country} · v${e.version||"?"}`));
-  setPanel("tech","App & OS",body||'<div class="empty">no app data yet</div>');
+  const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>'+t("empty.nodata")+'</td></tr>'}</table>`;
+  const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>'+t("empty.nodata")+'</p>';};
+  const body=sec("adoption","📊 "+t("tech.adoption"),d.latest?`<p class=mut style="margin:2px 0 0">${t("tech.adoptionPct",{pct:d.latest_pct,ver:d.latest})}</p>`:'<p class=mut>'+t("empty.nodata")+'</p>')+
+    sec("adopters","🚀 "+t("tech.adopters"),tbl(d.adopters,rl,e=>"v"+(e.ver||"?")))+
+    sec("laggards","🐢 "+t("tech.laggards"),tbl(d.laggards,rl,e=>"v"+(e.ver||"?")))+
+    sec("appvers","📱 "+t("tech.appvers"),bars(d.appvers,e=>"v"+e.version))+
+    sec("osvers","🤖 "+t("tech.osvers"),bars(d.osvers,e=>e.version))+
+    sec("countries","🌍 "+t("tech.countries"),bars(d.countries,e=>`${cc(e.country)} ${cname(e.country)||e.country} · v${e.version||"?"}`));
+  setPanel("tech",t("title.tech"),body||'<div class="empty">'+t("empty.noapp")+'</div>');
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>{if(openPanel===b.dataset.p)closePanel();else HANDLERS[b.dataset.p]();});
@@ -583,7 +605,7 @@ function runIntro(){
 
 function renderHeader(){renderChips();renderChampions();}
 function renderChips(){
-  const chips=[["Riders",S.riders,0,"riders"],["Trips",S.trips,0,"trips"],["Total "+dunit(),mph()?r1(S.total_km*MI):r1(S.total_km),1,"total"],["Countries",S.countries,0,"countries"]];
+  const chips=[[t("chip.riders"),S.riders,0,"riders"],[t("chip.trips"),S.trips,0,"trips"],[t("chip.total",{unit:dunit()}),mph()?r1(S.total_km*MI):r1(S.total_km),1,"total"],[t("chip.countries"),S.countries,0,"countries"]];
   document.getElementById("chips").innerHTML=chips.map(([l,v,dec,k])=>`<span class="chip"><b data-cv="${v}" data-dec="${dec}" data-k="${k}">0</b> ${l}</span>`).join("");
 }
 function animateChips(slow){const durs=slow?[2700,3500,3000,3900]:[850,1250,1050,1450];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
@@ -602,10 +624,10 @@ function renderChampions(){
   const C=WC||{};
   if(!(C.day||C.week||C.month)){ch.style.display="none";return;}
   ch.style.display="block";ch.style.cursor="default";ch.onclick=null;
-  const line=(lab,c)=>c?`<div class="cline" data-sid="${c.store_id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||c.store_id}</b><span class="cscore">${c.score} pts</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">no rides yet</span></div>`;
-  const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+"Our secret recipe: distance is king, lifted by your top speed and time on the wheel.").replace(/"/g,"&quot;");
-  ch.innerHTML=`<div class="chead">${FLAG}<span>EUC Planet Champions</span><button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="Show / hide">${CHEV}</button></div>`+
-    line("Day",C.day)+line("Week",C.week)+line("Month",C.month);
+  const line=(lab,c)=>c?`<div class="cline" data-sid="${c.store_id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||c.store_id}</b><span class="cscore">${t("champ.pts",{n:c.score})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
+  const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+t("champ.tip")).replace(/"/g,"&quot;");
+  ch.innerHTML=`<div class="chead">${FLAG}<span>${t("champ.title")}</span><button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+
+    line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month);
   ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.store_id===el.dataset.sid);if(c)flyToRider(c);};});
   const tb=document.querySelector(".topbar");
   const setC=(v)=>{if(tb)tb.classList.toggle("collapsed",v);try{localStorage.setItem("eucstats_champ_collapsed",v?"1":"0");}catch(_){}};
@@ -653,12 +675,17 @@ function setupCfg(){
     const _C=window.__CFG__||{};
     const adminOff=_C.intro_enabled===false;              // intro turned off site-wide by admin
     const on=!adminOff && localStorage.getItem("eucstats_intro_off")!=="1";   // this visitor's choice
-    cfg.innerHTML=`<div class="crow"><span>Units</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">km/h</button><button data-u="mph" class="${UNIT==='mph'?'on':''}">mph</button></div></div>`+
-      `<div class="crow"><span>Map</span><select id="mapsel" class="csel">${[["dark","Dark"],["light","Light"],["voyager","Voyager"],["satellite","Satellite"],["terrain","Topo"]].map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
-      `<div class="crow"><span>Intro</span><span class="introctl">`+
-        `<label class="cck${adminOff?' dis':''}" title="${adminOff?'Disabled site-wide':'Play the cinematic intro on load'}"><input type="checkbox" id="introchk"${on?' checked':''}${adminOff?' disabled':''}> Enabled</label>`+
-        `<button id="introbtn" class="cbtn"${on?'':' disabled'}>Replay</button>`+
+    const maps=[["dark",t("map.dark")],["light",t("map.light")],["voyager",t("map.voyager")],["satellite",t("map.satellite")],["terrain",t("map.topo")]];
+    const langs=Object.keys(LANGS).map(l=>`<option value="${l}" ${LANG===l?'selected':''}>${LANGS[l]}</option>`).join("");
+    cfg.innerHTML=`<div class="crow"><span>${t("cfg.language")}</span><select id="langsel" class="csel">${langs}</select></div>`+
+      `<div class="crow"><span>${t("cfg.units")}</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">km/h</button><button data-u="mph" class="${UNIT==='mph'?'on':''}">mph</button></div></div>`+
+      `<div class="crow"><span>${t("cfg.map")}</span><select id="mapsel" class="csel">${maps.map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
+      `<div class="crow"><span>${t("cfg.intro")}</span><span class="introctl">`+
+        `<label class="cck${adminOff?' dis':''}" title="${adminOff?t('cfg.intro_off'):t('cfg.intro_play')}"><input type="checkbox" id="introchk"${on?' checked':''}${adminOff?' disabled':''}> ${t("cfg.enabled")}</label>`+
+        `<button id="introbtn" class="cbtn"${on?'':' disabled'}>${t("cfg.replay")}</button>`+
       `</span></div>`;
+    const lsel=cfg.querySelector("#langsel");
+    if(lsel)lsel.onchange=()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}applyI18n();renderHeader();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
     cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
     const chk=cfg.querySelector("#introchk"),ib=cfg.querySelector("#introbtn");
@@ -670,6 +697,7 @@ function setupCfg(){
 
 (function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();
 async function init(){
+  applyI18n();                       // localize the static chrome (dock, footer, gear) at once
   S=await j("/stats/summary"); WC=await j("/champions"); renderHeader();
   const _ps=(window.__CFG__&&typeof window.__CFG__.poll_secs==="number")?window.__CFG__.poll_secs:30; if(_ps>0)setInterval(pollStats,_ps*1000);
   const tzFull=Intl.DateTimeFormat().resolvedOptions().timeZone||"";
@@ -724,7 +752,7 @@ async function init(){
     mapReady=true; doIntro();
   });
 }
-init().catch(()=>{const c=document.getElementById("chips");c.classList.add("show");c.innerHTML='<span class="chip">API error</span>';});
+init().catch(()=>{const c=document.getElementById("chips");c.classList.add("show");c.innerHTML='<span class="chip">'+t("empty.apierror")+'</span>';});
 </script></body></html>"""
 
 
@@ -748,6 +776,7 @@ def _clarity_tag():
 
 def _hide_cfg(db):
     import json
+    from web import i18n
     h = settings.get_hidden(db)
     hm = settings.get_heatmap(db)
     heat = {"zoom": hm["cell_size"], "radius": hm["radius"], "zoom_growth": hm["zoom_growth"],
@@ -758,6 +787,8 @@ def _hide_cfg(db):
                           "records": h.get("records", [])})
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';window.__HEAT__=' + json.dumps(heat)
+            + ';window.__I18N__=' + json.dumps(i18n.langs_payload(), ensure_ascii=False)
+            + ';window.__LANGS__=' + json.dumps(i18n.LANG_NAMES, ensure_ascii=False)
             + ';</script>')
 
 
