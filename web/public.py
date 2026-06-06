@@ -685,7 +685,7 @@ function setupCfg(){
         `<button id="introbtn" class="cbtn"${on?'':' disabled'}>${t("cfg.replay")}</button>`+
       `</span></div>`;
     const lsel=cfg.querySelector("#langsel");
-    if(lsel)lsel.onchange=()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}applyI18n();renderHeader();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
+    if(lsel)lsel.onchange=()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
     cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
     const chk=cfg.querySelector("#introchk"),ib=cfg.querySelector("#introbtn");
