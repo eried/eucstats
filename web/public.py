@@ -146,6 +146,7 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:minmax(176px,max-content);gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
+.tabs.onerow{grid-template-rows:auto}   /* few tabs: one line + side-scroll instead of a half-empty second row */
 .tabs .tab{scroll-snap-align:start}
 .tabcap{display:flex;align-items:center;gap:7px;min-height:16px;margin:-1px 2px 9px;font-size:12px;color:var(--mut);line-height:1.3}
 .tabcap svg{width:14px;height:14px;flex:0 0 auto;opacity:.9}
@@ -525,7 +526,7 @@ function podList(rows,cfg){
 function showRiders(){
   const isH=b=>HIDE.boards.includes(b.k);
   const vis=ADMIN?BOARDS:BOARDS.filter(b=>!isH(b));
-  setPanel("riders",t("title.riders"),`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  setPanel("riders",t("title.riders"),`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
 }
@@ -569,7 +570,7 @@ async function showGroupPanel(kind,name,title,cfg){
   const hid=(HIDE.groups&&HIDE.groups[name])||[];   // each section keeps its own hidden tabs
   const isH=b=>hid.includes(b.k);
   const vis=ADMIN?GBOARDS:GBOARDS.filter(b=>!isH(b));
-  setPanel(name,title,`<div class="tabs">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  setPanel(name,title,`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
   bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
 }
