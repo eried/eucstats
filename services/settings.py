@@ -109,15 +109,15 @@ _GATED_SPEC = [
     ("sag",      "Sag Lord",         "Biggest voltage drop under load",         "max_voltage_sag",  "max", " V",       "",     "sag"),
     ("rocket",   "Rocket",           "Hardest sustained acceleration (2s+)",    "sustained_accel",  "max", " km/h/s",  "",     "rocket"),
     ("battery",  "Battery Vampire",  "Biggest battery drain in one ride",       "battery_used_pct", "max", " %",       "",     "battery"),
-    ("temphigh", "Hot Rod",          "Hottest the board ever ran",              "max_temp",         "max", "°",   "",     "rocket"),
-    ("templow",  "Frostbite",        "Coldest ride",                            "min_temp",         "min", "°",   "",     "streak"),
+    ("temphigh", "Hot Rod",          "Hottest the board ever ran",              "max_temp",         "max", "°",   "temp", "rocket"),
+    ("templow",  "Frostbite",        "Coldest ride",                            "min_temp",         "min", "°",   "temp", "streak"),
     ("pwm",      "Redline",          "Closest to maxing the motor (PWM)",       "max_pwm",          "max", " %",       "",     "speed"),
     ("battlow",  "Running on Fumes", "Lowest battery % reached",                "min_battery_pct",  "min", " %",       "",     "range"),
 ]
 # (base, name, desc, trip_col, direction, unit, conv, icon)  -- ungated absolute extremes
 _UNGATED_NEW = [
-    ("althigh",  "Sky High",         "Highest altitude ever reached", "max_altitude_m", "max", " m", "", "ascent"),
-    ("altlow",   "Below Sea Level",  "Lowest altitude ever reached",  "min_altitude_m", "min", " m", "", "altking"),
+    ("althigh",  "Sky High",         "Highest altitude ever reached", "max_altitude_m", "max", " m", "alt", "ascent"),
+    ("altlow",   "Below Sea Level",  "Lowest altitude ever reached",  "min_altitude_m", "min", " m", "alt", "altking"),
 ]
 _GATED_BASES = {s[0] for s in _GATED_SPEC}        # existing ungated boards these replace
 

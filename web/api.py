@@ -148,6 +148,17 @@ def get_avatar(store_id: str, db: Session = Depends(get_db)):
 
 # --- public leaderboards / map / records ---
 
+@router.get("/i18n/{loc}")
+def i18n_locale(loc: str):
+    """One locale's translation table — lazy-loaded by the public page so it can ship
+    only English + the visitor's language and fetch any other on demand."""
+    from web import i18n
+    table = i18n.locale_table(loc)
+    if table is None:
+        raise HTTPException(404, "unknown locale")
+    return table
+
+
 @router.get("/leaderboards/{board}")
 def leaderboard(board: str, limit: int = 50, db: Session = Depends(get_db)):
     fn = stats.BOARDS.get(board)

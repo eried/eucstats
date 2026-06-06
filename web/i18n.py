@@ -35,6 +35,8 @@ EN: dict[str, str] = {
     "act.refresh": "Refresh",
     # cogwheel settings menu
     "cfg.units": "Units",
+    "u.metric": "Metric",
+    "u.imperial": "Imperial",
     "cfg.map": "Map",
     "cfg.intro": "Intro",
     "cfg.language": "Language",
@@ -224,3 +226,40 @@ def langs_payload() -> dict:
         # English fallback per key keeps the client simple and crash-proof
         out[loc] = {k: (table.get(k) or v) for k, v in EN.items()}
     return out
+
+
+def locale_table(loc: str) -> dict | None:
+    """One locale's English-complete table, or None if unknown. Lazy-loaded by the
+    client for any language beyond the one injected on first paint."""
+    if loc == "en":
+        return EN
+    table = (TRANSLATIONS or {}).get(loc)
+    return {k: (table.get(k) or v) for k, v in EN.items()} if table is not None else None
+
+
+def pick(accept_language: str) -> str:
+    """Best supported locale for an Accept-Language header (a server-side mirror of the
+    client's language mapping). Lets the page inject just EN + the visitor's language
+    instead of all of them."""
+    sup = set(LANG_NAMES)
+    for part in (accept_language or "").split(","):
+        code = part.split(";")[0].strip().lower()
+        if not code:
+            continue
+        base = code.split("-")[0]
+        reg = code.split("-")[1] if "-" in code else ""
+        if base == "pt":
+            loc = "pt-BR"
+        elif base == "zh":
+            loc = "zh-Hant" if any(x in code for x in ("tw", "hk", "mo", "hant")) else "zh"
+        elif base in ("nb", "nn", "no"):
+            loc = "no"
+        elif base == "es":
+            lat = {"419", "mx", "ar", "co", "cl", "pe", "ve", "ec", "gt", "cu",
+                   "bo", "do", "hn", "py", "sv", "ni", "cr", "pa", "uy", "pr"}
+            loc = "es-419" if reg in lat else "es"
+        else:
+            loc = base
+        if loc in sup:
+            return loc
+    return "en"

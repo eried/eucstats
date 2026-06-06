@@ -159,7 +159,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Tête dans les Nuages",
   "b.althigh.d": "Altitude la plus haute jamais atteinte",
   "b.altlow.n": "Sous le Niveau de la Mer",
-  "b.altlow.d": "Altitude la plus basse jamais atteinte"
+  "b.altlow.d": "Altitude la plus basse jamais atteinte",
+  "u.metric": "Métrique",
+  "u.imperial": "Impérial"
  },
  "es": {
   "dock.riders": "Riders",
@@ -318,7 +320,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Por las Nubes",
   "b.althigh.d": "La altitud más alta jamás alcanzada",
   "b.altlow.n": "Bajo el Mar",
-  "b.altlow.d": "La altitud más baja jamás alcanzada"
+  "b.altlow.d": "La altitud más baja jamás alcanzada",
+  "u.metric": "Métrico",
+  "u.imperial": "Imperial"
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -477,7 +481,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Lá no Alto",
   "b.althigh.d": "Maior altitude já alcançada",
   "b.altlow.n": "Abaixo do Nível do Mar",
-  "b.altlow.d": "Menor altitude já alcançada"
+  "b.altlow.d": "Menor altitude já alcançada",
+  "u.metric": "Métrico",
+  "u.imperial": "Imperial"
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -636,7 +642,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Hoog in de Wolken",
   "b.althigh.d": "Hoogste hoogte ooit bereikt",
   "b.altlow.n": "Onder Zeeniveau",
-  "b.altlow.d": "Laagste hoogte ooit bereikt"
+  "b.altlow.d": "Laagste hoogte ooit bereikt",
+  "u.metric": "Metrisch",
+  "u.imperial": "Imperiaal"
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -795,7 +803,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Himmelsstürmer",
   "b.althigh.d": "Höchste je erreichte Höhe",
   "b.altlow.n": "Unter dem Meeresspiegel",
-  "b.altlow.d": "Niedrigste je erreichte Höhe"
+  "b.altlow.d": "Niedrigste je erreichte Höhe",
+  "u.metric": "Metrisch",
+  "u.imperial": "Imperial"
  },
  "da": {
   "dock.riders": "Ryttere",
@@ -954,7 +964,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Helt Oppe i Skyerne",
   "b.althigh.d": "Den hoejeste hoejde nogensinde naaet",
   "b.altlow.n": "Under Havets Overflade",
-  "b.altlow.d": "Den laveste hoejde nogensinde naaet"
+  "b.altlow.d": "Den laveste hoejde nogensinde naaet",
+  "u.metric": "Metrisk",
+  "u.imperial": "Imperial"
  },
  "zh": {
   "dock.riders": "骑友",
@@ -1113,7 +1125,9 @@ TRANSLATIONS = {
   "b.althigh.n": "云端飞客",
   "b.althigh.d": "到达过的最高海拔",
   "b.altlow.n": "深入海平面",
-  "b.altlow.d": "到达过的最低海拔"
+  "b.altlow.d": "到达过的最低海拔",
+  "u.metric": "公制",
+  "u.imperial": "英制"
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -1272,7 +1286,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Под облака",
   "b.althigh.d": "Самая большая высота за всё время",
   "b.altlow.n": "Ниже уровня моря",
-  "b.altlow.d": "Самая малая высота за всё время"
+  "b.altlow.d": "Самая малая высота за всё время",
+  "u.metric": "Метрическая",
+  "u.imperial": "Имперская"
  },
  "no": {
   "dock.riders": "Førere",
@@ -1431,7 +1447,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Til Værs",
   "b.althigh.d": "Høyeste høyde noen gang nådd",
   "b.altlow.n": "Under Havflaten",
-  "b.altlow.d": "Laveste høyde noen gang nådd"
+  "b.altlow.d": "Laveste høyde noen gang nådd",
+  "u.metric": "Metrisk",
+  "u.imperial": "Imperisk"
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -1590,7 +1608,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Skyhögt",
   "b.althigh.d": "Högsta höjd någonsin nådd",
   "b.altlow.n": "Under havsytan",
-  "b.altlow.d": "Lägsta höjd någonsin nådd"
+  "b.altlow.d": "Lägsta höjd någonsin nådd",
+  "u.metric": "Metriskt",
+  "u.imperial": "Imperiellt"
  },
  "it": {
   "dock.riders": "Rider",
@@ -1749,7 +1769,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Tra le Nuvole",
   "b.althigh.d": "Altitudine massima mai raggiunta",
   "b.altlow.n": "Sotto il Livello del Mare",
-  "b.altlow.d": "Altitudine minima mai raggiunta"
+  "b.altlow.d": "Altitudine minima mai raggiunta",
+  "u.metric": "Metrico",
+  "u.imperial": "Imperiale"
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1908,7 +1930,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Por las Nubes",
   "b.althigh.d": "La altitud más alta jamás alcanzada",
   "b.altlow.n": "Bajo el Mar",
-  "b.altlow.d": "La altitud más baja jamás alcanzada"
+  "b.altlow.d": "La altitud más baja jamás alcanzada",
+  "u.metric": "Métrico",
+  "u.imperial": "Imperial"
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -2067,7 +2091,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Підкорювач небес",
   "b.althigh.d": "Найвища висота за весь час",
   "b.altlow.n": "Нижче рівня моря",
-  "b.altlow.d": "Найнижча висота за весь час"
+  "b.altlow.d": "Найнижча висота за весь час",
+  "u.metric": "Метрична",
+  "u.imperial": "Імперська"
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -2226,7 +2252,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Pod niebiosa",
   "b.althigh.d": "Najwyższa osiągnięta wysokość",
   "b.altlow.n": "Poniżej poziomu morza",
-  "b.altlow.d": "Najniższa osiągnięta wysokość"
+  "b.altlow.d": "Najniższa osiągnięta wysokość",
+  "u.metric": "Metryczne",
+  "u.imperial": "Imperialne"
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -2385,7 +2413,9 @@ TRANSLATIONS = {
   "b.althigh.n": "Göklerin Efendisi",
   "b.althigh.d": "Ulaşılan en yüksek rakım",
   "b.altlow.n": "Deniz Dibi",
-  "b.altlow.d": "Ulaşılan en düşük rakım"
+  "b.altlow.d": "Ulaşılan en düşük rakım",
+  "u.metric": "Metrik",
+  "u.imperial": "Emperyal"
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -2544,7 +2574,9 @@ TRANSLATIONS = {
   "b.althigh.n": "天空ライダー",
   "b.althigh.d": "到達した最高標高",
   "b.altlow.n": "海面下ダイバー",
-  "b.altlow.d": "到達した最低標高"
+  "b.altlow.d": "到達した最低標高",
+  "u.metric": "メートル法",
+  "u.imperial": "ヤード・ポンド法"
  },
  "ko": {
   "dock.riders": "라이더",
@@ -2703,7 +2735,9 @@ TRANSLATIONS = {
   "b.althigh.n": "구름 위",
   "b.althigh.d": "기록한 최고 고도",
   "b.altlow.n": "해수면 아래",
-  "b.altlow.d": "기록한 최저 고도"
+  "b.altlow.d": "기록한 최저 고도",
+  "u.metric": "미터법",
+  "u.imperial": "임페리얼"
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -2862,6 +2896,8 @@ TRANSLATIONS = {
   "b.althigh.n": "飛上天際",
   "b.althigh.d": "曾經抵達的最高海拔",
   "b.altlow.n": "海平面以下",
-  "b.altlow.d": "曾經抵達的最低海拔"
+  "b.altlow.d": "曾經抵達的最低海拔",
+  "u.metric": "公制",
+  "u.imperial": "英制"
  }
 }

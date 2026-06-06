@@ -135,7 +135,7 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes panDown{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,58px)}}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);flex:0 0 auto;z-index:5;background:rgba(11,15,28,.96)}
 .phead b{font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}.phead button{background:transparent;border:0;color:var(--mut);cursor:pointer}
-.pacts{display:flex;gap:12px;align-items:center}.phead button:hover{color:var(--acc)}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
+.pacts{display:flex;gap:12px;align-items:center}.phead button:hover{color:var(--acc)}#ppeek.on{color:var(--gold)}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
 .pbody{padding:12px 18px;flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(130,170,255,.3) transparent}.hint{color:var(--mut);font-size:11.5px;margin:2px 0 12px;letter-spacing:.3px;border-left:2px solid var(--acc);padding-left:8px}
 table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;text-align:left}
 tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:700;font-variant-numeric:tabular-nums}
@@ -229,7 +229,7 @@ __TESTWM__
   <a href="https://github.com/eried/eucstats" target="_blank" rel="noopener" aria-label="eucstats on GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
   <span class="ver" title="HTML last-modified date (auto-updated on deploy)">build __BUILD__</span>
 </div>
-<div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="prefresh" data-i18n-title="act.refresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
+<div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="ppeek" title="Preview as a normal visitor" style="display:none"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="prefresh" data-i18n-title="act.refresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
 <div class="dock intro">
   <button class="intro" data-p="riders" data-i18n-aria="dock.riders" aria-label="Riders"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><circle cx="17" cy="9" r="2.6"/><path d="M14.6 14.4c2.8-.7 5.6 1 6.4 4.6h-4.8z"/></svg><span class="lbl" data-i18n="dock.riders">Riders</span></button>
   <button class="intro" data-p="countries" data-i18n-aria="dock.countries" aria-label="Countries"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg><span class="lbl" data-i18n="dock.countries">Countries</span></button>
@@ -247,6 +247,8 @@ const API="/api/v1";
 const j=p=>fetch(API+p).then(r=>r.json());
 const HIDE=Object.assign({boards:[],app:[],records:[],groups:{countries:[],wheels:[],brands:[]},sec:{}},window.__HIDE__||{});
 const ADMIN=!!window.__ADMIN__;   // logged-in admin: show hidden metrics dimmed instead of removing them
+let ASPUBLIC=false;               // admin "eye" toggle: preview exactly what a normal visitor sees
+function isAdminView(){return ADMIN&&!ASPUBLIC;}
 const HEAT=Object.assign({zoom:0.1,radius:60,zoom_growth:1,intensity:1,glow_floor:0.45,opacity:0.62},window.__HEAT__||{});
 // --- i18n: browser auto-detect or saved cogwheel choice, English fallback per key ---
 const I18N=window.__I18N__||{en:{}};
@@ -256,11 +258,14 @@ function _mapLang(raw){if(!raw)return null;const lc=(""+raw).toLowerCase(),base=
   if(base==="zh")return /(^|-)(tw|hk|mo|hant)(-|$)/.test(lc)?"zh-Hant":"zh";
   if(base==="nb"||base==="nn"||base==="no")return "no";
   if(base==="es"){const LAT=["419","MX","AR","CO","CL","PE","VE","EC","GT","CU","BO","DO","HN","PY","SV","NI","CR","PA","UY","PR"];return LAT.indexOf(reg)>=0?"es-419":"es";}
-  return I18N[base]?base:null;}
-function _detectLang(){try{const s=localStorage.getItem("eucstats_lang");if(s&&I18N[s])return s;
+  return LANGS[base]?base:null;}
+function _detectLang(){try{const s=localStorage.getItem("eucstats_lang");if(s&&LANGS[s])return s;
   const navs=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||"en"];
-  for(let i=0;i<navs.length;i++){const m=_mapLang(navs[i]);if(m&&I18N[m])return m;}}catch(e){}return "en";}
+  for(let i=0;i<navs.length;i++){const m=_mapLang(navs[i]);if(m&&LANGS[m])return m;}}catch(e){}return "en";}
 let LANG=_detectLang();
+// only EN + the visitor's language are injected; fetch any other on demand
+async function ensureLang(l){if(l==="en"||(I18N[l]&&Object.keys(I18N[l]).length))return;
+  try{const d=await j("/i18n/"+encodeURIComponent(l));if(d&&!d.detail)I18N[l]=d;}catch(e){}}
 function t(k,vars){let s=(I18N[LANG]&&I18N[LANG][k]);if(s==null)s=(I18N.en&&I18N.en[k]);if(s==null)s=k;
   if(vars)for(const p in vars)s=s.split("{"+p+"}").join(vars[p]);return s;}
 function applyI18n(){
@@ -322,20 +327,20 @@ const BOARDS=[
  {k:"gforce",c:"best_gforce",u:" g"},
  {k:"voltage",c:"peak_voltage",u:" V"},
  {k:"streak",c:"longest_streak",u:" d"},
- {k:"ascent",c:"ascent_m",u:" m"},
+ {k:"ascent",c:"ascent_m",u:" m",conv:"alt"},
  {k:"range",c:"range_km",u:"",conv:"dist"},
  {k:"efficiency",c:"wh_per_km",u:" Wh/km"},
  {k:"hours",c:"hours",u:" h"},
  {k:"cruise",c:"slow_km",u:"",conv:"dist"},
  {k:"globe",c:"countries",u:""},
- {k:"altking",c:"alt_range",u:" m"},
+ {k:"altking",c:"alt_range",u:" m",conv:"alt"},
  {k:"frequent",c:"trips_total",u:""},
  {k:"marathon",c:"ride_hours",u:" h"},
  {k:"pace",c:"avg_speed",conv:"spd"},
  {k:"night",c:"night_rides",u:""},
  {k:"weekend",c:"weekend_km",conv:"dist"},
  {k:"early",c:"morning_rides",u:""},
- {k:"peak",c:"peak_ascent",u:" m"},
+ {k:"peak",c:"peak_ascent",u:" m",conv:"alt"},
  {k:"energy",c:"energy_kwh",u:" kWh"},
  {k:"explorer",c:"areas",u:""},
  {k:"bigday",c:"rides_in_day",u:""},
@@ -355,7 +360,14 @@ const mph=()=>UNIT==="mph";
 const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
-function bval(b,v){if(v==null)v=0;if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+b.u;}
+const tnum=c=>mph()?(""+r1(c*9/5+32)):(""+r1(c)), tunit=()=>mph()?"°F":"°C";   // temperature
+const anum=m=>mph()?(""+Math.round(m*3.28084)):(""+Math.round(m)), aunit=()=>mph()?"ft":"m";   // altitude
+function bval(b,v){if(v==null)v=0;
+  if(b.conv==="dist")return dnum(v)+" "+dunit();
+  if(b.conv==="spd")return snum(v)+" "+sunit();
+  if(b.conv==="temp")return tnum(v)+tunit();
+  if(b.conv==="alt")return anum(v)+" "+aunit();
+  return r2(v)+b.u;}
 function bt(b){return t(b.nk);}
 function bd(b){var s=(b.dk==="b.accel.d"&&mph())?t("b.accel.d_mph"):t(b.dk);
   if(b.min_s){s+=" · ≥"+Math.round(b.min_s/60)+"min ≥"+dnum(b.min_km)+dunit();}   // gate, unit-aware
@@ -507,6 +519,13 @@ function closePanel(){
 document.getElementById("pclose").onclick=closePanel;
 function refreshPanel(){const p=openPanel;if(p)HANDLERS[p]();}   // reload in place, no re-animate
 document.getElementById("prefresh").onclick=()=>{const b=document.getElementById("prefresh");b.classList.add("spin");refreshPanel();setTimeout(()=>b.classList.remove("spin"),650);};
+// admin-only "eye": flip between the dimmed preview and exactly what a normal visitor sees
+(function(){const pk=document.getElementById("ppeek");if(!pk)return;
+  if(!ADMIN){pk.style.display="none";return;}
+  pk.style.display="";
+  pk.onclick=()=>{ASPUBLIC=!ASPUBLIC;pk.classList.toggle("on",ASPUBLIC);
+    pk.title=ASPUBLIC?"Showing the public view — click to reveal hidden":"Preview as a normal visitor";
+    applyDock();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}};})();
 
 const MEDAL='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg>';
 const WHEELIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg>';
@@ -524,7 +543,7 @@ function podList(rows,cfg){
 }
 function showRiders(){
   const isH=b=>HIDE.boards.includes(b.k);
-  const vis=ADMIN?BOARDS:BOARDS.filter(b=>!isH(b));
+  const vis=isAdminView()?BOARDS:BOARDS.filter(b=>!isH(b));
   setPanel("riders",t("title.riders"),`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||IC[b.ic]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
@@ -568,7 +587,7 @@ async function showGroupPanel(kind,name,title,cfg){
   GROWS=(await j("/groups/"+kind)).entries;
   const hid=(HIDE.groups&&HIDE.groups[name])||[];   // each section keeps its own hidden tabs
   const isH=b=>hid.includes(b.k);
-  const vis=ADMIN?GBOARDS:GBOARDS.filter(b=>!isH(b));
+  const vis=isAdminView()?GBOARDS:GBOARDS.filter(b=>!isH(b));
   setPanel(name,title,`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
   bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
@@ -577,7 +596,7 @@ function showCountries(){showGroupPanel("country","countries",t("title.countries
 function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+t("u.riders",{n:e.riders||0})});}
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
-  const recs=(await j("/records")).filter(r=>r.value!=null&&(ADMIN||!HIDE.records.includes(r.key)));
+  const recs=(await j("/records")).filter(r=>r.value!=null&&(isAdminView()||!HIDE.records.includes(r.key)));
   setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
@@ -585,7 +604,7 @@ async function showTech(){
   const d=await j("/stats/versions");
   const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
   const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
-  const sec=(key,t,h)=>{var hid=HIDE.app.includes(key);if(hid&&!ADMIN)return "";return `<div class="vsec${hid?' peek':''}"><div class="vtitle">${t}</div>${h}</div>`;};
+  const sec=(key,t,h)=>{var hid=HIDE.app.includes(key);if(hid&&!isAdminView())return "";return `<div class="vsec${hid?' peek':''}"><div class="vtitle">${t}</div>${h}</div>`;};
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>'+t("empty.nodata")+'</td></tr>'}</table>`;
   const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>'+t("empty.nodata")+'</p>';};
   const body=sec("adoption","📊 "+t("tech.adoption"),d.latest?`<p class=mut style="margin:2px 0 0">${t("tech.adoptionPct",{pct:d.latest_pct,ver:d.latest})}</p>`:'<p class=mut>'+t("empty.nodata")+'</p>')+
@@ -598,7 +617,12 @@ async function showTech(){
 }
 const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>{if(openPanel===b.dataset.p)closePanel();else HANDLERS[b.dataset.p]();});
-document.querySelectorAll('.dock button[data-p]').forEach(b=>{if((HIDE.sec||{})[b.dataset.p]){if(ADMIN)b.classList.add('peek');else b.style.display='none';}});
+function applyDock(){const SEC=HIDE.sec||{};
+  document.querySelectorAll('.dock button[data-p]').forEach(b=>{var hid=SEC[b.dataset.p];
+    if(hid&&isAdminView()){b.classList.add('peek');b.style.display='';}
+    else if(hid){b.classList.remove('peek');b.style.display='none';}
+    else{b.classList.remove('peek');b.style.display='';}});}
+applyDock();
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
 function runIntro(){
@@ -685,14 +709,14 @@ function setupCfg(){
     const maps=[["dark",t("map.dark")],["light",t("map.light")],["voyager",t("map.voyager")],["satellite",t("map.satellite")],["terrain",t("map.topo")]];
     const langs=Object.keys(LANGS).map(l=>`<option value="${l}" ${LANG===l?'selected':''}>${LANGS[l]}</option>`).join("");
     cfg.innerHTML=`<div class="crow"><span>${t("cfg.language")}</span><select id="langsel" class="csel">${langs}</select></div>`+
-      `<div class="crow"><span>${t("cfg.units")}</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">km/h</button><button data-u="mph" class="${UNIT==='mph'?'on':''}">mph</button></div></div>`+
+      `<div class="crow"><span>${t("cfg.units")}</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">${t("u.metric")}</button><button data-u="mph" class="${UNIT==='mph'?'on':''}">${t("u.imperial")}</button></div></div>`+
       `<div class="crow"><span>${t("cfg.map")}</span><select id="mapsel" class="csel">${maps.map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
       `<div class="crow"><span>${t("cfg.intro")}</span><span class="introctl">`+
         `<label class="cck${adminOff?' dis':''}" title="${adminOff?t('cfg.intro_off'):t('cfg.intro_play')}"><input type="checkbox" id="introchk"${on?' checked':''}${adminOff?' disabled':''}> ${t("cfg.enabled")}</label>`+
         `<button id="introbtn" class="cbtn"${on?'':' disabled'}>${t("cfg.replay")}</button>`+
       `</span></div>`;
     const lsel=cfg.querySelector("#langsel");
-    if(lsel)lsel.onchange=()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
+    if(lsel)lsel.onchange=async()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}await ensureLang(LANG);applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
     cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
     const chk=cfg.querySelector("#introchk"),ib=cfg.querySelector("#introbtn");
@@ -704,20 +728,12 @@ function setupCfg(){
 
 (function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();
 async function init(){
-  applyI18n();                       // localize the static chrome (dock, footer, gear) at once
-  S=await j("/stats/summary"); WC=await j("/champions"); renderHeader();
-  const _ps=(window.__CFG__&&typeof window.__CFG__.poll_secs==="number")?window.__CFG__.poll_secs:30; if(_ps>0)setInterval(pollStats,_ps*1000);
+  // Wire the autoplaying intro <video> FIRST, before any network await. Otherwise the
+  // repeat-visit "seek to the end + reveal" attaches only after the i18n/stats fetches,
+  // by which time the video has played its full length (hidden), then the map loads.
+  let mapReady=false,videoDone=false,introRan=false;
   const tzFull=Intl.DateTimeFormat().resolvedOptions().timeZone||"";
   const [rlon,rlat,rz]=TZMAP[tzFull]||REGION[tzFull.split("/")[0]]||[10,30,3];
-  map=new maplibregl.Map({container:"map",style:STYLES[MAPSTYLE],center:[rlon,rlat],zoom:1.5,attributionControl:true});
-  map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");
-  addEventListener("resize",()=>map.resize()); addEventListener("orientationchange",()=>setTimeout(()=>map.resize(),120)); if(window.visualViewport)window.visualViewport.addEventListener("resize",()=>map.resize()); setTimeout(()=>map.resize(),80);
-  const veil=document.getElementById("veil");
-  const setVeil=()=>{const z=map.getZoom();veil.style.opacity=Math.max(0,Math.min(1,(6-z)/4.5));};
-  map.on("zoom",setVeil); setVeil();
-  map.on("style.load",addHeat);   // re-add heat after a style switch
-  setupCfg();
-  let mapReady=false,videoDone=false,introRan=false;
   function pickTarget(){   // don't zoom to empty space: if the visitor's region has no data, go to the busiest area
     let t=[rlon,rlat,rz];
     if(CELLS&&CELLS.length){
@@ -754,6 +770,18 @@ async function init(){
     const pp=vid.play&&vid.play(); if(pp&&pp.catch)pp.catch(()=>{});
   } else { videoDone=true; }
   }
+  // now localize the chrome, fetch data, and build the map
+  await ensureLang(LANG); applyI18n();
+  S=await j("/stats/summary"); WC=await j("/champions"); renderHeader();
+  const _ps=(window.__CFG__&&typeof window.__CFG__.poll_secs==="number")?window.__CFG__.poll_secs:30; if(_ps>0)setInterval(pollStats,_ps*1000);
+  map=new maplibregl.Map({container:"map",style:STYLES[MAPSTYLE],center:[rlon,rlat],zoom:1.5,attributionControl:true});
+  map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");
+  addEventListener("resize",()=>map.resize()); addEventListener("orientationchange",()=>setTimeout(()=>map.resize(),120)); if(window.visualViewport)window.visualViewport.addEventListener("resize",()=>map.resize()); setTimeout(()=>map.resize(),80);
+  const veil=document.getElementById("veil");
+  const setVeil=()=>{const z=map.getZoom();veil.style.opacity=Math.max(0,Math.min(1,(6-z)/4.5));};
+  map.on("zoom",setVeil); setVeil();
+  map.on("style.load",addHeat);   // re-add heat after a style switch
+  setupCfg();
   map.on("load",async ()=>{
     CELLS=await j("/map/cells?zoom="+HEAT.zoom); addHeat();
     mapReady=true; doIntro();
@@ -781,7 +809,7 @@ def _clarity_tag():
             '(window,document,"clarity","script","' + cid + '");</script>')
 
 
-def _hide_cfg(db, admin=False):
+def _hide_cfg(db, admin=False, accept_language=""):
     import json
     from web import i18n
     h = settings.get_hidden(db)
@@ -793,12 +821,17 @@ def _hide_cfg(db, admin=False):
     gated = [{"k": b["k"], "base": b["base"], "u": b["u"], "conv": b["conv"], "ic": b["ic"],
               "min_s": b["min_s"], "min_km": b["min_km"]}
              for b in settings.gated_boards() + settings.ungated_new_boards()]
+    # inject only English + the visitor's language (others lazy-load via /api/v1/i18n/{loc})
+    loc = i18n.pick(accept_language)
+    i18n_small = {"en": i18n.EN}
+    if loc != "en":
+        i18n_small[loc] = i18n.locale_table(loc)
     return ('<script>window.__HIDE__=' + json.dumps(hide)
             + ';window.__GATED__=' + json.dumps(gated)
             + ';window.__ADMIN__=' + ('true' if admin else 'false')
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';window.__HEAT__=' + json.dumps(heat)
-            + ';window.__I18N__=' + json.dumps(i18n.langs_payload(), ensure_ascii=False)
+            + ';window.__I18N__=' + json.dumps(i18n_small, ensure_ascii=False)
             + ';window.__LANGS__=' + json.dumps(i18n.LANG_NAMES, ensure_ascii=False)
             + ';</script>')
 
@@ -807,9 +840,10 @@ def _hide_cfg(db, admin=False):
 def home(request: Request, db: Session = Depends(get_db)):
     import html as _html
     admin = bool(request.session.get("admin_auth"))   # logged-in admin previews hidden metrics dimmed
+    accept = request.headers.get("accept-language", "")
     tm = settings.get_test_mode()
     testwm = f'<div id="testwm">{_html.escape(tm["text"])}</div>' if tm["enabled"] else ''
     return HTMLResponse(_PAGE.replace("__BUILD__", _build_date())
                         .replace("__CLARITY__", _clarity_tag())
-                        .replace("__HIDECFG__", _hide_cfg(db, admin))
+                        .replace("__HIDECFG__", _hide_cfg(db, admin, accept))
                         .replace("__TESTWM__", testwm))
