@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 
 import config
 from database import get_db
-from services import ratelimit, sandbox, settings, stats
+from services import health, ratelimit, sandbox, settings, stats
 from services.identity import (ChangeNotAllowed, IdentityService, InvalidName,
                                clean_display_name, name_taken)
 from services.ingest import IngestError, IngestService
@@ -236,8 +237,15 @@ async def upload_trip(request: Request, meta: str = Form(...), trip: UploadFile 
     raw = await trip.read()
     if len(raw) > config.MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(413, "trip file too large")
+    t0 = time.perf_counter()
     try:
         result = IngestService(db).handle(meta_obj, raw)
     except IngestError as e:
+        health.log_ingest(store, meta_obj.get("trip_uuid"), "error:" + e.detail,
+                          ms=(time.perf_counter() - t0) * 1000, size=len(raw))
         raise HTTPException(e.code, e.detail)
+    health.log_ingest(store, result.get("trip_uuid"), result.get("validation_status"),
+                      dist=result.get("distance_km"), reasons=result.get("reasons"),
+                      dup=result.get("duplicate", False),
+                      ms=(time.perf_counter() - t0) * 1000, size=len(raw))
     return JSONResponse(result, status_code=200 if result.get("duplicate") else 201)

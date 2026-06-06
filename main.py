@@ -28,9 +28,11 @@ async def _retention_loop():
         try:
             db = SessionLocal()
             try:
+                from services import health
                 n = run_retention(db)
                 if n:
                     logger.info("retention evicted %d raw uploads", n)
+                health.heartbeat(db)             # periodic health snapshot -> data/health.log
             finally:
                 db.close()
         except Exception:
@@ -40,6 +42,15 @@ async def _retention_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    try:                                         # one health snapshot at startup
+        from services import health
+        db = SessionLocal()
+        try:
+            health.heartbeat(db)
+        finally:
+            db.close()
+    except Exception:
+        pass
     task = asyncio.create_task(_retention_loop())
     try:
         yield

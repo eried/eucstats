@@ -1612,6 +1612,22 @@ def _audit_card() -> str:
     </div>"""
 
 
+def _health_card() -> str:
+    """Inline tail of the ops log: one line per ingest + periodic health snapshots."""
+    from services import health
+    lines = health.tail(300)
+    body = html.escape("\n".join(lines)) if lines else "no activity logged yet"
+    return f"""
+    <div class=card>
+      <h2>Activity &amp; health log</h2>
+      <p class=hint>Live feed from <code>data/health.log</code>: one <code>ingest</code> line per upload
+      (outcome · rider · trip · distance · size · time · any flag reasons) plus a periodic
+      <code>health</code> snapshot (riders / trips / km / mem% / disk% / load). Flat file, bounded,
+      survives dataset switches. Newest first; last 300 lines.</p>
+      <pre class=j style="max-height:420px">{body}</pre>
+    </div>"""
+
+
 def _system_html(db: Session, msg: str = "") -> str:
     r = settings.get_retention(db)
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
@@ -1654,6 +1670,7 @@ def _system_html(db: Session, msg: str = "") -> str:
       </form>
     </div>
     {_sandbox_card()}
+    {_health_card()}
     {_audit_card()}"""
     return _ds_page(inner, "/admin/system")
 
