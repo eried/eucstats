@@ -671,19 +671,33 @@ function renderChampions(){
 let CELLS=null;
 function addHeat(){
   if(!CELLS||map.getSource("activity")) return;
-  map.addSource("activity",{type:"geojson",data:{type:"FeatureCollection",
+  // buffer:512 + a low source maxzoom stop the heat from being clipped at tile seams when you pan.
+  // A cell's glow can be far wider than a normal map tile, and MapLibre renders heatmaps per-tile —
+  // so by default a cell only paints into its own tile (+128px) and its glow gets chopped at the
+  // seam, and cells that scroll off-screen stop contributing entirely. Tiling the points coarsely
+  // (few big tiles) with a full buffer makes each cell's glow bleed across the whole viewport, so
+  // panning shows every blob it should and there are no straight-line cutoffs. tolerance:0 keeps
+  // point positions exact.
+  map.addSource("activity",{type:"geojson",buffer:512,maxzoom:9,tolerance:0,data:{type:"FeatureCollection",
     features:CELLS.map(c=>({type:"Feature",geometry:{type:"Point",coordinates:[c.lon,c.lat]},properties:{r:c.rider_count||0}}))}});
   // Heat radius grows EXPONENTIALLY with zoom — true web-mercator scaling (k=1):
   // pixels-per-metre double every zoom level, so the glow doubles too. A couple of cells
   // that look like dots when zoomed out blend into a broad warm area as you zoom in
   // (their on-screen gap and their glow grow at the same rate). Anchored to the admin
-  // "Heat radius" at Zref=11; held to a clearly VISIBLE floor when zoomed out (RMIN, so far
-  // views are a soft blob, not an invisible pinprick) and capped so a massive zoom fills with
-  // heat rather than overflowing the GPU. ["exponential",2] makes the interpolation follow 2^zoom.
-  const Rb=HEAT.radius,Zref=11,k=HEAT.zoom_growth,RMIN=Math.max(20,Rb*0.4),RMAX=Math.min(Rb*16,1024);
+  // "Heat radius" at Zref=9 (≈ city/island zoom — the showcase): at that zoom the glow ≈ the
+  // admin radius, then it scales geographically both ways. A small floor when zoomed out (RMIN)
+  // keeps far views a tight dot, not a giant blob. RMAX is the street-zoom ceiling and is tied to
+  // the VIEWPORT (≈0.8·width, hard ceiling 1400): big enough on a desktop to keep the coarse cell
+  // grid flattened into one smooth blob as you zoom in (instead of the cell peaks poking through as
+  // separate dots), but never wider than the screen — a radius larger than the viewport just paints
+  // everything one flat colour (a wash). On a narrow/phone screen the cap is naturally smaller, so
+  // it self-limits instead of washing. ["exponential",2] makes the interpolation follow 2^zoom.
+  const Rb=HEAT.radius,Zref=9,k=HEAT.zoom_growth,RMIN=Math.max(10,Rb*0.15),RMAX=Math.min(Rb*24,Math.round(innerWidth*0.8),1400);
   const rAt=z=>Math.max(RMIN,Math.min(RMAX,Rb*Math.pow(2,(z-Zref)*k)));
+  // z13 is an explicit stop so the (capped) curve hits its full value there instead of the sparse
+  // [12,14] interpolation undershooting the street-zoom flattening radius.
   const rRadius=["interpolate",["exponential",2],["zoom"]].concat(
-    [3,7,10,12,14,16,20].reduce((a,z)=>a.concat([z,Math.round(rAt(z))]),[]));
+    [3,7,10,12,13,14,16,20].reduce((a,z)=>a.concat([z,Math.round(rAt(z))]),[]));
   map.addLayer({id:"heat",type:"heatmap",source:"activity",paint:{
     // BRIGHTNESS = a steady, always-visible floor that scales up with distinct riders.
     // A lone rider (r=1) reads as a clear cyan glow (~0.45); each doubling of riders steps
@@ -691,8 +705,13 @@ function addHeat(){
     // never disappear. log2 so each doubling of riders is one even step.
     "heatmap-weight":["min",1,["+",HEAT.glow_floor,["*",0.20,["/",["ln",["max",1,["get","r"]]],["ln",2]]]]],
     // INTENSITY a touch stronger when zoomed OUT (sparse far cells read better) and settles
-    // to the dialed value as you zoom in, where the exponential radius does the work.
-    "heatmap-intensity":["interpolate",["linear"],["zoom"],3,1.45*HEAT.intensity,11,1.3*HEAT.intensity],
+    // to the dialed value through the mid zooms. Above z12 it ramps up gently: at street zoom
+    // the radius is held to a small cap (see RMAX) so the heat stays a localized glow instead of
+    // a screen-wide wash — but a capped radius still spreads each cell's weight, so this small
+    // intensity bump keeps the glow visible and merged rather than fading out. Stops at/below z12
+    // are unchanged, so the dialed-in z8–12 look is preserved exactly.
+    "heatmap-intensity":["interpolate",["linear"],["zoom"],3,1.45*HEAT.intensity,11,1.3*HEAT.intensity,
+      12,1.3*HEAT.intensity,13,1.8*HEAT.intensity,15,2.0*HEAT.intensity,18,2.2*HEAT.intensity],
     "heatmap-radius":rRadius,
     "heatmap-opacity":0,
     "heatmap-color":["interpolate",["linear"],["heatmap-density"],
@@ -774,7 +793,9 @@ async function init(){
   await ensureLang(LANG); applyI18n();
   S=await j("/stats/summary"); WC=await j("/champions"); renderHeader();
   const _ps=(window.__CFG__&&typeof window.__CFG__.poll_secs==="number")?window.__CFG__.poll_secs:30; if(_ps>0)setInterval(pollStats,_ps*1000);
-  map=new maplibregl.Map({container:"map",style:STYLES[MAPSTYLE],center:[rlon,rlat],zoom:1.5,attributionControl:true});
+  // maxZoom stops where the coarse ~1-3km privacy-grid heat still reads well; past this the bins
+  // can't be flattened without washing the screen, and street-level rider presence isn't shown.
+  map=new maplibregl.Map({container:"map",style:STYLES[MAPSTYLE],center:[rlon,rlat],zoom:1.5,maxZoom:13.23,attributionControl:true});
   map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");
   addEventListener("resize",()=>map.resize()); addEventListener("orientationchange",()=>setTimeout(()=>map.resize(),120)); if(window.visualViewport)window.visualViewport.addEventListener("resize",()=>map.resize()); setTimeout(()=>map.resize(),80);
   const veil=document.getElementById("veil");
