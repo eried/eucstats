@@ -913,10 +913,11 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
         riders = d["riders"] if d["riders"] is not None else "?"
         trips = d["trips"] if d["trips"] is not None else "?"
         live = " <span class=mut>· live</span>" if d.get("live") else ""
-        # the active dataset can't be deleted (the live DB runs off it) — show a note, not a button
-        del_cell = ('<span class=mut>active — switch away to delete</span>' if is_active else
-                    f'<form method=post action="/admin/datasets/delete"><input type=hidden name=slug value="{d["slug"]}">'
-                    f'<input name=confirm placeholder="type name"><button class=danger>delete</button></form>')
+        # the active dataset can't be deleted (the live DB runs off it) — keep the same controls,
+        # just disable the input + button on that row
+        dis = " disabled" if is_active else ""
+        del_cell = (f'<form method=post action="/admin/datasets/delete"><input type=hidden name=slug value="{d["slug"]}">'
+                    f'<input name=confirm placeholder="type name"{dis}><button class=danger{dis}>delete</button></form>')
         rows += (
             f'<tr class="{"active" if is_active else ""}">'
             f'<td>{nm}{" • active" if is_active else ""}</td>'
