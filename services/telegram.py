@@ -37,7 +37,11 @@ _DEFAULTS = {
     "link_url": "https://eucstats.ried.no",
     "new_rider": True,
     "first_ride": True,
-    "records": True,           # announce when a visible rider leaderboard gets a new #1
+    # "first place takeover" — announce when #1 changes, per category
+    "tk_rider": True,          # visible rider leaderboards
+    "tk_country": True,        # top country by distance
+    "tk_wheel": True,          # top wheel by distance
+    "tk_brand": True,          # top brand by distance
     "summary_enabled": True,
     "summary_time": "08:00",   # HH:MM in summary_tz
     "summary_tz": "Europe/Oslo",
@@ -206,44 +210,84 @@ def _board_label(board: str) -> tuple[str, str]:
         return (base.replace("_", " ").title(), "")
 
 
+def _group_takeover_text(kind: str, top: dict, old_label: str, cfg: dict) -> str:
+    link, name = cfg["link_url"], _esc(top.get("name"))
+    if kind == "country":
+        return (f"🏆 New top country! {_flag_emoji(top.get('country') or top.get('name'))} "
+                f"<b>{name}</b> just overtook {_flag_emoji(old_label)} <b>{_esc(old_label)}</b> "
+                f"for #1 by distance.\n{link}")
+    if kind == "wheel":
+        bpart = f" ({_esc(top.get('brand'))})" if top.get("brand") else ""
+        return (f"🏆 New top wheel! 🛞 <b>{name}</b>{bpart} just overtook "
+                f"<b>{_esc(old_label)}</b> for #1 by distance.\n{link}")
+    return (f"🏆 New top brand! 🛞 <b>{name}</b> just overtook "
+            f"<b>{_esc(old_label)}</b> for #1 by distance.\n{link}")
+
+
 def check_records() -> None:
-    """Announce when a VISIBLE individual-rider leaderboard gets a new #1 (a different rider
-    overtakes the previous holder). Group standings (countries/wheels/brands) are deliberately
-    out of scope — they aren't individual records. The per-dataset snapshot of holders lives in
-    app_meta; a board first seen (or just un-hidden) is recorded silently — no message — so we
-    never spam on launch or when a metric is revealed. Best-effort; called after a validated trip.
+    """Announce a 'first place takeover' — when #1 changes — per category, each behind its own
+    settings toggle:
+      • tk_rider:  VISIBLE individual-rider leaderboards (stats.BOARDS minus hidden)
+      • tk_country / tk_wheel / tk_brand:  the top country / wheel / brand by total distance
+    Only a DIFFERENT holder taking #1 fires (no self-improvement). The per-dataset snapshot lives
+    in app_meta; anything first seen (just un-hidden, or just enabled) is recorded silently — no
+    launch/reveal spam, no re-fire. Best-effort; called after a validated trip.
     """
     cfg = get_config()
-    if not (cfg.get("enabled") and cfg.get("records") and is_configured(cfg)):
+    if not (cfg.get("enabled") and is_configured(cfg)):
+        return
+    if not any(cfg.get(k) for k in ("tk_rider", "tk_country", "tk_wheel", "tk_brand")):
         return
     db = SessionLocal()
     try:
         from services import stats, settings
         from models import Rider
-        hidden = set(settings.get_hidden(db).get("boards", []))   # not shown on the public site
         try:
             prev = json.loads(settings.get_meta(db, "tg_record_holders", "") or "{}")
         except Exception:
             prev = {}
-        snapshot, takeovers = {}, []
-        for board, fn in stats.BOARDS.items():
-            if board in hidden:                  # not visible -> don't track (re-show = silent init)
+        snap, rider_hits, group_hits = {}, [], []
+
+        # individual rider leaderboards — visible boards only
+        if cfg.get("tk_rider"):
+            hidden = set(settings.get_hidden(db).get("boards", []))
+            for board, fn in stats.BOARDS.items():
+                if board in hidden:              # not visible -> don't track (re-show = silent init)
+                    continue
+                try:
+                    entries = fn(db, 1)
+                except Exception:
+                    continue
+                if not entries or not entries[0].get("store_id"):
+                    continue
+                top = entries[0]
+                snap[board] = top["store_id"]
+                old = prev.get(board)
+                if old is not None and old != top["store_id"]:
+                    rider_hits.append((board, top, old))
+
+        # group standings — top country / wheel / brand by distance
+        gfns = {"country": stats.by_country, "wheel": stats.by_wheel, "brand": stats.by_brand}
+        for kind, toggle in (("country", "tk_country"), ("wheel", "tk_wheel"), ("brand", "tk_brand")):
+            if not cfg.get(toggle):
                 continue
             try:
-                entries = fn(db, 1)
+                entries = gfns[kind](db, 1)
             except Exception:
                 continue
-            if not entries or not entries[0].get("store_id"):
+            if not entries or not entries[0].get("name"):
                 continue
             top = entries[0]
-            snapshot[board] = top["store_id"]
-            old = prev.get(board)
-            if old is not None and old != top["store_id"]:   # holder changed -> a takeover
-                takeovers.append((board, top, old))
-        settings.set_meta(db, "tg_record_holders", json.dumps(snapshot))
+            key = "g:" + kind
+            snap[key] = top["name"]
+            old = prev.get(key)
+            if old is not None and old != top["name"]:
+                group_hits.append((kind, top, old))
+
+        settings.set_meta(db, "tg_record_holders", json.dumps(snap))
         db.commit()
 
-        for board, top, old_sid in takeovers:
+        for board, top, old_sid in rider_hits:
             name, desc = _board_label(board)
             oldr = db.get(Rider, old_sid)
             beat = (f", beating <b>{_esc(oldr.display_name)}</b>"
@@ -255,6 +299,9 @@ def check_records() -> None:
             if r and r.avatar_png and send_photo(r.avatar_png, text, cfg)[0]:
                 continue
             send_message(text, cfg)
+
+        for kind, top, old_label in group_hits:
+            send_message(_group_takeover_text(kind, top, old_label, cfg), cfg)
     finally:
         db.close()
 
@@ -311,7 +358,9 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
     g = stats.global_summary(db)
     tot_r, tot_t = g.get("riders", 0), g.get("trips", 0)
     tot_c = g.get("countries", 0)
-    head = f"📊 <b>EUC Stats — {recap_date.strftime('%a %d %b')}</b>"
+    # full weekday + day + full month, e.g. "Sunday 12 July" (no zero-padding on the day)
+    head = (f"📊 <b>EUC Stats — {recap_date.strftime('%A')} {recap_date.day} "
+            f"{recap_date.strftime('%B')}</b>")
     yday = (f"\nYesterday: <b>{new_riders}</b> new {'rider' if new_riders == 1 else 'riders'} · "
             f"<b>{trips_n}</b> {'ride' if trips_n == 1 else 'rides'} · <b>{_dist(km)}</b>")
     alltime = (f"\nAll-time: {tot_r} {'rider' if tot_r == 1 else 'riders'} · "
