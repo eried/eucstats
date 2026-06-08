@@ -136,6 +136,12 @@ def _flag_emoji(flag) -> str:
     return f
 
 
+def _dist(km) -> str:
+    """Distance shown both ways for the metric/imperial audience, e.g. '24.2 km (15.0 mi)'."""
+    km = round(km or 0, 1)
+    return f"{km} km ({round(km * 0.621371, 1)} mi)"
+
+
 # --- event notifications (called via FastAPI BackgroundTasks) --------------
 
 def notify_new_rider(store_id: str) -> None:
@@ -175,9 +181,8 @@ def notify_first_ride(store_id: str) -> None:
         if q.count() != 1:                        # only the rider's very first counted ride
             return
         trip = q.first()
-        km = round(trip.distance_km or 0, 1)
         text = (f"🛞 <b>{_esc(r.display_name)}</b> {_flag_emoji(r.flag)} just logged their "
-                f"first ride — <b>{km} km</b>!\n{cfg['link_url']}")
+                f"first ride — <b>{_dist(trip.distance_km)}</b>!\n{cfg['link_url']}")
         if r.avatar_png and send_photo(r.avatar_png, text, cfg)[0]:
             return
         send_message(text, cfg)
@@ -231,7 +236,7 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
         tr = db.get(Rider, sid)
         if tr and tr.deleted_at is None and tr.consent_public:
             top_line = (f"\n🏆 Top rider: <b>{_esc(tr.display_name)}</b> "
-                        f"{_flag_emoji(tr.flag)} — {round(d or 0, 1)} km")
+                        f"{_flag_emoji(tr.flag)} — {_dist(d)}")
             break
 
     g = stats.global_summary(db)
@@ -239,9 +244,9 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
     tot_c = g.get("countries", 0)
     head = f"📊 <b>EUC Stats — {recap_date.strftime('%a %d %b')}</b>"
     yday = (f"\nYesterday: <b>{new_riders}</b> new {'rider' if new_riders == 1 else 'riders'} · "
-            f"<b>{trips_n}</b> {'ride' if trips_n == 1 else 'rides'} · <b>{km} km</b>")
+            f"<b>{trips_n}</b> {'ride' if trips_n == 1 else 'rides'} · <b>{_dist(km)}</b>")
     alltime = (f"\nAll-time: {tot_r} {'rider' if tot_r == 1 else 'riders'} · "
-               f"{tot_t} {'ride' if tot_t == 1 else 'rides'} · {round(g.get('total_km', 0), 1)} km · "
+               f"{tot_t} {'ride' if tot_t == 1 else 'rides'} · {_dist(g.get('total_km', 0))} · "
                f"{tot_c} {'country' if tot_c == 1 else 'countries'}")
     return head + yday + top_line + alltime + f"\n👉 {cfg['link_url']}"
 
