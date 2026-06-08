@@ -94,7 +94,8 @@ def _counts(db: Session) -> dict:
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Explorer"),
         ("/admin/ingest", "Ingest"), ("/admin/appearance", "Appearance"),
-        ("/admin/datasets", "Datasets"), ("/admin/system", "System")]
+        ("/admin/datasets", "Datasets"), ("/admin/activity", "Activity"),
+        ("/admin/telegram", "Telegram"), ("/admin/system", "System")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -1459,10 +1460,9 @@ def _appearance_html(db: Session, msg: str = "") -> str:
     inner = f"""
     {banner}
     <h1>Appearance</h1>
-    <p class=sub>Everything visitors see — which metrics show, the heatmap, the look of the map, and the
-    site banner. Changes apply on the next page load.</p>
+    <p class=sub>Everything visitors see — which metrics show, the look of the map, and the
+    site banner. The activity heatmap moved to <a href="/admin/activity">Activity</a>. Changes apply on the next page load.</p>
     {_metrics_section(db)}
-    {_heatmap_card(db)}
     <form method=post action="/admin/settings/save">
       <div class=card>
         <h2>Site banner</h2>
@@ -1731,11 +1731,30 @@ def _system_html(db: Session, msg: str = "") -> str:
         <button>{_IC['check']} Save retention</button>
       </form>
     </div>
-    {_telegram_card()}
-    {_sandbox_card()}
+    {_sandbox_card()}"""
+    return _ds_page(inner, "/admin/system")
+
+
+def _activity_html(db: Session, msg: str = "") -> str:
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    inner = f"""
+    {banner}
+    <h1>Activity heat &amp; logs</h1>
+    <p class=sub>The world activity heatmap, the ingest/health log, and the admin audit trail.</p>
+    {_heatmap_card(db)}
     {_health_card()}
     {_audit_card()}"""
-    return _ds_page(inner, "/admin/system")
+    return _ds_page(inner, "/admin/activity")
+
+
+def _telegram_html(msg: str = "") -> str:
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    inner = f"""
+    {banner}
+    <h1>Telegram</h1>
+    <p class=sub>Announce new riders, first rides, leaderboard takeovers and a daily summary to your Telegram group.</p>
+    {_telegram_card()}"""
+    return _ds_page(inner, "/admin/telegram")
 
 
 def _heatmap_card(db: Session) -> str:
@@ -1810,6 +1829,20 @@ def system_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     return HTMLResponse(_system_html(db, msg))
 
 
+@admin_router.get("/activity", response_class=HTMLResponse)
+def activity_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_activity_html(db, msg))
+
+
+@admin_router.get("/telegram", response_class=HTMLResponse)
+def telegram_page(request: Request, msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_telegram_html(msg))
+
+
 @admin_router.get("/system/resources", response_class=HTMLResponse)
 def system_resources(request: Request):
     """Just the resource bars — polled by the System page for live autorefresh."""
@@ -1851,7 +1884,7 @@ def heatmap_save(request: Request, db: Session = Depends(get_db),
     needs_rebuild = (before["cell_size"] != after["cell_size"] or before["route_mode"] != after["route_mode"])
     note = ("heatmap saved — cell size / route mode changed: hit Rebuild stats to re-bake the cells"
             if needs_rebuild else "heatmap saved — live now")
-    return RedirectResponse("/admin/appearance?msg=" + quote(note), status_code=303)
+    return RedirectResponse("/admin/activity?msg=" + quote(note), status_code=303)
 
 
 @admin_router.post("/sandbox")
@@ -1889,7 +1922,7 @@ def telegram_save(request: Request,
         fields["token"] = token.strip()          # only overwrite when a new token is supplied
     telegram.update_config(**fields)
     audit.log("telegram_save", f"enabled={bool(enabled)} chat={chat_id} thread={thread_id}")  # never log the token
-    return RedirectResponse("/admin/system?msg=" + quote("Telegram settings saved"), status_code=303)
+    return RedirectResponse("/admin/telegram?msg=" + quote("Telegram settings saved"), status_code=303)
 
 
 @admin_router.post("/telegram/test")
@@ -1900,4 +1933,4 @@ def telegram_test(request: Request):
     ok, detail = telegram.send_message("✅ EUC Stats — Telegram test message. The bot is wired up correctly.")
     audit.log("telegram_test", "ok" if ok else f"fail: {detail}")
     msg = "Telegram test sent ✓" if ok else f"Telegram test failed: {detail}"
-    return RedirectResponse("/admin/system?msg=" + quote(msg), status_code=303)
+    return RedirectResponse("/admin/telegram?msg=" + quote(msg), status_code=303)
