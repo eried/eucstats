@@ -389,6 +389,7 @@ def approve_trip(trip_uuid: str, request: Request, background_tasks: BackgroundT
         Aggregator(db).apply(t)   # now counts toward leaderboards
         from services import telegram      # first-ride announce if this approval is their 1st
         background_tasks.add_task(telegram.notify_first_ride, t.rider_store_id)
+        background_tasks.add_task(telegram.check_records)   # approval may create a new #1
     return RedirectResponse("/admin", status_code=303)
 
 
@@ -1665,8 +1666,10 @@ def _telegram_card() -> str:
         <p style="margin-top:10px">Events: &nbsp;
           <label><input type=checkbox name=new_rider{ck(cfg['new_rider'])}> new rider</label> &nbsp;
           <label><input type=checkbox name=first_ride{ck(cfg['first_ride'])}> first ride</label> &nbsp;
+          <label><input type=checkbox name=records{ck(cfg['records'])}> new records</label> &nbsp;
           <label><input type=checkbox name=summary_enabled{ck(cfg['summary_enabled'])}> daily summary</label>
         </p>
+        <p class=hint style="margin:-4px 0 0">New records fire only for <b>visible</b> rider leaderboards, and only when a different rider takes #1.</p>
         <div class=calgrid>
           <label class=thr>Daily summary time <span class=mut>· HH:MM</span>
             <input name=summary_time value="{esc(cfg['summary_time'])}" placeholder="08:00"></label>
@@ -1861,7 +1864,7 @@ def sandbox_save(request: Request, db: Session = Depends(get_db),
 def telegram_save(request: Request,
                   enabled: str = Form(""), token: str = Form(""), chat_id: str = Form(""),
                   thread_id: str = Form(""), link_url: str = Form("https://eucstats.ried.no"),
-                  new_rider: str = Form(""), first_ride: str = Form(""),
+                  new_rider: str = Form(""), first_ride: str = Form(""), records: str = Form(""),
                   summary_enabled: str = Form(""), summary_time: str = Form("08:00"),
                   summary_tz: str = Form("Europe/Oslo")):
     if not _is_authenticated(request):
@@ -1869,7 +1872,7 @@ def telegram_save(request: Request,
     from services import telegram
     fields = dict(enabled=bool(enabled), chat_id=chat_id.strip(), thread_id=thread_id.strip(),
                   link_url=(link_url.strip() or "https://eucstats.ried.no"),
-                  new_rider=bool(new_rider), first_ride=bool(first_ride),
+                  new_rider=bool(new_rider), first_ride=bool(first_ride), records=bool(records),
                   summary_enabled=bool(summary_enabled),
                   summary_time=(summary_time.strip() or "08:00"),
                   summary_tz=(summary_tz.strip() or "Europe/Oslo"))

@@ -268,4 +268,5 @@ async def upload_trip(request: Request, background_tasks: BackgroundTasks,
     if result.get("validation_status") == "validated" and not result.get("duplicate"):
         from services import telegram      # first-ride announce (no-op unless it's their 1st)
         background_tasks.add_task(telegram.notify_first_ride, store)
+        background_tasks.add_task(telegram.check_records)   # new #1 on a visible board?
     return JSONResponse(result, status_code=200 if result.get("duplicate") else 201)

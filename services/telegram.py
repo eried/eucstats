@@ -15,6 +15,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 
 import httpx
@@ -36,6 +37,7 @@ _DEFAULTS = {
     "link_url": "https://eucstats.ried.no",
     "new_rider": True,
     "first_ride": True,
+    "records": True,           # announce when a visible rider leaderboard gets a new #1
     "summary_enabled": True,
     "summary_time": "08:00",   # HH:MM in summary_tz
     "summary_tz": "Europe/Oslo",
@@ -186,6 +188,73 @@ def notify_first_ride(store_id: str) -> None:
         if r.avatar_png and send_photo(r.avatar_png, text, cfg)[0]:
             return
         send_message(text, cfg)
+    finally:
+        db.close()
+
+
+# --- leaderboard records (new #1) ------------------------------------------
+
+def _board_label(board: str) -> tuple[str, str]:
+    """(trophy name, plain description) for a board key, e.g. 'mileage' -> ('Mile Muncher',
+    'Most distance ever ridden'). Strips a gated-tier suffix (_b/_s/_m/_l)."""
+    base = re.sub(r"_(b|s|m|l)$", "", board)
+    try:
+        from web import i18n
+        return (i18n.EN.get(f"b.{base}.n", base.replace("_", " ").title()),
+                i18n.EN.get(f"b.{base}.d", ""))
+    except Exception:
+        return (base.replace("_", " ").title(), "")
+
+
+def check_records() -> None:
+    """Announce when a VISIBLE individual-rider leaderboard gets a new #1 (a different rider
+    overtakes the previous holder). Group standings (countries/wheels/brands) are deliberately
+    out of scope — they aren't individual records. The per-dataset snapshot of holders lives in
+    app_meta; a board first seen (or just un-hidden) is recorded silently — no message — so we
+    never spam on launch or when a metric is revealed. Best-effort; called after a validated trip.
+    """
+    cfg = get_config()
+    if not (cfg.get("enabled") and cfg.get("records") and is_configured(cfg)):
+        return
+    db = SessionLocal()
+    try:
+        from services import stats, settings
+        from models import Rider
+        hidden = set(settings.get_hidden(db).get("boards", []))   # not shown on the public site
+        try:
+            prev = json.loads(settings.get_meta(db, "tg_record_holders", "") or "{}")
+        except Exception:
+            prev = {}
+        snapshot, takeovers = {}, []
+        for board, fn in stats.BOARDS.items():
+            if board in hidden:                  # not visible -> don't track (re-show = silent init)
+                continue
+            try:
+                entries = fn(db, 1)
+            except Exception:
+                continue
+            if not entries or not entries[0].get("store_id"):
+                continue
+            top = entries[0]
+            snapshot[board] = top["store_id"]
+            old = prev.get(board)
+            if old is not None and old != top["store_id"]:   # holder changed -> a takeover
+                takeovers.append((board, top, old))
+        settings.set_meta(db, "tg_record_holders", json.dumps(snapshot))
+        db.commit()
+
+        for board, top, old_sid in takeovers:
+            name, desc = _board_label(board)
+            oldr = db.get(Rider, old_sid)
+            beat = (f", beating <b>{_esc(oldr.display_name)}</b>"
+                    if oldr and oldr.display_name else "")
+            descpart = f" ({_esc(desc)})" if desc else ""
+            text = (f"🏆 New record! <b>{_esc(top.get('name'))}</b> {_flag_emoji(top.get('flag'))} "
+                    f"is the new <b>{_esc(name)}</b>{descpart}{beat}.\n{cfg['link_url']}")
+            r = db.get(Rider, top["store_id"])
+            if r and r.avatar_png and send_photo(r.avatar_png, text, cfg)[0]:
+                continue
+            send_message(text, cfg)
     finally:
         db.close()
 
