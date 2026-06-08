@@ -5,7 +5,8 @@ import base64
 import json
 import time
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
+                     Request, UploadFile)
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
@@ -30,7 +31,8 @@ def _client_ip(request: Request) -> str:
 # --- riders / profile ---
 
 @router.post("/riders")
-def register_rider(payload: dict, request: Request, db: Session = Depends(get_db)):
+def register_rider(payload: dict, request: Request, background_tasks: BackgroundTasks,
+                   db: Session = Depends(get_db)):
     store = payload.get("store_id")
     if not store or not payload.get("display_name"):
         raise HTTPException(400, "store_id and display_name are required")
@@ -72,6 +74,9 @@ def register_rider(payload: dict, request: Request, db: Session = Depends(get_db
             raise HTTPException(400, "avatar_png_base64 is not valid base64")
     svc.register(store, payload.get("platform", "google_play"), name,
                  payload.get("flag"), avatar, bool(payload.get("consent_public", True)))
+    if is_new:                                   # announce the join to Telegram (best-effort, off by default)
+        from services import telegram
+        background_tasks.add_task(telegram.notify_new_rider, store)
     return svc.get_profile(store)
 
 
@@ -223,7 +228,8 @@ def weekly_champion(db: Session = Depends(get_db)):
 # --- trip ingest ---
 
 @router.post("/trips")
-async def upload_trip(request: Request, meta: str = Form(...), trip: UploadFile = File(...),
+async def upload_trip(request: Request, background_tasks: BackgroundTasks,
+                      meta: str = Form(...), trip: UploadFile = File(...),
                       db: Session = Depends(get_db)):
     try:
         meta_obj = json.loads(meta)
@@ -259,4 +265,7 @@ async def upload_trip(request: Request, meta: str = Form(...), trip: UploadFile 
                       dist=result.get("distance_km"), reasons=result.get("reasons"),
                       dup=result.get("duplicate", False),
                       ms=(time.perf_counter() - t0) * 1000, size=len(raw))
+    if result.get("validation_status") == "validated" and not result.get("duplicate"):
+        from services import telegram      # first-ride announce (no-op unless it's their 1st)
+        background_tasks.add_task(telegram.notify_first_ride, store)
     return JSONResponse(result, status_code=200 if result.get("duplicate") else 201)

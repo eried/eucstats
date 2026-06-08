@@ -9,7 +9,8 @@ reverse_geocoder
 pyotp
 qrcode[pil]
 itsdangerous
+httpx
+tzdata
 
 # dev / test
 pytest
-httpx

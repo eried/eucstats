@@ -185,8 +185,17 @@ def _record(slug: str, name: str, note: str, origin: str) -> None:
 
 def list_datasets() -> dict:
     m = _load()
+    active = m.get("active")
     ds = sorted(m["datasets"], key=lambda x: x.get("created", ""), reverse=True)
-    return {"active": m.get("active"), "datasets": ds}
+    if active:
+        # the active slot diverges from the live DB the moment new data flows in — show the live
+        # file's CURRENT size/counts for that row instead of its frozen save-time numbers (otherwise
+        # the active dataset looks like it's "not updating").
+        live = _file_stats(_active())
+        for d in ds:
+            if d["slug"] == active:
+                d.update(size=live["size"], riders=live["riders"], trips=live["trips"], live=True)
+    return {"active": active, "datasets": ds}
 
 
 def save_current(name: str, note: str = "", origin: str = "manual") -> str:
@@ -255,13 +264,14 @@ def rename(slug: str, new_name: str) -> None:
 
 
 def delete(slug: str) -> None:
+    m = _load()
+    if m.get("active") == slug:
+        # the live DB is running off this slot — deleting it would orphan the only saved copy.
+        raise DatasetError("can't delete the active dataset — switch to another one first")
     p = _datasets_dir() / f"{slug}.sqlite"
     if p.exists():
         p.unlink()
-    m = _load()
     m["datasets"] = [d for d in m["datasets"] if d["slug"] != slug]
-    if m.get("active") == slug:
-        m["active"] = None
     _save(m)
 
 
@@ -318,7 +328,10 @@ def auto_backup(keep: int = 14, today: Optional[date] = None) -> Optional[str]:
     if not _get_entry(slug):
         created = save_current(name, note="scheduled backup", origin="auto")
     if keep > 0:
-        autos = sorted((x for x in _load()["datasets"] if x.get("origin") == "auto"),
+        m = _load()
+        active = m.get("active")
+        autos = sorted((x for x in m["datasets"]
+                        if x.get("origin") == "auto" and x["slug"] != active),  # never prune active
                        key=lambda x: x.get("created", ""))
         for old in autos[:-keep]:
             delete(old["slug"])

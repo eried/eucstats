@@ -39,6 +39,19 @@ async def _retention_loop():
             logger.exception("retention run failed")
 
 
+async def _telegram_daily_loop():
+    """Post the daily Telegram summary once per day at the configured local time. Best-effort:
+    the send is gated + idempotent (persists last_summary_date), and errors never stop the loop."""
+    from services import telegram
+    loop = asyncio.get_running_loop()
+    while True:
+        await asyncio.sleep(300)                 # check every 5 min; run_daily_if_due decides if it's due
+        try:
+            await loop.run_in_executor(None, telegram.run_daily_if_due)
+        except Exception:
+            logger.exception("telegram daily summary check failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -52,10 +65,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     task = asyncio.create_task(_retention_loop())
+    tg_task = asyncio.create_task(_telegram_daily_loop())
     try:
         yield
     finally:
         task.cancel()
+        tg_task.cancel()
 
 
 app = FastAPI(title="eucstats", lifespan=lifespan)

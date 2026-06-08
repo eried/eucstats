@@ -17,7 +17,7 @@ from urllib.parse import quote
 
 import pyotp
 import qrcode
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
@@ -377,7 +377,8 @@ def status(request: Request, db: Session = Depends(get_db)):
 
 
 @admin_router.post("/trip/{trip_uuid}/approve")
-def approve_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
+def approve_trip(trip_uuid: str, request: Request, background_tasks: BackgroundTasks,
+                 db: Session = Depends(get_db)):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     t = db.get(Trip, trip_uuid)
@@ -386,6 +387,8 @@ def approve_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db)
         t.flag_reasons = None
         db.commit()
         Aggregator(db).apply(t)   # now counts toward leaderboards
+        from services import telegram      # first-ride announce if this approval is their 1st
+        background_tasks.add_task(telegram.notify_first_ride, t.rider_store_id)
     return RedirectResponse("/admin", status_code=303)
 
 
@@ -909,10 +912,15 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
         is_active = d["slug"] == active
         riders = d["riders"] if d["riders"] is not None else "?"
         trips = d["trips"] if d["trips"] is not None else "?"
+        live = " <span class=mut>· live</span>" if d.get("live") else ""
+        # the active dataset can't be deleted (the live DB runs off it) — show a note, not a button
+        del_cell = ('<span class=mut>active — switch away to delete</span>' if is_active else
+                    f'<form method=post action="/admin/datasets/delete"><input type=hidden name=slug value="{d["slug"]}">'
+                    f'<input name=confirm placeholder="type name"><button class=danger>delete</button></form>')
         rows += (
             f'<tr class="{"active" if is_active else ""}">'
             f'<td>{nm}{" • active" if is_active else ""}</td>'
-            f'<td>{riders}</td><td>{trips}</td><td>{_fmt_size(d["size"])}</td>'
+            f'<td>{riders}{live}</td><td>{trips}</td><td>{_fmt_size(d["size"])}</td>'
             f'<td>{d.get("created","")}</td><td>{html.escape(d.get("origin",""))}</td>'
             f'<td class=acts>'
             f'<form method=get action="/admin/datasets/export/{d["slug"]}"><button class=ghost>download</button></form>'
@@ -920,8 +928,7 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
             f'<input name=confirm placeholder="type name"><button>switch</button></form>'
             f'<form method=post action="/admin/datasets/rename"><input type=hidden name=slug value="{d["slug"]}">'
             f'<input name=new_name placeholder="new name"><button>rename</button></form>'
-            f'<form method=post action="/admin/datasets/delete"><input type=hidden name=slug value="{d["slug"]}">'
-            f'<input name=confirm placeholder="type name"><button class=danger>delete</button></form>'
+            f'{del_cell}'
             f'</td></tr>')
     if not rows:
         rows = '<tr><td colspan=7 class=mut>no saved datasets yet</td></tr>'
@@ -1035,7 +1042,10 @@ def datasets_delete(request: Request, slug: str = Form(...), confirm: str = Form
         return _redir(err="unknown dataset")
     if (confirm or "").strip() != entry["name"]:
         return _redir(err="confirmation name did not match — nothing deleted")
-    datasets.delete(slug)
+    try:
+        datasets.delete(slug)
+    except datasets.DatasetError as e:
+        return _redir(err=str(e))
     audit.log("dataset_delete", f"name={entry['name']}")
     return _redir(msg=f"deleted “{entry['name']}”")
 
@@ -1626,6 +1636,51 @@ def _health_card() -> str:
     </div>"""
 
 
+def _telegram_card() -> str:
+    from services import telegram
+    cfg = telegram.get_config()
+    ck = lambda b: " checked" if b else ""
+    tok = "set ✓" if cfg.get("token") else "not set"
+    esc = lambda v: html.escape(str(v))
+    return f"""
+    <div class=card>
+      <h2>Telegram bot</h2>
+      <p class=hint>Posts to your Telegram group/topic when a new rider joins, when a rider logs their
+      first ride, and once a day as a summary. The token is stored server-side in
+      <code>data/telegram.json</code> (gitignored — never in the dataset or its exports). Leave the token
+      blank to keep the current one. <b>Send test</b> works even while disabled.</p>
+      <form method=post action="/admin/telegram">
+        <p><label><input type=checkbox name=enabled{ck(cfg['enabled'])}> <b>Enabled</b> — master switch (off = nothing auto-posts)</label></p>
+        <div class=calgrid>
+          <label class=thr>Bot token <span class=mut>· currently {tok}</span>
+            <input type=password name=token placeholder="leave blank to keep" autocomplete=off></label>
+          <label class=thr>Chat ID
+            <input name=chat_id value="{esc(cfg['chat_id'])}" placeholder="-100..."></label>
+          <label class=thr>Topic / thread ID <span class=mut>· optional (forum topics)</span>
+            <input name=thread_id value="{esc(cfg['thread_id'])}" placeholder="(none)"></label>
+          <label class=thr>Link URL
+            <input name=link_url value="{esc(cfg['link_url'])}"></label>
+        </div>
+        <p style="margin-top:10px">Events: &nbsp;
+          <label><input type=checkbox name=new_rider{ck(cfg['new_rider'])}> new rider</label> &nbsp;
+          <label><input type=checkbox name=first_ride{ck(cfg['first_ride'])}> first ride</label> &nbsp;
+          <label><input type=checkbox name=summary_enabled{ck(cfg['summary_enabled'])}> daily summary</label>
+        </p>
+        <div class=calgrid>
+          <label class=thr>Daily summary time <span class=mut>· HH:MM</span>
+            <input name=summary_time value="{esc(cfg['summary_time'])}" placeholder="08:00"></label>
+          <label class=thr>Timezone
+            <input name=summary_tz value="{esc(cfg['summary_tz'])}" placeholder="Europe/Oslo"></label>
+        </div>
+        <button style="margin-top:12px">{_IC['check']} Save Telegram settings</button>
+      </form>
+      <form method=post action="/admin/telegram/test" style="margin-top:10px">
+        <button class=ghost>Send test message</button>
+        <span class=hint>Posts a test line to the configured chat/topic right now.</span>
+      </form>
+    </div>"""
+
+
 def _system_html(db: Session, msg: str = "") -> str:
     r = settings.get_retention(db)
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
@@ -1667,6 +1722,7 @@ def _system_html(db: Session, msg: str = "") -> str:
         <button>{_IC['check']} Save retention</button>
       </form>
     </div>
+    {_telegram_card()}
     {_sandbox_card()}
     {_health_card()}
     {_audit_card()}"""
@@ -1798,3 +1854,37 @@ def sandbox_save(request: Request, db: Session = Depends(get_db),
     audit.log("sandbox_save", f"sandbox={'on' if sandbox_enabled else 'off'}")
     state = "enabled" if sandbox_enabled else "disabled"
     return RedirectResponse("/admin/system?msg=" + quote(f"sandbox {state}"), status_code=303)
+
+
+@admin_router.post("/telegram")
+def telegram_save(request: Request,
+                  enabled: str = Form(""), token: str = Form(""), chat_id: str = Form(""),
+                  thread_id: str = Form(""), link_url: str = Form("https://eucstats.ried.no"),
+                  new_rider: str = Form(""), first_ride: str = Form(""),
+                  summary_enabled: str = Form(""), summary_time: str = Form("08:00"),
+                  summary_tz: str = Form("Europe/Oslo")):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services import telegram
+    fields = dict(enabled=bool(enabled), chat_id=chat_id.strip(), thread_id=thread_id.strip(),
+                  link_url=(link_url.strip() or "https://eucstats.ried.no"),
+                  new_rider=bool(new_rider), first_ride=bool(first_ride),
+                  summary_enabled=bool(summary_enabled),
+                  summary_time=(summary_time.strip() or "08:00"),
+                  summary_tz=(summary_tz.strip() or "Europe/Oslo"))
+    if token.strip():
+        fields["token"] = token.strip()          # only overwrite when a new token is supplied
+    telegram.update_config(**fields)
+    audit.log("telegram_save", f"enabled={bool(enabled)} chat={chat_id} thread={thread_id}")  # never log the token
+    return RedirectResponse("/admin/system?msg=" + quote("Telegram settings saved"), status_code=303)
+
+
+@admin_router.post("/telegram/test")
+def telegram_test(request: Request):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services import telegram
+    ok, detail = telegram.send_message("✅ EUC Stats — Telegram test message. The bot is wired up correctly.")
+    audit.log("telegram_test", "ok" if ok else f"fail: {detail}")
+    msg = "Telegram test sent ✓" if ok else f"Telegram test failed: {detail}"
+    return RedirectResponse("/admin/system?msg=" + quote(msg), status_code=303)
