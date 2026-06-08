@@ -138,6 +138,8 @@ button svg,a.btn svg{width:15px;height:15px}
 a.btn{background:transparent;color:#cfe4ff;border-color:#26345e}
 button.danger{background:transparent;color:#ff8585;border-color:rgba(255,107,107,.5)}
 button.danger:hover{background:rgba(255,107,107,.12);filter:none}
+button:disabled,input:disabled{opacity:.38;cursor:not-allowed}
+button:disabled:hover{filter:none;background:transparent}
 button.go{background:linear-gradient(120deg,#13a05a,#0c7a44);border-color:#0c7a44;color:#eafff3}
 button.ghost{background:transparent;color:#cfe4ff;border-color:#26345e}
 .inline{display:inline-flex;gap:7px;flex-wrap:wrap;align-items:center;margin:6px 12px 6px 0}
