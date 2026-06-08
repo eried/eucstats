@@ -92,10 +92,10 @@ def _counts(db: Session) -> dict:
     }
 
 
-_NAV = [("/admin", "Overview"), ("/admin/explorer", "Explorer"),
-        ("/admin/ingest", "Ingest"), ("/admin/appearance", "Appearance"),
-        ("/admin/datasets", "Datasets"), ("/admin/activity", "Activity"),
-        ("/admin/telegram", "Telegram"), ("/admin/system", "System")]
+_NAV = [("/admin", "Overview"), ("/admin/explorer", "Riders & Trips"),
+        ("/admin/ingest", "Ingest"), ("/admin/appearance", "Public site"),
+        ("/admin/datasets", "Data & backups"), ("/admin/telegram", "Telegram"),
+        ("/admin/system", "System")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -938,9 +938,9 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
 
     inner = f"""
     {banner}
-    <h1>Datasets &amp; backups</h1>
-    <p class=sub>Save, swap, import and back up the whole database as portable snapshots.
-    The site banner is a <a href="/admin/appearance">site setting</a> now — datasets are just data.</p>
+    <h1>Data &amp; backups</h1>
+    <p class=sub>Save, swap, import and back up the whole database as portable snapshots, and set how long
+    raw uploads are kept. The site banner is a <a href="/admin/appearance">site setting</a> now.</p>
     <div class=card>
       <h2>Create / import</h2>
       <form method=post action="/admin/datasets/new" class=inline
@@ -966,6 +966,7 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
     <table><tr><th>name</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
     <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
     current dataset (unless it's empty), then reconnects instantly — no restart, no downtime.</p>
+    {_retention_card(db)}
     """
     return _ds_page(inner, "/admin/datasets")
 
@@ -1459,10 +1460,11 @@ def _appearance_html(db: Session, msg: str = "") -> str:
     ck = lambda v: " checked" if v else ""
     inner = f"""
     {banner}
-    <h1>Appearance</h1>
-    <p class=sub>Everything visitors see — which metrics show, the look of the map, and the
-    site banner. The activity heatmap moved to <a href="/admin/activity">Activity</a>. Changes apply on the next page load.</p>
+    <h1>Public site</h1>
+    <p class=sub>Everything visitors see — which metrics show, the activity heatmap, the look of the map,
+    the intro and the site banner. Changes apply on the next page load.</p>
     {_metrics_section(db)}
+    {_heatmap_card(db)}
     <form method=post action="/admin/settings/save">
       <div class=card>
         <h2>Site banner</h2>
@@ -1690,13 +1692,32 @@ def _telegram_card() -> str:
     </div>"""
 
 
-def _system_html(db: Session, msg: str = "") -> str:
+def _retention_card(db: Session) -> str:
     r = settings.get_retention(db)
+    return f"""
+    <div class=card>
+      <h2>Data retention</h2>
+      <p class=hint>Only the original uploaded files (raw blobs) are ever evicted — trip summaries, GPS tracks,
+      leaderboards and the map are kept permanently.</p>
+      <form method=post action="/admin/system/save">
+        <p><label>Keep raw uploads for
+          <input type=number name=ret_days min=0 max=3650 value="{r['days']}" style="width:80px"> days</label></p>
+        <p><label>Evict oldest raw when free disk drops below
+          <input type=number step=0.1 name=ret_floor_gb min=0 value="{r['disk_floor_gb']}" style="width:90px"> GB</label>
+          <span class=hint>(safety valve so the droplet never fills)</span></p>
+        <p><label>Run the retention sweep every
+          <input type=number name=ret_interval_s min=60 max=86400 value="{r['interval_s']}" style="width:100px"> seconds</label></p>
+        <button>{_IC['check']} Save retention</button>
+      </form>
+    </div>"""
+
+
+def _system_html(db: Session, msg: str = "") -> str:
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
     <h1>System</h1>
-    <p class=sub>Server health, data retention, the QA sandbox, and the admin audit log.</p>
+    <p class=sub>Server resources, the logs (ingest/health + admin audit), and the QA sandbox.</p>
     <div class=card>
       <h2>Server resources <span class=mut id=resage>· live · auto-refreshing</span></h2>
       <div id=resbox>{_resources_html()}</div>
@@ -1716,35 +1737,10 @@ def _system_html(db: Session, msg: str = "") -> str:
       setInterval(tick,4000);
     }})();
     </script>
-    <div class=card>
-      <h2>Data retention</h2>
-      <p class=hint>Only the original uploaded files (raw blobs) are ever evicted — trip summaries, GPS tracks,
-      leaderboards and the map are kept permanently.</p>
-      <form method=post action="/admin/system/save">
-        <p><label>Keep raw uploads for
-          <input type=number name=ret_days min=0 max=3650 value="{r['days']}" style="width:80px"> days</label></p>
-        <p><label>Evict oldest raw when free disk drops below
-          <input type=number step=0.1 name=ret_floor_gb min=0 value="{r['disk_floor_gb']}" style="width:90px"> GB</label>
-          <span class=hint>(safety valve so the droplet never fills)</span></p>
-        <p><label>Run the retention sweep every
-          <input type=number name=ret_interval_s min=60 max=86400 value="{r['interval_s']}" style="width:100px"> seconds</label></p>
-        <button>{_IC['check']} Save retention</button>
-      </form>
-    </div>
+    {_health_card()}
+    {_audit_card()}
     {_sandbox_card()}"""
     return _ds_page(inner, "/admin/system")
-
-
-def _activity_html(db: Session, msg: str = "") -> str:
-    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
-    inner = f"""
-    {banner}
-    <h1>Activity heat &amp; logs</h1>
-    <p class=sub>The world activity heatmap, the ingest/health log, and the admin audit trail.</p>
-    {_heatmap_card(db)}
-    {_health_card()}
-    {_audit_card()}"""
-    return _ds_page(inner, "/admin/activity")
 
 
 def _telegram_html(msg: str = "") -> str:
@@ -1829,11 +1825,10 @@ def system_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     return HTMLResponse(_system_html(db, msg))
 
 
-@admin_router.get("/activity", response_class=HTMLResponse)
-def activity_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
-    if not _is_authenticated(request):
-        return RedirectResponse("/admin", status_code=303)
-    return HTMLResponse(_activity_html(db, msg))
+@admin_router.get("/activity")
+def activity_page():
+    # tab retired: heatmap moved to Public site, logs to System
+    return RedirectResponse("/admin/appearance", status_code=307)
 
 
 @admin_router.get("/telegram", response_class=HTMLResponse)
@@ -1864,7 +1859,7 @@ def system_save(request: Request, db: Session = Depends(get_db),
         return RedirectResponse("/admin", status_code=303)
     settings.set_retention(db, ret_days, ret_floor_gb, ret_interval_s)
     audit.log("retention_save", f"days={ret_days} floor_gb={ret_floor_gb} interval_s={ret_interval_s}")
-    return RedirectResponse("/admin/system?msg=" + quote("retention saved"), status_code=303)
+    return RedirectResponse("/admin/datasets?msg=" + quote("retention saved"), status_code=303)
 
 
 @admin_router.post("/system/heatmap")
@@ -1884,7 +1879,7 @@ def heatmap_save(request: Request, db: Session = Depends(get_db),
     needs_rebuild = (before["cell_size"] != after["cell_size"] or before["route_mode"] != after["route_mode"])
     note = ("heatmap saved — cell size / route mode changed: hit Rebuild stats to re-bake the cells"
             if needs_rebuild else "heatmap saved — live now")
-    return RedirectResponse("/admin/activity?msg=" + quote(note), status_code=303)
+    return RedirectResponse("/admin/appearance?msg=" + quote(note), status_code=303)
 
 
 @admin_router.post("/sandbox")
