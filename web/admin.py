@@ -1313,8 +1313,10 @@ def _wheel_quality_card(db: Session) -> str:
               <div class=wqfoot>
                 <label>invalid for app_version ≤ <select name=cutoff class=wqsel>{cutopts}</select></label>
                 <button class=mini>{_IC['check']} Save &amp; rebuild</button>
+                <button type=button class="mini ghost wqload" data-brand="{html.escape(e['brand'])}" data-model="{html.escape(e['model'])}">📊 Value ranges</button>
                 {'<span class=wqon>● ignoring: '+html.escape(', '.join(sorted(sel)))+'</span>' if sel else ''}
               </div>
+              <div class=wqranges></div>
             </form>""")
         body = "".join(rows)
     return f"""
@@ -1327,15 +1329,34 @@ def _wheel_quality_card(db: Session) -> str:
     .wqfoot{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#8aa0c8}}
     .wqsel{{background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:4px 7px;border-radius:7px;font-size:11.5px}}
     .wqon{{color:#ffb04a}}
+    .wqranges{{margin-top:8px;overflow-x:auto}}
+    .wqr{{border-collapse:collapse;font-size:11px;margin-top:4px}}
+    .wqr th,.wqr td{{border:1px solid #1e2a4d;padding:3px 8px;text-align:right;white-space:nowrap}}
+    .wqr th{{color:#8aa0c8;font-weight:600}}
+    .wqr td.wqrf{{text-align:left;color:#9fb2d8}}
     </style>
     <div class=card>
       <h2>Wheel data quality <span class=mut>· ignore bad channels per model</span></h2>
       <p class=hint>If a wheel model reports a bad value (e.g. wrong voltage), tick the affected metrics —
       they're dropped from every leaderboard &amp; record for that model, while distance/speed/etc. stay.
       <b>app_version ≤</b> invalidates only old app builds (blank = the whole model). <b>Voltage and power
-      are linked</b> (power = volts × amps) — flag both if voltage is wrong. Saving rebuilds stats.</p>
+      are linked</b> (power = volts × amps) — flag both if voltage is wrong. Saving rebuilds stats.
+      Use <b>Value ranges</b> to see each channel's min–max per app version and spot the bad one.</p>
       {body}
-    </div>"""
+    </div>
+    <script>
+    document.addEventListener('click', function(ev){{
+      var b = ev.target.closest('.wqload'); if(!b) return;
+      var box = b.closest('.wqrow').querySelector('.wqranges');
+      if(box.dataset.loaded){{ box.innerHTML=''; box.dataset.loaded=''; return; }}   // toggle off
+      var t=b.textContent; b.disabled=true; b.textContent='loading…';
+      fetch('/admin/wheels/ranges?brand='+encodeURIComponent(b.dataset.brand)+'&model='+encodeURIComponent(b.dataset.model))
+        .then(function(r){{return r.ok?r.text():Promise.reject();}})
+        .then(function(h){{box.innerHTML=h; box.dataset.loaded='1';}})
+        .catch(function(){{box.innerHTML='<p class=mut>failed to load ranges</p>';}})
+        .finally(function(){{b.disabled=false; b.textContent=t;}});
+    }});
+    </script>"""
 
 
 def _wheels_html(db: Session, msg: str = "") -> str:
@@ -1361,6 +1382,42 @@ def wheels_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     return HTMLResponse(_wheels_html(db, msg))
+
+
+def _wheel_ranges_fragment(data: dict) -> str:
+    allr, versions = data["all"], data["versions"]
+    if not allr:
+        return "<p class=mut>no values recorded for this model yet.</p>"
+    vers = sorted(versions.keys(), key=settings._ver_tuple)
+
+    def n(x):
+        try:
+            return ("%.2f" % float(x)).rstrip("0").rstrip(".")
+        except Exception:
+            return html.escape(str(x))
+
+    def cell(rng):
+        if not rng:
+            return "<td class=mut>—</td>"
+        lo, hi = rng
+        return f"<td>{n(lo) if lo == hi else n(lo) + ' – ' + n(hi)}</td>"
+
+    head = "<th>metric · field</th><th>all</th>" + "".join(f"<th>{html.escape(v)}</th>" for v in vers)
+    rows = ""
+    for met, mfields in settings.WHEEL_METRIC_FIELDS.items():
+        for f in mfields:
+            if f not in allr:
+                continue
+            rows += (f"<tr><td class=wqrf>{met} · {html.escape(f)}</td>{cell(allr.get(f))}"
+                     + "".join(cell(versions[v].get(f)) for v in vers) + "</tr>")
+    return f"<table class=wqr><tr>{head}</tr>{rows}</table>"
+
+
+@admin_router.get("/wheels/ranges", response_class=HTMLResponse)
+def wheels_ranges(request: Request, brand: str = "", model: str = "", db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    return HTMLResponse(_wheel_ranges_fragment(settings.wheel_value_ranges(db, brand, model)))
 
 
 @admin_router.post("/wheel-quality")
