@@ -1285,6 +1285,8 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
 def _wheel_quality_card(db: Session) -> str:
     cat = settings.wheel_catalog(db)
     metrics = settings.WHEEL_METRICS
+    prim = {m: settings.WHEEL_METRIC_FIELDS[m][0] for m in metrics}
+    ncol = len(metrics) + 1
     if not cat:
         body = "<p class=mut>No wheels reported yet.</p>"
     else:
@@ -1300,23 +1302,27 @@ def _wheel_quality_card(db: Session) -> str:
             cutopts = '<option value="">(whole model — all versions)</option>' + "".join(
                 f'<option value="{html.escape(v)}"{" selected" if v == cut else ""}>{html.escape(v)}</option>'
                 for v in sorted(seenv, key=settings._ver_tuple))
-            checks = " ".join(
-                f'<label class=wqm><input type=checkbox name=metrics value="{m}"'
-                f'{" checked" if m in sel else ""}> {m}</label>' for m in metrics)
+            hdr = "<th class=wql></th>" + "".join(f'<th title="{prim[m]}">{m}</th>' for m in metrics)
+            checkrow = "<td class=wql>invalid</td>" + "".join(
+                f'<td><input type=checkbox name=metrics value="{m}"{" checked" if m in sel else ""}></td>'
+                for m in metrics)
             rows.append(f"""
             <form method=post action="/admin/wheel-quality" class="wqrow{' wqactive' if sel else ''}">
               <input type=hidden name=brand value="{html.escape(e['brand'])}">
               <input type=hidden name=model value="{html.escape(e['model'])}">
               <div class=wqhead><b>{html.escape(e['brand'])} · {html.escape(e['model'])}</b>
                 <span class=mut>{e['riders']} riders · {e['trips']} trips · app {vers}</span></div>
-              <div class=wqmetrics>{checks}</div>
+              <div class=wqtwrap><table class=wqt>
+                <tr>{hdr}</tr>
+                <tr class=wqck>{checkrow}</tr>
+                <tbody class=wqstats></tbody>
+              </table></div>
               <div class=wqfoot>
                 <label>invalid for app_version ≤ <select name=cutoff class=wqsel>{cutopts}</select></label>
                 <button class=mini>{_IC['check']} Save &amp; rebuild</button>
                 <button type=button class="mini ghost wqload" data-brand="{html.escape(e['brand'])}" data-model="{html.escape(e['model'])}">📊 Value ranges</button>
                 {'<span class=wqon>● ignoring: '+html.escape(', '.join(sorted(sel)))+'</span>' if sel else ''}
               </div>
-              <div class=wqranges></div>
             </form>""")
         body = "".join(rows)
     return f"""
@@ -1324,37 +1330,36 @@ def _wheel_quality_card(db: Session) -> str:
     .wqrow{{border:1px solid #26345e;border-radius:10px;padding:11px 13px;margin:8px 0;background:rgba(0,0,0,.15)}}
     .wqrow.wqactive{{border-color:rgba(255,170,80,.55);background:rgba(255,170,80,.06)}}
     .wqhead{{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}}
-    .wqmetrics{{display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:9px}}
-    .wqm{{font-size:11.5px;color:#cfe0ff;white-space:nowrap}}.wqm input{{margin-right:3px}}
+    .wqtwrap{{overflow-x:auto;margin:2px 0 10px}}
+    .wqt{{border-collapse:collapse;font-size:11px}}
+    .wqt th,.wqt td{{border:1px solid #1e2a4d;padding:3px 8px;text-align:center;white-space:nowrap}}
+    .wqt th{{color:#9fb2d8;font-weight:600}}
+    .wqt .wql{{text-align:left;color:#8aa0c8;position:sticky;left:0;background:#0c1430}}
+    .wqck input{{accent-color:#2ea8ff;cursor:pointer}}
     .wqfoot{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#8aa0c8}}
     .wqsel{{background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:4px 7px;border-radius:7px;font-size:11.5px}}
     .wqon{{color:#ffb04a}}
-    .wqranges{{margin-top:8px;overflow-x:auto}}
-    .wqr{{border-collapse:collapse;font-size:11px;margin-top:4px}}
-    .wqr th,.wqr td{{border:1px solid #1e2a4d;padding:3px 8px;text-align:right;white-space:nowrap}}
-    .wqr th{{color:#8aa0c8;font-weight:600}}
-    .wqr td.wqrf{{text-align:left;color:#9fb2d8}}
     </style>
     <div class=card>
       <h2>Wheel data quality <span class=mut>· ignore bad channels per model</span></h2>
-      <p class=hint>If a wheel model reports a bad value (e.g. wrong voltage), tick the affected metrics —
-      they're dropped from every leaderboard &amp; record for that model, while distance/speed/etc. stay.
-      <b>app_version ≤</b> invalidates only old app builds (blank = the whole model). <b>Voltage and power
-      are linked</b> (power = volts × amps) — flag both if voltage is wrong. Saving rebuilds stats.
-      Use <b>Value ranges</b> to see each channel's min–max per app version and spot the bad one.</p>
+      <p class=hint>If a wheel model reports a bad value (e.g. wrong voltage), tick the affected
+      <b>metric columns</b> — they're dropped from every leaderboard &amp; record for that model, while
+      distance/speed/etc. stay. <b>app_version ≤</b> invalidates only old app builds (blank = the whole
+      model). <b>Voltage and power are linked</b> (power = volts × amps). Hit <b>Value ranges</b> to fill
+      the min/avg/max rows under the checkboxes and spot the bad channel. Saving rebuilds stats.</p>
       {body}
     </div>
     <script>
     document.addEventListener('click', function(ev){{
       var b = ev.target.closest('.wqload'); if(!b) return;
-      var box = b.closest('.wqrow').querySelector('.wqranges');
-      if(box.dataset.loaded){{ box.innerHTML=''; box.dataset.loaded=''; return; }}   // toggle off
-      var t=b.textContent; b.disabled=true; b.textContent='loading…';
+      var tb = b.closest('.wqrow').querySelector('tbody.wqstats');
+      if(tb.children.length){{ tb.innerHTML=''; b.textContent='📊 Value ranges'; return; }}   // toggle off
+      b.disabled=true; b.textContent='loading…';
       fetch('/admin/wheels/ranges?brand='+encodeURIComponent(b.dataset.brand)+'&model='+encodeURIComponent(b.dataset.model))
         .then(function(r){{return r.ok?r.text():Promise.reject();}})
-        .then(function(h){{box.innerHTML=h; box.dataset.loaded='1';}})
-        .catch(function(){{box.innerHTML='<p class=mut>failed to load ranges</p>';}})
-        .finally(function(){{b.disabled=false; b.textContent=t;}});
+        .then(function(h){{tb.innerHTML=h; b.textContent='📊 Hide ranges';}})
+        .catch(function(){{tb.innerHTML='<tr><td class=wql colspan={ncol}>failed to load</td></tr>'; b.textContent='📊 Value ranges';}})
+        .finally(function(){{b.disabled=false;}});
     }});
     </script>"""
 
@@ -1363,9 +1368,9 @@ def _wheels_html(db: Session, msg: str = "") -> str:
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
-    <h1>Wheels</h1>
-    <p class=sub>Every brand/model that has reported data, with per-model data-quality rules to ignore a
-    bad channel (e.g. a model that reports wrong voltage).</p>
+    <h1>Wheels &amp; data quality</h1>
+    <p class=sub>Every brand/model that has reported data, with per-model rules to ignore a bad channel
+    (e.g. a model reporting wrong voltage) and an inline min/avg/max view to spot it.</p>
     {_wheel_quality_card(db)}"""
     return _ds_page(inner, "/admin/wheels")
 
@@ -1384,40 +1389,26 @@ def wheels_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     return HTMLResponse(_wheels_html(db, msg))
 
 
-def _wheel_ranges_fragment(data: dict) -> str:
-    allr, versions = data["all"], data["versions"]
-    if not allr:
-        return "<p class=mut>no values recorded for this model yet.</p>"
-    vers = sorted(versions.keys(), key=settings._ver_tuple)
-
+def _wheel_ranges_fragment(stats: dict, metrics) -> str:
+    """min/avg/max rows aligned to the metric columns (filled into the card table on demand)."""
     def n(x):
         try:
             return ("%.2f" % float(x)).rstrip("0").rstrip(".")
         except Exception:
-            return html.escape(str(x))
+            return "—"
 
-    def cell(rng):
-        if not rng:
-            return "<td class=mut>—</td>"
-        lo, hi = rng
-        return f"<td>{n(lo) if lo == hi else n(lo) + ' – ' + n(hi)}</td>"
-
-    head = "<th>metric · field</th><th>all</th>" + "".join(f"<th>{html.escape(v)}</th>" for v in vers)
-    rows = ""
-    for met, mfields in settings.WHEEL_METRIC_FIELDS.items():
-        for f in mfields:
-            if f not in allr:
-                continue
-            rows += (f"<tr><td class=wqrf>{met} · {html.escape(f)}</td>{cell(allr.get(f))}"
-                     + "".join(cell(versions[v].get(f)) for v in vers) + "</tr>")
-    return f"<table class=wqr><tr>{head}</tr>{rows}</table>"
+    def srow(label, key):
+        return (f"<tr><td class=wql>{label}</td>"
+                + "".join(f"<td>{n(stats.get(m, {}).get(key))}</td>" for m in metrics) + "</tr>")
+    return srow("min", "min") + srow("avg", "avg") + srow("max", "max")
 
 
 @admin_router.get("/wheels/ranges", response_class=HTMLResponse)
 def wheels_ranges(request: Request, brand: str = "", model: str = "", db: Session = Depends(get_db)):
     if not _is_authenticated(request):
         return HTMLResponse("", status_code=401)
-    return HTMLResponse(_wheel_ranges_fragment(settings.wheel_value_ranges(db, brand, model)))
+    stats = settings.wheel_metric_stats(db, brand, model)
+    return HTMLResponse(_wheel_ranges_fragment(stats, settings.WHEEL_METRICS))
 
 
 @admin_router.post("/wheel-quality")

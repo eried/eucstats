@@ -107,36 +107,23 @@ def blocked_trip_uuids(db: Session, rules=None) -> dict:
     return out
 
 
-def wheel_value_ranges(db: Session, brand: str, model: str) -> dict:
-    """Min–max of every maskable metric field for one model, per app_version (+ merged 'all').
-    Lets the admin eyeball which channel a wheel reports out of range. On-demand (one query)."""
+def wheel_metric_stats(db: Session, brand: str, model: str) -> dict:
+    """{metric: {field, min, max, avg}} over one model's trips, using each metric's primary field
+    (one query). Powers the inline min/avg/max range table on the Wheels tab."""
     from sqlalchemy import func
     from models import Trip, Wheel
-    fields = [f for fs in WHEEL_METRIC_FIELDS.values() for f in fs]
+    prim = {m: fs[0] for m, fs in WHEEL_METRIC_FIELDS.items()}
     cols = []
-    for f in fields:
-        col = getattr(Trip, f)
-        cols += [func.min(col), func.max(col)]
-    rows = (db.query(Trip.app_version, *cols)
-            .join(Wheel, Wheel.wheel_id == Trip.wheel_id)
-            .filter(Wheel.brand == brand, Wheel.model == model)
-            .group_by(Trip.app_version).all())
-    versions, allr = {}, {}
-    for r in rows:
-        ver = r[0] or "?"
-        d = {}
-        for i, f in enumerate(fields):
-            lo, hi = r[1 + 2 * i], r[2 + 2 * i]
-            if lo is None and hi is None:
-                continue                          # field has no data in this version
-            d[f] = (lo, hi)
-            if f in allr:
-                plo, phi = allr[f]
-                allr[f] = (min(plo, lo), max(phi, hi))
-            else:
-                allr[f] = (lo, hi)
-        versions[ver] = d
-    return {"fields": fields, "versions": versions, "all": allr}
+    for f in prim.values():
+        c = getattr(Trip, f)
+        cols += [func.min(c), func.max(c), func.avg(c)]
+    r = (db.query(*cols).join(Wheel, Wheel.wheel_id == Trip.wheel_id)
+         .filter(Wheel.brand == brand, Wheel.model == model).first())
+    out = {}
+    for i, (m, f) in enumerate(prim.items()):
+        out[m] = ({"field": f, "min": r[3 * i], "max": r[3 * i + 1], "avg": r[3 * i + 2]}
+                  if r else {"field": f})
+    return out
 
 
 def wheel_catalog(db: Session) -> list[dict]:
