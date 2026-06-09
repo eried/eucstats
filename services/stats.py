@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta
 
-from sqlalchemy import desc, func
+from sqlalchemy import case, desc, func
 
 from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip, Wheel, utcnow
 
@@ -294,8 +294,12 @@ def gated_leaderboard(db, col, direction, min_s, min_km, limit=50):
     AND >= min_km km). Anti-gaming gate for spikeable / fakeable metrics. Excludes
     banned / self-deleted / opted-out riders."""
     from services.aggregator import _excluded_ids
+    import services.settings as settings
     colattr = getattr(Trip, col)
-    agg = func.min(colattr) if direction == "min" else func.max(colattr)
+    # null this column for trips whose metric is flagged invalid for their wheel model
+    blk = settings.blocked_trip_uuids(db).get(settings.WHEEL_FIELD_METRIC.get(col), set())
+    masked = case((Trip.trip_uuid.in_(blk), None), else_=colattr) if blk else colattr
+    agg = func.min(masked) if direction == "min" else func.max(masked)
     q = (db.query(Trip.rider_store_id.label("sid"), agg.label("v"))
          .join(Rider, Rider.store_id == Trip.rider_store_id)
          .filter(Trip.validation_status == "validated",
@@ -309,7 +313,8 @@ def gated_leaderboard(db, col, direction, min_s, min_km, limit=50):
         q = q.filter(~Trip.rider_store_id.in_(excl))
     sub = q.group_by(Trip.rider_store_id).subquery()
     order = sub.c.v.asc() if direction == "min" else desc(sub.c.v)
-    rows = db.query(sub.c.sid, sub.c.v).order_by(order).limit(limit).all()
+    rows = (db.query(sub.c.sid, sub.c.v).filter(sub.c.v.isnot(None))
+            .order_by(order).limit(limit).all())
     return [{**_rider_brief(db, sid), "v": round(v, 2)} for sid, v in rows]
 
 
@@ -391,17 +396,28 @@ def map_cells(db, zoom: float):
     return out
 
 
-def _grp_aggs():
-    """Full metric set for a group (country / brand / wheel) — same dimensions as
-    the rider boards so the front-end can offer the same tabs."""
+def _mask(col, metric, blocked):
+    """Null `col` for trips whose `metric` is invalid per the wheel data-quality rules."""
+    ids = (blocked or {}).get(metric)
+    return case((Trip.trip_uuid.in_(ids), None), else_=col) if ids else col
+
+
+def _grp_aggs(blocked=None):
+    """Full metric set for a group (country / brand / wheel) — same dimensions as the rider
+    boards. `blocked` (from settings.blocked_trip_uuids) nulls metrics flagged invalid for a
+    wheel model so a bad channel doesn't poison the group standings."""
     return (func.coalesce(func.sum(Trip.distance_km), 0.0),
             func.count(func.distinct(Trip.rider_store_id)),
             func.count(Trip.trip_uuid),
-            func.max(Trip.max_speed), func.max(Trip.max_gforce),
-            func.max(Trip.max_sustained_w), func.max(Trip.max_sustained_a),
-            func.max(Trip.peak_voltage), func.min(Trip.fastest_0_40_s),
-            func.coalesce(func.sum(Trip.ascent_m), 0.0), func.max(Trip.est_range_km),
-            func.min(Trip.wh_per_km))
+            func.max(_mask(Trip.max_speed, "speed", blocked)),
+            func.max(_mask(Trip.max_gforce, "gforce", blocked)),
+            func.max(_mask(Trip.max_sustained_w, "power", blocked)),
+            func.max(_mask(Trip.max_sustained_a, "current", blocked)),
+            func.max(_mask(Trip.peak_voltage, "voltage", blocked)),
+            func.min(_mask(Trip.fastest_0_40_s, "accel", blocked)),
+            func.coalesce(func.sum(_mask(Trip.ascent_m, "altitude", blocked)), 0.0),
+            func.max(_mask(Trip.est_range_km, "range", blocked)),
+            func.min(_mask(Trip.wh_per_km, "efficiency", blocked)))
 
 
 def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, whkm):
@@ -417,7 +433,9 @@ def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, w
 
 
 def by_brand(db, limit=50):
-    rows = (db.query(Wheel.brand, *_grp_aggs())
+    import services.settings as settings
+    blk = settings.blocked_trip_uuids(db)
+    rows = (db.query(Wheel.brand, *_grp_aggs(blk))
             .join(Trip, Trip.wheel_id == Wheel.wheel_id)
             .filter(Trip.validation_status == "validated", Wheel.brand.isnot(None), Wheel.brand != "")
             .group_by(Wheel.brand).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
@@ -433,7 +451,9 @@ def _wheel_name(brand, model):
 
 
 def by_wheel(db, limit=50):
-    rows = (db.query(Wheel.brand, Wheel.model, *_grp_aggs())
+    import services.settings as settings
+    blk = settings.blocked_trip_uuids(db)
+    rows = (db.query(Wheel.brand, Wheel.model, *_grp_aggs(blk))
             .join(Trip, Trip.wheel_id == Wheel.wheel_id)
             .filter(Trip.validation_status == "validated", Wheel.model.isnot(None), Wheel.model != "")
             .group_by(Wheel.brand, Wheel.model).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
@@ -446,7 +466,9 @@ def by_wheel(db, limit=50):
 
 
 def by_country(db, limit=50):
-    rows = (db.query(Trip.country, *_grp_aggs())
+    import services.settings as settings
+    blk = settings.blocked_trip_uuids(db)
+    rows = (db.query(Trip.country, *_grp_aggs(blk))
             .join(Rider, Rider.store_id == Trip.rider_store_id)
             .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False),
                     Trip.country.isnot(None), Trip.country != "")

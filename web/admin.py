@@ -1251,6 +1251,7 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     <p class=sub>How uploads are flowing in and how validation is treating them.</p>
     {rules_card}
     {reprocess_card}
+    {_wheel_quality_card(db)}
     <div class=card>
       <h2>Status — {total} trips total</h2>
       <p>{chips}</p>
@@ -1282,11 +1283,82 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     return _ds_page(inner, "/admin/ingest")
 
 
+def _wheel_quality_card(db: Session) -> str:
+    cat = settings.wheel_catalog(db)
+    metrics = settings.WHEEL_METRICS
+    if not cat:
+        body = "<p class=mut>No wheels reported yet.</p>"
+    else:
+        rows = []
+        for e in cat:
+            rule = e.get("rule") or {}
+            sel = set(rule.get("metrics") or [])
+            cut = rule.get("max_app_version") or ""
+            vers = ", ".join(f"{html.escape(v)} ({n})" for v, n in sorted(e["versions"].items()))
+            checks = " ".join(
+                f'<label class=wqm><input type=checkbox name=metrics value="{m}"'
+                f'{" checked" if m in sel else ""}> {m}</label>' for m in metrics)
+            rows.append(f"""
+            <form method=post action="/admin/wheel-quality" class="wqrow{' wqactive' if sel else ''}">
+              <input type=hidden name=brand value="{html.escape(e['brand'])}">
+              <input type=hidden name=model value="{html.escape(e['model'])}">
+              <div class=wqhead><b>{html.escape(e['brand'])} · {html.escape(e['model'])}</b>
+                <span class=mut>{e['riders']} riders · {e['trips']} trips · app {vers}</span></div>
+              <div class=wqmetrics>{checks}</div>
+              <div class=wqfoot>
+                <label>invalid for app_version ≤
+                  <input name=cutoff value="{html.escape(cut)}" placeholder="(blank = whole model)" style="width:120px"></label>
+                <button class=mini>{_IC['check']} Save &amp; rebuild</button>
+                {'<span class=wqon>● ignoring: '+html.escape(', '.join(sorted(sel)))+'</span>' if sel else ''}
+              </div>
+            </form>""")
+        body = "".join(rows)
+    return f"""
+    <style>
+    .wqrow{{border:1px solid #26345e;border-radius:10px;padding:11px 13px;margin:8px 0;background:rgba(0,0,0,.15)}}
+    .wqrow.wqactive{{border-color:rgba(255,170,80,.55);background:rgba(255,170,80,.06)}}
+    .wqhead{{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}}
+    .wqmetrics{{display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:9px}}
+    .wqm{{font-size:11.5px;color:#cfe0ff;white-space:nowrap}}.wqm input{{margin-right:3px}}
+    .wqfoot{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#8aa0c8}}
+    .wqon{{color:#ffb04a}}
+    </style>
+    <div class=card>
+      <h2>Wheel data quality <span class=mut>· ignore bad channels per model</span></h2>
+      <p class=hint>If a wheel model reports a bad value (e.g. wrong voltage), tick the affected metrics —
+      they're dropped from every leaderboard &amp; record for that model, while distance/speed/etc. stay.
+      <b>app_version ≤</b> invalidates only old app builds (blank = the whole model). <b>Voltage and power
+      are linked</b> (power = volts × amps) — flag both if voltage is wrong. Saving rebuilds stats.</p>
+      {body}
+    </div>"""
+
+
 @admin_router.get("/ingest", response_class=HTMLResponse)
 def ingest_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     return HTMLResponse(_pipeline_html(db, msg))
+
+
+@admin_router.post("/wheel-quality")
+def wheel_quality_save(request: Request, db: Session = Depends(get_db),
+                       brand: str = Form(...), model: str = Form(...),
+                       cutoff: str = Form(""), metrics: list[str] = Form([])):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    mets = [m for m in metrics if m in settings.WHEEL_METRIC_FIELDS]
+    rules = [r for r in settings.get_wheel_rules(db)            # replace this model's rule
+             if not (r.get("brand") == brand and r.get("model") == model)]
+    if mets:
+        rules.append({"brand": brand, "model": model,
+                      "max_app_version": cutoff.strip() or None, "metrics": mets})
+    settings.set_wheel_rules(db, rules)
+    from services.aggregator import rebuild_all
+    n = rebuild_all(db)                                          # recompute rider boards + records
+    audit.log("wheel_quality_save", f"{brand}/{model} metrics={','.join(mets) or 'none'} cutoff={cutoff or '*'}")
+    note = (f"{brand} {model}: " + (f"ignoring {', '.join(mets)}" if mets else "rule cleared")
+            + (f" (app ≤ {cutoff})" if (mets and cutoff.strip()) else "") + f" — rebuilt {n} trips")
+    return RedirectResponse("/admin/ingest?msg=" + quote(note), status_code=303)
 
 
 @admin_router.get("/pipeline")           # back-compat: old bookmark -> Ingest

@@ -6,11 +6,131 @@ Values are stored as strings; helpers coerce the few typed ones we use.
 from __future__ import annotations
 
 import json
+import re
 
 from sqlalchemy.orm import Session
 
 import config
 from models import Meta
+
+
+# --- per-wheel data-quality rules ------------------------------------------
+# A wheel model can report a bad channel (e.g. wrong voltage). Rather than reject
+# whole trips, the admin marks (brand, model) + which metrics are unreliable, with
+# an optional app_version cutoff (<= cutoff is invalid; blank = the whole model).
+# Those metrics are then ignored everywhere they'd feed a leaderboard/record.
+# Stored per-dataset in app_meta. Voltage and power are linked (power = V*A).
+
+# admin-facing metric -> the Trip fields it controls
+WHEEL_METRIC_FIELDS = {
+    "speed": ["max_speed", "avg_speed"],
+    "gforce": ["max_gforce"],
+    "power": ["max_sustained_w"],
+    "current": ["max_sustained_a"],
+    "voltage": ["peak_voltage", "max_voltage_sag"],
+    "accel": ["fastest_0_40_s", "sustained_accel"],
+    "altitude": ["max_altitude_m", "min_altitude_m", "alt_range_m", "ascent_m"],
+    "range": ["est_range_km"],
+    "efficiency": ["wh_per_km"],
+    "battery": ["min_battery_pct", "battery_used_pct"],
+    "pwm": ["max_pwm"],
+    "temp": ["max_temp", "min_temp"],
+    "freespin": ["max_freespin"],
+}
+WHEEL_METRICS = list(WHEEL_METRIC_FIELDS)
+WHEEL_FIELD_METRIC = {f: m for m, fs in WHEEL_METRIC_FIELDS.items() for f in fs}
+
+
+def _ver_tuple(v) -> tuple:
+    return tuple(int(x) for x in re.findall(r"\d+", str(v or "")))
+
+
+def _app_ver_le(a, cutoff) -> bool:
+    """app_version `a` is <= `cutoff` (numeric/semver-ish, e.g. 0.9.9 <= 0.9.10)."""
+    try:
+        return _ver_tuple(a) <= _ver_tuple(cutoff)
+    except Exception:
+        return str(a or "") <= str(cutoff or "")
+
+
+def get_wheel_rules(db: Session) -> list[dict]:
+    raw = get_meta(db, "wheel_quality_rules", None)
+    try:
+        rules = json.loads(raw) if raw else []
+    except Exception:
+        rules = []
+    return rules if isinstance(rules, list) else []
+
+
+def set_wheel_rules(db: Session, rules) -> None:
+    clean = []
+    for r in rules or []:
+        b, m = (r.get("brand") or "").strip(), (r.get("model") or "").strip()
+        mets = [x for x in (r.get("metrics") or []) if x in WHEEL_METRIC_FIELDS]
+        if not (b and m and mets):
+            continue                              # a rule with no metrics = no rule
+        clean.append({"brand": b, "model": m,
+                      "max_app_version": (str(r.get("max_app_version") or "").strip() or None),
+                      "metrics": mets})
+    set_meta(db, "wheel_quality_rules", json.dumps(clean))
+
+
+def suppressed_fields(brand, model, app_version, rules) -> set:
+    """Trip field names to ignore for one trip given the active rules."""
+    out = set()
+    for r in rules:
+        if r.get("brand") == brand and r.get("model") == model:
+            cut = r.get("max_app_version")
+            if not cut or _app_ver_le(app_version, cut):
+                for met in r.get("metrics", []):
+                    out.update(WHEEL_METRIC_FIELDS.get(met, []))
+    return out
+
+
+def blocked_trip_uuids(db: Session, rules=None) -> dict:
+    """{metric: set(trip_uuid)} for live-Trip queries (group standings, gated boards):
+    which trips must have each metric ignored. Empty sets when there are no rules."""
+    out = {m: set() for m in WHEEL_METRIC_FIELDS}
+    rules = get_wheel_rules(db) if rules is None else rules
+    if not rules:
+        return out
+    from models import Trip, Wheel
+    rows = (db.query(Trip.trip_uuid, Trip.app_version, Wheel.brand, Wheel.model)
+            .join(Wheel, Wheel.wheel_id == Trip.wheel_id).all())
+    for uuid, ver, brand, model in rows:
+        for r in rules:
+            if r.get("brand") == brand and r.get("model") == model:
+                cut = r.get("max_app_version")
+                if not cut or _app_ver_le(ver, cut):
+                    for met in r.get("metrics", []):
+                        out[met].add(uuid)
+    return out
+
+
+def wheel_catalog(db: Session) -> list[dict]:
+    """Every reported brand/model with app-versions + counts and any active rule —
+    the admin 'what wheels reported' view."""
+    from sqlalchemy import func
+    from models import Trip, Wheel
+    rules = {(r["brand"], r["model"]): r for r in get_wheel_rules(db)}
+    cat: dict = {}
+    for brand, model, ver, trips in (
+            db.query(Wheel.brand, Wheel.model, Trip.app_version, func.count(Trip.trip_uuid))
+            .join(Trip, Trip.wheel_id == Wheel.wheel_id)
+            .group_by(Wheel.brand, Wheel.model, Trip.app_version).all()):
+        key = (brand or "?", model or "?")
+        e = cat.setdefault(key, {"brand": key[0], "model": key[1], "trips": 0,
+                                 "riders": 0, "versions": {}, "rule": rules.get(key)})
+        e["trips"] += trips
+        e["versions"][ver or "?"] = e["versions"].get(ver or "?", 0) + trips
+    for brand, model, riders in (
+            db.query(Wheel.brand, Wheel.model, func.count(func.distinct(Trip.rider_store_id)))
+            .join(Trip, Trip.wheel_id == Wheel.wheel_id)
+            .group_by(Wheel.brand, Wheel.model).all()):
+        e = cat.get((brand or "?", model or "?"))
+        if e:
+            e["riders"] = riders
+    return sorted(cat.values(), key=lambda x: (-x["trips"], x["brand"], x["model"]))
 
 # Canonical metric/section lists for the admin show/hide UI.
 # Keep keys in sync with web/public.py BOARDS (board `k`) and the dock `data-p`.
