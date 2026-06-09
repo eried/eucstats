@@ -93,9 +93,9 @@ def _counts(db: Session) -> dict:
 
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Riders & Trips"),
-        ("/admin/ingest", "Ingest"), ("/admin/appearance", "Public site"),
-        ("/admin/datasets", "Data & backups"), ("/admin/telegram", "Telegram"),
-        ("/admin/system", "System")]
+        ("/admin/wheels", "Wheels"), ("/admin/ingest", "Ingest"),
+        ("/admin/appearance", "Public site"), ("/admin/datasets", "Data & backups"),
+        ("/admin/telegram", "Telegram"), ("/admin/system", "System")]
 
 _IC = {
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -1251,7 +1251,6 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     <p class=sub>How uploads are flowing in and how validation is treating them.</p>
     {rules_card}
     {reprocess_card}
-    {_wheel_quality_card(db)}
     <div class=card>
       <h2>Status — {total} trips total</h2>
       <p>{chips}</p>
@@ -1339,11 +1338,29 @@ def _wheel_quality_card(db: Session) -> str:
     </div>"""
 
 
+def _wheels_html(db: Session, msg: str = "") -> str:
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    inner = f"""
+    {banner}
+    <h1>Wheels</h1>
+    <p class=sub>Every brand/model that has reported data, with per-model data-quality rules to ignore a
+    bad channel (e.g. a model that reports wrong voltage).</p>
+    {_wheel_quality_card(db)}"""
+    return _ds_page(inner, "/admin/wheels")
+
+
 @admin_router.get("/ingest", response_class=HTMLResponse)
 def ingest_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     return HTMLResponse(_pipeline_html(db, msg))
+
+
+@admin_router.get("/wheels", response_class=HTMLResponse)
+def wheels_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_wheels_html(db, msg))
 
 
 @admin_router.post("/wheel-quality")
@@ -1364,7 +1381,7 @@ def wheel_quality_save(request: Request, db: Session = Depends(get_db),
     audit.log("wheel_quality_save", f"{brand}/{model} metrics={','.join(mets) or 'none'} cutoff={cutoff or '*'}")
     note = (f"{brand} {model}: " + (f"ignoring {', '.join(mets)}" if mets else "rule cleared")
             + (f" (app ≤ {cutoff})" if (mets and cutoff.strip()) else "") + f" — rebuilt {n} trips")
-    return RedirectResponse("/admin/ingest?msg=" + quote(note), status_code=303)
+    return RedirectResponse("/admin/wheels?msg=" + quote(note), status_code=303)
 
 
 @admin_router.get("/pipeline")           # back-compat: old bookmark -> Ingest
