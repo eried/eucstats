@@ -1295,6 +1295,12 @@ def _wheel_quality_card(db: Session) -> str:
             sel = set(rule.get("metrics") or [])
             cut = rule.get("max_app_version") or ""
             vers = ", ".join(f"{html.escape(v)} ({n})" for v, n in sorted(e["versions"].items()))
+            seenv = [v for v in e["versions"] if v != "?"]
+            if cut and cut not in seenv:                       # keep a saved cutoff visible
+                seenv.append(cut)
+            cutopts = '<option value="">(whole model — all versions)</option>' + "".join(
+                f'<option value="{html.escape(v)}"{" selected" if v == cut else ""}>{html.escape(v)}</option>'
+                for v in sorted(seenv, key=settings._ver_tuple))
             checks = " ".join(
                 f'<label class=wqm><input type=checkbox name=metrics value="{m}"'
                 f'{" checked" if m in sel else ""}> {m}</label>' for m in metrics)
@@ -1306,8 +1312,7 @@ def _wheel_quality_card(db: Session) -> str:
                 <span class=mut>{e['riders']} riders · {e['trips']} trips · app {vers}</span></div>
               <div class=wqmetrics>{checks}</div>
               <div class=wqfoot>
-                <label>invalid for app_version ≤
-                  <input name=cutoff value="{html.escape(cut)}" placeholder="(blank = whole model)" style="width:120px"></label>
+                <label>invalid for app_version ≤ <select name=cutoff class=wqsel>{cutopts}</select></label>
                 <button class=mini>{_IC['check']} Save &amp; rebuild</button>
                 {'<span class=wqon>● ignoring: '+html.escape(', '.join(sorted(sel)))+'</span>' if sel else ''}
               </div>
@@ -1321,6 +1326,7 @@ def _wheel_quality_card(db: Session) -> str:
     .wqmetrics{{display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:9px}}
     .wqm{{font-size:11.5px;color:#cfe0ff;white-space:nowrap}}.wqm input{{margin-right:3px}}
     .wqfoot{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#8aa0c8}}
+    .wqsel{{background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:4px 7px;border-radius:7px;font-size:11.5px}}
     .wqon{{color:#ffb04a}}
     </style>
     <div class=card>
