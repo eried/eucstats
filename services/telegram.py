@@ -7,8 +7,9 @@ unreachable, nothing raises into the caller (a rider's registration/ingest is
 never blocked or broken by Telegram).
 
 Posts go to a group/supergroup ``chat_id``; an optional ``thread_id`` targets a
-forum topic (message_thread_id). New-rider / first-ride posts attach the rider's
-avatar via sendPhoto when present, falling back to a plain text sendMessage.
+forum topic (message_thread_id). All posts are plain text (sendMessage) — rider
+avatars are intentionally not attached (the stored 64px images look bad upscaled
+to Telegram's photo width).
 """
 from __future__ import annotations
 
@@ -117,16 +118,6 @@ def send_message(text: str, cfg: dict | None = None) -> tuple[bool, str]:
     return _post(url, _payload(cfg, text=text, disable_web_page_preview="true"))
 
 
-def send_photo(photo_bytes: bytes, caption: str, cfg: dict | None = None) -> tuple[bool, str]:
-    """sendPhoto with raw image bytes + caption."""
-    cfg = cfg or get_config()
-    if not is_configured(cfg):
-        return False, "not configured (needs token + chat_id)"
-    url = _API.format(token=cfg["token"], method="sendPhoto")
-    return _post(url, _payload(cfg, caption=caption),
-                 files={"photo": ("avatar.png", photo_bytes, "image/png")})
-
-
 # --- text helpers ----------------------------------------------------------
 
 def _esc(s) -> str:
@@ -165,8 +156,6 @@ def notify_new_rider(store_id: str) -> None:
         plural = "rider" if total == 1 else "riders"
         text = (f"🆕 New rider: <b>{_esc(r.display_name)}</b> {_flag_emoji(r.flag)} — "
                 f"now <b>{total}</b> {plural} on EUC Stats!\n{cfg['link_url']}")
-        if r.avatar_png and send_photo(r.avatar_png, text, cfg)[0]:
-            return
         send_message(text, cfg)
     finally:
         db.close()
@@ -189,8 +178,6 @@ def notify_first_ride(store_id: str) -> None:
         trip = q.first()
         text = (f"🛞 <b>{_esc(r.display_name)}</b> {_flag_emoji(r.flag)} just logged their "
                 f"first ride — <b>{_dist(trip.distance_km)}</b>!\n{cfg['link_url']}")
-        if r.avatar_png and send_photo(r.avatar_png, text, cfg)[0]:
-            return
         send_message(text, cfg)
     finally:
         db.close()
@@ -295,9 +282,6 @@ def check_records() -> None:
             descpart = f" ({_esc(desc)})" if desc else ""
             text = (f"🏆 New record! <b>{_esc(top.get('name'))}</b> {_flag_emoji(top.get('flag'))} "
                     f"is the new <b>{_esc(name)}</b>{descpart}{beat}.\n{cfg['link_url']}")
-            r = db.get(Rider, top["store_id"])
-            if r and r.avatar_png and send_photo(r.avatar_png, text, cfg)[0]:
-                continue
             send_message(text, cfg)
 
         for kind, top, old_label in group_hits:
