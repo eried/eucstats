@@ -1315,12 +1315,11 @@ def _wheel_quality_card(db: Session) -> str:
               <div class=wqtwrap><table class=wqt>
                 <tr>{hdr}</tr>
                 <tr class=wqck>{checkrow}</tr>
-                <tbody class=wqstats></tbody>
+                <tbody class=wqstats><tr><td colspan={ncol} class=wqhint>pick a version below → loads min · avg · max for trips ≤ that version</td></tr></tbody>
               </table></div>
               <div class=wqfoot>
                 <label>invalid for app_version ≤ <select name=cutoff class=wqsel>{cutopts}</select></label>
                 <button class=mini>{_IC['check']} Save &amp; rebuild</button>
-                <button type=button class="mini ghost wqload" data-brand="{html.escape(e['brand'])}" data-model="{html.escape(e['model'])}">📊 Value ranges</button>
                 {'<span class=wqon>● ignoring: '+html.escape(', '.join(sorted(sel)))+'</span>' if sel else ''}
               </div>
             </form>""")
@@ -1336,6 +1335,7 @@ def _wheel_quality_card(db: Session) -> str:
     .wqt th{{color:#9fb2d8;font-weight:600}}
     .wqt .wql{{text-align:left;color:#8aa0c8;position:sticky;left:0;background:#0c1430}}
     .wqck input{{accent-color:#2ea8ff;cursor:pointer}}
+    .wqt td.wqhint{{text-align:left;color:#6b7ba5;position:static;font-style:italic}}
     .wqfoot{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#8aa0c8}}
     .wqsel{{background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:4px 7px;border-radius:7px;font-size:11.5px}}
     .wqon{{color:#ffb04a}}
@@ -1345,21 +1345,22 @@ def _wheel_quality_card(db: Session) -> str:
       <p class=hint>If a wheel model reports a bad value (e.g. wrong voltage), tick the affected
       <b>metric columns</b> — they're dropped from every leaderboard &amp; record for that model, while
       distance/speed/etc. stay. <b>app_version ≤</b> invalidates only old app builds (blank = the whole
-      model). <b>Voltage and power are linked</b> (power = volts × amps). Hit <b>Value ranges</b> to fill
-      the min/avg/max rows under the checkboxes and spot the bad channel. Saving rebuilds stats.</p>
+      model). <b>Voltage and power are linked</b> (power = volts × amps). <b>Pick a version</b> in the
+      dropdown to load each channel's min/avg/max for trips ≤ that version and spot the bad one.
+      Saving rebuilds stats.</p>
       {body}
     </div>
     <script>
-    document.addEventListener('click', function(ev){{
-      var b = ev.target.closest('.wqload'); if(!b) return;
-      var tb = b.closest('.wqrow').querySelector('tbody.wqstats');
-      if(tb.children.length){{ tb.innerHTML=''; b.textContent='📊 Value ranges'; return; }}   // toggle off
-      b.disabled=true; b.textContent='loading…';
-      fetch('/admin/wheels/ranges?brand='+encodeURIComponent(b.dataset.brand)+'&model='+encodeURIComponent(b.dataset.model))
+    document.addEventListener('change', function(ev){{
+      var s = ev.target.closest('.wqsel'); if(!s) return;          // version selector = trigger
+      var row = s.closest('.wqrow'), tb = row.querySelector('tbody.wqstats');
+      var brand = row.querySelector('input[name=brand]').value;
+      var model = row.querySelector('input[name=model]').value;
+      tb.innerHTML = '<tr><td colspan={ncol} class=wqhint>loading…</td></tr>';
+      fetch('/admin/wheels/ranges?brand='+encodeURIComponent(brand)+'&model='+encodeURIComponent(model)+'&cutoff='+encodeURIComponent(s.value))
         .then(function(r){{return r.ok?r.text():Promise.reject();}})
-        .then(function(h){{tb.innerHTML=h; b.textContent='📊 Hide ranges';}})
-        .catch(function(){{tb.innerHTML='<tr><td class=wql colspan={ncol}>failed to load</td></tr>'; b.textContent='📊 Value ranges';}})
-        .finally(function(){{b.disabled=false;}});
+        .then(function(h){{tb.innerHTML=h;}})
+        .catch(function(){{tb.innerHTML='<tr><td colspan={ncol} class=wqhint>failed to load</td></tr>';}});
     }});
     </script>"""
 
@@ -1404,10 +1405,11 @@ def _wheel_ranges_fragment(stats: dict, metrics) -> str:
 
 
 @admin_router.get("/wheels/ranges", response_class=HTMLResponse)
-def wheels_ranges(request: Request, brand: str = "", model: str = "", db: Session = Depends(get_db)):
+def wheels_ranges(request: Request, brand: str = "", model: str = "", cutoff: str = "",
+                  db: Session = Depends(get_db)):
     if not _is_authenticated(request):
         return HTMLResponse("", status_code=401)
-    stats = settings.wheel_metric_stats(db, brand, model)
+    stats = settings.wheel_metric_stats(db, brand, model, cutoff.strip() or None)
     return HTMLResponse(_wheel_ranges_fragment(stats, settings.WHEEL_METRICS))
 
 

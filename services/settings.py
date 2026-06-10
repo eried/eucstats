@@ -107,9 +107,10 @@ def blocked_trip_uuids(db: Session, rules=None) -> dict:
     return out
 
 
-def wheel_metric_stats(db: Session, brand: str, model: str) -> dict:
-    """{metric: {field, min, max, avg}} over one model's trips, using each metric's primary field
-    (one query). Powers the inline min/avg/max range table on the Wheels tab."""
+def wheel_metric_stats(db: Session, brand: str, model: str, cutoff: str | None = None) -> dict:
+    """{metric: {field, min, max, avg}} over one model's trips (each metric's primary field, one
+    query). When `cutoff` is given, only trips with app_version <= cutoff are counted — i.e. exactly
+    the trips a rule with that cutoff would invalidate. Powers the inline range table on Wheels."""
     from sqlalchemy import func
     from models import Trip, Wheel
     prim = {m: fs[0] for m, fs in WHEEL_METRIC_FIELDS.items()}
@@ -117,8 +118,15 @@ def wheel_metric_stats(db: Session, brand: str, model: str) -> dict:
     for f in prim.values():
         c = getattr(Trip, f)
         cols += [func.min(c), func.max(c), func.avg(c)]
-    r = (db.query(*cols).join(Wheel, Wheel.wheel_id == Trip.wheel_id)
-         .filter(Wheel.brand == brand, Wheel.model == model).first())
+    q = (db.query(*cols).join(Wheel, Wheel.wheel_id == Trip.wheel_id)
+         .filter(Wheel.brand == brand, Wheel.model == model))
+    if cutoff:                                              # app_version <= cutoff (semver, in Python)
+        good = [v for (v,) in db.query(Trip.app_version)
+                .join(Wheel, Wheel.wheel_id == Trip.wheel_id)
+                .filter(Wheel.brand == brand, Wheel.model == model, Trip.app_version.isnot(None))
+                .distinct() if _app_ver_le(v, cutoff)]
+        q = q.filter(Trip.app_version.in_(good))
+    r = q.first()
     out = {}
     for i, (m, f) in enumerate(prim.items()):
         out[m] = ({"field": f, "min": r[3 * i], "max": r[3 * i + 1], "avg": r[3 * i + 2]}
