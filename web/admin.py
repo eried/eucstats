@@ -1295,6 +1295,9 @@ def _wheel_quality_card(db: Session) -> str:
             rule = e.get("rule") or {}
             sel = set(rule.get("metrics") or [])
             cut = rule.get("max_app_version") or ""
+            has_rule = bool(sel)
+            editing = not has_rule                 # applied rule -> starts locked; no rule -> editable
+            dis = "" if editing else " disabled"
             vers = ", ".join(f"{html.escape(v)} ({n})" for v, n in sorted(e["versions"].items()))
             seenv = [v for v in e["versions"] if v != "?"]
             if cut and cut not in seenv:                       # keep a saved cutoff visible
@@ -1304,10 +1307,16 @@ def _wheel_quality_card(db: Session) -> str:
                 for v in sorted(seenv, key=settings._ver_tuple))
             hdr = "<th class=wql></th>" + "".join(f'<th title="{prim[m]}">{m}</th>' for m in metrics)
             checkrow = "<td class=wql>invalid</td>" + "".join(
-                f'<td><input type=checkbox name=metrics value="{m}"{" checked" if m in sel else ""}></td>'
+                f'<td><input type=checkbox name=metrics value="{m}"{" checked" if m in sel else ""}{dis}></td>'
                 for m in metrics)
+            cls = "wqrow" + (" wqactive" if has_rule else " wqedit-on wqnorule")
+            hint = ("pick a version below → loads min · avg · max for trips ≤ that version" if editing
+                    else "press Edit to change this rule and load its value ranges")
+            summary = (('<span class=wqon>● ignoring ' + html.escape(', '.join(sorted(sel)))
+                        + (f' · app ≤ {html.escape(cut)}' if cut else ' · whole model') + '</span>')
+                       if has_rule else '')
             rows.append(f"""
-            <form method=post action="/admin/wheel-quality" class="wqrow{' wqactive' if sel else ''}">
+            <form method=post action="/admin/wheel-quality" class="{cls}" data-om="{html.escape(','.join(sorted(sel)))}" data-oc="{html.escape(cut)}">
               <input type=hidden name=brand value="{html.escape(e['brand'])}">
               <input type=hidden name=model value="{html.escape(e['model'])}">
               <div class=wqhead><b>{html.escape(e['brand'])} · {html.escape(e['model'])}</b>
@@ -1315,12 +1324,14 @@ def _wheel_quality_card(db: Session) -> str:
               <div class=wqtwrap><table class=wqt>
                 <tr>{hdr}</tr>
                 <tr class=wqck>{checkrow}</tr>
-                <tbody class=wqstats><tr><td colspan={ncol} class=wqhint>pick a version below → loads min · avg · max for trips ≤ that version</td></tr></tbody>
+                <tbody class=wqstats><tr><td colspan={ncol} class=wqhint>{hint}</td></tr></tbody>
               </table></div>
               <div class=wqfoot>
-                <label>invalid for app_version ≤ <select name=cutoff class=wqsel>{cutopts}</select></label>
-                <button class=mini>{_IC['check']} Save &amp; rebuild</button>
-                {'<span class=wqon>● ignoring: '+html.escape(', '.join(sorted(sel)))+'</span>' if sel else ''}
+                <label>invalid for app_version ≤ <select name=cutoff class=wqsel{dis}>{cutopts}</select></label>
+                <button type=button class="mini wqedit">✎ Edit rule</button>
+                <button class="mini wqsave">{_IC['check']} Save &amp; rebuild</button>
+                <button type=button class="mini ghost wqundo">↶ Undo</button>
+                {summary}
               </div>
             </form>""")
         body = "".join(rows)
@@ -1338,29 +1349,53 @@ def _wheel_quality_card(db: Session) -> str:
     .wqt td.wqhint{{text-align:left;color:#6b7ba5;position:static;font-style:italic}}
     .wqfoot{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#8aa0c8}}
     .wqsel{{background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:4px 7px;border-radius:7px;font-size:11.5px}}
+    .wqsel:disabled{{opacity:.6;cursor:default}}
+    .wqck input:disabled{{cursor:default}}
     .wqon{{color:#ffb04a}}
+    .wqsave,.wqundo{{display:none}}
+    .wqedit-on .wqedit{{display:none}}
+    .wqedit-on .wqsave{{display:inline-flex}}
+    .wqedit-on:not(.wqnorule) .wqundo{{display:inline-flex}}
     </style>
     <div class=card>
       <h2>Wheel data quality <span class=mut>· ignore bad channels per model</span></h2>
       <p class=hint>If a wheel model reports a bad value (e.g. wrong voltage), tick the affected
       <b>metric columns</b> — they're dropped from every leaderboard &amp; record for that model, while
       distance/speed/etc. stay. <b>app_version ≤</b> invalidates only old app builds (blank = the whole
-      model). <b>Voltage and power are linked</b> (power = volts × amps). <b>Pick a version</b> in the
-      dropdown to load each channel's min/avg/max for trips ≤ that version and spot the bad one.
-      Saving rebuilds stats.</p>
+      model). <b>Voltage and power are linked</b> (power = volts × amps). Applied rules are locked — press
+      <b>Edit</b> to change one (it loads each channel's min/avg/max for trips ≤ the selected version so
+      you can spot the bad one) or <b>Undo</b> to cancel. Saving rebuilds stats.</p>
       {body}
     </div>
     <script>
-    document.addEventListener('change', function(ev){{
-      var s = ev.target.closest('.wqsel'); if(!s) return;          // version selector = trigger
-      var row = s.closest('.wqrow'), tb = row.querySelector('tbody.wqstats');
-      var brand = row.querySelector('input[name=brand]').value;
-      var model = row.querySelector('input[name=model]').value;
-      tb.innerHTML = '<tr><td colspan={ncol} class=wqhint>loading…</td></tr>';
+    function wqRanges(f){{
+      var s=f.querySelector('.wqsel'), tb=f.querySelector('tbody.wqstats');
+      var brand=f.querySelector('input[name=brand]').value, model=f.querySelector('input[name=model]').value;
+      tb.innerHTML='<tr><td colspan={ncol} class=wqhint>loading…</td></tr>';
       fetch('/admin/wheels/ranges?brand='+encodeURIComponent(brand)+'&model='+encodeURIComponent(model)+'&cutoff='+encodeURIComponent(s.value))
         .then(function(r){{return r.ok?r.text():Promise.reject();}})
         .then(function(h){{tb.innerHTML=h;}})
         .catch(function(){{tb.innerHTML='<tr><td colspan={ncol} class=wqhint>failed to load</td></tr>';}});
+    }}
+    function wqEdit(f,on){{
+      f.classList.toggle('wqedit-on',on);
+      f.querySelectorAll('input[name=metrics],select[name=cutoff]').forEach(function(el){{el.disabled=!on;}});
+    }}
+    document.addEventListener('change', function(ev){{
+      var s=ev.target.closest('.wqsel'); if(!s||s.disabled) return;   // selecting a version (re)loads ranges
+      wqRanges(s.closest('.wqrow'));
+    }});
+    document.addEventListener('click', function(ev){{
+      var ed=ev.target.closest('.wqedit');
+      if(ed){{ var f=ed.closest('.wqrow'); wqEdit(f,true); wqRanges(f); return; }}   // unlock + load ranges
+      var un=ev.target.closest('.wqundo');
+      if(un){{ var f=un.closest('.wqrow');                                          // revert to saved state
+        var om=(f.dataset.om||'').split(',').filter(Boolean);
+        f.querySelectorAll('input[name=metrics]').forEach(function(el){{el.checked=om.indexOf(el.value)>=0;}});
+        f.querySelector('select[name=cutoff]').value=f.dataset.oc||'';
+        f.querySelector('tbody.wqstats').innerHTML='<tr><td colspan={ncol} class=wqhint>press Edit to change this rule and load its value ranges</td></tr>';
+        wqEdit(f,false);
+      }}
     }});
     </script>"""
 
