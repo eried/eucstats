@@ -1400,13 +1400,92 @@ def _wheel_quality_card(db: Session) -> str:
     </script>"""
 
 
+def _name_fix_card(db: Session) -> str:
+    rules = settings.get_name_rules(db)
+    cat = settings.wheel_catalog(db)
+    brands = sorted({e["brand"] for e in cat})
+    models = sorted({e["model"] for e in cat})
+    versions = sorted({v for e in cat for v in e["versions"] if v != "?"}, key=settings._ver_tuple)
+    bopts = "".join(f"<option>{html.escape(b)}</option>" for b in brands)
+    mopts = "".join(f"<option>{html.escape(m)}</option>" for m in models)
+    vopts = "".join(f"<option>{html.escape(v)}</option>" for v in versions)
+
+    if rules:
+        rl = []
+        for i, r in enumerate(rules):
+            mt = " · ".join(filter(None, [
+                f"brand={html.escape(r['m_brand'])}" if r.get("m_brand") else "",
+                f"model={html.escape(r['m_model'])}" if r.get("m_model") else "",
+                f"app ≤ {html.escape(r['max_app_version'])}" if r.get("max_app_version") else ""])) or "any wheel"
+            st = " · ".join(filter(None, [
+                f"brand → <b>{html.escape(r['set_brand'])}</b>" if r.get("set_brand") else "",
+                f"model → <b>{html.escape(r['set_model'])}</b>" if r.get("set_model") else ""]))
+            rl.append(f'<div class=nfrule><span>{mt} &nbsp;⇒&nbsp; {st}</span>'
+                      f'<form method=post action="/admin/wheels/name-rule/remove" style="margin:0">'
+                      f'<input type=hidden name=idx value="{i}"><button class="mini ghost">remove</button></form></div>')
+        rules_html = "".join(rl)
+    else:
+        rules_html = "<p class=mut>No name fixes yet.</p>"
+
+    changes = settings.name_fix_changes(db, rules)
+    if changes:
+        ex = "".join(f"<li>{html.escape(c['brand'])} · {html.escape(c['model'])} → "
+                     f"<b>{html.escape(c['new_brand'])} · {html.escape(c['new_model'])}</b></li>" for c in changes[:12])
+        more = f"<li class=mut>…and {len(changes) - 12} more</li>" if len(changes) > 12 else ""
+        pending = (f'<div class=nfpend><p><b>{len(changes)}</b> existing wheel(s) would change:</p><ul>{ex}{more}</ul>'
+                   f'<form method=post action="/admin/wheels/name-apply" '
+                   f"onsubmit=\"return confirm('Snapshot the dataset and rewrite {len(changes)} wheel name(s)?')\">"
+                   f'<button class=go>{_IC["check"]} Apply to existing + snapshot</button></form></div>')
+    else:
+        pending = "<p class=mut>No existing wheels need changing (new uploads are fixed automatically).</p>"
+
+    return f"""
+    <style>
+    .nfrule{{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid #26345e;border-radius:8px;padding:7px 11px;margin:6px 0;font-size:12px}}
+    .nfadd{{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-size:12px}}
+    .nfadd select,.nfadd input{{background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:5px 7px;border-radius:7px;font-size:12px}}
+    .nfnew{{display:none}}
+    .nfpend{{border:1px solid rgba(255,170,80,.4);background:rgba(255,170,80,.06);border-radius:9px;padding:10px 12px;margin-top:10px}}
+    .nfpend ul{{margin:4px 0 8px 18px}}
+    </style>
+    <div class=card>
+      <h2>Brand &amp; model fixes <span class=mut>· rename mislabeled wheels</span></h2>
+      <p class=hint>Fix wheels the app mislabels (e.g. a Leaperkim/Veteran reported as KingSong). Pick the
+      reported values to match and the correct value to set; an <b>app ≤</b> cutoff limits it to old
+      builds (blank = always). New uploads are corrected automatically; <b>Apply</b> rewrites existing
+      wheels (after auto-snapshotting the dataset, so you can switch back).</p>
+      {rules_html}
+      <form method=post action="/admin/wheels/name-rule/add" class=nfadd>
+        <span>If</span>
+        <select name=m_brand><option value="">(any brand)</option>{bopts}</select>
+        <select name=m_model><option value="">(any model)</option>{mopts}</select>
+        <select name=max_app_version><option value="">(all versions)</option>{vopts}</select>
+        <span><b>⇒</b> set</span>
+        <select name=set_brand_sel class=nfsel><option value="">— keep brand —</option>{bopts}<option value="__new__">— new brand… —</option></select>
+        <input name=set_brand_new class=nfnew placeholder="new brand">
+        <select name=set_model_sel class=nfsel><option value="">— keep model —</option>{mopts}<option value="__new__">— new model… —</option></select>
+        <input name=set_model_new class=nfnew placeholder="new model">
+        <button class=mini>{_IC['check']} Add fix</button>
+      </form>
+      {pending}
+    </div>
+    <script>
+    document.addEventListener('change', function(ev){{
+      var s=ev.target.closest('.nfsel'); if(!s) return;
+      var inp=s.nextElementSibling;
+      if(inp && inp.classList.contains('nfnew')){{ inp.style.display = (s.value==='__new__') ? 'inline-block' : 'none'; }}
+    }});
+    </script>"""
+
+
 def _wheels_html(db: Session, msg: str = "") -> str:
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
     {banner}
     <h1>Wheels &amp; data quality</h1>
-    <p class=sub>Every brand/model that has reported data, with per-model rules to ignore a bad channel
-    (e.g. a model reporting wrong voltage) and an inline min/avg/max view to spot it.</p>
+    <p class=sub>Every brand/model that has reported data. Fix wrong <b>names</b> (brand/model) below, or
+    ignore bad <b>numbers</b> (metrics) per model further down.</p>
+    {_name_fix_card(db)}
     {_wheel_quality_card(db)}"""
     return _ds_page(inner, "/admin/wheels")
 
@@ -1446,6 +1525,52 @@ def wheels_ranges(request: Request, brand: str = "", model: str = "", cutoff: st
         return HTMLResponse("", status_code=401)
     stats = settings.wheel_metric_stats(db, brand, model, cutoff.strip() or None)
     return HTMLResponse(_wheel_ranges_fragment(stats, settings.WHEEL_METRICS))
+
+
+@admin_router.post("/wheels/name-rule/add")
+def wheels_name_rule_add(request: Request, db: Session = Depends(get_db),
+                         m_brand: str = Form(""), m_model: str = Form(""), max_app_version: str = Form(""),
+                         set_brand_sel: str = Form(""), set_brand_new: str = Form(""),
+                         set_model_sel: str = Form(""), set_model_new: str = Form("")):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    resolve = lambda sel, new: (new.strip() if sel == "__new__" else sel.strip())
+    sb, sm = resolve(set_brand_sel, set_brand_new), resolve(set_model_sel, set_model_new)
+    if not (sb or sm):
+        return RedirectResponse("/admin/wheels?msg=" + quote("nothing to set — rule ignored"), status_code=303)
+    rules = settings.get_name_rules(db)
+    rules.append({"m_brand": m_brand.strip(), "m_model": m_model.strip(),
+                  "max_app_version": max_app_version.strip(), "set_brand": sb, "set_model": sm})
+    settings.set_name_rules(db, rules)
+    audit.log("name_rule_add", f"match[{m_brand}/{m_model} <= {max_app_version}] set[{sb}/{sm}]")
+    return RedirectResponse("/admin/wheels?msg=" + quote("name fix added — review & Apply"), status_code=303)
+
+
+@admin_router.post("/wheels/name-rule/remove")
+def wheels_name_rule_remove(request: Request, idx: int = Form(-1), db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    rules = settings.get_name_rules(db)
+    if 0 <= idx < len(rules):
+        rules.pop(idx)
+        settings.set_name_rules(db, rules)
+    return RedirectResponse("/admin/wheels?msg=" + quote("name fix removed"), status_code=303)
+
+
+@admin_router.post("/wheels/name-apply")
+def wheels_name_apply(request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    try:                                            # safety net: snapshot before a destructive rewrite
+        from services import datasets
+        datasets.save_current(datasets._timestamped("pre-namefix"),
+                              note="auto backup before brand/model fixes", origin="pre-edit")
+    except Exception:
+        pass
+    changes = settings.apply_name_fixes(db)
+    audit.log("name_fix_apply", f"{len(changes)} wheels")
+    return RedirectResponse("/admin/wheels?msg=" + quote(f"renamed {len(changes)} wheel(s) — snapshot saved"),
+                            status_code=303)
 
 
 @admin_router.post("/wheel-quality")

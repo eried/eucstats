@@ -182,7 +182,7 @@ class IngestService:
 
         wheel = meta.get("wheel") or {}
         wid = wheel.get("serial") or wheel.get("ble_mac")
-        self._register_wheel(store, wheel, wid)
+        self._register_wheel(store, wheel, wid, meta.get("app_version"))
 
         try:
             trip = self.trips.insert_trip(
@@ -234,15 +234,17 @@ class IngestService:
                 "verdict": _verdict(status), "reasons": reasons, "duplicate": False,
                 "distance_km": round(sm.distance_km, 3), "country": country}
 
-    def _register_wheel(self, store, wheel: dict, wid):
+    def _register_wheel(self, store, wheel: dict, wid, app_version=None):
         if not wid:
             return
         w = self.db.get(Wheel, wid)
         if w is None:
+            import services.settings as settings   # canonicalize a mislabeled brand/model on the way in
+            brand, model = settings.canonicalize_name(
+                wheel.get("brand"), wheel.get("model"), app_version, settings.get_name_rules(self.db))
             self.db.add(Wheel(
-                wheel_id=wid, rider_store_id=store, brand=wheel.get("brand"),
-                model=wheel.get("model"), ble_name=wheel.get("ble_name"),
-                firmware=wheel.get("firmware"),
+                wheel_id=wid, rider_store_id=store, brand=brand, model=model,
+                ble_name=wheel.get("ble_name"), firmware=wheel.get("firmware"),
             ))
         else:
             w.last_seen = utcnow()

@@ -87,6 +87,86 @@ def suppressed_fields(brand, model, app_version, rules) -> set:
     return out
 
 
+# --- name canonicalization rules (fix mislabeled brand/model, e.g. Veteran -> Leaperkim) ----
+# Same shape as the metric rules but the action is "rename" not "ignore": match a (brand/model)
+# optionally bounded by app_version <= cutoff, and overwrite brand/model with canonical values.
+# Applied at ingest (new uploads) and as a one-time batch over existing wheels.
+
+def get_name_rules(db: Session) -> list[dict]:
+    raw = get_meta(db, "wheel_name_rules", None)
+    try:
+        rules = json.loads(raw) if raw else []
+    except Exception:
+        rules = []
+    return rules if isinstance(rules, list) else []
+
+
+def set_name_rules(db: Session, rules) -> None:
+    clean = []
+    for r in rules or []:
+        sb, sm = (r.get("set_brand") or "").strip(), (r.get("set_model") or "").strip()
+        if not (sb or sm):
+            continue                              # a rule must set at least one field
+        clean.append({"m_brand": (r.get("m_brand") or "").strip(),
+                      "m_model": (r.get("m_model") or "").strip(),
+                      "max_app_version": (r.get("max_app_version") or "").strip(),
+                      "set_brand": sb, "set_model": sm})
+    set_meta(db, "wheel_name_rules", json.dumps(clean))
+
+
+def canonicalize_name(brand, model, app_version, rules) -> tuple:
+    """(brand, model) reported by app_version -> corrected (brand, model). A rule matches when its
+    (optional) brand/model equal the reported values and app_version is within its cutoff; matched
+    rules overwrite brand/model with their set_* values."""
+    nb, nm = brand, model
+    for r in rules:
+        if r.get("m_brand") and r["m_brand"] != brand:
+            continue
+        if r.get("m_model") and r["m_model"] != model:
+            continue
+        cut = r.get("max_app_version")
+        if cut and not _app_ver_le(app_version, cut):
+            continue
+        if r.get("set_brand"):
+            nb = r["set_brand"]
+        if r.get("set_model"):
+            nm = r["set_model"]
+    return nb, nm
+
+
+def name_fix_changes(db: Session, rules=None) -> list[dict]:
+    """Existing wheels whose stored brand/model the rules would change. A cutoff is judged by each
+    wheel's FIRST report's app_version (the report that set the stored name)."""
+    rules = get_name_rules(db) if rules is None else rules
+    if not rules:
+        return []
+    from models import Trip, Wheel
+    first_ver: dict = {}
+    for wid, ver in db.query(Trip.wheel_id, Trip.app_version).order_by(Trip.created_at).all():
+        first_ver.setdefault(wid, ver)
+    out = []
+    for w in db.query(Wheel).all():
+        nb, nm = canonicalize_name(w.brand, w.model, first_ver.get(w.wheel_id), rules)
+        if (nb, nm) != (w.brand, w.model):
+            out.append({"wheel_id": w.wheel_id, "brand": w.brand, "model": w.model,
+                        "new_brand": nb, "new_model": nm})
+    return out
+
+
+def apply_name_fixes(db: Session, rules=None) -> list[dict]:
+    """Rewrite existing wheels' brand/model per the rules; returns the changes made. The caller
+    snapshots the dataset first (this is a destructive write)."""
+    from models import Wheel
+    changes = name_fix_changes(db, rules)
+    for c in changes:
+        w = db.get(Wheel, c["wheel_id"])
+        if w:
+            w.brand, w.model = c["new_brand"], c["new_model"]
+    if changes:
+        db.commit()
+    return changes
+
+
 def blocked_trip_uuids(db: Session, rules=None) -> dict:
     """{metric: set(trip_uuid)} for live-Trip queries (group standings, gated boards):
     which trips must have each metric ignored. Empty sets when there are no rules."""
