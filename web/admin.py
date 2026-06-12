@@ -227,6 +227,16 @@ pre.j{background:#0b1124;border:1px solid #1d2945;border-radius:9px;padding:11px
 code{background:#0b1124;border:1px solid #26345e;padding:3px 8px;border-radius:6px;color:#ffd24a;font-size:12px;word-break:break-all}
 .codein{font-size:20px;letter-spacing:6px;text-align:center;width:180px}
 .qa{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+/* phones: stack the header so the nav becomes a tidy scrollable strip under the
+   brand, instead of 8 tabs wrapping into a tall column beside it */
+@media(max-width:640px){
+  header.bar{flex-wrap:wrap;gap:8px 10px;padding:10px 12px}
+  .brand{flex:1 1 auto;font-size:13px}
+  header.bar>form{flex:0 0 auto}
+  nav.tabs2{order:3;flex-basis:100%;flex-wrap:nowrap;overflow-x:auto;gap:5px;padding-bottom:3px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  nav.tabs2::-webkit-scrollbar{height:5px}nav.tabs2::-webkit-scrollbar-thumb{background:#26345e;border-radius:3px}
+  nav.tabs2 a{flex:0 0 auto;white-space:nowrap}
+}
 </style>"""
 
 
@@ -295,7 +305,7 @@ def _dash_html(db: Session) -> str:
         f"<td>{html.escape(', '.join(t.flag_reasons or []))}</td><td>"
         f"<form method=post action=/admin/trip/{t.trip_uuid}/approve style='display:inline-flex;margin-right:6px'><button class=mini>{_IC['check']} approve</button></form>"
         f"<form method=post action=/admin/trip/{t.trip_uuid}/reject style='display:inline-flex'><button class='mini danger'>{_IC['x']} reject</button></form>"
-        f"</td></tr>" for t in flagged) or "<tr><td colspan=5 class=mut>nothing flagged — queue is clear</td></tr>"
+        f"</td></tr>" for t in flagged) or "<tr><td colspan=5 class=mut>nothing flagged, queue is clear</td></tr>"
 
     riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(30).all()
     bset = set(settings.banned(db))          # fetched once; reused per row (no N+1)
@@ -316,7 +326,7 @@ def _dash_html(db: Session) -> str:
 
     inner = f"""
     <h1>Overview</h1>
-    <p class=sub>Site banner: {'<span class="b test">ON</span>' if cur_test else '<span class="b live">OFF</span>'} &nbsp;{'— a red banner is showing across the public site' if cur_test else '— clean public site, no banner'} &nbsp;·&nbsp; <a href="/admin/appearance">change in Appearance</a></p>
+    <p class=sub>Site banner: {'<span class="b test">ON</span>' if cur_test else '<span class="b live">OFF</span>'} &nbsp;{'a red banner is showing across the public site' if cur_test else 'clean public site, no banner'} &nbsp;·&nbsp; <a href="/admin/appearance">change in Appearance</a></p>
     <div class=card><div class=kpi>{kpis}</div></div>
     <div class=card>
       <h2>Quick actions</h2>
@@ -329,7 +339,7 @@ def _dash_html(db: Session) -> str:
       </div>
     </div>
     <div class=card>
-      <h2>Flagged trips — review queue</h2>
+      <h2>Flagged trips, review queue</h2>
       <p class=hint>Trips held back by plausibility checks. Approve to count them toward leaderboards, or reject to drop them.</p>
       <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>distance</th><th>reasons</th><th>action</th></tr>{fhtml}</table></div>
     </div>
@@ -414,7 +424,7 @@ def reject_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db))
 
 # --- data explorer (riders & trips) -------------------------------------
 # Read-only views over data we already store (plus ban controls). No new data
-# is collected — this just surfaces what's in the active dataset for moderation.
+# is collected, this just surfaces what's in the active dataset for moderation.
 
 def _fmt_dt(dt) -> str:
     return dt.strftime("%Y-%m-%d %H:%M") if dt else "—"
@@ -490,7 +500,7 @@ def _explorer_html(db: Session, q: str = "", page: int = 1) -> str:
     bset = set(bn)
     body = "".join(_rider_row(db, r, rs, bset) for r, rs in rows) or \
         f"<tr><td colspan=6 class=mut>no riders{' match' if q else ''}</td></tr>"
-    banned_note = (f'<p class=hint>{len(bn)} rider(s) currently banned — excluded from public stats.</p>'
+    banned_note = (f'<p class=hint>{len(bn)} rider(s) currently banned, excluded from public stats.</p>'
                    if bn else "")
     qs = ("q=" + quote(q)) if q else ""
     lo = (page - 1) * PAGE_SIZE + (1 if rows else 0)
@@ -587,7 +597,7 @@ def _rider_detail_html(db: Session, store_id: str, msg: str = "") -> str | None:
       <table><tr><th>id</th><th>start (UTC)</th><th>km</th><th>max km/h</th><th>country</th><th>status</th></tr>{thtml}</table></div>
     <div class=card style="border-color:rgba(255,107,107,.4)">
       <h2 style="color:#ff9d9d">Danger zone</h2>
-      <p class=hint>Permanently delete this rider and ALL their data — trips, GPS tracks, raw uploads, wheels and stats. Irreversible.
+      <p class=hint>Permanently delete this rider and ALL their data, trips, GPS tracks, raw uploads, wheels and stats. Irreversible.
       (A rider closing their own account in the app keeps their portal presence; only this removes it.)</p>
       <form class=banbar method=post action="/admin/rider/{html.escape(store_id)}/delete"
             onsubmit="return confirm('Permanently delete this rider and all their data? This cannot be undone.')">
@@ -647,7 +657,7 @@ _TRIP_MAP_TMPL = """
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <div class=card><h2>Route <span class=mut>· admin view · exact GPS path</span></h2>
       <div id=tmap style="height:360px;border-radius:10px;overflow:hidden;border:1px solid #26345e"></div>
-      <p class=hint>Green = start, red = end. Full downsampled GPS path (admin only — public maps obfuscate rider locations).</p></div>
+      <p class=hint>Green = start, red = end. Full downsampled GPS path (admin only, public maps obfuscate rider locations).</p></div>
     <script>
     (function(){
       if(!window.maplibregl){return;}
@@ -800,7 +810,7 @@ def explorer_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db
 
 @admin_router.get("/explorer/trip/{trip_uuid}/track.geojson")
 def explorer_trip_track(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
-    """The trip's downsampled GPS path as GeoJSON (admin only — exact coords)."""
+    """The trip's downsampled GPS path as GeoJSON (admin only, exact coords)."""
     if not _is_authenticated(request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     from ingest.downsample import decode_track
@@ -839,7 +849,7 @@ def ban_rider(store_id: str, request: Request, db: Session = Depends(get_db), re
     rebuild_all(db)   # drop the banned rider from all materialized public stats
     audit.log("ban", f"rider={store_id} reason={(reason or '').strip()[:80]}")
     return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
-                            quote("rider banned — removed from public stats"), status_code=303)
+                            quote("rider banned, removed from public stats"), status_code=303)
 
 
 @admin_router.post("/rider/{store_id}/unban")
@@ -851,7 +861,7 @@ def unban_rider(store_id: str, request: Request, db: Session = Depends(get_db)):
     rebuild_all(db)   # restore their trips to public stats
     audit.log("unban", f"rider={store_id}")
     return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
-                            quote("ban lifted — rider restored to public stats"), status_code=303)
+                            quote("ban lifted, rider restored to public stats"), status_code=303)
 
 
 @admin_router.post("/rider/{store_id}/delete")
@@ -864,7 +874,7 @@ def delete_rider(store_id: str, request: Request, db: Session = Depends(get_db),
     expected = (r.display_name or store_id).strip()
     if (confirm or "").strip() not in (expected, store_id):
         return RedirectResponse("/admin/explorer/rider/" + quote(store_id) + "?msg=" +
-                                quote("name did not match — not deleted"), status_code=303)
+                                quote("name did not match, not deleted"), status_code=303)
     from services.identity import purge_rider
     purge_rider(db, store_id)
     audit.log("delete_rider", f"rider={store_id} name={expected[:60]}")
@@ -917,7 +927,7 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
         riders = d["riders"] if d["riders"] is not None else "?"
         trips = d["trips"] if d["trips"] is not None else "?"
         live = " <span class=mut>· live</span>" if d.get("live") else ""
-        # the active dataset can't be deleted (the live DB runs off it) — keep the same controls,
+        # the active dataset can't be deleted (the live DB runs off it), keep the same controls,
         # just disable the input + button on that row
         dis = " disabled" if is_active else ""
         del_cell = (f'<form method=post action="/admin/datasets/delete"><input type=hidden name=slug value="{d["slug"]}">'
@@ -967,7 +977,7 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
     <h2>Saved datasets</h2>
     <table><tr><th>name</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
     <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
-    current dataset (unless it's empty), then reconnects instantly — no restart, no downtime.</p>
+    current dataset (unless it's empty), then reconnects instantly, no restart, no downtime.</p>
     {_retention_card(db)}
     """
     return _ds_page(inner, "/admin/datasets")
@@ -1047,7 +1057,7 @@ def datasets_delete(request: Request, slug: str = Form(...), confirm: str = Form
     if not entry:
         return _redir(err="unknown dataset")
     if (confirm or "").strip() != entry["name"]:
-        return _redir(err="confirmation name did not match — nothing deleted")
+        return _redir(err="confirmation name did not match, nothing deleted")
     try:
         datasets.delete(slug)
     except datasets.DatasetError as e:
@@ -1064,7 +1074,7 @@ def datasets_switch(request: Request, slug: str = Form(...), confirm: str = Form
     if not entry:
         return _redir(err="unknown dataset")
     if (confirm or "").strip() != entry["name"]:
-        return _redir(err="confirmation name did not match — no switch")
+        return _redir(err="confirmation name did not match, no switch")
     try:
         datasets.switch_to(slug, reload_app=_reload_app)
     except datasets.DatasetError as e:
@@ -1093,7 +1103,7 @@ _PIPELINE_CALC_JS = """
     (function(){
       function mph(v){return (v*0.621371).toFixed(0)+' mph';}
       var CALC = {
-        max_kmh:function(v){return mph(v)+' — wheel-speed ceiling';},
+        max_kmh:function(v){return mph(v)+', wheel-speed ceiling';},
         max_g:function(v){return (v*9.81).toFixed(0)+' m/s², '+v+'× gravity';},
         teleport_kmh:function(v){return (v/3.6).toFixed(0)+' m/s between GPS fixes';},
         teleport_max_jumps:function(v){return v+' noisy GPS jumps tolerated before flagging';},
@@ -1187,7 +1197,7 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         params = rest[0] if rest else []
         on = k not in disabled
         pin = ("".join(_thr_input(p) for p in params) if params
-               else '<span class=nopar>no tunable parameters — on/off only</span>')
+               else '<span class=nopar>no tunable parameters, on/off only</span>')
         rule_blocks += (
             f'<div class="rblock{"" if on else " off"}">'
             f'<label class=rhead><input type=checkbox name=rule value="{k}"{" checked" if on else ""}>'
@@ -1210,7 +1220,7 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     rules_card = f"""
     <div class=card>
       <h2>Anti-fraud rules <span class=mut>· what we check on every upload</span></h2>
-      <p class=hint>Each rule can be turned off independently — unticking <b>skips that check entirely</b>
+      <p class=hint>Each rule can be turned off independently, unticking <b>skips that check entirely</b>
       (its thresholds below then do nothing). Two rules are pure on/off (no parameters); the rest expose the
       exact limits they use. Rules run at ingest, so changes apply to <b>new</b> uploads.</p>
       <form method=post action="/admin/pipeline/rules">
@@ -1218,10 +1228,10 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         <h2 style="margin-top:18px">Telemetry calibration <span class=mut>· physics limits used to summarize every trip</span></h2>
         <p class=hint>The acceleration cap defines the <b>realistic</b> top speed and what counts as a <b>freespin</b>
         spike; the sustained window is how long power / current / g-force must hold to count as a record.
-        <b>Applies to new uploads only</b> — already-ingested trips keep their stored values.</p>
+        <b>Applies to new uploads only</b>, already-ingested trips keep their stored values.</p>
         <div class=calgrid>{cal_inputs}</div>
         <h2 style="margin-top:18px">Rate limits <span class=mut>· flood protection (per hour; 0 = off)</span></h2>
-        <p class=hint>New accounts are capped <b>per IP</b> (pre-account there's no other signal — note shared
+        <p class=hint>New accounts are capped <b>per IP</b> (pre-account there's no other signal, note shared
         carriers/VPNs share an IP, so keep it generous). Uploads are capped <b>per rider</b> and <b>per IP</b>.
         Over the cap returns HTTP 429.</p>
         <div class=calgrid>{rl_inputs}</div>
@@ -1252,10 +1262,10 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
     {rules_card}
     {reprocess_card}
     <div class=card>
-      <h2>Status — {total} trips total</h2>
+      <h2>Status, {total} trips total</h2>
       <p>{chips}</p>
       <p class=mut>Attestation: <b>{html.escape(config.ATTESTATION_MODE)}</b>
-      ({'accepting all uploads, no verification' if config.ATTESTATION_MODE == 'stub' else 'requires an attestation token — presence only, not yet cryptographically verified'})
+      ({'accepting all uploads, no verification' if config.ATTESTATION_MODE == 'stub' else 'requires an attestation token, presence only, not yet cryptographically verified'})
       · package <b>{html.escape(config.ANDROID_PACKAGE)}</b></p>
       <form method=post action="/admin/allowlist" style="margin-top:12px">
         <label class=toggle style="display:inline-flex"><input type=checkbox name=enabled value=1{' checked' if allow['enabled'] else ''}> Restrict uploads to an allowlist</label>
@@ -1269,7 +1279,7 @@ def _pipeline_html(db: Session, msg: str = "") -> str:
         <button class="ghost mini">↻ Rebuild stats</button></form>
     </div>
     <div class=card>
-      <h2>Ingest — last 14 days</h2>
+      <h2>Ingest, last 14 days</h2>
       {bars}
     </div>
     <div class=card>
@@ -1302,7 +1312,7 @@ def _wheel_quality_card(db: Session) -> str:
             seenv = [v for v in e["versions"] if v != "?"]
             if cut and cut not in seenv:                       # keep a saved cutoff visible
                 seenv.append(cut)
-            cutopts = '<option value="">(whole model — all versions)</option>' + "".join(
+            cutopts = '<option value="">(whole model, all versions)</option>' + "".join(
                 f'<option value="{html.escape(v)}"{" selected" if v == cut else ""}>{html.escape(v)}</option>'
                 for v in sorted(seenv, key=settings._ver_tuple))
             hdr = "<th class=wql></th>" + "".join(f'<th title="{prim[m]}">{m}</th>' for m in metrics)
@@ -1359,12 +1369,9 @@ def _wheel_quality_card(db: Session) -> str:
     </style>
     <div class=card>
       <h2>Wheel data quality <span class=mut>· ignore bad channels per model</span></h2>
-      <p class=hint>If a wheel model reports a bad value (e.g. wrong voltage), tick the affected
-      <b>metric columns</b> — they're dropped from every leaderboard &amp; record for that model, while
-      distance/speed/etc. stay. <b>app_version ≤</b> invalidates only old app builds (blank = the whole
-      model). <b>Voltage and power are linked</b> (power = volts × amps). Applied rules are locked — press
-      <b>Edit</b> to change one (it loads each channel's min/avg/max for trips ≤ the selected version so
-      you can spot the bad one) or <b>Undo</b> to cancel. Saving rebuilds stats.</p>
+      <p class=hint>If a model reports a bad channel (e.g. wrong voltage), tick those metric columns to drop
+      them from leaderboards and records for that model. <b>app_version ≤</b> limits it to old builds (blank =
+      all). Voltage and power are linked (power = volts × amps). Saving rebuilds stats.</p>
       {body}
     </div>
     <script>
@@ -1450,10 +1457,9 @@ def _name_fix_card(db: Session) -> str:
     </style>
     <div class=card>
       <h2>Brand &amp; model fixes <span class=mut>· rename mislabeled wheels</span></h2>
-      <p class=hint>Fix wheels the app mislabels (e.g. a Leaperkim/Veteran reported as KingSong). Pick the
-      reported values to match and the correct value to set; an <b>app ≤</b> cutoff limits it to old
-      builds (blank = always). New uploads are corrected automatically; <b>Apply</b> rewrites existing
-      wheels (after auto-snapshotting the dataset, so you can switch back).</p>
+      <p class=hint>Rename wheels the app mislabels (e.g. Leaperkim/Veteran reported as KingSong). Match the
+      reported values, set the correct ones. <b>app ≤</b> limits it to old builds (blank = always).
+      <b>Apply</b> rewrites existing wheels (the dataset is snapshotted first, so you can revert).</p>
       {rules_html}
       <form method=post action="/admin/wheels/name-rule/add" class=nfadd>
         <span>If</span>
@@ -1461,9 +1467,9 @@ def _name_fix_card(db: Session) -> str:
         <select name=m_model><option value="">(any model)</option>{mopts}</select>
         <select name=max_app_version><option value="">(all versions)</option>{vopts}</select>
         <span><b>⇒</b> set</span>
-        <select name=set_brand_sel class=nfsel><option value="">— keep brand —</option>{bopts}<option value="__new__">— new brand… —</option></select>
+        <select name=set_brand_sel class=nfsel><option value="">keep brand</option>{bopts}<option value="__new__">new brand…</option></select>
         <input name=set_brand_new class=nfnew placeholder="new brand">
-        <select name=set_model_sel class=nfsel><option value="">— keep model —</option>{mopts}<option value="__new__">— new model… —</option></select>
+        <select name=set_model_sel class=nfsel><option value="">keep model</option>{mopts}<option value="__new__">new model…</option></select>
         <input name=set_model_new class=nfnew placeholder="new model">
         <button class=mini>{_IC['check']} Add fix</button>
       </form>
@@ -1537,13 +1543,13 @@ def wheels_name_rule_add(request: Request, db: Session = Depends(get_db),
     resolve = lambda sel, new: (new.strip() if sel == "__new__" else sel.strip())
     sb, sm = resolve(set_brand_sel, set_brand_new), resolve(set_model_sel, set_model_new)
     if not (sb or sm):
-        return RedirectResponse("/admin/wheels?msg=" + quote("nothing to set — rule ignored"), status_code=303)
+        return RedirectResponse("/admin/wheels?msg=" + quote("nothing to set, rule ignored"), status_code=303)
     rules = settings.get_name_rules(db)
     rules.append({"m_brand": m_brand.strip(), "m_model": m_model.strip(),
                   "max_app_version": max_app_version.strip(), "set_brand": sb, "set_model": sm})
     settings.set_name_rules(db, rules)
     audit.log("name_rule_add", f"match[{m_brand}/{m_model} <= {max_app_version}] set[{sb}/{sm}]")
-    return RedirectResponse("/admin/wheels?msg=" + quote("name fix added — review & Apply"), status_code=303)
+    return RedirectResponse("/admin/wheels?msg=" + quote("name fix added, review & Apply"), status_code=303)
 
 
 @admin_router.post("/wheels/name-rule/remove")
@@ -1569,7 +1575,7 @@ def wheels_name_apply(request: Request, db: Session = Depends(get_db)):
         pass
     changes = settings.apply_name_fixes(db)
     audit.log("name_fix_apply", f"{len(changes)} wheels")
-    return RedirectResponse("/admin/wheels?msg=" + quote(f"renamed {len(changes)} wheel(s) — snapshot saved"),
+    return RedirectResponse("/admin/wheels?msg=" + quote(f"renamed {len(changes)} wheel(s), snapshot saved"),
                             status_code=303)
 
 
@@ -1590,7 +1596,7 @@ def wheel_quality_save(request: Request, db: Session = Depends(get_db),
     n = rebuild_all(db)                                          # recompute rider boards + records
     audit.log("wheel_quality_save", f"{brand}/{model} metrics={','.join(mets) or 'none'} cutoff={cutoff or '*'}")
     note = (f"{brand} {model}: " + (f"ignoring {', '.join(mets)}" if mets else "rule cleared")
-            + (f" (app ≤ {cutoff})" if (mets and cutoff.strip()) else "") + f" — rebuilt {n} trips")
+            + (f" (app ≤ {cutoff})" if (mets and cutoff.strip()) else "") + f", rebuilt {n} trips")
     return RedirectResponse("/admin/wheels?msg=" + quote(note), status_code=303)
 
 
@@ -1633,7 +1639,7 @@ async def pipeline_rules_save(request: Request, db: Session = Depends(get_db)):
     settings.set_rate_limits(db, {key: form.get("rl_" + key) for key, *_ in settings.RATE_LIMITS})
     off = len(settings.pipeline_disabled(db))
     audit.log("rules_save", f"{len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} rules active")
-    note = f"rules saved — {len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} active"
+    note = f"rules saved, {len(settings.PIPELINE_RULES) - off}/{len(settings.PIPELINE_RULES)} active"
     return RedirectResponse("/admin/ingest?msg=" + quote(note), status_code=303)
 
 
@@ -1644,7 +1650,7 @@ def allowlist_save(request: Request, db: Session = Depends(get_db),
         return RedirectResponse("/admin", status_code=303)
     id_list = [s.strip() for s in ids.replace("\n", ",").replace(";", ",").split(",") if s.strip()]
     settings.set_ingest_allow(db, bool(enabled), id_list)
-    state = f"on ({len(id_list)} id{'s' if len(id_list) != 1 else ''})" if enabled else "off — open to all"
+    state = f"on ({len(id_list)} id{'s' if len(id_list) != 1 else ''})" if enabled else "off, open to all"
     audit.log("allowlist", state)
     return RedirectResponse("/admin/ingest?msg=" + quote("allowlist " + state), status_code=303)
 
@@ -1709,10 +1715,7 @@ def _metrics_section(db: Session) -> str:
     return f"""
     <div class=card>
       <h2>Metric visibility</h2>
-      <p class=hint>Tick = shown on the public site. The section header ticks or unticks every metric under it
-      at once; a section only disappears from the site when all of its metrics are off. Countries / Wheels /
-      Brands are independent now. Live on save. (When you visit the site logged in here, hidden metrics still
-      show, dimmed, so you can sanity-check the numbers.)</p>
+      <p class=hint>Untick to hide a metric from the public site. Hidden metrics are still processed, just not shown.</p>
       <form method=post action="/admin/metrics/save">
         <div class=mtree2>{tree}</div>
         <button>{_IC['check']} Save visibility</button>
@@ -1746,7 +1749,7 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
     audit.log("metrics_save", "hidden boards=%d app=%d rec=%d grp c/w/b=%d/%d/%d" % (
         len(hidden_boards), len(hidden_app), len(hidden_records),
         len(groups["countries"]), len(groups["wheels"]), len(groups["brands"])))
-    return RedirectResponse("/admin/appearance?msg=" + quote("visibility saved — live now"),
+    return RedirectResponse("/admin/appearance?msg=" + quote("visibility saved, live now"),
                             status_code=303)
 
 
@@ -1762,22 +1765,22 @@ def _appearance_html(db: Session, msg: str = "") -> str:
         for s in settings.MAP_STYLES)
     intensity_opts = "".join(
         f'<option value="{i}"{" selected" if b["glitch_intensity"] == i else ""}>{lbl}</option>'
-        for i, lbl in ((1, "1 — subtle"), (2, "2 — light"), (3, "3 — medium"),
-                       (4, "4 — strong"), (5, "5 — heavy")))
+        for i, lbl in ((1, "1, subtle"), (2, "2, light"), (3, "3, medium"),
+                       (4, "4, strong"), (5, "5, heavy")))
     ck = lambda v: " checked" if v else ""
     inner = f"""
     {banner}
     <h1>Public site</h1>
-    <p class=sub>Everything visitors see — which metrics show, the activity heatmap, the look of the map,
+    <p class=sub>Everything visitors see, which metrics show, the activity heatmap, the look of the map,
     the intro and the site banner. Changes apply on the next page load.</p>
     {_metrics_section(db)}
     {_heatmap_card(db)}
     <form method=post action="/admin/settings/save">
       <div class=card>
         <h2>Site banner</h2>
-        <p class=hint>Shows a big red banner across the whole public site — use it to flag a testing / in-development phase. Site-wide, independent of the active dataset.</p>
+        <p class=hint>Shows a big red banner across the whole public site, use it to flag a testing / in-development phase. Site-wide, independent of the active dataset.</p>
         <label class=toggle style="display:inline-flex"><input type=checkbox name=test_enabled value=1{ck(tm['enabled'])}> Show the red banner on the site</label>
-        <p class=hint style="margin:12px 0 4px">Banner text (anything you like — e.g. TEST DATA, BETA, SHAKEDOWN):</p>
+        <p class=hint style="margin:12px 0 4px">Banner text (anything you like, e.g. TEST DATA, BETA, SHAKEDOWN):</p>
         <input type=text name=test_text value="{html.escape(tm['text'])}" placeholder="TEST DATA" style="width:min(300px,100%)">
       </div>
       <div class=card>
@@ -1831,7 +1834,7 @@ def settings_save(request: Request, db: Session = Depends(get_db),
     settings.set_behaviour(db, poll_secs, bool(intro_enabled), intro_src, map_style,
                            bool(glitch_enabled), glitch_secs, glitch_intensity)
     audit.log("settings_save", f"banner={'on' if test_enabled else 'off'} map={map_style}")
-    return RedirectResponse("/admin/appearance?msg=" + quote("appearance saved — live on next page load"),
+    return RedirectResponse("/admin/appearance?msg=" + quote("appearance saved, live on next page load"),
                             status_code=303)
 
 
@@ -1908,7 +1911,7 @@ def _sandbox_card() -> str:
     <div class=card>
       <h2>Sandbox test responses <span class=mut>· for Android QA</span></h2>
       <p class=hint>When ON, set a rider's <code>store_id</code> to one of these magic values to get that exact
-      response from <code>POST /api/v1/riders</code> and <code>POST /api/v1/trips</code> — like Stripe test cards.
+      response from <code>POST /api/v1/riders</code> and <code>POST /api/v1/trips</code>, like Stripe test cards.
       They never collide with real riders (those are UUIDs). <b>Turn OFF for production.</b> Copy this table for the testing agent:</p>
       <form method=post action="/admin/sandbox">
         <label class=toggle style="display:inline-flex"><input type=checkbox name=sandbox_enabled value=1{ck}> Enable simulated users</label>
@@ -1925,7 +1928,7 @@ def _audit_card() -> str:
     return f"""
     <div class=card>
       <h2>Audit log</h2>
-      <p class=hint>Append-only record of admin actions, read from <code>data/audit.log</code> — a flat file,
+      <p class=hint>Append-only record of admin actions, read from <code>data/audit.log</code>, a flat file,
       not stored in any dataset, so it survives dataset switches. Newest first; last 400 lines.</p>
       <pre class=j style="max-height:420px">{body}</pre>
     </div>"""
@@ -1958,10 +1961,10 @@ def _telegram_card() -> str:
       <h2>Telegram bot</h2>
       <p class=hint>Posts to your Telegram group/topic when a new rider joins, when a rider logs their
       first ride, and once a day as a summary. The token is stored server-side in
-      <code>data/telegram.json</code> (gitignored — never in the dataset or its exports). Leave the token
+      <code>data/telegram.json</code> (gitignored, never in the dataset or its exports). Leave the token
       blank to keep the current one. <b>Send test</b> works even while disabled.</p>
       <form method=post action="/admin/telegram">
-        <p><label><input type=checkbox name=enabled{ck(cfg['enabled'])}> <b>Enabled</b> — master switch (off = nothing auto-posts)</label></p>
+        <p><label><input type=checkbox name=enabled{ck(cfg['enabled'])}> <b>Enabled</b>, master switch (off = nothing auto-posts)</label></p>
         <div class=calgrid>
           <label class=thr>Bot token <span class=mut>· currently {tok}</span>
             <input type=password name=token placeholder="leave blank to keep" autocomplete=off></label>
@@ -1977,7 +1980,7 @@ def _telegram_card() -> str:
           <label><input type=checkbox name=first_ride{ck(cfg['first_ride'])}> first ride</label> &nbsp;
           <label><input type=checkbox name=summary_enabled{ck(cfg['summary_enabled'])}> daily summary</label>
         </p>
-        <p style="margin-top:8px"><b>First place takeover</b> — announce when #1 changes: &nbsp;
+        <p style="margin-top:8px"><b>First place takeover</b>, announce when #1 changes: &nbsp;
           <label><input type=checkbox name=tk_rider{ck(cfg['tk_rider'])}> rider</label> &nbsp;
           <label><input type=checkbox name=tk_country{ck(cfg['tk_country'])}> country</label> &nbsp;
           <label><input type=checkbox name=tk_wheel{ck(cfg['tk_wheel'])}> wheel</label> &nbsp;
@@ -2004,7 +2007,7 @@ def _retention_card(db: Session) -> str:
     return f"""
     <div class=card>
       <h2>Data retention</h2>
-      <p class=hint>Only the original uploaded files (raw blobs) are ever evicted — trip summaries, GPS tracks,
+      <p class=hint>Only the original uploaded files (raw blobs) are ever evicted, trip summaries, GPS tracks,
       leaderboards and the map are kept permanently.</p>
       <form method=post action="/admin/system/save">
         <p><label>Keep raw uploads for
@@ -2074,7 +2077,7 @@ def _heatmap_card(db: Session) -> str:
       <p class=hint>How rides are drawn on the map. The mental model: each ride is snapped onto grid
       <b>squares</b>; a glow's <b>size grows as you zoom in</b>, and its <b>brightness grows with how many
       different riders</b> used that square. Per-dataset. <b>Cell size</b> &amp; <b>route mode</b> are baked
-      into the data — after changing them hit <a href="/admin/ingest">Rebuild stats</a>. Everything else is
+      into the data, after changing them hit <a href="/admin/ingest">Rebuild stats</a>. Everything else is
       live on the next page load.</p>
       <form method=post action="/admin/system/heatmap">
         <h2 style="font-size:12.5px;margin-top:6px">Grid &amp; privacy <span class=mut>· first two need a Rebuild</span></h2>
@@ -2082,7 +2085,7 @@ def _heatmap_card(db: Session) -> str:
           <label class=thr>Cell size (degrees)
             <input type=number step=0.005 min=0.005 max=5 name=cell_size data-k=hm_cell value="{hm['cell_size']}">
             <span class=calc data-for=hm_cell></span>
-            <small>Grid resolution — width of each square. Smaller = finer detail but more squares. Needs a Rebuild.</small></label>
+            <small>Grid resolution, width of each square. Smaller = finer detail but more squares. Needs a Rebuild.</small></label>
           <label class=thr>Route mode
             <select name=route_mode style="background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:7px;border-radius:8px">
               <option value=route{rsel('route')}>whole route (corridors light up)</option>
@@ -2147,7 +2150,7 @@ def telegram_page(request: Request, msg: str = ""):
 
 @admin_router.get("/system/resources", response_class=HTMLResponse)
 def system_resources(request: Request):
-    """Just the resource bars — polled by the System page for live autorefresh."""
+    """Just the resource bars, polled by the System page for live autorefresh."""
     if not _is_authenticated(request):
         return HTMLResponse("", status_code=401)
     return HTMLResponse(_resources_html())
@@ -2184,8 +2187,8 @@ def heatmap_save(request: Request, db: Session = Depends(get_db),
     audit.log("heatmap_save", f"cell={after['cell_size']} mode={after['route_mode']} floor={after['floor']}")
     # changing the baked knobs needs a rebuild to take effect
     needs_rebuild = (before["cell_size"] != after["cell_size"] or before["route_mode"] != after["route_mode"])
-    note = ("heatmap saved — cell size / route mode changed: hit Rebuild stats to re-bake the cells"
-            if needs_rebuild else "heatmap saved — live now")
+    note = ("heatmap saved, cell size / route mode changed: hit Rebuild stats to re-bake the cells"
+            if needs_rebuild else "heatmap saved, live now")
     return RedirectResponse("/admin/appearance?msg=" + quote(note), status_code=303)
 
 
@@ -2232,7 +2235,7 @@ def telegram_test(request: Request):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     from services import telegram
-    ok, detail = telegram.send_message("✅ EUC Stats — Telegram test message. The bot is wired up correctly.")
+    ok, detail = telegram.send_message("✅ EUC Stats, Telegram test message. The bot is wired up correctly.")
     audit.log("telegram_test", "ok" if ok else f"fail: {detail}")
     msg = "Telegram test sent ✓" if ok else f"Telegram test failed: {detail}"
     return RedirectResponse("/admin/telegram?msg=" + quote(msg), status_code=303)
