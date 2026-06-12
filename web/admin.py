@@ -233,8 +233,11 @@ code{background:#0b1124;border:1px solid #26345e;padding:3px 8px;border-radius:6
   header.bar{flex-wrap:wrap;gap:8px 10px;padding:10px 12px}
   .brand{flex:1 1 auto;font-size:13px}
   header.bar>form{flex:0 0 auto}
-  nav.tabs2{order:3;flex-basis:100%;flex-wrap:nowrap;overflow-x:auto;gap:5px;padding-bottom:3px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
-  nav.tabs2::-webkit-scrollbar{height:5px}nav.tabs2::-webkit-scrollbar-thumb{background:#26345e;border-radius:3px}
+  nav.tabs2{order:3;flex-basis:100%;flex-wrap:nowrap;overflow-x:auto;gap:5px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:rgba(130,170,255,.45) transparent}
+  nav.tabs2::-webkit-scrollbar{height:6px}
+  nav.tabs2::-webkit-scrollbar-track{background:transparent}
+  nav.tabs2::-webkit-scrollbar-thumb{background:rgba(130,170,255,.3);border-radius:4px}
+  nav.tabs2::-webkit-scrollbar-thumb:hover{background:rgba(130,170,255,.5)}
   nav.tabs2 a{flex:0 0 auto;white-space:nowrap}
 }
 </style>"""
