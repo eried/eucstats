@@ -203,7 +203,12 @@ td.sub{color:var(--mut)}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:3px}
 .seg button{background:transparent;border:0;color:var(--mut);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer}
 .seg button.on{background:var(--acc);color:#04101f;font-weight:700}
-@media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}}
+@media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}
+/* phones: size tabs to their label (not a fixed 176px) so 4-5 fit per swipe
+   instead of barely 2, and tighten them a touch for density */
+.tabs{grid-auto-columns:max-content;gap:5px}
+.tab{height:34px;padding:0 11px;font-size:11.5px;gap:6px}
+.tab svg{width:13px;height:13px}}
 </style></head><body>
 <div id="map"></div>
 <div id="veil"></div>
