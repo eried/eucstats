@@ -83,6 +83,20 @@ class Trip(Base):
     min_temp = Column(Float)
     max_pwm = Column(Float)
     min_battery_pct = Column(Float)
+    # newer (hidden) gated metrics: longer sustained windows, high-speed / directional g, shake
+    g_sust_4s = Column(Float)            # g-force held >=4s / >=6s (steadier than the 2s board)
+    g_sust_6s = Column(Float)
+    pwm_sust_3s = Column(Float)          # PWM held >=3s
+    speed_sust_5s = Column(Float)        # speed held >=5s / >=10s
+    speed_sust_10s = Column(Float)
+    power_sust_6s = Column(Float)        # power / current held >=6s
+    current_sust_6s = Column(Float)
+    g_fast_20 = Column(Float)            # sustained g while above 20 / 30 / 40 km/h
+    g_fast_30 = Column(Float)
+    g_fast_40 = Column(Float)
+    g_lateral = Column(Float)            # sustained sideways (cornering) g
+    g_brake = Column(Float)              # sustained fore-aft (braking) g
+    shake_index = Column(Float)          # experimental wobble index (lateral-g std-dev)
     battery_used_pct = Column(Float)
     est_range_km = Column(Float)
     country = Column(String, index=True)

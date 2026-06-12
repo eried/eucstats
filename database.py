@@ -41,7 +41,12 @@ NEW_COLUMNS = {
               ("sustained_accel", "FLOAT"),
               ("max_altitude_m", "FLOAT"), ("min_altitude_m", "FLOAT"),
               ("max_temp", "FLOAT"), ("min_temp", "FLOAT"),
-              ("max_pwm", "FLOAT"), ("min_battery_pct", "FLOAT")],
+              ("max_pwm", "FLOAT"), ("min_battery_pct", "FLOAT"),
+              ("g_sust_4s", "FLOAT"), ("g_sust_6s", "FLOAT"), ("pwm_sust_3s", "FLOAT"),
+              ("speed_sust_5s", "FLOAT"), ("speed_sust_10s", "FLOAT"),
+              ("power_sust_6s", "FLOAT"), ("current_sust_6s", "FLOAT"),
+              ("g_fast_20", "FLOAT"), ("g_fast_30", "FLOAT"), ("g_fast_40", "FLOAT"),
+              ("g_lateral", "FLOAT"), ("g_brake", "FLOAT"), ("shake_index", "FLOAT")],
     "rider_stats": [("best_freespin", "FLOAT"), ("best_voltage_sag", "FLOAT"),
                     ("best_sustained_accel", "FLOAT")],
 }

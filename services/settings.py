@@ -22,18 +22,21 @@ from models import Meta
 # Stored per-dataset in app_meta. Voltage and power are linked (power = V*A).
 
 # admin-facing metric -> the Trip fields it controls
+# Newer sustained / directional g columns ride along with the same metric a bad
+# channel would poison (a wheel with bad g-force should drop ALL its g boards, etc.).
 WHEEL_METRIC_FIELDS = {
-    "speed": ["max_speed", "avg_speed"],
-    "gforce": ["max_gforce"],
-    "power": ["max_sustained_w"],
-    "current": ["max_sustained_a"],
+    "speed": ["max_speed", "avg_speed", "speed_sust_5s", "speed_sust_10s"],
+    "gforce": ["max_gforce", "g_sust_4s", "g_sust_6s", "g_fast_20", "g_fast_30",
+               "g_fast_40", "g_lateral", "g_brake", "shake_index"],
+    "power": ["max_sustained_w", "power_sust_6s"],
+    "current": ["max_sustained_a", "current_sust_6s"],
     "voltage": ["peak_voltage", "max_voltage_sag"],
     "accel": ["fastest_0_40_s", "sustained_accel"],
     "altitude": ["max_altitude_m", "min_altitude_m", "alt_range_m", "ascent_m"],
     "range": ["est_range_km"],
     "efficiency": ["wh_per_km"],
     "battery": ["min_battery_pct", "battery_used_pct"],
-    "pwm": ["max_pwm"],
+    "pwm": ["max_pwm", "pwm_sust_3s"],
     "temp": ["max_temp", "min_temp"],
     "freespin": ["max_freespin"],
 }
@@ -340,6 +343,22 @@ _GATED_SPEC = [
     ("templow",  "Frostbite",        "Coldest ride",                            "min_temp",         "min", "°",   "temp", "streak"),
     ("pwm",      "Redline",          "Closest to maxing the motor (PWM)",       "max_pwm",          "max", " %",       "",     "speed"),
     ("battlow",  "Running on Fumes", "Lowest battery % reached",                "min_battery_pct",  "min", " %",       "",     "range"),
+    # --- newer hidden metrics: longer sustained windows (spikes were too easy to game) ---
+    ("g4",       "G-Hold 4s",        "Highest g-force held for 4 seconds",      "g_sust_4s",        "max", "",         "",     "gforce"),
+    ("g6",       "G-Hold 6s",        "Highest g-force held for 6 seconds",      "g_sust_6s",        "max", "",         "",     "gforce"),
+    ("pwm3",     "Redline Hold",     "Highest PWM held for 3 seconds",          "pwm_sust_3s",      "max", " %",       "",     "speed"),
+    ("spd5",     "Flat-Out 5s",      "Highest speed held for 5 seconds",        "speed_sust_5s",    "max", " km/h",    "spd",  "speed"),
+    ("spd10",    "Flat-Out 10s",     "Highest speed held for 10 seconds",       "speed_sust_10s",   "max", " km/h",    "spd",  "speed"),
+    ("pw6",      "Watt Marathon",    "Highest power held for 6 seconds",        "power_sust_6s",    "max", " W",       "",     "power"),
+    ("cur6",     "Amp Marathon",     "Highest current held for 6 seconds",      "current_sust_6s",  "max", " A",       "",     "current"),
+    # --- g-force while genuinely fast ---
+    ("gf20",     "Fast & Loose 20",  "Strongest g-force sustained above 20 km/h", "g_fast_20",      "max", "",         "",     "gforce"),
+    ("gf30",     "Fast & Loose 30",  "Strongest g-force sustained above 30 km/h", "g_fast_30",      "max", "",         "",     "gforce"),
+    ("gf40",     "Fast & Loose 40",  "Strongest g-force sustained above 40 km/h", "g_fast_40",      "max", "",         "",     "gforce"),
+    # --- directional g + experimental shake ---
+    ("glat",     "Carver",           "Strongest sustained sideways (cornering) g", "g_lateral",     "max", "",         "",     "gforce"),
+    ("gbrk",     "Brake Master",     "Strongest sustained fore-aft (braking) g",   "g_brake",       "max", "",         "",     "gforce"),
+    ("shake",    "Wobble Warrior",   "Biggest speed-wobble / shake index (experimental)", "shake_index", "max", "",   "",     "gforce"),
 ]
 # (base, name, desc, trip_col, direction, unit, conv, icon)  -- ungated absolute extremes
 _UNGATED_NEW = [

@@ -51,6 +51,11 @@ def reprocess_with_calibration(db) -> dict:
             t.battery_used_pct, t.est_range_km = sm.battery_used_pct, sm.est_range_km
             t.max_freespin, t.max_voltage_sag = sm.max_freespin, sm.max_voltage_sag
             t.sustained_accel = sm.sustained_accel
+            t.g_sust_4s, t.g_sust_6s, t.pwm_sust_3s = sm.g_sust_4s, sm.g_sust_6s, sm.pwm_sust_3s
+            t.speed_sust_5s, t.speed_sust_10s = sm.speed_sust_5s, sm.speed_sust_10s
+            t.power_sust_6s, t.current_sust_6s = sm.power_sust_6s, sm.current_sust_6s
+            t.g_fast_20, t.g_fast_30, t.g_fast_40 = sm.g_fast_20, sm.g_fast_30, sm.g_fast_40
+            t.g_lateral, t.g_brake, t.shake_index = sm.g_lateral, sm.g_brake, sm.shake_index
             mj = dict(t.meta_json) if isinstance(t.meta_json, dict) else {}
             mj.pop("max_gforce_spike", None)
             if sm.max_gforce_spike and sm.max_gforce and sm.max_gforce_spike > sm.max_gforce * 1.3:

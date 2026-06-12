@@ -65,6 +65,20 @@ class TripSummary:
     min_temp: float | None
     max_pwm: float | None
     min_battery_pct: float | None
+    # --- newer (hidden) metrics: longer sustained windows, high-speed / directional g, shake ---
+    g_sust_4s: float | None
+    g_sust_6s: float | None
+    pwm_sust_3s: float | None
+    speed_sust_5s: float | None
+    speed_sust_10s: float | None
+    power_sust_6s: float | None
+    current_sust_6s: float | None
+    g_fast_20: float | None
+    g_fast_30: float | None
+    g_fast_40: float | None
+    g_lateral: float | None
+    g_brake: float | None
+    shake_index: float | None
     sample_count: int
 
 
@@ -201,6 +215,44 @@ def _max_sustained_accel(samples: list[Sample], lo: float = 2.0, hi: float = 6.0
             if a > best:
                 best = a
     return round(best, 2) if best > 0 else None
+
+
+def _g_fast(threshold_kmh: float):
+    """fn for _sustained_max: |g| but only while the corroborated speed is at/above
+    `threshold_kmh` — "how hard you load the wheel while actually moving fast", not a
+    parking-lot stunt. Returns None for samples slower than the threshold (skipped)."""
+    def fn(s: Sample):
+        if s.g is None:
+            return None
+        v = _corrob_speed(s)
+        return abs(s.g) if (v is not None and v >= threshold_kmh) else None
+    return fn
+
+
+def _max_shake(samples: list[Sample], window_s: float = 2.0) -> float | None:
+    """Experimental wobble index: the largest standard deviation of lateral g (gx) over
+    any short trailing window. A speed-wobble / shimmy swings side to side fast (high
+    variance), whereas a steady hard corner holds a near-constant lateral g (low
+    variance) — so std-dev isolates the shake from a clean carve. O(n) sliding window."""
+    pts = [(s.t, s.gx) for s in samples if s.gx is not None]
+    if len(pts) < 3:
+        return None
+    best = 0.0
+    left = 0
+    ssum = ssq = 0.0
+    for right in range(len(pts)):
+        ssum += pts[right][1]
+        ssq += pts[right][1] ** 2
+        while (pts[right][0] - pts[left][0]).total_seconds() > window_s:
+            ssum -= pts[left][1]
+            ssq -= pts[left][1] ** 2
+            left += 1
+        n = right - left + 1
+        if n >= 3:
+            sd = max(0.0, ssq / n - (ssum / n) ** 2) ** 0.5
+            if sd > best:
+                best = sd
+    return round(best, 3) if best > 0 else None
 
 
 def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
@@ -341,6 +393,27 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     max_pwm = round(max(pwms), 1) if pwms else None
     min_battery_pct = round(min(batts), 1) if batts else None
 
+    # --- newer (hidden) metrics, fed to gated leaderboards ---------------------
+    # Group A: longer sustained windows (the 2s spikes were getting too easy to game).
+    g_abs = lambda s: abs(s.g) if s.g is not None else None
+    g_sust_4s = _sustained_max(samples, g_abs, 4.0)
+    g_sust_6s = _sustained_max(samples, g_abs, 6.0)
+    pwm_sust_3s = _sustained_max(samples, lambda s: s.pwm, 3.0)
+    speed_sust_5s = _sustained_max(samples, _corrob_speed, 5.0)
+    speed_sust_10s = _sustained_max(samples, _corrob_speed, 10.0)
+    power_sust_6s = _sustained_max(samples, _power, 6.0)
+    current_sust_6s = _sustained_max(samples, lambda s: s.current, 6.0)
+    # Group B: g-force while genuinely fast (sustained over the calibration window).
+    sw = c["sustain_secs"]
+    g_fast_20 = _sustained_max(samples, _g_fast(20.0), sw)
+    g_fast_30 = _sustained_max(samples, _g_fast(30.0), sw)
+    g_fast_40 = _sustained_max(samples, _g_fast(40.0), sw)
+    # Group C: directional g — sideways (cornering) and fore-aft (braking/launch).
+    g_lateral = _sustained_max(samples, lambda s: abs(s.gx) if s.gx is not None else None, sw)
+    g_brake = _sustained_max(samples, lambda s: abs(s.gy) if s.gy is not None else None, sw)
+    # Group D: experimental wobble/shake index (lateral-g oscillation).
+    shake_index = _max_shake(samples, sw)
+
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
         distance_km=distance, gps_distance_km=gps_km,
@@ -353,5 +426,10 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         battery_used_pct=battery_used_pct, est_range_km=est_range_km,
         alt_range_m=alt_range_m, max_altitude_m=max_altitude_m, min_altitude_m=min_altitude_m,
         max_temp=max_temp, min_temp=min_temp, max_pwm=max_pwm, min_battery_pct=min_battery_pct,
+        g_sust_4s=g_sust_4s, g_sust_6s=g_sust_6s, pwm_sust_3s=pwm_sust_3s,
+        speed_sust_5s=speed_sust_5s, speed_sust_10s=speed_sust_10s,
+        power_sust_6s=power_sust_6s, current_sust_6s=current_sust_6s,
+        g_fast_20=g_fast_20, g_fast_30=g_fast_30, g_fast_40=g_fast_40,
+        g_lateral=g_lateral, g_brake=g_brake, shake_index=shake_index,
         sample_count=len(samples),
     )

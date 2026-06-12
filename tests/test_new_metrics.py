@@ -8,7 +8,7 @@ from datetime import datetime
 
 import models
 from ingest.parser import Sample
-from ingest.summary import summarize, _max_voltage_sag, _max_sustained_accel
+from ingest.summary import summarize, _max_voltage_sag, _max_sustained_accel, _max_shake
 from services import stats
 from services.aggregator import Aggregator, rebuild_all
 
@@ -191,3 +191,76 @@ def test_ensure_schema_idempotent(tmp_path):
     con.close()
     for name, _ in NEW_COLUMNS["trips"]:
         assert name in cols
+
+
+# ---------- newer hidden metrics: sustained windows / high-speed / directional / shake ----------
+
+def test_sustained_windows_hold_a_steady_value():
+    # hold everything constant for 12s -> every sustained-window metric == that value
+    samples = [_s(i, speed=30, gps_speed=30, voltage=80, current=10, pwm=50, g=1.5)
+               for i in range(12)]
+    sm = summarize(samples)
+    assert round(sm.speed_sust_5s, 1) == 30.0 and round(sm.speed_sust_10s, 1) == 30.0
+    assert round(sm.g_sust_4s, 2) == 1.5 and round(sm.g_sust_6s, 2) == 1.5
+    assert round(sm.pwm_sust_3s, 0) == 50 and round(sm.current_sust_6s, 0) == 10
+    assert round(sm.power_sust_6s, 0) == 800        # 80 V * 10 A
+
+
+def test_longer_window_dilutes_a_spike_more():
+    # one 1s g-spike of 10 between long calm stretches: the wider window averages it down further
+    samples = ([_s(i, g=1.0) for i in range(5)] + [_s(5, g=10.0)]
+               + [_s(i, g=1.0) for i in range(6, 12)])
+    sm = summarize(samples)
+    assert sm.g_sust_6s < sm.g_sust_4s
+
+
+def test_high_speed_g_only_counts_while_fast():
+    # a hard 2.0 g while crawling at 5 km/h is ignored; only the 0.5 g at 35 km/h counts
+    slow = [_s(i, speed=5, gps_speed=5, g=2.0) for i in range(4)]
+    fast = [_s(i, speed=35, gps_speed=35, g=0.5) for i in range(4, 8)]
+    sm = summarize(slow + fast)
+    assert round(sm.g_fast_20, 2) == 0.5 and round(sm.g_fast_30, 2) == 0.5
+    assert sm.g_fast_40 is None                     # never rode above 40 km/h
+
+
+def test_directional_g_from_axes():
+    sm = summarize([_s(i, speed=20, gps_speed=20, gx=0.7, gy=-0.6, g=1.0) for i in range(6)])
+    assert round(sm.g_lateral, 2) == 0.7            # |gx| (cornering)
+    assert round(sm.g_brake, 2) == 0.6              # |gy| (braking, abs of signed)
+
+
+def test_shake_index_detects_oscillation_not_steady_corner():
+    steady = summarize([_s(i, gx=0.8, g=0.8) for i in range(6)])          # constant lateral g
+    shaky = summarize([_s(i, gx=(0.8 if i % 2 == 0 else -0.8), g=0.8)     # rapid side-to-side
+                       for i in range(6)])
+    assert shaky.shake_index is not None and shaky.shake_index > 0.5
+    assert (steady.shake_index or 0.0) < shaky.shake_index
+    assert _max_shake([_s(0, gx=1.0)]) is None      # need >=3 points
+
+
+def test_new_gated_boards_registered_and_default_off():
+    from services import settings
+    for base in ("g4", "g6", "pwm3", "spd5", "spd10", "pw6", "cur6",
+                 "gf20", "gf30", "gf40", "glat", "gbrk", "shake"):
+        for suf, *_ in settings.GATE_TIERS:
+            k = f"{base}_{suf}"
+            assert k in stats.BOARDS                       # leaderboard callable wired
+            assert k in settings.DEFAULT_OFF_BOARDS        # ships hidden until enabled
+        assert f"b.{base}.n" in __import__("web.i18n", fromlist=["EN"]).EN
+
+
+def test_new_gated_leaderboard_returns_qualifying_max(db):
+    from services.aggregator import rebuild_all
+    db.add(models.Rider(store_id="g", display_name="G", platform="google_play"))
+    T = lambda u, **kw: models.Trip(trip_uuid=u, rider_store_id="g",
+                                    validation_status="validated", **kw)
+    # both rides clear the briefest tier 'b' gate (>=300 s & >=1.5 km); board takes the per-rider max
+    db.add(T("g1", duration_s=600, distance_km=5.0, g_lateral=0.5, speed_sust_5s=30.0))
+    db.add(T("g2", duration_s=600, distance_km=5.0, g_lateral=0.9, speed_sust_5s=42.0))
+    # a too-short ride must NOT qualify even with a huge value
+    db.add(T("g3", duration_s=10, distance_km=0.2, g_lateral=9.9))
+    db.commit()
+    rebuild_all(db)
+    glat = stats.BOARDS["glat_b"](db, limit=10)
+    assert glat and glat[0]["store_id"] == "g" and glat[0]["v"] == 0.9   # max, short ride excluded
+    assert stats.BOARDS["spd5_b"](db, limit=10)[0]["v"] == 42.0

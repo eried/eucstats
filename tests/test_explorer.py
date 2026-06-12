@@ -150,8 +150,10 @@ def test_system_and_ingest_pages(db):
     with TestClient(app) as client:
         _auth(client)
         sp = client.get("/admin/system")
-        assert sp.status_code == 200 and "Data retention" in sp.text and "Server resources" in sp.text
+        assert sp.status_code == 200 and "Server resources" in sp.text
         assert "Sandbox test responses" in sp.text and "Audit log" in sp.text   # folded into System
+        dp = client.get("/admin/datasets")
+        assert dp.status_code == 200 and "Data retention" in dp.text   # moved to Data & backups
         ip = client.get("/admin/ingest")
         assert ip.status_code == 200 and "Anti-fraud rules" in ip.text
         assert "Max wheel speed" in ip.text and "no tunable parameters" in ip.text   # per-rule thresholds
