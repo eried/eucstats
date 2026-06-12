@@ -79,6 +79,8 @@ class TripSummary:
     g_lateral: float | None
     g_brake: float | None
     shake_index: float | None
+    accel_g: float | None       # longitudinal g from speed change: launch (accel) / brake
+    brake_g: float | None
     sample_count: int
 
 
@@ -255,6 +257,35 @@ def _max_shake(samples: list[Sample], window_s: float = 2.0) -> float | None:
     return round(best, 3) if best > 0 else None
 
 
+_KMH_S_TO_G = (1000.0 / 3600.0) / 9.80665   # km/h-per-second -> g (1 km/h/s ≈ 0.0283 g)
+
+
+def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
+    """Longitudinal g from how hard wheel speed changes: the strongest sustained push
+    (acceleration) and the strongest sustained slow-down (braking), each as a g-force.
+    Speed-derived (corroborated wheel/GPS speed) so it works on every wheel without
+    trusting a noisy IMU axis. Returns (accel_g, brake_g). A ~1s window keeps it a real
+    hold rather than a one-sample spike. O(n) sliding window."""
+    pts = [(s.t, _corrob_speed(s)) for s in samples]
+    pts = [(t, v) for t, v in pts if v is not None]
+    if len(pts) < 2:
+        return None, None
+    best_acc = best_brk = 0.0
+    left = 0
+    for right in range(1, len(pts)):
+        while right - left > 1 and (pts[right][0] - pts[left][0]).total_seconds() > window_s:
+            left += 1
+        dt = (pts[right][0] - pts[left][0]).total_seconds()
+        if dt <= 0:
+            continue
+        g = abs((pts[right][1] - pts[left][1]) / dt) * _KMH_S_TO_G
+        if pts[right][1] >= pts[left][1]:
+            best_acc = max(best_acc, g)
+        else:
+            best_brk = max(best_brk, g)
+    return (round(best_acc, 3) or None), (round(best_brk, 3) or None)
+
+
 def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
     """Elevation gain from altitude samples, with a hysteresis to filter GPS noise."""
     alts = [s.alt for s in samples if s.alt is not None]
@@ -413,6 +444,8 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     g_brake = _sustained_max(samples, lambda s: abs(s.gy) if s.gy is not None else None, sw)
     # Group D: experimental wobble/shake index (lateral-g oscillation).
     shake_index = _max_shake(samples, sw)
+    # Speed-derived longitudinal g: how hard you launch / brake (every wheel reports speed).
+    accel_g, brake_g = _speed_g(samples, 1.0)
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
@@ -431,5 +464,6 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         power_sust_6s=power_sust_6s, current_sust_6s=current_sust_6s,
         g_fast_20=g_fast_20, g_fast_30=g_fast_30, g_fast_40=g_fast_40,
         g_lateral=g_lateral, g_brake=g_brake, shake_index=shake_index,
+        accel_g=accel_g, brake_g=brake_g,
         sample_count=len(samples),
     )

@@ -205,6 +205,7 @@ class IngestService:
                 power_sust_6s=sm.power_sust_6s, current_sust_6s=sm.current_sust_6s,
                 g_fast_20=sm.g_fast_20, g_fast_30=sm.g_fast_30, g_fast_40=sm.g_fast_40,
                 g_lateral=sm.g_lateral, g_brake=sm.g_brake, shake_index=sm.shake_index,
+                accel_g=sm.accel_g, brake_g=sm.brake_g,
                 battery_used_pct=sm.battery_used_pct, est_range_km=sm.est_range_km,
                 country=country, start_cell=start_cell, start_lat=start_lat, start_lon=start_lon,
                 validation_status=status, flag_reasons=reasons or None,

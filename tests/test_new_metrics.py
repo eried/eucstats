@@ -8,7 +8,7 @@ from datetime import datetime
 
 import models
 from ingest.parser import Sample
-from ingest.summary import summarize, _max_voltage_sag, _max_sustained_accel, _max_shake
+from ingest.summary import summarize, _max_voltage_sag, _max_sustained_accel, _max_shake, _speed_g
 from services import stats
 from services.aggregator import Aggregator, rebuild_all
 
@@ -238,10 +238,28 @@ def test_shake_index_detects_oscillation_not_steady_corner():
     assert _max_shake([_s(0, gx=1.0)]) is None      # need >=3 points
 
 
+def test_speed_g_accel_and_brake():
+    # accelerate 0->40 km/h at +10 km/h/s (≈0.283 g), then brake 40->0 at -20 km/h/s (≈0.566 g)
+    samples = [_s(0, speed=0, gps_speed=0), _s(1, speed=10, gps_speed=10),
+               _s(2, speed=20, gps_speed=20), _s(3, speed=30, gps_speed=30),
+               _s(4, speed=40, gps_speed=40),
+               _s(5, speed=20, gps_speed=20), _s(6, speed=0, gps_speed=0)]
+    sm = summarize(samples)
+    assert abs(sm.accel_g - 0.283) < 0.02
+    assert abs(sm.brake_g - 0.566) < 0.02
+    assert sm.brake_g > sm.accel_g                 # the stop was harder than the launch
+
+
+def test_speed_g_helper_edges():
+    assert _speed_g([_s(0, speed=10)]) == (None, None)        # need >=2 speeds
+    a, b = _speed_g([_s(0, speed=0, gps_speed=0), _s(2, speed=40, gps_speed=40)])  # 20 km/h/s over 2s
+    assert a is not None and abs(a - 0.566) < 0.02 and b is None   # pure acceleration, no braking
+
+
 def test_new_gated_boards_registered_and_default_off():
     from services import settings
     for base in ("g4", "g6", "pwm3", "spd5", "spd10", "pw6", "cur6",
-                 "gf20", "gf30", "gf40", "glat", "gbrk", "shake"):
+                 "gf20", "gf30", "gf40", "glat", "gbrk", "shake", "accg", "brkg"):
         for suf, *_ in settings.GATE_TIERS:
             k = f"{base}_{suf}"
             assert k in stats.BOARDS                       # leaderboard callable wired

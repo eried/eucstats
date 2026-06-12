@@ -31,7 +31,7 @@ WHEEL_METRIC_FIELDS = {
     "power": ["max_sustained_w", "power_sust_6s"],
     "current": ["max_sustained_a", "current_sust_6s"],
     "voltage": ["peak_voltage", "max_voltage_sag"],
-    "accel": ["fastest_0_40_s", "sustained_accel"],
+    "accel": ["fastest_0_40_s", "sustained_accel", "accel_g", "brake_g"],
     "altitude": ["max_altitude_m", "min_altitude_m", "alt_range_m", "ascent_m"],
     "range": ["est_range_km"],
     "efficiency": ["wh_per_km"],
@@ -359,6 +359,9 @@ _GATED_SPEC = [
     ("glat",     "Carver",           "Strongest sustained sideways (cornering) g", "g_lateral",     "max", "",         "",     "gforce"),
     ("gbrk",     "Brake Master",     "Strongest sustained fore-aft (braking) g",   "g_brake",       "max", "",         "",     "gforce"),
     ("shake",    "Wobble Warrior",   "Biggest speed-wobble / shake index (experimental)", "shake_index", "max", "",   "",     "gforce"),
+    # --- speed turned into a longitudinal g-force: launch (green) and braking (red) ---
+    ("accg",     "Launch Force",     "Hardest acceleration as a g-force (from speed)",    "accel_g", "max", " g",     "",     "accel"),
+    ("brkg",     "Stopping Power",   "Hardest braking as a g-force (from speed)",         "brake_g", "max", " g",     "",     "brake"),
 ]
 # (base, name, desc, trip_col, direction, unit, conv, icon)  -- ungated absolute extremes
 _UNGATED_NEW = [

@@ -319,7 +319,8 @@ const IC={
  altking:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 20l6-11 4 6 2-3 6 8z"/><path d="M9 9l1.4-3"/></svg>',
  freespin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/></svg>',
  sag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="15" height="10" rx="2"/><path d="M21 10v4"/><path d="M8 9l3 3-3 3"/></svg>',
- rocket:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 3c4 .5 6.5 3.5 7 7-3 .5-4.6 2.2-6 5l-3-3c1.4-3.6 1.2-6.6 2-9zM8 16l-4 4m6-2l-4 4m0-6l-2 2"/></svg>'};
+ rocket:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 3c4 .5 6.5 3.5 7 7-3 .5-4.6 2.2-6 5l-3-3c1.4-3.6 1.2-6.6 2-9zM8 16l-4 4m6-2l-4 4m0-6l-2 2"/></svg>',
+ brake:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/></svg>'};
 const GIC_PPL='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0z"/></svg>';
 const GIC_TRIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c3-2 4-6 4-9a3 3 0 0 1 6 0c0 4 1 7 4 9"/></svg>';
 const BOARDS=[
@@ -353,7 +354,8 @@ const BOARDS=[
  {k:"freespin",c:"freespin_kmh",conv:"spd"}];
 BOARDS.forEach(b=>{b.nk="b."+b.k+".n";b.dk="b."+b.k+".d";});   // i18n keys (English lives in i18n.py)
 // gated boards (server spec): same name per metric, gate baked in, value under "v"
-(window.__GATED__||[]).forEach(g=>{BOARDS.push({k:g.k,nk:"b."+g.base+".n",dk:"b."+g.base+".d",c:"v",u:g.u,conv:g.conv||undefined,ic:g.ic,min_s:g.min_s,min_km:g.min_km});});
+const BTONE={brkg:"#ff5b6e",accg:"#36d399"};   // speed→g boards: braking red, launch green
+(window.__GATED__||[]).forEach(g=>{BOARDS.push({k:g.k,nk:"b."+g.base+".n",dk:"b."+g.base+".d",c:"v",u:g.u,conv:g.conv||undefined,ic:g.ic,min_s:g.min_s,min_km:g.min_km,tone:BTONE[g.base]});});
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
 function defaultUnit(){try{const r=((navigator.language||"").split("-")[1]||"").toUpperCase();return MPH_REGIONS.includes(r)?"mph":"kmh";}catch(e){return "kmh";}}
@@ -368,11 +370,13 @@ const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h"
 const tnum=c=>mph()?(""+r1(c*9/5+32)):(""+r1(c)), tunit=()=>mph()?"°F":"°C";   // temperature
 const anum=m=>mph()?(""+Math.round(m*3.28084)):(""+Math.round(m)), aunit=()=>mph()?"ft":"m";   // altitude
 function bval(b,v){if(v==null)v=0;
-  if(b.conv==="dist")return dnum(v)+" "+dunit();
-  if(b.conv==="spd")return snum(v)+" "+sunit();
-  if(b.conv==="temp")return tnum(v)+tunit();
-  if(b.conv==="alt")return anum(v)+" "+aunit();
-  return r2(v)+b.u;}
+  var s;
+  if(b.conv==="dist")s=dnum(v)+" "+dunit();
+  else if(b.conv==="spd")s=snum(v)+" "+sunit();
+  else if(b.conv==="temp")s=tnum(v)+tunit();
+  else if(b.conv==="alt")s=anum(v)+" "+aunit();
+  else s=r2(v)+b.u;
+  return b.tone?'<span style="color:'+b.tone+'">'+s+'</span>':s;}
 function bt(b){return t(b.nk);}
 function bd(b){var s=(b.dk==="b.accel.d"&&mph())?t("b.accel.d_mph"):t(b.dk);
   if(b.min_s){s+=" · ≥"+Math.round(b.min_s/60)+"min ≥"+dnum(b.min_km)+dunit();}   // gate, unit-aware
@@ -556,7 +560,7 @@ function showRiders(){
 async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
   if(!cont)return;
-  if(b)setCap(IC[b.k]||IC[b.ic]||'',bd(b));
+  if(b){var ci=IC[b.k]||IC[b.ic]||'';setCap(b.tone?'<span style="color:'+b.tone+'">'+ci+'</span>':ci,bd(b));}
   cont.innerHTML=podList(rows,{av:true,flag:e=>e.flag,label:e=>e.name||e.store_id,val:e=>bval(b,e[b.c]),click:true});
   cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToRider(rows[+el.dataset.i]));
   fitTop3(rows,e=>[e.lon,e.lat]);

@@ -97,6 +97,8 @@ class Trip(Base):
     g_lateral = Column(Float)            # sustained sideways (cornering) g
     g_brake = Column(Float)              # sustained fore-aft (braking) g
     shake_index = Column(Float)          # experimental wobble index (lateral-g std-dev)
+    accel_g = Column(Float)              # longitudinal g from speed change: launch (accel)
+    brake_g = Column(Float)              # longitudinal g from speed change: braking
     battery_used_pct = Column(Float)
     est_range_km = Column(Float)
     country = Column(String, index=True)

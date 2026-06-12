@@ -56,6 +56,7 @@ def reprocess_with_calibration(db) -> dict:
             t.power_sust_6s, t.current_sust_6s = sm.power_sust_6s, sm.current_sust_6s
             t.g_fast_20, t.g_fast_30, t.g_fast_40 = sm.g_fast_20, sm.g_fast_30, sm.g_fast_40
             t.g_lateral, t.g_brake, t.shake_index = sm.g_lateral, sm.g_brake, sm.shake_index
+            t.accel_g, t.brake_g = sm.accel_g, sm.brake_g
             mj = dict(t.meta_json) if isinstance(t.meta_json, dict) else {}
             mj.pop("max_gforce_spike", None)
             if sm.max_gforce_spike and sm.max_gforce and sm.max_gforce_spike > sm.max_gforce * 1.3:

@@ -207,6 +207,10 @@ EN: dict[str, str] = {
     "b.gbrk.d": "Strongest sustained fore-aft (braking) g-force",
     "b.shake.n": "Wobble Warrior",
     "b.shake.d": "Biggest speed-wobble / shake index (experimental)",
+    "b.accg.n": "Launch Force",
+    "b.accg.d": "Hardest acceleration as a g-force (from speed)",
+    "b.brkg.n": "Stopping Power",
+    "b.brkg.d": "Hardest braking as a g-force (from speed)",
 
     # --- group-panel boards (countries / wheels / brands) descriptions ---
     "g.dist.d": "Most distance ridden",
