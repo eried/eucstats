@@ -287,6 +287,17 @@ def test_sprints_use_corroborated_speed():
     assert sm.fastest_0_40_s == 2.0 and sm.t_0_60_s == 3.0   # corroborated (min) speed, not the GPS spoof
 
 
+def test_sprint_thresholds_interpolated_so_40_and_60_differ():
+    # coarse launch 0 -> 10 -> 70 km/h: it blows through both 40 and 60 between the last two
+    # readings. Without interpolation both snap to the same sample (the reported bug); with it
+    # they differ. Crossing 40 at ~50% of the 2s gap (=3.0s), 60 at ~83% (~3.67s).
+    samples = [_s(0, speed=0, gps_speed=0), _s(2, speed=10, gps_speed=10), _s(4, speed=70, gps_speed=70)]
+    sm = summarize(samples)
+    assert sm.fastest_0_40_s is not None and sm.t_0_60_s is not None
+    assert sm.t_0_60_s > sm.fastest_0_40_s
+    assert abs(sm.fastest_0_40_s - 3.0) < 0.05 and abs(sm.t_0_60_s - 3.667) < 0.05
+
+
 def test_new_gated_boards_registered_and_default_off():
     from services import settings
     for base in ("g4", "g6", "pwm3", "spd5", "spd10", "pw6", "cur6",

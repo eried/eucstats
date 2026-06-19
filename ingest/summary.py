@@ -171,9 +171,13 @@ def _power(s: Sample):
 def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
                   min_s: float = 1.5, max_s: float = 20.0) -> float | None:
     """Shortest time (s) to launch from a near-stop (<=2 km/h) up to target_kmh, using the
-    corroborated wheel/GPS speed so it can't be faked. Lower is better."""
+    corroborated wheel/GPS speed so it can't be faked. The crossing time is LINEARLY
+    INTERPOLATED between the two bracketing samples, so 0->40 and 0->60 differ even when the
+    wheel blows through both between two readings (otherwise both snap to the same sample).
+    Lower is better."""
     best = None
     start = None
+    prev = None                      # (time, corroborated speed) of the previous valid sample
     for s in samples:
         sp = _corrob_speed(s)
         if sp is None:
@@ -181,12 +185,17 @@ def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
         if sp <= 2.0:
             start = s.t
         elif start is not None and sp >= target_kmh:
-            dt = (s.t - start).total_seconds()
+            cross = s.t
+            if prev is not None and prev[1] < target_kmh and sp > prev[1]:
+                frac = (target_kmh - prev[1]) / (sp - prev[1])      # where between the two readings it crossed
+                cross = prev[0] + (s.t - prev[0]) * frac
+            dt = (cross - start).total_seconds()
             # min_s floor rejects sensor noise; max_s ceiling rejects casual coasts
             # (only a genuine hard launch from a stop to the target counts)
             if min_s <= dt <= max_s and (best is None or dt < best):
                 best = dt
             start = None
+        prev = (s.t, sp)
     return best
 
 
