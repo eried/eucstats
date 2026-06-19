@@ -71,7 +71,7 @@ svg.ic{width:18px;height:18px;display:block}
 .intro{opacity:0;pointer-events:none}
 .intro.show{opacity:1;pointer-events:auto;transition:opacity 1s ease}
 @keyframes rowin{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
-.topbar{position:fixed;top:16px;left:16px;z-index:500;max-width:min(92vw,380px);background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.topbar{position:fixed;top:16px;left:16px;z-index:500;width:min(92vw,380px);background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
 .champ{display:block;padding:10px 14px 11px;font-size:13px;border-bottom:1px solid var(--line);background:rgba(255,210,74,.06);position:relative;overflow:hidden;animation:champvhs 10s infinite}
 .champ svg{width:16px;height:16px;color:var(--gold)}.champ b{font-weight:700;color:var(--gold)}
 .chead{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold);margin-bottom:5px}
@@ -108,8 +108,8 @@ svg.ic{width:18px;height:18px;display:block}
 .tab.on{animation:tabglow .7s ease}
 @keyframes tabglow{0%{box-shadow:0 0 0 0 rgba(46,168,255,.55)}100%{box-shadow:0 0 16px 3px rgba(46,168,255,0)}}
 .chips{display:flex;flex-wrap:wrap}
-.chip{flex:1 1 auto;padding:9px 14px;font-size:11px;color:var(--mut);letter-spacing:.3px;border-right:1px solid var(--line);white-space:nowrap}
-.chip:last-child{border-right:0}.chip b{display:block;color:var(--acc);font-weight:700;font-size:16px;letter-spacing:0}
+.chip{flex:1 1 0;min-width:0;padding:9px 14px;font-size:11px;color:var(--mut);letter-spacing:.3px;border-right:1px solid var(--line);white-space:nowrap}
+.chip:last-child{border-right:0}.chip b{display:block;color:var(--acc);font-weight:700;font-size:16px;letter-spacing:0;font-variant-numeric:tabular-nums}
 .rfoot{position:fixed;right:8px;top:50%;transform:translateY(-50%);z-index:500;writing-mode:vertical-rl;display:flex;flex-direction:row;align-items:center;gap:22px;white-space:nowrap;color:var(--mut);font-size:12px;letter-spacing:.6px}
 .rfoot b{color:var(--ink);font-weight:700}
 .rfoot a{display:inline-flex;flex-direction:row;align-items:center;gap:7px;color:var(--mut);text-decoration:none;transition:color .2s}
