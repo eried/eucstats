@@ -840,6 +840,29 @@ def order_items(items, order):
     return sorted(items, key=lambda it: pos.get(it[0], len(order) + 1))
 
 
+# --- EUC Planet Score formula (the champions ranking) ------------------------
+# score = distance_km ** dist_exp  ×  (1 + top_kmh / speed_div)  ×  (1 + hours / hours_div)
+# Lower divisor = bigger boost (spicier); dist_exp > 1 rewards big distance non-linearly.
+# Defaults reproduce the original formula. Per-dataset (app_meta).
+
+def get_score_config(db: Session) -> dict:
+    return {
+        "dist_exp": _clamp_float(get_meta(db, "score_dist_exp", 1.0), 1.0, 0.1, 3.0),
+        "speed_on": get_meta(db, "score_speed_on", "1") not in _FALSEY,
+        "speed_div": _clamp_float(get_meta(db, "score_speed_div", 100.0), 100.0, 1.0, 100000.0),
+        "hours_on": get_meta(db, "score_hours_on", "1") not in _FALSEY,
+        "hours_div": _clamp_float(get_meta(db, "score_hours_div", 10.0), 10.0, 0.1, 100000.0),
+    }
+
+
+def set_score_config(db: Session, dist_exp, speed_on, speed_div, hours_on, hours_div) -> None:
+    set_meta(db, "score_dist_exp", str(_clamp_float(dist_exp, 1.0, 0.1, 3.0)))
+    set_meta(db, "score_speed_on", "1" if speed_on else "0")
+    set_meta(db, "score_speed_div", str(_clamp_float(speed_div, 100.0, 1.0, 100000.0)))
+    set_meta(db, "score_hours_on", "1" if hours_on else "0")
+    set_meta(db, "score_hours_div", str(_clamp_float(hours_div, 10.0, 0.1, 100000.0)))
+
+
 def sections_fully_hidden(db: Session) -> dict:
     """Per dock section: True when every metric under it is hidden (so the section
     itself should disappear from the public site, or dim for an admin previewing)."""

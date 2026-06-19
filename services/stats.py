@@ -493,43 +493,71 @@ def by_country(db, limit=50):
     return out
 
 
-def champions(db):
-    """Champion of the day/week/month by the EUC Planet Score: distance rewarded,
-    boosted by top speed and time on the wheel. Computed in Python so it works
-    whether start_utc is stored tz-aware or naive."""
+def _score_formula(cfg) -> str:
+    """Human-readable EUC Planet Score formula for the given config."""
+    de = cfg["dist_exp"]
+    base = "km" if abs(de - 1.0) < 1e-9 else f"km^{de:g}"
+    parts = [base]
+    if cfg["speed_on"]:
+        parts.append(f"(1 + top km/h ÷ {cfg['speed_div']:g})")
+    if cfg["hours_on"]:
+        parts.append(f"(1 + hours ÷ {cfg['hours_div']:g})")
+    return "EUC Planet Score = " + " × ".join(parts)
+
+
+def champions(db, cfg=None):
+    """Champion of the day/week/month by the EUC Planet Score. Distance is the base
+    (raised to dist_exp), boosted by top speed and real ride time per the admin's
+    tunable config. Pass `cfg` to evaluate a candidate formula without saving it.
+    Computed in Python so it works whether start_utc is tz-aware or naive."""
+    import services.settings as settings
+    if cfg is None:
+        cfg = settings.get_score_config(db)
     now = utcnow()
     windows = {"day": now - timedelta(days=1), "week": now - timedelta(days=7),
                "month": now - timedelta(days=30)}
-    rows = (db.query(Trip.rider_store_id, Trip.distance_km, Trip.duration_s,
+    rows = (db.query(Trip.rider_store_id, Trip.distance_km, Trip.moving_s, Trip.duration_s,
                      Trip.max_speed, Trip.start_utc)
             .join(Rider, Rider.store_id == Trip.rider_store_id)
             .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False),
                     Trip.start_utc.isnot(None)).all())
-    agg = {k: {} for k in windows}   # period -> sid -> [dist, dur_s, vmax]
-    for sid, dist, dur, vmax, t in rows:
+    agg = {k: {} for k in windows}   # period -> sid -> [dist, moving_s, vmax]
+    for sid, dist, mov, dur, vmax, t in rows:
+        secs = mov if mov is not None else (dur or 0.0)   # real ride time (fallback wall-clock)
         tt = t.replace(tzinfo=None) if getattr(t, "tzinfo", None) else t
         for k, since in windows.items():
             if tt >= since:
                 a = agg[k].setdefault(sid, [0.0, 0.0, 0.0])
                 a[0] += dist or 0.0
-                a[1] += dur or 0.0
+                a[1] += secs
                 a[2] = max(a[2], vmax or 0.0)
+
+    de, sd, hd = cfg["dist_exp"], cfg["speed_div"], cfg["hours_div"]
+    son, hon = cfg["speed_on"], cfg["hours_on"]
+
+    def score_of(dist, hours, vmax):
+        s = (dist ** de) if dist > 0 else 0.0
+        if son:
+            s *= (1 + vmax / sd)
+        if hon:
+            s *= (1 + hours / hd)
+        return s
 
     def top(period):
         best = None
-        for sid, (dist, dur, vmax) in agg[period].items():
-            hours = dur / 3600.0
-            score = dist * (1 + vmax / 100.0) * (1 + hours / 10.0)
-            if best is None or score > best[1]:
-                best = (sid, score, dist, hours, vmax)
+        for sid, (dist, secs, vmax) in agg[period].items():
+            hours = secs / 3600.0
+            s = score_of(dist, hours, vmax)
+            if best is None or s > best[1]:
+                best = (sid, s, dist, hours, vmax)
         if best is None:
             return None
-        sid, score, dist, hours, vmax = best
-        return {**_rider_brief(db, sid), "score": round(score, 1), "km": round(dist, 2),
+        sid, s, dist, hours, vmax = best
+        return {**_rider_brief(db, sid), "score": round(s, 1), "km": round(dist, 2),
                 "hours": round(hours, 2), "top_speed": round(vmax, 1)}
 
     return {"day": top("day"), "week": top("week"), "month": top("month"),
-            "formula": "EUC Planet Score = km × (1 + top km/h ÷ 100) × (1 + hours ÷ 10)"}
+            "formula": _score_formula(cfg)}
 
 
 ANDROID = {36: "Android 16", 35: "Android 15", 34: "Android 14", 33: "Android 13",

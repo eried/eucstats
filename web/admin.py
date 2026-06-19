@@ -1805,6 +1805,95 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
                             status_code=303)
 
 
+def _score_cfg_from_form(dist_exp, speed_div, hours_div, speed_on, hours_on) -> dict:
+    """Clamp raw form values into a champions() config (shared by preview + save)."""
+    def cf(v, d, lo, hi):
+        try:
+            return max(lo, min(hi, float(v)))
+        except (TypeError, ValueError):
+            return d
+    return {"dist_exp": cf(dist_exp, 1.0, 0.1, 3.0), "speed_on": bool(speed_on),
+            "speed_div": cf(speed_div, 100.0, 1.0, 100000.0), "hours_on": bool(hours_on),
+            "hours_div": cf(hours_div, 10.0, 0.1, 100000.0)}
+
+
+@admin_router.post("/score/preview")
+def score_preview(request: Request, db: Session = Depends(get_db),
+                  dist_exp: str = Form("1"), speed_div: str = Form("100"), hours_div: str = Form("10"),
+                  speed_on: str = Form(None), hours_on: str = Form(None)):
+    if not _is_authenticated(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from services import stats
+    cfg = _score_cfg_from_form(dist_exp, speed_div, hours_div, speed_on, hours_on)
+    return JSONResponse(stats.champions(db, cfg))   # computed live, NOT saved
+
+
+@admin_router.post("/score/save")
+def score_save(request: Request, db: Session = Depends(get_db),
+               dist_exp: str = Form("1"), speed_div: str = Form("100"), hours_div: str = Form("10"),
+               speed_on: str = Form(None), hours_on: str = Form(None)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    cfg = _score_cfg_from_form(dist_exp, speed_div, hours_div, speed_on, hours_on)
+    settings.set_score_config(db, cfg["dist_exp"], cfg["speed_on"], cfg["speed_div"],
+                              cfg["hours_on"], cfg["hours_div"])
+    audit.log("score_save", f"exp={cfg['dist_exp']:g} speed={cfg['speed_div']:g}/{cfg['speed_on']} "
+                            f"hours={cfg['hours_div']:g}/{cfg['hours_on']}")
+    return RedirectResponse("/admin/appearance?msg=" + quote("EUC Planet Score saved, live now"),
+                            status_code=303)
+
+
+_SCORE_JS = """
+<script>
+(function(){
+  var pv=document.getElementById('scoreprev'), out=document.getElementById('scoreout'), form=document.getElementById('scoreform');
+  if(!pv||!form)return;
+  function cell(label,c){return c?('<tr><td>'+label+'</td><td>'+(c.name||c.store_id||'?')+'</td><td><b>'+c.score+'</b></td><td>'+c.km+' km</td><td>'+c.hours+' h</td><td>'+c.top_speed+' km/h</td></tr>'):('<tr><td>'+label+'</td><td colspan=5 class=mut>no rides in window</td></tr>');}
+  pv.onclick=function(){
+    out.innerHTML='<span class=mut>computing preview…</span>';
+    fetch('/admin/score/preview',{method:'POST',body:new URLSearchParams(new FormData(form)),credentials:'same-origin'})
+      .then(function(r){return r.ok?r.json():Promise.reject();})
+      .then(function(d){
+        out.innerHTML='<p class=hint style="margin:0 0 6px"><code>'+d.formula+'</code></p>'
+          +'<table><tr><th>Window</th><th>Champion</th><th>Score</th><th>Dist</th><th>Hours</th><th>Top</th></tr>'
+          +cell('Day',d.day)+cell('Week',d.week)+cell('Month',d.month)+'</table>'
+          +'<p class=hint style="margin:6px 0 0">Preview only — not saved.</p>';
+      }).catch(function(){out.innerHTML='<span class=mut>preview failed</span>';});
+  };
+})();
+</script>"""
+
+
+def _score_card(db: Session) -> str:
+    c = settings.get_score_config(db)
+    ck = lambda v: " checked" if v else ""
+    nin = "background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:7px 9px;border-radius:8px;width:90px"
+    return f"""
+    <div class=card>
+      <h2>EUC Planet Score <span class=mut>· the champions formula</span></h2>
+      <p class=hint>How the day / week / month champions are ranked. Distance is the base raised to the
+      exponent (&gt;1 rewards big rides harder); each factor adds a boost where a <b>lower divisor = spicier</b>.
+      Hit Preview to see who would win before you apply.</p>
+      <form method=post action="/admin/score/save" id=scoreform>
+        <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
+          <label>Distance exponent<br><input type=number step=0.05 min=0.1 max=3 name=dist_exp value="{c['dist_exp']:g}" style="{nin}"></label>
+          <label>Top-speed divisor<br><input type=number step=1 min=1 name=speed_div value="{c['speed_div']:g}" style="{nin}"></label>
+          <label>Hours divisor<br><input type=number step=0.5 min=0.1 name=hours_div value="{c['hours_div']:g}" style="{nin}"></label>
+        </div>
+        <div style="margin-top:12px">
+          <label class=toggle style="display:inline-flex;margin-right:18px"><input type=checkbox name=speed_on value=1{ck(c['speed_on'])}> include top speed</label>
+          <label class=toggle style="display:inline-flex"><input type=checkbox name=hours_on value=1{ck(c['hours_on'])}> include hours (real ride time)</label>
+        </div>
+        <div class=qa style="margin-top:14px">
+          <button type=button class=ghost id=scoreprev>{_IC['search']} Preview (no save)</button>
+          <button>{_IC['check']} Save formula</button>
+        </div>
+      </form>
+      <div id=scoreout style="margin-top:12px"></div>
+    </div>
+    {_SCORE_JS}"""
+
+
 # --- appearance: everything visitors see (metrics, heatmap, look, banner) ---
 
 def _appearance_html(db: Session, msg: str = "") -> str:
@@ -1827,6 +1916,7 @@ def _appearance_html(db: Session, msg: str = "") -> str:
     the intro and the site banner. Changes apply on the next page load.</p>
     {_metrics_section(db)}
     {_heatmap_card(db)}
+    {_score_card(db)}
     <form method=post action="/admin/settings/save">
       <div class=card>
         <h2>Site banner</h2>
