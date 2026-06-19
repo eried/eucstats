@@ -94,6 +94,7 @@ def _counts(db: Session) -> dict:
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Riders & Trips"),
         ("/admin/wheels", "Wheels"), ("/admin/ingest", "Ingest"),
+        ("/admin/audit", "Metric audit"),
         ("/admin/appearance", "Public site"), ("/admin/datasets", "Data & backups"),
         ("/admin/telegram", "Telegram"), ("/admin/system", "System")]
 
@@ -1905,6 +1906,61 @@ def _score_card(db: Session) -> str:
       <div id=scoreout style="margin-top:12px"></div>
     </div>
     {_SCORE_JS}"""
+
+
+# --- metric audit: 3-agent adversarial review of how each metric is calculated ---
+_AUDIT_LEVELS = {0: ("Solid", "#13a05a"), 1: ("Minor", "#2ea8ff"),
+                 2: ("Caution", "#f59e0b"), 3: ("High risk", "#ff5b6e")}
+
+
+def _audit_html() -> str:
+    import importlib
+    from web import metric_audit_data
+    importlib.reload(metric_audit_data)                 # pick up regenerated data without a restart
+    data = metric_audit_data.AUDIT or {}
+    metrics = sorted(data.get("metrics", []), key=lambda m: (-int(m.get("level", 0)), m.get("name", "")))
+    gen = data.get("generated")
+    if not metrics:
+        body = ('<div class=card><p class=hint>No audit yet. Run the <code>metric-audit</code> workflow '
+                'to generate the review.</p></div>')
+    else:
+        cards = []
+        for m in metrics:
+            lvl = int(m.get("level", 0))
+            lbl, col = _AUDIT_LEVELS.get(lvl, _AUDIT_LEVELS[0])
+            issues = "".join(f"<li>{html.escape(str(i))}</li>" for i in (m.get("issues") or []))
+            fixes = "".join(f"<li>{html.escape(str(f))}</li>" for f in (m.get("fixes") or []) if f)
+            how = html.escape(str((m.get("hows") or [""])[0]))
+            cards.append(f"""
+            <div class=card style="border-left:4px solid {col}">
+              <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">{html.escape(str(m.get('name', m.get('id', ''))))}
+                <span style="background:{col}22;color:{col};border:1px solid {col}66;border-radius:20px;padding:2px 11px;font-size:12px;font-weight:600">{lbl}</span>
+                <span class=mut style="font-size:12px;font-weight:400">cheat {m.get('cheat', 0)}/3 · wrong {m.get('wrong', 0)}/3 · {m.get('reviews', 0)} reviews</span></h2>
+              <p class=hint style="margin:2px 0 8px">{how}</p>
+              {('<p class=hint style="margin:0 0 3px"><b>Issues raised</b></p><ul style="margin:0 0 8px;padding-left:18px">' + issues + '</ul>') if issues else ''}
+              {('<p class=hint style="margin:0 0 3px"><b>Suggested fixes</b></p><ul style="margin:0;padding-left:18px">' + fixes + '</ul>') if fixes else ''}
+            </div>""")
+        body = "".join(cards)
+    cnt = {}
+    for m in metrics:
+        cnt[int(m.get("level", 0))] = cnt.get(int(m.get("level", 0)), 0) + 1
+    summ = " &nbsp;·&nbsp; ".join(
+        f'<span style="color:{_AUDIT_LEVELS[l][1]}">{cnt.get(l, 0)} {_AUDIT_LEVELS[l][0].lower()}</span>'
+        for l in (3, 2, 1, 0))
+    inner = f"""
+    <h1>Metric audit</h1>
+    <p class=sub>Independent 3-agent adversarial review of how each metric is calculated and how it could be
+    cheated or be misleading. Worst risk first.{(' Generated ' + html.escape(str(gen)) + '.') if gen else ''}</p>
+    <div class=card><div style="font-size:13px">{summ}</div></div>
+    {body}"""
+    return _admin_shell(inner, active="/admin/audit")
+
+
+@admin_router.get("/audit", response_class=HTMLResponse)
+def audit_page(request: Request):
+    if not _is_authenticated(request):
+        return HTMLResponse(_login_html())
+    return HTMLResponse(_audit_html())
 
 
 # --- appearance: everything visitors see (metrics, heatmap, look, banner) ---
