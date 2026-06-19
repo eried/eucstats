@@ -361,7 +361,7 @@ const BTONE={brkg:"#ff5b6e",brk30:"#ff5b6e",brk50:"#ff5b6e",stop30:"#ff5b6e",sto
 // admin drag-to-reorder: apply the saved display order (unlisted/new keys keep their natural order)
 const ORDER=window.__ORDER__||{};
 function orderBy(arr,ord,kf){if(!ord||!ord.length)return arr.slice();const p={};ord.forEach((k,i)=>{p[k]=i;});return arr.slice().sort((a,b)=>(p[kf(a)]!==undefined?p[kf(a)]:1e9)-(p[kf(b)]!==undefined?p[kf(b)]:1e9));}
-function rowsCls(n){return n<=5?' onerow':(n>14?' threerow':'');}   // 1 row when few, 3 when many, else 2
+function rowsCls(n){return n<=3?' onerow':(n>=7?' threerow':'');}   // 1 row (<=3), 3 rows (>=7), else 2
 (function(){const o=orderBy(BOARDS,ORDER.boards,b=>b.k);BOARDS.length=0;o.forEach(b=>BOARDS.push(b));})();
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
