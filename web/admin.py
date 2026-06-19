@@ -302,13 +302,29 @@ def _dash_html(db: Session) -> str:
                    for k in ("riders", "trips", "validated", "flagged"))
 
     flagged = db.query(Trip).filter(Trip.validation_status == "flagged").order_by(desc(Trip.created_at)).limit(50).all()
+    _fr = {r.store_id: r for r in db.query(Rider).filter(
+        Rider.store_id.in_({t.rider_store_id for t in flagged if t.rider_store_id})).all()} if flagged else {}
+
+    def _frider(sid):                      # rider cell: name + flag (linked), store_id underneath
+        r, sid_e = _fr.get(sid), html.escape(sid or "")
+        if not r:
+            return f"<code>{sid_e}</code>"
+        fl = (html.escape(r.flag) + " ") if r.flag else ""
+        return (f"<a href='/admin/explorer/rider/{quote(sid or '')}'>{fl}<b>{html.escape(r.display_name or sid or '?')}</b></a>"
+                f"<div class=mut style='font-size:11px'><code>{sid_e}</code></div>")
+
     fhtml = "".join(
-        f"<tr><td><code>{t.trip_uuid[:8]}</code></td><td>{html.escape(t.rider_store_id or '')}</td>"
+        f"<tr>"
+        f"<td><a href='/admin/explorer/trip/{quote(t.trip_uuid)}'><code>{t.trip_uuid[:8]}</code></a></td>"
+        f"<td>{_frider(t.rider_store_id)}</td>"
+        f"<td class=mut style='white-space:nowrap'>{_fmt_dt(t.start_utc or t.created_at)}</td>"
         f"<td>{round(t.distance_km or 0,1)} km</td>"
-        f"<td>{html.escape(', '.join(t.flag_reasons or []))}</td><td>"
+        f"<td>{round(t.max_speed or 0,1)} km/h</td>"
+        f"<td>{html.escape(', '.join(t.flag_reasons or []))}</td><td style='white-space:nowrap'>"
+        f"<form method=get action='/admin/explorer/trip/{quote(t.trip_uuid)}' style='display:inline-flex;margin-right:6px'><button class='ghost mini'>{_IC['search']} view</button></form>"
         f"<form method=post action=/admin/trip/{t.trip_uuid}/approve style='display:inline-flex;margin-right:6px'><button class=mini>{_IC['check']} approve</button></form>"
         f"<form method=post action=/admin/trip/{t.trip_uuid}/reject style='display:inline-flex'><button class='mini danger'>{_IC['x']} reject</button></form>"
-        f"</td></tr>" for t in flagged) or "<tr><td colspan=5 class=mut>nothing flagged, queue is clear</td></tr>"
+        f"</td></tr>" for t in flagged) or "<tr><td colspan=7 class=mut>nothing flagged, queue is clear</td></tr>"
 
     riders = db.query(Rider).order_by(desc(Rider.created_at)).limit(30).all()
     bset = set(settings.banned(db))          # fetched once; reused per row (no N+1)
@@ -343,8 +359,8 @@ def _dash_html(db: Session) -> str:
     </div>
     <div class=card>
       <h2>Flagged trips, review queue</h2>
-      <p class=hint>Trips held back by plausibility checks. Approve to count them toward leaderboards, or reject to drop them.</p>
-      <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>distance</th><th>reasons</th><th>action</th></tr>{fhtml}</table></div>
+      <p class=hint>Trips held back by plausibility checks. Click a row's <b>view</b> (or the id) to see the full trip and its GPS track, then approve to count it toward leaderboards or reject to drop it.</p>
+      <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>when</th><th>distance</th><th>top speed</th><th>reasons</th><th>action</th></tr>{fhtml}</table></div>
     </div>
     <div class=card>
       <h2>Riders <span class=mut>· newest 30</span> <a href="/admin/explorer" class=mut style="float:right;font-size:12px">all riders →</a></h2>
