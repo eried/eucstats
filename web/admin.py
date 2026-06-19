@@ -1860,6 +1860,15 @@ _SCORE_JS = """
           +'<p class=hint style="margin:6px 0 0">Preview only — not saved.</p>';
       }).catch(function(){out.innerHTML='<span class=mut>preview failed</span>';});
   };
+  // preset formulas: fill the form then auto-preview (Save still required to apply)
+  var PRE={classic:{dist_exp:1,speed_div:100,hours_div:10,speed_on:true,hours_on:true},
+           spicy:{dist_exp:1.3,speed_div:50,hours_div:5,speed_on:true,hours_on:true}};
+  form.querySelectorAll('[data-preset]').forEach(function(b){b.onclick=function(){
+    var p=PRE[b.dataset.preset]; if(!p)return;
+    form.dist_exp.value=p.dist_exp; form.speed_div.value=p.speed_div; form.hours_div.value=p.hours_div;
+    form.speed_on.checked=p.speed_on; form.hours_on.checked=p.hours_on;
+    pv.click();
+  };});
 })();
 </script>"""
 
@@ -1876,13 +1885,17 @@ def _score_card(db: Session) -> str:
       Hit Preview to see who would win before you apply.</p>
       <form method=post action="/admin/score/save" id=scoreform>
         <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
-          <label>Distance exponent<br><input type=number step=0.05 min=0.1 max=3 name=dist_exp value="{c['dist_exp']:g}" style="{nin}"></label>
-          <label>Top-speed divisor<br><input type=number step=1 min=1 name=speed_div value="{c['speed_div']:g}" style="{nin}"></label>
-          <label>Hours divisor<br><input type=number step=0.5 min=0.1 name=hours_div value="{c['hours_div']:g}" style="{nin}"></label>
+          <label>Distance exponent<br><input type=number step=any min=0.1 max=3 name=dist_exp value="{c['dist_exp']:g}" style="{nin}"></label>
+          <label>Top-speed divisor<br><input type=number step=any min=1 name=speed_div value="{c['speed_div']:g}" style="{nin}"></label>
+          <label>Hours divisor<br><input type=number step=any min=0.1 name=hours_div value="{c['hours_div']:g}" style="{nin}"></label>
         </div>
         <div style="margin-top:12px">
           <label class=toggle style="display:inline-flex;margin-right:18px"><input type=checkbox name=speed_on value=1{ck(c['speed_on'])}> include top speed</label>
           <label class=toggle style="display:inline-flex"><input type=checkbox name=hours_on value=1{ck(c['hours_on'])}> include hours (real ride time)</label>
+        </div>
+        <div style="margin-top:12px"><span class=hint style="margin-right:8px">Presets:</span>
+          <button type=button class="ghost mini" data-preset="classic">Classic</button>
+          <button type=button class="ghost mini" data-preset="spicy" style="margin-left:6px">Spicy</button>
         </div>
         <div class=qa style="margin-top:14px">
           <button type=button class=ghost id=scoreprev>{_IC['search']} Preview (no save)</button>
