@@ -31,7 +31,9 @@ WHEEL_METRIC_FIELDS = {
     "power": ["max_sustained_w", "power_sust_6s"],
     "current": ["max_sustained_a", "current_sust_6s"],
     "voltage": ["peak_voltage", "max_voltage_sag"],
-    "accel": ["fastest_0_40_s", "sustained_accel", "accel_g", "brake_g"],
+    "accel": ["fastest_0_40_s", "sustained_accel", "accel_g", "brake_g",
+              "t_0_60_s", "t_0_100_s", "accel_g_30", "accel_g_50",
+              "brake_g_30", "brake_g_50", "stop_30_s", "stop_50_s"],
     "altitude": ["max_altitude_m", "min_altitude_m", "alt_range_m", "ascent_m"],
     "range": ["est_range_km"],
     "efficiency": ["wh_per_km"],
@@ -355,13 +357,20 @@ _GATED_SPEC = [
     ("gf20",     "Fast & Loose 20",  "Strongest g-force sustained above 20 km/h", "g_fast_20",      "max", "",         "",     "gforce"),
     ("gf30",     "Fast & Loose 30",  "Strongest g-force sustained above 30 km/h", "g_fast_30",      "max", "",         "",     "gforce"),
     ("gf40",     "Fast & Loose 40",  "Strongest g-force sustained above 40 km/h", "g_fast_40",      "max", "",         "",     "gforce"),
-    # --- directional g + experimental shake ---
-    ("glat",     "Carver",           "Strongest sustained sideways (cornering) g", "g_lateral",     "max", "",         "",     "gforce"),
-    ("gbrk",     "Brake Master",     "Strongest sustained fore-aft (braking) g",   "g_brake",       "max", "",         "",     "gforce"),
+    # --- experimental shake (the fakeable IMU brake/lateral boards were dropped) ---
     ("shake",    "Wobble Warrior",   "Biggest speed-wobble / shake index (experimental)", "shake_index", "max", "",   "",     "gforce"),
     # --- speed turned into a longitudinal g-force: launch (green) and braking (red) ---
     ("accg",     "Launch Force",     "Hardest acceleration as a g-force (from speed)",    "accel_g", "max", " g",     "",     "accel"),
     ("brkg",     "Stopping Power",   "Hardest braking as a g-force (from speed)",         "brake_g", "max", " g",     "",     "brake"),
+    # --- cheat-proof sprints (lower better), roll-on accel + braking-from-speed g, emergency stops ---
+    ("sprint60", "0→60",             "Fastest launch from a stop to 60 km/h (≈37 mph)",   "t_0_60_s",  "min", " s",    "",     "rocket"),
+    ("sprint100","0→100",            "Fastest launch from a stop to 100 km/h (≈62 mph)",  "t_0_100_s", "min", " s",    "",     "rocket"),
+    ("acc30",    "Roll-On 30",       "Hardest acceleration g while already above 30 km/h","accel_g_30","max", " g",     "",     "accel"),
+    ("acc50",    "Roll-On 50",       "Hardest acceleration g while already above 50 km/h","accel_g_50","max", " g",     "",     "accel"),
+    ("brk30",    "Brake from 30",    "Hardest braking g coming down from 30 km/h (≈19 mph)","brake_g_30","max"," g",    "",     "brake"),
+    ("brk50",    "Brake from 50",    "Hardest braking g coming down from 50 km/h (≈31 mph)","brake_g_50","max"," g",    "",     "brake"),
+    ("stop30",   "Stop from 30",     "Fastest stop from 30 km/h (≈19 mph) to a standstill","stop_30_s","min", " s",    "",     "brake"),
+    ("stop50",   "Stop from 50",     "Fastest stop from 50 km/h (≈31 mph) to a standstill","stop_50_s","min", " s",    "",     "brake"),
 ]
 # (base, name, desc, trip_col, direction, unit, conv, icon)  -- ungated absolute extremes
 _UNGATED_NEW = [

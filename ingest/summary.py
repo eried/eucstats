@@ -81,6 +81,14 @@ class TripSummary:
     shake_index: float | None
     accel_g: float | None       # longitudinal g from speed change: launch (accel) / brake
     brake_g: float | None
+    t_0_60_s: float | None      # sprint times to 60 / 100 km/h (lower better)
+    t_0_100_s: float | None
+    accel_g_30: float | None    # roll-on accel g while already above 30 / 50 km/h
+    accel_g_50: float | None
+    brake_g_30: float | None    # braking g coming down from 30 / 50 km/h
+    brake_g_50: float | None
+    stop_30_s: float | None     # fastest stop from 30 / 50 km/h to a standstill (lower better)
+    stop_50_s: float | None
     sample_count: int
 
 
@@ -161,12 +169,12 @@ def _power(s: Sample):
 
 def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
                   min_s: float = 1.5, max_s: float = 20.0) -> float | None:
-    """Shortest time (s) to launch from a near-stop (<=2 km/h) up to target_kmh —
-    an EUC '0-60'-style acceleration metric. Lower is better."""
+    """Shortest time (s) to launch from a near-stop (<=2 km/h) up to target_kmh, using the
+    corroborated wheel/GPS speed so it can't be faked. Lower is better."""
     best = None
     start = None
     for s in samples:
-        sp = s.speed
+        sp = _corrob_speed(s)
         if sp is None:
             continue
         if sp <= 2.0:
@@ -284,6 +292,50 @@ def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None
         else:
             best_brk = max(best_brk, g)
     return (round(best_acc, 3) or None), (round(best_brk, 3) or None)
+
+
+def _speed_g_band(samples: list[Sample], band: float, window_s: float = 1.0) -> tuple[float | None, float | None]:
+    """Same speed-derived longitudinal g as _speed_g, but only counts windows that START at or
+    above `band` km/h: roll-on acceleration (pushing hard while already fast) and braking from
+    real speed. Cheat-resistant — you must genuinely be going `band`+ km/h. Returns (accel_g, brake_g)."""
+    pts = [(s.t, _corrob_speed(s)) for s in samples]
+    pts = [(t, v) for t, v in pts if v is not None]
+    if len(pts) < 2:
+        return None, None
+    best_acc = best_brk = 0.0
+    left = 0
+    for right in range(1, len(pts)):
+        while right - left > 1 and (pts[right][0] - pts[left][0]).total_seconds() > window_s:
+            left += 1
+        dt = (pts[right][0] - pts[left][0]).total_seconds()
+        if dt <= 0 or pts[left][1] < band:
+            continue
+        g = abs((pts[right][1] - pts[left][1]) / dt) * _KMH_S_TO_G
+        if pts[right][1] >= pts[left][1]:
+            best_acc = max(best_acc, g)
+        else:
+            best_brk = max(best_brk, g)
+    return (round(best_acc, 3) or None), (round(best_brk, 3) or None)
+
+
+def _fastest_stop(samples: list[Sample], from_kmh: float, to_kmh: float = 2.0) -> float | None:
+    """Shortest time to brake from `from_kmh`+ down to a near-standstill (<=`to_kmh`), using the
+    corroborated speed. An emergency-stop metric — can't be faked (you must really be going fast,
+    then really stop). Lower is better. Re-accelerating back above `from_kmh` resets the window."""
+    best = None
+    start = None
+    for s in samples:
+        sp = _corrob_speed(s)
+        if sp is None:
+            continue
+        if sp >= from_kmh:
+            start = s.t                       # latest moment at/above the entry speed
+        elif sp <= to_kmh and start is not None:
+            dt = (s.t - start).total_seconds()
+            if dt > 0 and (best is None or dt < best):
+                best = dt
+            start = None
+    return round(best, 2) if best is not None else None
 
 
 def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
@@ -446,6 +498,13 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     shake_index = _max_shake(samples, sw)
     # Speed-derived longitudinal g: how hard you launch / brake (every wheel reports speed).
     accel_g, brake_g = _speed_g(samples, 1.0)
+    # Cheat-proof sprints + banded roll-on/braking g + emergency-stop times (all from real speed).
+    t_0_60_s = _fastest_0_40(samples, 60.0, 1.0, 40.0)
+    t_0_100_s = _fastest_0_40(samples, 100.0, 1.0, 60.0)
+    accel_g_30, brake_g_30 = _speed_g_band(samples, 30.0, 1.0)
+    accel_g_50, brake_g_50 = _speed_g_band(samples, 50.0, 1.0)
+    stop_30_s = _fastest_stop(samples, 30.0)
+    stop_50_s = _fastest_stop(samples, 50.0)
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration,
@@ -465,5 +524,9 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         g_fast_20=g_fast_20, g_fast_30=g_fast_30, g_fast_40=g_fast_40,
         g_lateral=g_lateral, g_brake=g_brake, shake_index=shake_index,
         accel_g=accel_g, brake_g=brake_g,
+        t_0_60_s=t_0_60_s, t_0_100_s=t_0_100_s,
+        accel_g_30=accel_g_30, accel_g_50=accel_g_50,
+        brake_g_30=brake_g_30, brake_g_50=brake_g_50,
+        stop_30_s=stop_30_s, stop_50_s=stop_50_s,
         sample_count=len(samples),
     )

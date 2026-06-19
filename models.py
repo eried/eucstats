@@ -99,6 +99,14 @@ class Trip(Base):
     shake_index = Column(Float)          # experimental wobble index (lateral-g std-dev)
     accel_g = Column(Float)              # longitudinal g from speed change: launch (accel)
     brake_g = Column(Float)              # longitudinal g from speed change: braking
+    t_0_60_s = Column(Float)             # cheat-proof sprint times (corroborated speed)
+    t_0_100_s = Column(Float)
+    accel_g_30 = Column(Float)           # roll-on accel g above 30 / 50 km/h
+    accel_g_50 = Column(Float)
+    brake_g_30 = Column(Float)           # braking g from 30 / 50 km/h
+    brake_g_50 = Column(Float)
+    stop_30_s = Column(Float)            # fastest stop from 30 / 50 km/h (lower better)
+    stop_50_s = Column(Float)
     battery_used_pct = Column(Float)
     est_range_km = Column(Float)
     country = Column(String, index=True)

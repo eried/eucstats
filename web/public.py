@@ -355,7 +355,8 @@ const BOARDS=[
  {k:"freespin",c:"freespin_kmh",conv:"spd"}];
 BOARDS.forEach(b=>{b.nk="b."+b.k+".n";b.dk="b."+b.k+".d";});   // i18n keys (English lives in i18n.py)
 // gated boards (server spec): same name per metric, gate baked in, value under "v"
-const BTONE={brkg:"#ff5b6e",accg:"#36d399"};   // speed→g boards: braking red, launch green
+const BTONE={brkg:"#ff5b6e",brk30:"#ff5b6e",brk50:"#ff5b6e",stop30:"#ff5b6e",stop50:"#ff5b6e",   // braking → red
+             accg:"#36d399",acc30:"#36d399",acc50:"#36d399",sprint60:"#36d399",sprint100:"#36d399"};   // launch/accel → green
 (window.__GATED__||[]).forEach(g=>{BOARDS.push({k:g.k,nk:"b."+g.base+".n",dk:"b."+g.base+".d",c:"v",u:g.u,conv:g.conv||undefined,ic:g.ic,min_s:g.min_s,min_km:g.min_km,tone:BTONE[g.base]});});
 // admin drag-to-reorder: apply the saved display order (unlisted/new keys keep their natural order)
 const ORDER=window.__ORDER__||{};

@@ -8,7 +8,8 @@ from datetime import datetime
 
 import models
 from ingest.parser import Sample
-from ingest.summary import summarize, _max_voltage_sag, _max_sustained_accel, _max_shake, _speed_g
+from ingest.summary import (summarize, _max_voltage_sag, _max_sustained_accel, _max_shake,
+                            _speed_g, _speed_g_band, _fastest_stop)
 from services import stats
 from services.aggregator import Aggregator, rebuild_all
 
@@ -256,14 +257,37 @@ def test_speed_g_helper_edges():
     assert a is not None and abs(a - 0.566) < 0.02 and b is None   # pure acceleration, no braking
 
 
+def test_speed_band_and_stop_helpers():
+    # roll-on: accelerate while already fast (40->60 over 2s = 10 km/h/s ≈ 0.283 g, starts >=30 and >=50)
+    a30, b30 = _speed_g_band([_s(0, speed=40, gps_speed=40), _s(2, speed=60, gps_speed=60)], 30.0)
+    assert a30 is not None and abs(a30 - 0.283) < 0.03 and b30 is None
+    a50, b50 = _speed_g_band([_s(0, speed=40, gps_speed=40), _s(2, speed=60, gps_speed=60)], 50.0)
+    assert a50 is None                                      # window started at 40, below the 50 band
+    # emergency stop: 30 -> 0 over 2s
+    samples = [_s(0, speed=30, gps_speed=30), _s(1, speed=15, gps_speed=15), _s(2, speed=0, gps_speed=0)]
+    assert _fastest_stop(samples, 30.0) == 2.0
+    assert _fastest_stop(samples, 50.0) is None            # never reached 50
+
+
+def test_sprints_use_corroborated_speed():
+    # GPS says fast early (spoof attempt) but wheel speed is the real, slower curve -> uses the min
+    samples = [_s(0, speed=0, gps_speed=0), _s(1, speed=20, gps_speed=99),
+               _s(2, speed=40, gps_speed=99), _s(3, speed=60, gps_speed=99)]
+    sm = summarize(samples)
+    assert sm.fastest_0_40_s == 2.0 and sm.t_0_60_s == 3.0   # corroborated (min) speed, not the GPS spoof
+
+
 def test_new_gated_boards_registered_and_default_off():
     from services import settings
     for base in ("g4", "g6", "pwm3", "spd5", "spd10", "pw6", "cur6",
-                 "gf20", "gf30", "gf40", "glat", "gbrk", "shake", "accg", "brkg"):
+                 "gf20", "gf30", "gf40", "shake", "accg", "brkg",
+                 "sprint60", "sprint100", "acc30", "acc50", "brk30", "brk50", "stop30", "stop50"):
         for suf, *_ in settings.GATE_TIERS:
             k = f"{base}_{suf}"
             assert k in stats.BOARDS                       # leaderboard callable wired
             assert k in settings.DEFAULT_OFF_BOARDS        # ships hidden until enabled
+    for gone in ("gbrk_b", "glat_b"):                      # the fakeable IMU boards were dropped
+        assert gone not in stats.BOARDS
         assert f"b.{base}.n" in __import__("web.i18n", fromlist=["EN"]).EN
 
 
@@ -273,12 +297,12 @@ def test_new_gated_leaderboard_returns_qualifying_max(db):
     T = lambda u, **kw: models.Trip(trip_uuid=u, rider_store_id="g",
                                     validation_status="validated", **kw)
     # both rides clear the briefest tier 'b' gate (>=300 s & >=1.5 km); board takes the per-rider max
-    db.add(T("g1", duration_s=600, distance_km=5.0, g_lateral=0.5, speed_sust_5s=30.0))
-    db.add(T("g2", duration_s=600, distance_km=5.0, g_lateral=0.9, speed_sust_5s=42.0))
+    db.add(T("g1", duration_s=600, distance_km=5.0, brake_g=0.5, speed_sust_5s=30.0))
+    db.add(T("g2", duration_s=600, distance_km=5.0, brake_g=0.9, speed_sust_5s=42.0))
     # a too-short ride must NOT qualify even with a huge value
-    db.add(T("g3", duration_s=10, distance_km=0.2, g_lateral=9.9))
+    db.add(T("g3", duration_s=10, distance_km=0.2, brake_g=9.9))
     db.commit()
     rebuild_all(db)
-    glat = stats.BOARDS["glat_b"](db, limit=10)
-    assert glat and glat[0]["store_id"] == "g" and glat[0]["v"] == 0.9   # max, short ride excluded
+    brk = stats.BOARDS["brkg_b"](db, limit=10)
+    assert brk and brk[0]["store_id"] == "g" and brk[0]["v"] == 0.9   # max, short ride excluded
     assert stats.BOARDS["spd5_b"](db, limit=10)[0]["v"] == 42.0

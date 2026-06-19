@@ -47,7 +47,11 @@ NEW_COLUMNS = {
               ("power_sust_6s", "FLOAT"), ("current_sust_6s", "FLOAT"),
               ("g_fast_20", "FLOAT"), ("g_fast_30", "FLOAT"), ("g_fast_40", "FLOAT"),
               ("g_lateral", "FLOAT"), ("g_brake", "FLOAT"), ("shake_index", "FLOAT"),
-              ("accel_g", "FLOAT"), ("brake_g", "FLOAT")],
+              ("accel_g", "FLOAT"), ("brake_g", "FLOAT"),
+              ("t_0_60_s", "FLOAT"), ("t_0_100_s", "FLOAT"),
+              ("accel_g_30", "FLOAT"), ("accel_g_50", "FLOAT"),
+              ("brake_g_30", "FLOAT"), ("brake_g_50", "FLOAT"),
+              ("stop_30_s", "FLOAT"), ("stop_50_s", "FLOAT")],
     "rider_stats": [("best_freespin", "FLOAT"), ("best_voltage_sag", "FLOAT"),
                     ("best_sustained_accel", "FLOAT")],
 }
