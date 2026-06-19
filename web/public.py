@@ -145,7 +145,7 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .avph{background:linear-gradient(135deg,#2a3566,#141a30)}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
-.tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:minmax(176px,max-content);gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
+.tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:140px;gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
 .tabs.onerow{grid-template-rows:auto}   /* few tabs: one line + side-scroll instead of a half-empty second row */
 .tabs.threerow{grid-template-rows:repeat(3,auto)}   /* many tabs: a third row trims the horizontal scroll */
 .tabs .tab{scroll-snap-align:start}
@@ -154,8 +154,8 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabcap:empty{display:none}
 .tabs::-webkit-scrollbar{height:6px}.tabs::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 .pbody::-webkit-scrollbar{width:7px}.pbody::-webkit-scrollbar-track{background:transparent}.pbody::-webkit-scrollbar-thumb{background:rgba(130,170,255,.28);border-radius:4px;border:2px solid transparent;background-clip:padding-box}.pbody::-webkit-scrollbar-thumb:hover{background:rgba(130,170,255,.5)}
-.tab{display:flex;align-items:center;justify-content:flex-start;gap:7px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:0 12px;height:36px;font-size:12px;cursor:pointer;letter-spacing:.3px;overflow:visible;white-space:nowrap}
-.tab>span{white-space:nowrap;text-align:left}
+.tab{display:flex;align-items:center;justify-content:flex-start;gap:7px;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;padding:5px 11px;min-height:36px;font-size:12px;line-height:1.15;cursor:pointer;letter-spacing:.3px;overflow:visible}
+.tab>span{white-space:normal;text-align:left;overflow-wrap:anywhere}
 .tab svg{flex:0 0 auto}
 .tab svg{width:14px;height:14px}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
@@ -207,8 +207,8 @@ td.sub{color:var(--mut)}
 @media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}
 /* phones: size tabs to their label (not a fixed 176px) so 4-5 fit per swipe
    instead of barely 2, and tighten them a touch for density */
-.tabs{grid-auto-columns:max-content;gap:5px}
-.tab{height:34px;padding:0 11px;font-size:11.5px;gap:6px}
+.tabs{grid-auto-columns:114px;gap:5px}
+.tab{min-height:34px;padding:4px 10px;font-size:11.5px;gap:6px}
 .tab svg{width:13px;height:13px}}
 </style></head><body>
 <div id="map"></div>
