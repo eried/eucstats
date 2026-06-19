@@ -149,8 +149,9 @@ def efficiency_leaderboard(db, limit=50):
 
 
 def steel_legs(db, limit=50):
-    return [{**_rider_brief(db, rs.store_id), "hours": round((rs.total_duration_s or 0) / 3600.0, 1)}
-            for rs in _board(db, RiderStat.total_duration_s, limit, positive_only=True)]
+    # "hours on the wheel" = real moving time (>2 km/h), not the whole logging session
+    return [{**_rider_brief(db, rs.store_id), "hours": round((rs.total_moving_s or 0) / 3600.0, 1)}
+            for rs in _board(db, RiderStat.total_moving_s, limit, positive_only=True)]
 
 
 def altitude_king(db, limit=50):
@@ -213,7 +214,9 @@ def night_rider(db, limit=50):
 
 
 def marathoner(db, limit=50):
-    return _trip_max_board(db, Trip.duration_s, "ride_hours", limit,
+    # longest ride by MOVING time (>2 km/h); old trips w/o moving_s fall back to wall-clock
+    col = func.coalesce(Trip.moving_s, Trip.duration_s)
+    return _trip_max_board(db, col, "ride_hours", limit,
                            transform=lambda v: round((v or 0) / 3600.0, 2), flt=Trip.duration_s > 0)
 
 

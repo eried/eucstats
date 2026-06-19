@@ -57,6 +57,9 @@ class Aggregator:
         if mv("ascent_m"):
             rs.total_ascent_m = (rs.total_ascent_m or 0.0) + mv("ascent_m")
         rs.total_duration_s = (rs.total_duration_s or 0.0) + (trip.duration_s or 0.0)
+        # real ride time (>2 km/h); fall back to wall-clock for trips too old to recompute
+        mv_s = trip.moving_s if trip.moving_s is not None else (trip.duration_s or 0.0)
+        rs.total_moving_s = (rs.total_moving_s or 0.0) + (mv_s or 0.0)
         if mv("alt_range_m"):
             rs.best_alt_range_m = max(rs.best_alt_range_m or 0.0, mv("alt_range_m"))
         if mv("est_range_km"):

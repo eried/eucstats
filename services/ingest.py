@@ -189,7 +189,7 @@ class IngestService:
                 trip_uuid=trip_uuid, rider_store_id=store, wheel_id=wid,
                 start_utc=m_start, end_utc=m_end,
                 tz=str(meta.get("tz") or tz_off), tz_known=bool(meta.get("tz_known", True)),
-                distance_km=sm.distance_km, duration_s=sm.duration_s,
+                distance_km=sm.distance_km, duration_s=sm.duration_s, moving_s=sm.moving_s,
                 max_speed=sm.max_speed, avg_speed=sm.avg_speed, max_gforce=sm.max_gforce,
                 wh_per_km=sm.wh_per_km, max_sustained_w=sm.max_sustained_w,
                 max_sustained_a=sm.max_sustained_a, peak_voltage=sm.peak_voltage,

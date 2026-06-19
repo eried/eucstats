@@ -41,6 +41,7 @@ def reprocess_with_calibration(db) -> dict:
             sm = summarize(samples, gps_tolerance=gps_tol, cal=cal)
             # copy recomputed metrics (NOT status / coords / country / wheel / times)
             t.distance_km, t.duration_s = sm.distance_km, sm.duration_s
+            t.moving_s = sm.moving_s
             t.max_speed, t.avg_speed = sm.max_speed, sm.avg_speed
             t.max_gforce = sm.max_gforce
             t.wh_per_km = sm.wh_per_km

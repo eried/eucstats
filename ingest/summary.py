@@ -41,6 +41,7 @@ class TripSummary:
     start_utc: datetime
     end_utc: datetime
     duration_s: float
+    moving_s: float | None
     distance_km: float
     gps_distance_km: float
     max_speed: float | None
@@ -338,6 +339,23 @@ def _fastest_stop(samples: list[Sample], from_kmh: float, to_kmh: float = 2.0) -
     return round(best, 2) if best is not None else None
 
 
+def _moving_seconds(samples: list[Sample], min_kmh: float = 2.0, max_gap_s: float = 30.0) -> float | None:
+    """Seconds actually rolling: add the time up to each sample only when the previous sample was
+    moving (corroborated speed > min_kmh). Each gap is capped at max_gap_s so a long stop or a
+    paused/resumed recording isn't counted as ride time. This is the real 'hours on the wheel',
+    not the whole logging session."""
+    total = 0.0
+    prev_t = prev_v = None
+    for s in samples:
+        v = _corrob_speed(s)
+        if prev_t is not None and prev_v is not None and prev_v > min_kmh:
+            dt = (s.t - prev_t).total_seconds()
+            if 0 < dt <= max_gap_s:
+                total += dt
+        prev_t, prev_v = s.t, v
+    return round(total, 1) if total > 0 else None
+
+
 def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
     """Elevation gain from altitude samples, with a hysteresis to filter GPS noise."""
     alts = [s.alt for s in samples if s.alt is not None]
@@ -438,7 +456,10 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         distance = gps_km
 
     speeds = [s.speed for s in samples if s.speed is not None]
-    avg_speed = (sum(speeds) / len(speeds)) if speeds else None
+    # avg speed over MOVING samples only (>2 km/h) so stops don't drag it down
+    moving = [v for v in (_corrob_speed(s) for s in samples) if v is not None and v > 2.0]
+    avg_speed = (sum(moving) / len(moving)) if moving else None
+    moving_s = _moving_seconds(samples)        # real ride time (rolling >2 km/h), not the whole log
     max_speed, max_freespin = _speeds(samples, speeds, c["max_accel"], c["freespin_margin"])
 
     # G-force: the leaderboard value is the SUSTAINED g (best `sustain_secs` average)
@@ -507,7 +528,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     stop_50_s = _fastest_stop(samples, 50.0)
 
     return TripSummary(
-        start_utc=start, end_utc=end, duration_s=duration,
+        start_utc=start, end_utc=end, duration_s=duration, moving_s=moving_s,
         distance_km=distance, gps_distance_km=gps_km,
         max_speed=max_speed, max_freespin=max_freespin, avg_speed=avg_speed,
         max_gforce=max_gforce, max_gforce_spike=max_gforce_spike,

@@ -64,6 +64,7 @@ class Trip(Base):
     tz_known = Column(Boolean, default=True)
     distance_km = Column(Float)
     duration_s = Column(Float)
+    moving_s = Column(Float)             # time actually rolling (>2 km/h), not the whole log
     max_speed = Column(Float)
     avg_speed = Column(Float)
     max_gforce = Column(Float)
@@ -160,6 +161,7 @@ class RiderStat(Base):
     longest_trip_km = Column(Float, default=0.0)
     total_ascent_m = Column(Float, default=0.0)
     total_duration_s = Column(Float, default=0.0)
+    total_moving_s = Column(Float, default=0.0)    # summed real ride time (>2 km/h)
     best_range_km = Column(Float, default=0.0)
     best_wh_per_km = Column(Float)
     best_alt_range_m = Column(Float, default=0.0)

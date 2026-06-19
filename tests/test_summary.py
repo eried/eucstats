@@ -21,7 +21,7 @@ def test_summary_odometer_distance():
     assert round(s.distance_km, 3) == 1.0      # sum of plausible odometer steps
     assert s.duration_s == 200
     assert s.max_speed == 20.0
-    assert s.avg_speed == 10.0                 # mean(0,20,10)
+    assert s.avg_speed == 15.0                 # mean of MOVING samples >2 km/h: mean(20,10), the 0 is a stop
     assert s.max_gforce == 0.5
     assert s.wh_per_km is not None and s.wh_per_km > 0
 

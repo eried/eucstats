@@ -51,9 +51,9 @@ NEW_COLUMNS = {
               ("t_0_60_s", "FLOAT"), ("t_0_100_s", "FLOAT"),
               ("accel_g_30", "FLOAT"), ("accel_g_50", "FLOAT"),
               ("brake_g_30", "FLOAT"), ("brake_g_50", "FLOAT"),
-              ("stop_30_s", "FLOAT"), ("stop_50_s", "FLOAT")],
+              ("stop_30_s", "FLOAT"), ("stop_50_s", "FLOAT"), ("moving_s", "FLOAT")],
     "rider_stats": [("best_freespin", "FLOAT"), ("best_voltage_sag", "FLOAT"),
-                    ("best_sustained_accel", "FLOAT")],
+                    ("best_sustained_accel", "FLOAT"), ("total_moving_s", "FLOAT")],
 }
 
 

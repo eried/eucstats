@@ -257,6 +257,16 @@ def test_speed_g_helper_edges():
     assert a is not None and abs(a - 0.566) < 0.02 and b is None   # pure acceleration, no braking
 
 
+def test_moving_seconds_excludes_stops():
+    # stopped, then rolling at 20 km/h for 5 s, then stopped again (1 s sampling)
+    samples = ([_s(0, speed=0, gps_speed=0)]
+               + [_s(i, speed=20, gps_speed=20) for i in range(1, 6)]
+               + [_s(i, speed=0, gps_speed=0) for i in range(6, 9)])
+    sm = summarize(samples)
+    assert sm.moving_s == 5.0          # only the rolling seconds count, not the stopped ones
+    assert sm.avg_speed == 20.0        # average over moving samples only (the 0s are excluded)
+
+
 def test_speed_band_and_stop_helpers():
     # roll-on: accelerate while already fast (40->60 over 2s = 10 km/h/s ≈ 0.283 g, starts >=30 and >=50)
     a30, b30 = _speed_g_band([_s(0, speed=40, gps_speed=40), _s(2, speed=60, gps_speed=60)], 30.0)
