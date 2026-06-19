@@ -147,6 +147,7 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:minmax(176px,max-content);gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
 .tabs.onerow{grid-template-rows:auto}   /* few tabs: one line + side-scroll instead of a half-empty second row */
+.tabs.threerow{grid-template-rows:repeat(3,auto)}   /* many tabs: a third row trims the horizontal scroll */
 .tabs .tab{scroll-snap-align:start}
 .tabcap{display:flex;align-items:center;gap:7px;min-height:16px;margin:-1px 2px 9px;font-size:12px;color:var(--mut);line-height:1.3}
 .tabcap svg{width:14px;height:14px;flex:0 0 auto;opacity:.9}
@@ -356,6 +357,11 @@ BOARDS.forEach(b=>{b.nk="b."+b.k+".n";b.dk="b."+b.k+".d";});   // i18n keys (Eng
 // gated boards (server spec): same name per metric, gate baked in, value under "v"
 const BTONE={brkg:"#ff5b6e",accg:"#36d399"};   // speed→g boards: braking red, launch green
 (window.__GATED__||[]).forEach(g=>{BOARDS.push({k:g.k,nk:"b."+g.base+".n",dk:"b."+g.base+".d",c:"v",u:g.u,conv:g.conv||undefined,ic:g.ic,min_s:g.min_s,min_km:g.min_km,tone:BTONE[g.base]});});
+// admin drag-to-reorder: apply the saved display order (unlisted/new keys keep their natural order)
+const ORDER=window.__ORDER__||{};
+function orderBy(arr,ord,kf){if(!ord||!ord.length)return arr.slice();const p={};ord.forEach((k,i)=>{p[k]=i;});return arr.slice().sort((a,b)=>(p[kf(a)]!==undefined?p[kf(a)]:1e9)-(p[kf(b)]!==undefined?p[kf(b)]:1e9));}
+function rowsCls(n){return n<=5?' onerow':(n>14?' threerow':'');}   // 1 row when few, 3 when many, else 2
+(function(){const o=orderBy(BOARDS,ORDER.boards,b=>b.k);BOARDS.length=0;o.forEach(b=>BOARDS.push(b));})();
 // --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
 const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
 function defaultUnit(){try{const r=((navigator.language||"").split("-")[1]||"").toUpperCase();return MPH_REGIONS.includes(r)?"mph":"kmh";}catch(e){return "kmh";}}
@@ -553,7 +559,7 @@ function podList(rows,cfg){
 function showRiders(){
   const isH=b=>HIDE.boards.includes(b.k);
   const vis=isAdminView()?BOARDS:BOARDS.filter(b=>!isH(b));
-  setPanel("riders",t("title.riders"),`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||IC[b.ic]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  setPanel("riders",t("title.riders"),`<div class="tabs${rowsCls(vis.length)}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||IC[b.ic]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
   bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
 }
@@ -596,8 +602,9 @@ async function showGroupPanel(kind,name,title,cfg){
   GROWS=(await j("/groups/"+kind)).entries;
   const hid=(HIDE.groups&&HIDE.groups[name])||[];   // each section keeps its own hidden tabs
   const isH=b=>hid.includes(b.k);
-  const vis=isAdminView()?GBOARDS:GBOARDS.filter(b=>!isH(b));
-  setPanel(name,title,`<div class="tabs${vis.length<6?' onerow':''}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  const gord=orderBy(GBOARDS,ORDER[{countries:"gcountries",wheels:"gwheels",brands:"gbrands"}[name]],b=>b.k);
+  const vis=isAdminView()?gord:gord.filter(b=>!isH(b));
+  setPanel(name,title,`<div class="tabs${rowsCls(vis.length)}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
   bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
 }
@@ -605,7 +612,7 @@ function showCountries(){showGroupPanel("country","countries",t("title.countries
 function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+t("u.riders",{n:e.riders||0})});}
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
-  const recs=(await j("/records")).filter(r=>r.value!=null&&(isAdminView()||!HIDE.records.includes(r.key)));
+  const recs=orderBy((await j("/records")).filter(r=>r.value!=null&&(isAdminView()||!HIDE.records.includes(r.key))),ORDER.records,r=>r.key);
   setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
@@ -863,6 +870,7 @@ def _hide_cfg(db, admin=False, accept_language=""):
             + ';window.__HEAT__=' + json.dumps(heat)
             + ';window.__I18N__=' + json.dumps(i18n_small, ensure_ascii=False)
             + ';window.__LANGS__=' + json.dumps(i18n.LANG_NAMES, ensure_ascii=False)
+            + ';window.__ORDER__=' + json.dumps(settings.get_metric_order(db))
             + ';</script>')
 
 

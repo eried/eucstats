@@ -106,6 +106,7 @@ _IC = {
     "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>',
     "ban": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
     "back": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+    "grip": '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
 }
 
 _ADMIN_CSS = """<link rel=preconnect href="https://fonts.googleapis.com"><link rel=preconnect href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel=stylesheet><style>
@@ -185,8 +186,12 @@ tr.active{background:rgba(46,168,255,.08)}
 .mhead .cnt{color:#8ea0c8;font-size:11px;white-space:nowrap;padding-top:2px}
 .kids{padding:7px 11px 11px;display:flex;flex-direction:column;gap:5px;transition:opacity .15s}
 .kids.dim{opacity:.4}
-.krow{display:flex;align-items:flex-start;gap:10px;padding:7px 10px;border:1px solid #1d2945;border-radius:8px;background:#0d142a;cursor:pointer}
+.krow{display:flex;align-items:flex-start;gap:9px;padding:7px 10px;border:1px solid #1d2945;border-radius:8px;background:#0d142a}
 .krow:hover{border-color:#2ea8ff}
+.krow.dragging{opacity:.45;border-color:#2ea8ff}
+.krow .grip{color:#4d5d85;cursor:grab;flex:none;display:flex;align-items:center;margin-top:1px}
+.krow .grip:active{cursor:grabbing}.krow .grip svg{width:15px;height:15px}
+.krow .ktoggle{display:flex;align-items:flex-start;gap:10px;flex:1;min-width:0;cursor:pointer;margin:0}
 .krow input{width:15px;height:15px;accent-color:#2ea8ff;margin-top:2px;flex:none}
 .krow .kl{font-size:13px;color:#e7ecfb;display:block}
 .krow .kd{font-size:11.5px;color:#8ea0c8;display:block;margin-top:2px}
@@ -1690,6 +1695,23 @@ _METRICS_JS = """
           kids.forEach(function(c){c.checked=p.checked;offc(c);});p.indeterminate=false;});
         sync();
       });
+      // drag to reorder metrics within a section; the hidden .ordfield carries the order on save
+      document.querySelectorAll('.mnode').forEach(function(node){
+        var box=node.querySelector('.kids'), ordf=node.querySelector('.ordfield');
+        if(!box||!ordf)return;
+        function serialize(){ordf.value=[].map.call(box.querySelectorAll('.krow'),function(r){return r.dataset.k;}).join(',');}
+        var drag=null;
+        box.querySelectorAll('.krow').forEach(function(row){
+          row.addEventListener('dragstart',function(e){drag=row;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+          row.addEventListener('dragend',function(){if(drag)drag.classList.remove('dragging');drag=null;serialize();});
+        });
+        box.addEventListener('dragover',function(e){
+          e.preventDefault();if(!drag)return;
+          var rows=box.querySelectorAll('.krow:not(.dragging)'),after=null;
+          for(var i=0;i<rows.length;i++){var b=rows[i].getBoundingClientRect();if(e.clientY<b.top+b.height/2){after=rows[i];break;}}
+          if(after)box.insertBefore(drag,after);else box.appendChild(drag);
+        });
+      });
     })();
     </script>"""
 
@@ -1697,27 +1719,30 @@ _METRICS_JS = """
 def _metrics_section(db: Session) -> str:
     h = settings.get_hidden(db)
     g = h["groups"]
+    order = settings.get_metric_order(db)
     secmeta = {k: (lbl, desc) for k, lbl, desc in settings.METRIC_SECTIONS}
-    # section_key -> (child form field, items, that section's own hidden list)
+    # section_key -> (child form field, items, that section's own hidden list, order key)
     kids_of = {
-        "riders": ("show_board", settings.METRIC_BOARDS, h["boards"]),
-        "countries": ("show_gcountries", settings.METRIC_GROUPS, g["countries"]),
-        "wheels": ("show_gwheels", settings.METRIC_GROUPS, g["wheels"]),
-        "brands": ("show_gbrands", settings.METRIC_GROUPS, g["brands"]),
-        "records": ("show_record", settings.METRIC_RECORDS, h["records"]),
-        "tech": ("show_app", settings.METRIC_APP, h["app"]),
+        "riders": ("show_board", settings.METRIC_BOARDS, h["boards"], "boards"),
+        "countries": ("show_gcountries", settings.METRIC_GROUPS, g["countries"], "gcountries"),
+        "wheels": ("show_gwheels", settings.METRIC_GROUPS, g["wheels"], "gwheels"),
+        "brands": ("show_gbrands", settings.METRIC_GROUPS, g["brands"], "gbrands"),
+        "records": ("show_record", settings.METRIC_RECORDS, h["records"], "records"),
+        "tech": ("show_app", settings.METRIC_APP, h["app"], "app"),
     }
 
     def krow(field, k, label, desc, hidden):
         on = k not in hidden
-        return (f'<label class="krow{"" if on else " off"}">'
-                f'<input type=checkbox name={field} value="{k}"{" checked" if on else ""}>'
+        return (f'<div class="krow{"" if on else " off"}" draggable="true" data-k="{k}">'
+                f'<span class=grip aria-hidden="true">{_IC["grip"]}</span>'
+                f'<label class=ktoggle><input type=checkbox name={field} value="{k}"{" checked" if on else ""}>'
                 f'<span class=tw><span class=kl>{html.escape(label)}</span>'
-                f'<span class=kd>{html.escape(desc)}</span></span></label>')
+                f'<span class=kd>{html.escape(desc)}</span></span></label></div>')
 
     def node(sec_key):
         lbl, desc = secmeta[sec_key]
-        field, items, hidden = kids_of[sec_key]
+        field, items, hidden, okey = kids_of[sec_key]
+        items = settings.order_items(items, order.get(okey))     # admin's saved drag order
         shown = sum(1 for k, *_ in items if k not in hidden)
         allon = shown == len(items)
         body = "".join(krow(field, k, l, d, hidden) for k, l, d in items)
@@ -1728,7 +1753,8 @@ def _metrics_section(db: Session) -> str:
                 f'<label class=mhead><input type=checkbox class=psel data-parent="{sec_key}"{" checked" if allon else ""}>'
                 f'<span class=tw><span class=t>{html.escape(lbl)}</span>'
                 f'<span class=d>{html.escape(desc)}</span></span>{cnt}</label>'
-                f'<div class=kids>{body}</div></div>')
+                f'<div class=kids>{body}</div>'
+                f'<input type=hidden name="order_{okey}" class=ordfield value="{",".join(k for k, *_ in items)}"></div>')
 
     tree = "".join(node(k) for k, *_ in settings.METRIC_SECTIONS)
     return f"""
@@ -1753,9 +1779,16 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
                  show_board: list[str] = Form([]), show_app: list[str] = Form([]),
                  show_record: list[str] = Form([]),
                  show_gcountries: list[str] = Form([]), show_gwheels: list[str] = Form([]),
-                 show_gbrands: list[str] = Form([])):
+                 show_gbrands: list[str] = Form([]),
+                 order_boards: str = Form(""), order_gcountries: str = Form(""),
+                 order_gwheels: str = Form(""), order_gbrands: str = Form(""),
+                 order_records: str = Form(""), order_app: str = Form("")):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
+    settings.set_metric_order(db, {                       # admin's drag-to-reorder, applied on the public site
+        "boards": order_boards.split(","), "gcountries": order_gcountries.split(","),
+        "gwheels": order_gwheels.split(","), "gbrands": order_gbrands.split(","),
+        "records": order_records.split(","), "app": order_app.split(",")})
     gk = [k for k, *_ in settings.METRIC_GROUPS]
     hidden_boards = [k for k, *_ in settings.METRIC_BOARDS if k not in show_board]
     hidden_app = [k for k, *_ in settings.METRIC_APP if k not in show_app]

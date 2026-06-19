@@ -801,6 +801,36 @@ def set_hidden(db: Session, boards=(), app=(), records=(), groups=None) -> None:
         set_meta(db, "hidden_groups_" + kind, json.dumps(list(groups.get(kind, []))))
 
 
+# --- admin-defined display order for metrics (drag-to-reorder) ---------------
+# Per public-panel ordering of metric keys. Unlisted/new keys keep their natural
+# order, appended after the explicitly-ordered ones. boards->Riders panel,
+# g*->the three group panels, records->Records, app->App & OS.
+_ORDER_SECTIONS = ("boards", "gcountries", "gwheels", "gbrands", "records", "app")
+
+
+def get_metric_order(db: Session) -> dict:
+    try:
+        d = json.loads(get_meta(db, "metric_order", "{}") or "{}")
+    except Exception:
+        d = {}
+    return {s: (d[s] if isinstance(d.get(s), list) else []) for s in _ORDER_SECTIONS}
+
+
+def set_metric_order(db: Session, orders: dict) -> None:
+    clean = {s: [str(x) for x in (orders or {}).get(s, []) if x]
+             for s in _ORDER_SECTIONS if isinstance((orders or {}).get(s), list)}
+    set_meta(db, "metric_order", json.dumps(clean))
+
+
+def order_items(items, order):
+    """Reorder a list of (key, ...) tuples by `order` (a list of keys). Stable: keys not in
+    `order` (e.g. newly added metrics) keep their original relative order, after the ordered ones."""
+    if not order:
+        return list(items)
+    pos = {k: i for i, k in enumerate(order)}
+    return sorted(items, key=lambda it: pos.get(it[0], len(order) + 1))
+
+
 def sections_fully_hidden(db: Session) -> dict:
     """Per dock section: True when every metric under it is hidden (so the section
     itself should disappear from the public site, or dim for an admin previewing)."""
