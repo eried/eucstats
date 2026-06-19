@@ -116,10 +116,10 @@ def test_metrics_tree_shows_descriptions(db):
         _auth(client)
         r = client.get("/admin/appearance")   # metrics tree lives under Appearance now
         assert r.status_code == 200
-        assert "Mile Muncher" in r.text and "Most distance ever ridden" in r.text
+        assert "Most Distance" in r.text and "Most distance ever ridden" in r.text
         assert "class=mnode" in r.text and 'data-parent="riders"' in r.text   # nested tree
         assert 'data-parent="records"' in r.text and "Top Speed" in r.text    # records have children now
-        assert "Freespin King" in r.text and "Sag Lord" in r.text and "Rocket" in r.text   # new boards hideable
+        assert "Biggest Freespin" in r.text and "Biggest Voltage Sag" in r.text and "Rocket" in r.text   # new boards hideable
         assert "Heatmap" in r.text and "Site banner" in r.text                # appearance also owns these
 
 
