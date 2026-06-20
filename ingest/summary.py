@@ -57,6 +57,7 @@ class TripSummary:
     fastest_0_40_s: float | None
     sustained_accel: float | None
     ascent_m: float | None
+    descent_m: float | None
     battery_used_pct: float | None
     est_range_km: float | None
     alt_range_m: float | None
@@ -90,6 +91,7 @@ class TripSummary:
     brake_g_50: float | None
     stop_30_s: float | None     # fastest stop from 30 / 50 km/h to a standstill (lower better)
     stop_50_s: float | None
+    cutout_count: int           # detected cutout/overlean fall events (ride@speed -> freespin + impact)
     sample_count: int
 
 
@@ -386,6 +388,35 @@ def _moving_seconds(samples: list[Sample], min_kmh: float = 2.0, max_gap_s: floa
     return round(total, 1) if total > 0 else None
 
 
+def _cutout_count(samples: list[Sample], ride_kmh: float = 20.0, freespin_jump: float = 40.0,
+                  g_fall: float = 2.5, window_s: float = 2.0) -> int:
+    """Count cutout / overlean fall events. The classic signature, all in one short window:
+    you were riding at speed (corroborated >= ride_kmh just before), then the wheel SUDDENLY
+    free-spins (wheel speed leaps >= freespin_jump km/h in <=1.5s while GPS does NOT follow —
+    the motor cut out so the wheel spins free), with a g-force impact spike (|g| >= g_fall)
+    within window_s — the fall. Clustered so one crash counts once. Strict on purpose: a false
+    positive wrongly blames a wheel model."""
+    g_times = [s.t for s in samples if s.g is not None and abs(s.g) >= g_fall]
+    if not g_times:
+        return 0
+    n = 0
+    last = None
+    prev = None                       # (t, wheel speed, corroborated speed) of the previous sample
+    for s in samples:
+        ws = s.speed
+        if prev is not None and ws is not None and prev[1] is not None:
+            dt = (s.t - prev[0]).total_seconds()
+            gps_follows = s.gps_speed is not None and s.gps_speed >= ws - 15   # real accel, not a free-spin
+            riding = prev[2] is not None and prev[2] >= ride_kmh               # at speed just before
+            if 0 < dt <= 1.5 and (ws - prev[1]) >= freespin_jump and not gps_follows and riding \
+                    and any(abs((gt - s.t).total_seconds()) <= window_s for gt in g_times):
+                if last is None or (s.t - last).total_seconds() > 5:
+                    n += 1
+                    last = s.t
+        prev = (s.t, ws, _corrob_speed(s))
+    return n
+
+
 def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
     """Elevation gain from altitude samples, with a hysteresis to filter GPS noise."""
     alts = [s.alt for s in samples if s.alt is not None]
@@ -400,6 +431,22 @@ def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
         elif ref - a > hysteresis_m:
             ref = a
     return round(gain, 1)
+
+
+def _descent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
+    """Elevation LOST from altitude samples (the downhill total), hysteresis-filtered."""
+    alts = [s.alt for s in samples if s.alt is not None]
+    if len(alts) < 2:
+        return None
+    drop = 0.0
+    ref = alts[0]
+    for a in alts[1:]:
+        if ref - a > hysteresis_m:
+            drop += ref - a
+            ref = a
+        elif a - ref > hysteresis_m:
+            ref = a
+    return round(drop, 1)
 
 
 def _alt_range(samples: list[Sample]) -> float | None:
@@ -536,6 +583,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     fastest_0_40_s = _fastest_0_40(samples, c["accel_target_kmh"], c["accel_min_s"], c["accel_max_s"])
     sustained_accel = _max_sustained_accel(mov, c["sustain_accel_lo_s"], c["sustain_accel_hi_s"])
     ascent_m = _ascent_m(mov, c["ascent_hysteresis_m"])
+    descent_m = _descent_m(mov, c["ascent_hysteresis_m"])
     alt_range_m = _alt_range(mov)
     battery_used_pct = _battery_used(mov)
     est_range_km = (round(distance * 100.0 / battery_used_pct, 1)
@@ -582,6 +630,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     accel_g_50, brake_g_50 = _speed_g_band(samples, 50.0, 1.0)
     stop_30_s = _fastest_stop(samples, 30.0)
     stop_50_s = _fastest_stop(samples, 50.0)
+    cutout_count = _cutout_count(samples)        # overlean/cutout fall events (per-wheel-model safety signal)
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration, moving_s=moving_s,
@@ -591,7 +640,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         wh_per_km=wh_per_km, max_sustained_w=max_sustained_w,
         max_sustained_a=max_sustained_a, peak_voltage=peak_voltage,
         max_voltage_sag=max_voltage_sag, sustained_accel=sustained_accel,
-        fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m,
+        fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m, descent_m=descent_m,
         battery_used_pct=battery_used_pct, est_range_km=est_range_km,
         alt_range_m=alt_range_m, max_altitude_m=max_altitude_m, min_altitude_m=min_altitude_m,
         max_temp=max_temp, min_temp=min_temp, max_pwm=max_pwm, min_battery_pct=min_battery_pct,
@@ -604,6 +653,6 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         t_0_60_s=t_0_60_s, t_0_100_s=t_0_100_s,
         accel_g_30=accel_g_30, accel_g_50=accel_g_50,
         brake_g_30=brake_g_30, brake_g_50=brake_g_50,
-        stop_30_s=stop_30_s, stop_50_s=stop_50_s,
+        stop_30_s=stop_30_s, stop_50_s=stop_50_s, cutout_count=cutout_count,
         sample_count=len(samples),
     )

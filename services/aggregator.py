@@ -40,6 +40,9 @@ class Aggregator:
         rs = self.agg.get_rider_stat(store)
         rs.total_km = (rs.total_km or 0.0) + dist
         rs.trip_count = (rs.trip_count or 0) + 1
+        # a "real ride" for anti-cheat counting: >=10 min actually moving AND >=1 km of travel
+        if (trip.moving_s or 0) >= 600 and dist >= 1.0:
+            rs.real_ride_count = (rs.real_ride_count or 0) + 1
         if mv("max_speed") is not None:
             rs.best_speed = max(rs.best_speed or 0.0, mv("max_speed"))
         if mv("max_gforce") is not None:
@@ -91,6 +94,11 @@ class Aggregator:
         self.agg.set_record_if_better("sustained_w", store, mv("max_sustained_w"), trip.trip_uuid, when)
         self.agg.set_record_if_better("sustained_a", store, mv("max_sustained_a"), trip.trip_uuid, when)
         self.agg.set_record_if_better("peak_voltage", store, mv("peak_voltage"), trip.trip_uuid, when)
+        self.agg.set_record_if_better("max_altitude", store, mv("max_altitude_m"), trip.trip_uuid, when)
+        self.agg.set_record_if_better("min_altitude", store, mv("min_altitude_m"), trip.trip_uuid, when, lower_better=True)
+        self.agg.set_record_if_better("biggest_climb", store, mv("ascent_m"), trip.trip_uuid, when)
+        self.agg.set_record_if_better("biggest_downhill", store, mv("descent_m"), trip.trip_uuid, when)
+        self.agg.set_record_if_better("most_rides", store, rs.real_ride_count, trip.trip_uuid, when)
 
         trip.aggregated = True
         self.db.commit()

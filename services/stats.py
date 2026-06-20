@@ -100,6 +100,17 @@ def rocket_leaderboard(db, limit=50):
             for rs in _board(db, RiderStat.best_sustained_accel, limit, positive_only=True)]
 
 
+def cutout_leaderboard(db, limit=50):
+    """Most detected cutout/overlean falls per rider (raw count)."""
+    sub = (db.query(Trip.rider_store_id.label("sid"),
+                    func.coalesce(func.sum(Trip.cutout_count), 0).label("v"))
+           .filter(Trip.validation_status == "validated")
+           .group_by(Trip.rider_store_id).having(func.sum(Trip.cutout_count) > 0).subquery())
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), "cutouts": int(v or 0)} for sid, v in rows]
+
+
 def _period_leaderboard(db, fmt, key, limit):
     """Biggest single ISO-week / calendar-month distance per rider (from daily rows)."""
     p = func.strftime(fmt, DailyDistance.date)
@@ -350,6 +361,7 @@ BOARDS = {
     "bigday": big_day,
     "commuter": commuter,
     "freespin": freespin_leaderboard,
+    "cutouts": cutout_leaderboard,
 }
 
 
@@ -423,12 +435,14 @@ def _grp_aggs(blocked=None):
             func.min(_mask(Trip.wh_per_km, "efficiency", blocked)),
             func.max(_mask(Trip.ascent_m, "altitude", blocked)),       # biggest single climb
             func.max(_mask(Trip.max_altitude_m, "altitude", blocked)),  # highest point reached
-            func.max(_mask(Trip.max_temp, "temp", blocked)))            # hottest the board ran
+            func.max(_mask(Trip.max_temp, "temp", blocked)),            # hottest the board ran
+            func.coalesce(func.sum(Trip.cutout_count), 0))              # total cutout/overlean falls
 
 
 def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, whkm,
-               climb, alt, temp):
-    return {"name": name, "total_km": round(km or 0, 1), "riders": riders, "trips": trips,
+               climb, alt, temp, cutouts):
+    km = km or 0
+    return {"name": name, "total_km": round(km, 1), "riders": riders, "trips": trips,
             "top_speed": round(speed, 1) if speed else None,
             "max_gforce": round(g, 3) if g else None,
             "sustained_w": round(w, 0) if w else None,
@@ -439,7 +453,9 @@ def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, w
             "wh_per_km": round(whkm, 1) if whkm else None,
             "climb_m": round(climb, 0) if climb else None,
             "max_alt": round(alt, 0) if alt is not None else None,
-            "max_temp": round(temp, 1) if temp else None}
+            "max_temp": round(temp, 1) if temp else None,
+            "cutouts": int(cutouts or 0),
+            "cutout_rate": round((cutouts or 0) / km * 1000, 2) if km >= 1 else None}
 
 
 def by_brand(db, limit=50):

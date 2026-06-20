@@ -34,7 +34,7 @@ WHEEL_METRIC_FIELDS = {
     "accel": ["fastest_0_40_s", "sustained_accel", "accel_g", "brake_g",
               "t_0_60_s", "t_0_100_s", "accel_g_30", "accel_g_50",
               "brake_g_30", "brake_g_50", "stop_30_s", "stop_50_s"],
-    "altitude": ["max_altitude_m", "min_altitude_m", "alt_range_m", "ascent_m"],
+    "altitude": ["max_altitude_m", "min_altitude_m", "alt_range_m", "ascent_m", "descent_m"],
     "range": ["est_range_km"],
     "efficiency": ["wh_per_km"],
     "battery": ["min_battery_pct", "battery_used_pct"],
@@ -289,6 +289,7 @@ METRIC_BOARDS = [
     ("bigday", "Busiest Day", "Most rides in a single day"),
     ("commuter", "Commuter", "Most distance ridden on weekdays"),
     ("freespin", "Freespin", "Biggest freespin / spin-up spike (wheel lifted or a crash)"),
+    ("cutouts", "Cutout Survivor", "Most detected cutout / overlean falls (ride at speed → freespin + impact)"),
     ("sag", "Voltage Sag", "Biggest voltage drop under load — the hardest battery pull"),
     ("rocket", "Rocket", "Hardest sustained acceleration held for 2s or more"),
 ]
@@ -318,6 +319,7 @@ METRIC_GROUPS = [
     ("climb", "Biggest Climb", "Biggest single climb"),
     ("alt", "Max Altitude", "Highest altitude reached"),
     ("temp", "High Temp", "Hottest the board ran"),
+    ("cutout", "Cutouts", "Cutout / overlean falls per 1000 km ridden"),
 ]
 # All-time single records shown in the Records section (keys match Record.key / RECLABEL).
 METRIC_RECORDS = [
@@ -328,6 +330,11 @@ METRIC_RECORDS = [
     ("sustained_w", "Sustained Power", "Highest power held for 2 seconds"),
     ("sustained_a", "Sustained Current", "Highest current held for 2 seconds"),
     ("peak_voltage", "Voltage Peak", "Highest battery voltage observed"),
+    ("max_altitude", "Highest Altitude", "Highest altitude reached in a ride"),
+    ("min_altitude", "Lowest Altitude", "Lowest altitude reached in a ride"),
+    ("biggest_climb", "Biggest Climb", "Most elevation gained in one ride"),
+    ("biggest_downhill", "Biggest Downhill", "Most elevation lost in one ride"),
+    ("most_rides", "Most Rides", "Most real rides (>=10 min moving & >=1 km)"),
 ]
 
 # --- gated boards: an anti-gaming qualifying ride length + distance ---
@@ -414,7 +421,7 @@ METRIC_BOARDS = [b for b in METRIC_BOARDS if b[0] not in _GATED_BASES]
 METRIC_BOARDS += [(b["k"], b["name"], b["desc"] + _gate_note(b["min_s"], b["min_km"]))
                   for b in gated_boards()]
 METRIC_BOARDS += [(b["k"], b["name"], b["desc"]) for b in ungated_new_boards()]
-DEFAULT_OFF_BOARDS = set(new_board_keys())        # ship every new board hidden until enabled
+DEFAULT_OFF_BOARDS = set(new_board_keys()) | {"cutouts"}   # ship every new board hidden until enabled
 
 # --- ingest pipeline plausibility rules (admin-toggleable) ---
 # (key, label, description, [threshold keys it uses]). Keys match plausibility.check()'s

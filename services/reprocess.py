@@ -49,6 +49,7 @@ def reprocess_with_calibration(db) -> dict:
             t.peak_voltage = sm.peak_voltage
             t.fastest_0_40_s = sm.fastest_0_40_s
             t.ascent_m, t.alt_range_m = sm.ascent_m, sm.alt_range_m
+            t.descent_m, t.cutout_count = sm.descent_m, sm.cutout_count
             t.battery_used_pct, t.est_range_km = sm.battery_used_pct, sm.est_range_km
             t.max_freespin, t.max_voltage_sag = sm.max_freespin, sm.max_voltage_sag
             t.sustained_accel = sm.sustained_accel

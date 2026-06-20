@@ -64,16 +64,18 @@ class AggregateRepo:
 
     # --- records ---
     def set_record_if_better(self, key: str, store_id: str, value, trip_uuid: str,
-                             when: datetime) -> Record | None:
+                             when: datetime, lower_better: bool = False) -> Record | None:
         if value is None:
             return None
         rec = self.db.get(Record, key)
-        if rec is None or (rec.value or float("-inf")) < value:
-            if rec is None:
-                rec = Record(key=key)
-                self.db.add(rec)
-            rec.store_id = store_id
-            rec.value = value
-            rec.trip_uuid = trip_uuid
-            rec.achieved_at = when
+        cur = rec.value if (rec is not None and rec.value is not None) else None
+        if cur is not None and (value >= cur if lower_better else value <= cur):
+            return rec                     # existing record stands
+        if rec is None:
+            rec = Record(key=key)
+            self.db.add(rec)
+        rec.store_id = store_id
+        rec.value = value
+        rec.trip_uuid = trip_uuid
+        rec.achieved_at = when
         return rec

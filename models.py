@@ -77,6 +77,7 @@ class Trip(Base):
     max_voltage_sag = Column(Float)      # biggest voltage drop under load
     sustained_accel = Column(Float)      # highest acceleration held >=2s (km/h per s)
     ascent_m = Column(Float)
+    descent_m = Column(Float)            # elevation lost (downhill total)
     alt_range_m = Column(Float)
     max_altitude_m = Column(Float)       # absolute per-trip extremes (feed gated min/max boards)
     min_altitude_m = Column(Float)
@@ -108,6 +109,7 @@ class Trip(Base):
     brake_g_50 = Column(Float)
     stop_30_s = Column(Float)            # fastest stop from 30 / 50 km/h (lower better)
     stop_50_s = Column(Float)
+    cutout_count = Column(Integer, default=0)   # detected cutout/overlean fall events
     battery_used_pct = Column(Float)
     est_range_km = Column(Float)
     country = Column(String, index=True)
@@ -152,6 +154,7 @@ class RiderStat(Base):
     store_id = Column(String, ForeignKey("riders.store_id"), primary_key=True)
     total_km = Column(Float, default=0.0)
     trip_count = Column(Integer, default=0)
+    real_ride_count = Column(Integer, default=0)   # rides >=10min moving & >=1km (anti-cheat)
     best_speed = Column(Float, default=0.0)
     best_gforce = Column(Float, default=0.0)
     best_sustained_w = Column(Float, default=0.0)

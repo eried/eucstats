@@ -259,6 +259,27 @@ def test_speed_g_helper_edges():
     assert a is not None and abs(a - 0.566) < 0.02 and b is None   # pure acceleration, no braking
 
 
+def test_cutout_detection():
+    from ingest.summary import _cutout_count
+    # riding at 25 km/h (GPS follows), then the wheel free-spins to 80 in 1s (GPS stays ~0)
+    # with an impact g-spike -> one cutout event
+    ride = [_s(i, speed=25, gps_speed=25, g=1.0) for i in range(4)]
+    spike = [_s(4, speed=80, gps_speed=2, g=3.6)]
+    after = [_s(i, speed=0, gps_speed=0, g=1.0) for i in range(5, 8)]
+    assert _cutout_count(ride + spike + after) == 1
+    # a clean ride (no free-spin, no impact) -> none
+    assert _cutout_count([_s(i, speed=25, gps_speed=25, g=1.0) for i in range(8)]) == 0
+    # free-spin but GPS follows (real hard accel, not a cutout) -> none
+    assert _cutout_count([_s(i, speed=25, gps_speed=25, g=1.0) for i in range(4)]
+                         + [_s(4, speed=80, gps_speed=78, g=3.6)]) == 0
+
+
+def test_descent_metric():
+    from ingest.summary import _descent_m
+    assert _descent_m([_s(i, alt=100 - i * 10) for i in range(6)]) >= 45   # 100 -> 50 downhill
+    assert (_descent_m([_s(i, alt=100 + i * 10) for i in range(6)]) or 0) == 0   # only climbing
+
+
 def test_moving_seconds_excludes_stops():
     # stopped, then rolling at 20 km/h for 5 s, then stopped again (1 s sampling)
     samples = ([_s(0, speed=0, gps_speed=0)]

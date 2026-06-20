@@ -321,7 +321,8 @@ const IC={
  freespin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/></svg>',
  sag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="15" height="10" rx="2"/><path d="M21 10v4"/><path d="M8 9l3 3-3 3"/></svg>',
  rocket:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 3c4 .5 6.5 3.5 7 7-3 .5-4.6 2.2-6 5l-3-3c1.4-3.6 1.2-6.6 2-9zM8 16l-4 4m6-2l-4 4m0-6l-2 2"/></svg>',
- brake:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/></svg>'};
+ brake:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/></svg>',
+ cutouts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.2 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>'};
 const GIC_PPL='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0z"/></svg>';
 const GIC_TRIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c3-2 4-6 4-9a3 3 0 0 1 6 0c0 4 1 7 4 9"/></svg>';
 const BOARDS=[
@@ -352,7 +353,8 @@ const BOARDS=[
  {k:"explorer",c:"areas",u:""},
  {k:"bigday",c:"rides_in_day",u:""},
  {k:"commuter",c:"weekday_km",conv:"dist"},
- {k:"freespin",c:"freespin_kmh",conv:"spd"}];
+ {k:"freespin",c:"freespin_kmh",conv:"spd"},
+ {k:"cutouts",c:"cutouts",u:""}];
 BOARDS.forEach(b=>{b.nk="b."+b.k+".n";b.dk="b."+b.k+".d";});   // i18n keys (English lives in i18n.py)
 // gated boards (server spec): same name per metric, gate baked in, value under "v"
 const BTONE={brkg:"#ff5b6e",brk30:"#ff5b6e",brk50:"#ff5b6e",stop30:"#ff5b6e",stop50:"#ff5b6e",   // braking → red
@@ -587,12 +589,13 @@ const GBOARDS=[
  {k:"eff",key:"wh_per_km",u:" Wh/km",asc:true,ic:IC.efficiency},
  {k:"climb",key:"climb_m",conv:"alt",ic:IC.peak},
  {k:"alt",key:"max_alt",conv:"alt",ic:IC.altking},
- {k:"temp",key:"max_temp",conv:"temp",ic:IC.rocket}];
+ {k:"temp",key:"max_temp",conv:"temp",ic:IC.rocket},
+ {k:"cutout",key:"cutout_rate",ic:IC.cutouts}];
 // group-board i18n keys: names reuse the rider trophies where they match; descs are the short "g.*" set
-const GNK={dist:"b.mileage.n",speed:"b.speed.n",accel:"b.accel.n",gforce:"b.gforce.n",power:"b.power.n",current:"b.current.n",voltage:"b.voltage.n",riders:"g.riders",trips:"g.rides",ascent:"b.ascent.n",range:"b.range.n",eff:"b.efficiency.n",climb:"b.peak.n",alt:"b.althigh.n",temp:"b.temphigh.n"};
+const GNK={dist:"b.mileage.n",speed:"b.speed.n",accel:"b.accel.n",gforce:"b.gforce.n",power:"b.power.n",current:"b.current.n",voltage:"b.voltage.n",riders:"g.riders",trips:"g.rides",ascent:"b.ascent.n",range:"b.range.n",eff:"b.efficiency.n",climb:"b.peak.n",alt:"b.althigh.n",temp:"b.temphigh.n",cutout:"b.cutout.n"};
 GBOARDS.forEach(b=>{b.nk=GNK[b.k]||("b."+b.k+".n");b.dk="g."+b.k+".d";});
 let GROWS=null;
-function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();if(b.conv==="alt")return anum(v)+" "+aunit();if(b.conv==="temp")return tnum(v)+tunit();return r2(v)+(b.u||"");}
+function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.k==="cutout")return r1(mph()?v*1.609:v)+" /1000"+(mph()?"mi":"km");if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();if(b.conv==="alt")return anum(v)+" "+aunit();if(b.conv==="temp")return tnum(v)+tunit();return r2(v)+(b.u||"");}
 function renderGroup(b,cfg){
   const cont=document.getElementById("lb");if(!cont||!GROWS)return;
   setCap(b.ic||'',bd(b));
