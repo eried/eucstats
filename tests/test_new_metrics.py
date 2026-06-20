@@ -282,6 +282,13 @@ def test_cutout_detection():
                          + [_s(4, speed=80, gps_speed=78, g=3.6)]) == 0
 
 
+def test_gps_distance_skips_teleport():
+    from ingest.summary import gps_distance_km
+    base = [_s(i, lat=60.0 + i * 0.0001, lon=10.0) for i in range(4)]   # ~11 m/s, normal
+    jump = base + [_s(4, lat=61.0, lon=10.0)]                            # +1 deg in 1s = teleport
+    assert abs(gps_distance_km(jump) - gps_distance_km(base)) < 0.01     # jump hop not credited
+
+
 def test_descent_metric():
     from ingest.summary import _descent_m
     assert _descent_m([_s(i, alt=100 - i * 10) for i in range(6)]) >= 45   # 100 -> 50 downhill

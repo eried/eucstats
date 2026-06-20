@@ -95,14 +95,19 @@ class TripSummary:
     sample_count: int
 
 
-def gps_distance_km(samples: list[Sample]) -> float:
+def gps_distance_km(samples: list[Sample], teleport_kmh: float = 150.0) -> float:
+    """Sum of GPS hops, but a hop whose implied speed exceeds teleport_kmh is a teleport
+    (GPS glitch) and is NOT credited — so an accepted trip with teleports can't inflate distance."""
     total = 0.0
     prev = None
     for s in samples:
         if s.lat is not None and s.lon is not None:
             if prev is not None:
-                total += _haversine_km(prev[0], prev[1], s.lat, s.lon)
-            prev = (s.lat, s.lon)
+                d = _haversine_km(prev[1], prev[2], s.lat, s.lon)
+                dt = (s.t - prev[0]).total_seconds() if (s.t and prev[0]) else None
+                if not (dt and dt > 0 and (d / (dt / 3600.0)) > teleport_kmh):
+                    total += d                # skip physically-impossible jumps
+            prev = (s.t, s.lat, s.lon)
     return total
 
 
@@ -528,14 +533,14 @@ def _speeds(samples: list[Sample], wheel_speeds: list[float],
 
 
 def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
-              cal: dict | None = None) -> TripSummary:
+              cal: dict | None = None, teleport_kmh: float = 150.0) -> TripSummary:
     if not samples:
         raise ValueError("cannot summarize empty sample list")
     c = {**CALIBRATION_DEFAULTS, **(cal or {})}     # admin overrides on top of defaults
     start, end = samples[0].t, samples[-1].t
     duration = (end - start).total_seconds()
 
-    gps_km = gps_distance_km(samples)
+    gps_km = gps_distance_km(samples, teleport_kmh)
     odo_km, has_odo = odometer_distance_km(samples, c["odo_max_step_km"])
     gps_present = sum(1 for s in samples if s.lat is not None and s.lon is not None) >= 2
     # ANTI-CHEAT: never credit the wheel odometer when GPS is present and shows the rider

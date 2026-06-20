@@ -142,7 +142,8 @@ class IngestService:
 
         cal = settings.get_calibration(self.db)        # admin-tunable physics limits
         thr0 = settings.get_thresholds(self.db)
-        sm = summarize(samples, gps_tolerance=thr0["dist_tolerance"], cal=cal)
+        sm = summarize(samples, gps_tolerance=thr0["dist_tolerance"], cal=cal,
+                       teleport_kmh=thr0["teleport_kmh"])
         # prefer the app's authoritative UTC start/end (the CSV Date is local, no TZ)
         m_start = _parse_iso(meta.get("start_utc")) or _naive(sm.start_utc)
         m_end = _parse_iso(meta.get("end_utc")) or _naive(sm.end_utc)

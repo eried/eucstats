@@ -24,7 +24,9 @@ def reprocess_with_calibration(db) -> dict:
     from services.ingest import _gunzip_capped, _is_gzip
 
     cal = settings.get_calibration(db)
-    gps_tol = settings.get_thresholds(db)["dist_tolerance"]
+    thr = settings.get_thresholds(db)
+    gps_tol = thr["dist_tolerance"]
+    tel_kmh = thr["teleport_kmh"]
     cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
     rows = (db.query(Trip, RawUpload)
             .join(RawUpload, RawUpload.trip_uuid == Trip.trip_uuid).all())
@@ -38,7 +40,7 @@ def reprocess_with_calibration(db) -> dict:
             if not samples:
                 failed += 1
                 continue
-            sm = summarize(samples, gps_tolerance=gps_tol, cal=cal)
+            sm = summarize(samples, gps_tolerance=gps_tol, cal=cal, teleport_kmh=tel_kmh)
             # copy recomputed metrics (NOT status / coords / country / wheel / times)
             t.distance_km, t.duration_s = sm.distance_km, sm.duration_s
             t.moving_s = sm.moving_s
