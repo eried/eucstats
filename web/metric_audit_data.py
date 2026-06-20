@@ -1,5 +1,6 @@
 """Auto-generated metric audit — 3-agent adversarial review of how each metric is
-calculated and how it can be cheated / be wrong. Regenerate via the metric-audit workflow."""
+calculated and how it can be cheated / be wrong. Regenerate via the metric-audit workflow.
+`mitigated` is set when a fix has since been shipped."""
 
 AUDIT = {
  "generated": "2026-06-20",
@@ -7,8 +8,8 @@ AUDIT = {
   {
    "id": "accel_brake_g",
    "name": "Acceleration / Braking G (from speed)",
-   "level": 3,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 3,
    "cheat_max": 3,
    "wrong_max": 3,
@@ -30,13 +31,14 @@ AUDIT = {
     "Walks corroborated speed samples with a so-called 1s sliding window and reports the single largest rising speed-delta (accel_g) and falling speed-delta (brake_g), converted km/h-per-s to g; it is the max instantaneous slope over the run, not a sustained average like the IMU g boards.",
     "Takes the max change in corroborated wheel/GPS speed across a sliding window (capped at ~1s but always keeping >=2 points) and converts km/h-per-second into g, reporting the strongest speed-up as accel_g and the strongest slow-down as brake_g. Fed to gated leaderboards requiring trip duration/distance minimums."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Speed-corroborated / interpolated — can't be faked while stationary."
   },
   {
    "id": "altitude",
    "name": "Altitude range / high / low",
-   "level": 3,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 3,
    "cheat_max": 3,
    "wrong_max": 3,
@@ -58,13 +60,14 @@ AUDIT = {
     "Per trip it takes the raw max and min of every altitude sample: alt_range_m = max(alt) - min(alt), with max_altitude_m/min_altitude_m as the bare extremes. The visible 'altitude_king' board ranks riders by their best per-trip alt_range with no duration/distance gate, only > 0.",
     "alt_range_m = max(alt) - min(alt) over a ride's raw altitude samples (GPS/baro altitude column straight from the CSV, only NaN/inf stripped); max_altitude_m/min_altitude_m are the raw per-trip extremes. The altitude_king board ranks riders by their best per-rider alt_range with no gate beyond positive_only."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "battery_range",
    "name": "Battery drain / range / efficiency",
-   "level": 3,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 3,
    "cheat_max": 2,
    "wrong_max": 3,
@@ -86,13 +89,14 @@ AUDIT = {
     "battery_used_pct sums every downward step in the (voltage-derived) battery % (ignoring charging); est_range_km linearly extrapolates distance*100/battery_used_pct (only when >=10% used); wh_per_km integrates power over distance; min_battery_pct is the single lowest battery sample. Aggregation keeps the BEST per rider: max est_range_km, min wh_per_km, max battery_used_pct, min min_battery_pct.",
     "battery_used_pct sums every downward step of the BMS battery-% reading (charging/regen ignored); est_range_km linearly extrapolates dist*100/battery_used_pct gated at a 10% drop; wh_per_km integrates reported power over time divided by trip distance, and the boards rank max drain, max range, and min Wh/km."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "ascent",
    "name": "Climbing / biggest single climb",
-   "level": 3,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 3,
    "cheat_max": 3,
    "wrong_max": 3,
@@ -114,7 +118,8 @@ AUDIT = {
     "_ascent_m sums altitude (s.alt) increases over a trip, only counting an up-move once it exceeds a 3m hysteresis above a running reference (down-moves only reset the ref, never subtract); the 'ascent' board sums this across all trips while 'peak' (peak_bagger) takes the single biggest per-trip ascent_m.",
     "_ascent_m sums altitude increases per trip using a 3m hysteresis to filter wiggles; the public 'ascent' board ranks riders by total_ascent_m, a CUMULATIVE LIFETIME SUM of every trip's ascent_m (the separate 'peak' board is the true biggest single climb)."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h). Plus an impossible-ascent plausibility rule (>300 m/km)."
   },
   {
    "id": "streak",
@@ -142,13 +147,14 @@ AUDIT = {
     "Counts the longest (and current) run of consecutive UTC calendar dates on which the rider has any DailyDistance row, recomputed from sorted daily dates via _recompute_streak; a daily row is created by add_daily for every validated trip with a start_utc, with no minimum distance or duration.",
     "For each validated trip with a start time, a DailyDistance row is upserted keyed on the UTC calendar date (start_utc.date()) with no minimum distance; _recompute_streak then counts the longest run of consecutive calendar days that have any row (longest_streak, the ranked value) and the trailing run back from the most recent date (current_streak)."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": None
   },
   {
    "id": "distance",
    "name": "Distance (total / day / week / month)",
-   "level": 3,
-   "cheat": 3,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 2,
@@ -170,13 +176,14 @@ AUDIT = {
     "Per-trip distance_km is the wheel odometer delta-sum (positive steps <=5 km, resets/negative deltas rejected) preferred over GPS haversine distance, falling back to GPS only when there is no odometer or the odo reads far below GPS; mileage sums per-rider total_km and daily/week/month aggregate DailyDistance rows with no further per-trip corroboration.",
     "Per-trip distance_km is taken from the wheel's self-reported odometer (summing positive deltas <=5 km, no GPS check) and only falls back to GPS haversine distance when the odometer is missing/too low; total_km, daily, week and month boards sum these per-trip values with no qualifying gate."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "GPS-corroborated — a stationary wheel-spin no longer credits km."
   },
   {
    "id": "stop_time",
    "name": "Emergency stop times",
-   "level": 3,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 3,
    "cheat_max": 2,
    "wrong_max": 3,
@@ -198,7 +205,8 @@ AUDIT = {
     "_fastest_stop walks samples and records the shortest positive time between the latest sample at/above from_kmh (30 or 50, corroborated as min(wheel,gps)) and the next sample at/below 2 km/h; lower wins on a gated 'min' board. It does not interpolate the crossings and imposes no minimum-duration or implied-deceleration floor.",
     "stop_30_s / stop_50_s = _fastest_stop: the shortest time between the last corroborated-speed sample at/above 30 (or 50) km/h and the next sample at/below 2 km/h, with re-acceleration above the entry speed resetting the window; the gated board takes the MIN across a rider's trips (lower is better)."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Speed-corroborated / interpolated — can't be faked while stationary."
   },
   {
    "id": "freespin",
@@ -226,13 +234,14 @@ AUDIT = {
     "Reports the raw max wheel speed of a trip (max of wheel_speeds, NOT GPS-corroborated) but only when that peak exceeds the acceleration-limited 'realistic' speed by freespin_margin (5 km/h); the leaderboard ranks riders by the single biggest such spike (best_freespin = max across trips).",
     "It reports the single highest raw wheel-speed sample (max(wheel_speeds)) of a trip, but only when that raw peak exceeds the acceleration-limited 'realistic' speed by freespin_margin (5 km/h); the leaderboard takes the lifetime max of that value per rider. It measures the size of a rejected speed spike (wheel lifted/free-spinning, sensor glitch, or crash), not real riding."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": None
   },
   {
    "id": "gforce",
    "name": "G-force (2s / 4s / 6s)",
-   "level": 3,
-   "cheat": 3,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 3,
@@ -254,13 +263,14 @@ AUDIT = {
     "Takes abs() of the app-reported 'g-force' IMU column and reports the highest average over any trailing ~2s window (4s/6s variants widen the window); the public board ranks RiderStat.best_gforce with no speed/GPS corroboration.",
     "Takes the raw scalar 'g-force' column the logging app writes per sample, then reports the highest 2s (or 4s/6s for the hidden G-Hold boards) trailing-window average of its absolute value via _sustained_max(abs(g), window); the public board is max(max_gforce) across all of a rider's trips."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "pwm",
    "name": "PWM peak / 3s",
-   "level": 3,
-   "cheat": 3,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 3,
@@ -282,7 +292,8 @@ AUDIT = {
     "Reports the motor's PWM duty cycle (%) straight from the app's CSV: max_pwm is the single-sample peak and pwm_sust_3s is the best 3-second rolling average, with no clamping, no plausibility check, and no corroboration against speed, GPS, or load.",
     "Takes the wheel firmware's raw PWM (motor duty-cycle / saturation %) field and reports its highest 3-second rolling average (pwm_sust_3s) plus the instantaneous peak (max_pwm), fed to a gated max board that only checks trip duration and distance."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "voltage",
@@ -310,13 +321,14 @@ AUDIT = {
     "peak_voltage is the plain max() of all raw voltage samples in a trip; the separate sag board uses _max_voltage_sag, the biggest dip below the rolling 5s peak. Peak-voltage uses no gate, no GPS/current corroboration, and no plausibility clamp.",
     "peak_voltage is the single highest raw voltage sample of the trip (no spike rejection, no gate); max_voltage_sag is the largest drop of voltage below its own peak within a rolling 5s window. Boards rank peak_voltage (ungated) and sag (gated by min duration/km)."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": None
   },
   {
    "id": "power",
    "name": "Power 2s / 6s",
-   "level": 3,
-   "cheat": 3,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 2,
@@ -338,13 +350,14 @@ AUDIT = {
     "Takes the best trailing ~2s (and 6s) average of per-sample power, where power is the reported power channel or else voltage*current, via _sustained_max which averages by sample count over the window. No GPS/motion corroboration and no plausibility cap.",
     "Takes the max trailing-window average (2s or 6s) of per-sample power, where power is the reported s.power or, failing that, the product volts*amps. The window only bounds the time span; the average divides by sample count, with no speed/GPS corroboration and no plausibility ceiling."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "sustained_accel",
    "name": "Sustained acceleration (Rocket)",
-   "level": 3,
-   "cheat": 3,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 2,
@@ -366,13 +379,14 @@ AUDIT = {
     "_max_sustained_accel scans raw wheel speed (s.speed, NOT GPS-corroborated) and reports the steepest two-endpoint slope (km/h per s) between any pair of samples spaced lo..hi seconds apart (2-6s); it is the leaderboard 'Rocket' value, gated by per-trip duration/distance tiers.",
     "Scans every pair of samples and takes the max average wheel-speed slope (km/h per s) over any window between lo (2s) and hi (6s), reporting the strongest one; the live board is gated by ride length/distance."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "temperature",
    "name": "Temperature high / low",
-   "level": 3,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 3,
    "cheat_max": 2,
    "wrong_max": 3,
@@ -394,7 +408,8 @@ AUDIT = {
     "max_temp/min_temp are the raw max()/min() of the single 'temperature' CSV column over a trip's samples, surfaced as gated 'High Temp'/'Low Temp' boards. No unit normalization, no plausibility clamping, no per-source definition of what 'temperature' means, and no physics/GPS corroboration.",
     "max_temp/min_temp are the single highest and lowest values from the CSV 'temperature' column over a ride, exposed as gated max/min boards (min duration + min km, validated trips only). No averaging, no spike rejection, no unit normalization."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "time_counts",
@@ -422,13 +437,14 @@ AUDIT = {
     "Five boards bucket validated trips by extracting the hour (strftime %H) or day-of-week (strftime %w) from Trip.start_utc: night_rider (22-04h UTC) and early_bird (05-08h UTC) count trips, weekend_warrior (Sat/Sun) and commuter (Mon-Fri) sum distance, and big_day takes the max trips per calendar UTC date. No timezone conversion is applied.",
     "Counts/sums trips bucketed by SQLite strftime hour and day-of-week directly on Trip.start_utc (night=22-04, early=05-08, weekend=Sat/Sun, commuter=Mon-Fri sum-km, bigday=max trips per UTC date), filtered only on validation_status=='validated'."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": None
   },
   {
    "id": "shake",
    "name": "Wobble / shake index",
-   "level": 3,
-   "cheat": 3,
+   "level": 1,
+   "cheat": 1,
    "wrong": 3,
    "cheat_max": 3,
    "wrong_max": 3,
@@ -450,13 +466,14 @@ AUDIT = {
     "Takes the largest population standard deviation of the raw lateral-g IMU axis (gx) over any ~2s trailing window of samples (min 3 samples), and reports that max as the trip's wobble/shake index. There is no speed gating or GPS corroboration on the window itself; the per-trip leaderboard gate only checks whole-trip duration/distance (smallest tier 300s / 1.5km).",
     "Takes the max standard deviation of the raw lateral-g IMU channel (gx) over any ~2s trailing window in a trip; the trip qualifies only via a whole-ride duration/distance gate, and the window itself has no speed/GPS corroboration."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "longest_ride",
    "name": "Longest single ride (Marathoner)",
-   "level": 3,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 3,
@@ -478,13 +495,14 @@ AUDIT = {
     "Per-rider max over validated trips of coalesce(moving_s, duration_s) converted to hours, where moving_s is seconds with corroborated speed >2 km/h (30s gap cap) and the fallback is raw wall-clock duration; only filter is duration_s>0, with no distance gate.",
     "Per-rider maximum, over validated trips with duration_s>0, of coalesce(moving_s, duration_s) converted to hours, where moving_s is rolling seconds with corroborated speed >2 km/h (each idle gap capped at 30s) and duration_s is raw wall-clock first-to-last-sample time used as a fallback."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Uses moving time."
   },
   {
    "id": "avg_speed",
    "name": "Average speed (Pace)",
-   "level": 2,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 2,
@@ -506,7 +524,8 @@ AUDIT = {
     "Per-trip avg_speed is the arithmetic mean of every sample's corroborated speed that exceeds 2 km/h (a sample-mean, not distance/moving-time); the public 'Pace' board (pace_maker) reports each rider's single best trip avg_speed with only a validation_status check and avg_speed>0, no distance/duration gate.",
     "Mean of per-sample corroborated speed (min of wheel and GPS, or raw wheel if no GPS) over only the samples reading >2 km/h; the public 'pace' board then takes each rider's single highest-avg_speed trip with only an avg_speed>0 filter and no min distance/time/sample gate."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Averaged over moving samples only."
   },
   {
    "id": "geo_counts",
@@ -534,13 +553,14 @@ AUDIT = {
     "globe = count of distinct Trip.country and explorer = count of distinct start_cell across a rider's validated trips, where both country and start_cell are derived solely from the FIRST GPS sample of each trip (offline reverse-geocode for country, a ~0.1deg/~11km grid floor() for the cell) rather than the path actually ridden. Neither board has a minimum distance/duration gate.",
     "Counts, per rider over validated trips, distinct reverse-geocoded countries (globe) and distinct 0.1-degree start-grid cells (explorer), each derived solely from the FIRST GPS sample (trip start point), not the path actually ridden."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": None
   },
   {
    "id": "current",
    "name": "Current 2s / 6s",
-   "level": 2,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 3,
    "wrong_max": 2,
@@ -562,7 +582,8 @@ AUDIT = {
     "Takes the max over any ~2s trailing window of the average of the raw CSV 'current' field (battery amps) via _sustained_max; the value is trusted verbatim with no abs(), no speed gate, no GPS corroboration, and no spike/plausibility cap, gated only by a whole-trip duration/distance minimum (smallest tier 300s/1.5km).",
     "_sustained_max takes the highest rolling time-window average (2s for max_sustained_a, 6s for current_sust_6s) of the raw device-reported current channel (s.current) in amps, with no movement, GPS, or physical sanity check; both boards are gated by a min duration+distance ride tier."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Movement-gated — only counts while genuinely riding (corroborated speed ≥3 km/h)."
   },
   {
    "id": "score",
@@ -590,13 +611,14 @@ AUDIT = {
     "A composite leaderboard score = (summed validated distance over a rolling day/week/month window)^dist_exp, multiplied by speed and hours boosters (1 + best max_speed/speed_div)(1 + total moving_hours/hours_div); defaults dist_exp=1, speed_div=100, hours_div=10, so it is essentially 'who logged the most km this period' with modest speed/endurance bonuses.",
     "Per-window (day/week/month) composite that SUMS a rider's validated-trip distance and ride time and takes their single best max_speed, then computes dist^exp * (1 + top/speed_div) * (1 + hours/hours_div) and returns only the top rider; despite the 'champion' name it is a cumulative grind board, not a single-feat peak."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": None
   },
   {
    "id": "highspeed_g",
    "name": "G-force while fast (>20/30/40)",
-   "level": 2,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 2,
    "wrong_max": 3,
@@ -618,7 +640,8 @@ AUDIT = {
     "Takes the best ~2s rolling average of the absolute self-reported 'G-force' CSV column (s.g), but only over samples whose corroborated speed (min of wheel and GPS) is at/above 20/30/40 km/h; surfaced on distance/time-gated boards.",
     "Best 2-second trailing average of the raw CSV g-force channel (abs(s.g)) over samples whose corroborated speed is at/above 20/30/40 km/h. The g value is taken verbatim from the app's accelerometer column with no gravity-baseline removal, and the speed gate falls back to wheel-only speed when GPS is absent."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Speed-corroborated / interpolated — can't be faked while stationary."
   },
   {
    "id": "gating",
@@ -646,13 +669,14 @@ AUDIT = {
     "GATE_TIERS define (min_seconds, min_km) qualifying thresholds; gated_leaderboard only counts a trip's max/min of a spikeable column (power, g, PWM, sag, temp, battery) when Trip.duration_s >= min_s AND Trip.distance_km >= min_km, and nulls columns flagged invalid for the wheel model. It gates per-TRIP, not per-spike.",
     "GATE_TIERS = (min_seconds, min_km) thresholds (b/s/m/l); gated_leaderboard ranks func.max/min of a per-trip column only over trips whose wall-clock duration_s and distance_km clear the tier, with per-(model,metric) admin masking of flagged-bad wheels."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": None
   },
   {
    "id": "ride_time",
    "name": "Most ride hours (Steel Legs)",
-   "level": 2,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 2,
    "wrong_max": 2,
@@ -674,13 +698,14 @@ AUDIT = {
     "Per trip, _moving_seconds sums elapsed time only when the previous sample's corroborated speed was >2 km/h, capping each inter-sample gap at 30s; these per-trip moving_s values are then summed across ALL validated trips into RiderStat.total_moving_s, shown as cumulative hours with NO gate.",
     "Lifetime sum of per-trip moving_s, where each trip counts seconds whose previous sample had corroborated speed (min of wheel and GPS) > 2 km/h, with each inter-sample gap capped at 30s; shown as total hours. Trips with no moving_s (old/no-GPS) fall back to full wall-clock duration_s."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Uses real moving time (>2 km/h), not the whole logging session."
   },
   {
    "id": "banded_g",
    "name": "Roll-on / Brake-from-speed G",
-   "level": 2,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 2,
    "wrong_max": 3,
@@ -702,13 +727,14 @@ AUDIT = {
     "Sliding ~1s window over corroborated speed (min of wheel and GPS, falling back to raw wheel when no GPS); for any window whose START sample is >= the band (30/50 km/h) it computes |delta-speed/dt| converted to g, taking the max rising delta as roll-on accel_g and max falling delta as brake_g.",
     "_speed_g_band scans a ~1s sliding window over per-sample corroborated speed and reports the largest speed-derived longitudinal g (accel/brake) for windows whose START sample is >= the band (30 or 50 km/h), converted via km/h-per-s -> g; the per-trip max feeds duration/distance-gated boards."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Speed-corroborated / interpolated — can't be faked while stationary."
   },
   {
    "id": "sprints",
    "name": "Sprints 0->40 / 0->60 / 0->100",
-   "level": 2,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 2,
    "wrong_max": 2,
@@ -730,13 +756,14 @@ AUDIT = {
     "For each launch from <=2 km/h, _fastest_0_40 finds the first sample reaching the target (40/60/100 km/h) using _corrob_speed, linearly interpolates the crossing time between the two bracketing samples, and keeps the shortest elapsed time within a min/max window (0-40: 1.5-20s; 0-60: 1.0-40s; 0-100: 1.0-60s). Lower is better.",
     "Shortest interpolated time from a near-stop (<=2 km/h) up to 40/60/100 km/h using _corrob_speed (min of wheel & GPS speed, or wheel-only when no GPS), bounded by min_s/max_s floors and surfaced on gated min boards (lower is better)."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Speed-corroborated / interpolated — can't be faked while stationary."
   },
   {
    "id": "top_speed",
    "name": "Top speed",
-   "level": 2,
-   "cheat": 2,
+   "level": 1,
+   "cheat": 1,
    "wrong": 2,
    "cheat_max": 2,
    "wrong_max": 2,
@@ -758,7 +785,8 @@ AUDIT = {
     "Walks samples in time order keeping a 'plausible' speed that may only rise at <=max_accel (20 km/h/s, ~0.57g) but may fall freely; max_speed is the peak of that accel-limited track of the per-sample corroborated speed (min of wheel and GPS speed, or wheel alone if no GPS). A raw wheel peak exceeding the realistic peak by >5 km/h is split off as max_freespin instead of counting as speed.",
     "max_speed is the peak of an acceleration-limited speed track (rises capped at max_accel=20 km/h/s, decels free) built from _corrob_speed, the per-sample min of wheel and GPS speed (wheel-only when GPS is absent); raw peaks more than freespin_margin=5 km/h above that believable peak are diverted to max_freespin instead."
    ],
-   "reviews": 3
+   "reviews": 3,
+   "mitigated": "Uses the acceleration-corroborated realistic speed (freespin excluded)."
   }
  ]
 }

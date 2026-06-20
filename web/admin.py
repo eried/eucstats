@@ -94,7 +94,6 @@ def _counts(db: Session) -> dict:
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Riders & Trips"),
         ("/admin/wheels", "Wheels"), ("/admin/ingest", "Ingest"),
-        ("/admin/audit", "Metric audit"),
         ("/admin/appearance", "Public site"), ("/admin/datasets", "Data & backups"),
         ("/admin/telegram", "Telegram"), ("/admin/system", "System")]
 
@@ -1721,6 +1720,7 @@ def _metrics_section(db: Session) -> str:
     h = settings.get_hidden(db)
     g = h["groups"]
     order = settings.get_metric_order(db)
+    aud_map = _audit_by_board()                          # per-metric audit verdict for the "i" tooltips
     secmeta = {k: (lbl, desc) for k, lbl, desc in settings.METRIC_SECTIONS}
     # section_key -> (child form field, items, that section's own hidden list, order key)
     kids_of = {
@@ -1734,10 +1734,12 @@ def _metrics_section(db: Session) -> str:
 
     def krow(field, k, label, desc, hidden):
         on = k not in hidden
-        return (f'<div class="krow{"" if on else " off"}" draggable="true" data-k="{k}">'
+        badge, border = _audit_badge(aud_map.get(k))
+        bstyle = f';border-left:3px solid {border}' if border else ""
+        return (f'<div class="krow{"" if on else " off"}" draggable="true" data-k="{k}" style="min-width:0{bstyle}">'
                 f'<span class=grip aria-hidden="true">{_IC["grip"]}</span>'
                 f'<label class=ktoggle><input type=checkbox name={field} value="{k}"{" checked" if on else ""}>'
-                f'<span class=tw><span class=kl>{html.escape(label)}</span>'
+                f'<span class=tw><span class=kl>{html.escape(label)} {badge}</span>'
                 f'<span class=kd>{html.escape(desc)}</span></span></label></div>')
 
     def node(sec_key):
@@ -1761,7 +1763,8 @@ def _metrics_section(db: Session) -> str:
     return f"""
     <div class=card>
       <h2>Metric visibility</h2>
-      <p class=hint>Untick to hide a metric from the public site. Hidden metrics are still processed, just not shown.</p>
+      <p class=hint>Untick to hide a metric from the public site. Hidden metrics are still processed, just not shown.
+      The <b>i</b> badge shows the metric audit — hover it; green = mitigated, amber/red = still gameable (a coloured left edge flags those).</p>
       <form method=post action="/admin/metrics/save">
         <div class=mtree2>{tree}</div>
         <button>{_IC['check']} Save visibility</button>
@@ -1908,59 +1911,61 @@ def _score_card(db: Session) -> str:
     {_SCORE_JS}"""
 
 
-# --- metric audit: 3-agent adversarial review of how each metric is calculated ---
+# --- metric audit: surfaced inline as a coloured "i" tooltip on each Metric-visibility row ---
 _AUDIT_LEVELS = {0: ("Solid", "#13a05a"), 1: ("Minor", "#2ea8ff"),
                  2: ("Caution", "#f59e0b"), 3: ("High risk", "#ff5b6e")}
 
+# board / group key -> audit metric family id (web/metric_audit_data.py)
+_BOARD_AUDIT = {
+    "mileage": "distance", "daily": "distance", "week": "distance", "month": "distance",
+    "weekend": "distance", "commuter": "distance", "cruise": "distance", "dist": "distance",
+    "speed": "top_speed", "spd5": "top_speed", "spd10": "top_speed",
+    "accel": "sprints", "sprint60": "sprints", "sprint100": "sprints",
+    "gforce": "gforce", "g4": "gforce", "g6": "gforce",
+    "gf20": "highspeed_g", "gf30": "highspeed_g", "gf40": "highspeed_g",
+    "shake": "shake", "accg": "accel_brake_g", "brkg": "accel_brake_g",
+    "acc30": "banded_g", "acc50": "banded_g", "brk30": "banded_g", "brk50": "banded_g",
+    "stop30": "stop_time", "stop50": "stop_time", "rocket": "sustained_accel",
+    "power": "power", "pw6": "power", "current": "current", "cur6": "current",
+    "voltage": "voltage", "sag": "voltage", "pwm": "pwm", "pwm3": "pwm",
+    "ascent": "ascent", "peak": "ascent", "altking": "altitude", "althigh": "altitude", "altlow": "altitude",
+    "temphigh": "temperature", "templow": "temperature",
+    "range": "battery_range", "efficiency": "battery_range", "energy": "battery_range",
+    "battery": "battery_range", "battlow": "battery_range", "eff": "battery_range",
+    "hours": "ride_time", "marathon": "longest_ride", "pace": "avg_speed",
+    "streak": "streak", "globe": "geo_counts", "explorer": "geo_counts",
+    "frequent": "time_counts", "night": "time_counts", "early": "time_counts", "bigday": "time_counts",
+    "freespin": "freespin",
+}
 
-def _audit_html() -> str:
+
+def _audit_by_board() -> dict:
+    """board key -> its audit verdict dict, via _BOARD_AUDIT. Empty when no audit exists."""
     import importlib
     from web import metric_audit_data
     importlib.reload(metric_audit_data)                 # pick up regenerated data without a restart
-    data = metric_audit_data.AUDIT or {}
-    metrics = sorted(data.get("metrics", []), key=lambda m: (-int(m.get("level", 0)), m.get("name", "")))
-    gen = data.get("generated")
-    if not metrics:
-        body = ('<div class=card><p class=hint>No audit yet. Run the <code>metric-audit</code> workflow '
-                'to generate the review.</p></div>')
+    by_id = {m["id"]: m for m in (metric_audit_data.AUDIT or {}).get("metrics", [])}
+    return {bk: by_id[aid] for bk, aid in _BOARD_AUDIT.items() if aid in by_id}
+
+
+def _audit_badge(aud) -> tuple[str, str]:
+    """(badge_html, row_border_colour) for a metric's audit verdict. Mitigated -> green;
+    otherwise the caution/high-risk colour. row_border is '' unless still-flagged (level>=2)."""
+    if not aud:
+        return "", ""
+    if aud.get("mitigated"):
+        col, tip = _AUDIT_LEVELS[0][1], "Mitigated ✓ " + aud["mitigated"]
+        border = ""
     else:
-        cards = []
-        for m in metrics:
-            lvl = int(m.get("level", 0))
-            lbl, col = _AUDIT_LEVELS.get(lvl, _AUDIT_LEVELS[0])
-            issues = "".join(f"<li>{html.escape(str(i))}</li>" for i in (m.get("issues") or []))
-            fixes = "".join(f"<li>{html.escape(str(f))}</li>" for f in (m.get("fixes") or []) if f)
-            how = html.escape(str((m.get("hows") or [""])[0]))
-            cards.append(f"""
-            <div class=card style="border-left:4px solid {col}">
-              <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">{html.escape(str(m.get('name', m.get('id', ''))))}
-                <span style="background:{col}22;color:{col};border:1px solid {col}66;border-radius:20px;padding:2px 11px;font-size:12px;font-weight:600">{lbl}</span>
-                <span class=mut style="font-size:12px;font-weight:400">cheat {m.get('cheat', 0)}/3 · wrong {m.get('wrong', 0)}/3 · {m.get('reviews', 0)} reviews</span></h2>
-              <p class=hint style="margin:2px 0 8px">{how}</p>
-              {('<p class=hint style="margin:0 0 3px"><b>Issues raised</b></p><ul style="margin:0 0 8px;padding-left:18px">' + issues + '</ul>') if issues else ''}
-              {('<p class=hint style="margin:0 0 3px"><b>Suggested fixes</b></p><ul style="margin:0;padding-left:18px">' + fixes + '</ul>') if fixes else ''}
-            </div>""")
-        body = "".join(cards)
-    cnt = {}
-    for m in metrics:
-        cnt[int(m.get("level", 0))] = cnt.get(int(m.get("level", 0)), 0) + 1
-    summ = " &nbsp;·&nbsp; ".join(
-        f'<span style="color:{_AUDIT_LEVELS[l][1]}">{cnt.get(l, 0)} {_AUDIT_LEVELS[l][0].lower()}</span>'
-        for l in (3, 2, 1, 0))
-    inner = f"""
-    <h1>Metric audit</h1>
-    <p class=sub>Independent 3-agent adversarial review of how each metric is calculated and how it could be
-    cheated or be misleading. Worst risk first.{(' Generated ' + html.escape(str(gen)) + '.') if gen else ''}</p>
-    <div class=card><div style="font-size:13px">{summ}</div></div>
-    {body}"""
-    return _admin_shell(inner, active="/admin/audit")
-
-
-@admin_router.get("/audit", response_class=HTMLResponse)
-def audit_page(request: Request):
-    if not _is_authenticated(request):
-        return HTMLResponse(_login_html())
-    return HTMLResponse(_audit_html())
+        lvl = int(aud.get("level", 0))
+        lbl, col = _AUDIT_LEVELS.get(lvl, _AUDIT_LEVELS[0])
+        first = (aud.get("issues") or aud.get("hows") or [""])[0]
+        tip = f"{lbl} · cheat {aud.get('cheat', 0)}/3, wrong {aud.get('wrong', 0)}/3 — {first}"
+        border = col if lvl >= 2 else ""
+    badge = (f'<span class=audi title="{html.escape(tip)}" style="color:{col};border:1px solid {col}77;'
+             f'border-radius:50%;min-width:14px;height:14px;display:inline-flex;align-items:center;'
+             f'justify-content:center;font:italic 700 10px/1 serif;flex:none;cursor:help">i</span>')
+    return badge, border
 
 
 # --- appearance: everything visitors see (metrics, heatmap, look, banner) ---
