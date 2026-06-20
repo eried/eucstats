@@ -9,7 +9,8 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           max_kmh: float = 120.0, max_g: float = 12.0,
           teleport_kmh: float = 150.0, teleport_max_jumps: int = 8,
           dist_tolerance: float = 0.4, unverified_dist_km: float = 3.0,
-          mismatch_min_km: float = 0.5, disabled=frozenset()):
+          mismatch_min_km: float = 0.5, max_ascent_per_km: float = 300.0,
+          disabled=frozenset()):
     reasons: list[str] = []
 
     def add(key):
@@ -33,6 +34,12 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
 
     if summary.max_gforce is not None and summary.max_gforce > max_g:
         add("impossible_gforce")
+
+    # implausible climb: more than max_ascent_per_km metres gained per km ridden — GPS/baro
+    # altitude noise or fabricated elevation. Only judged once ascent is significant.
+    if (summary.ascent_m or 0) > 100 and (summary.distance_km or 0) > 0.5 \
+            and summary.ascent_m / summary.distance_km > max_ascent_per_km:
+        add("impossible_ascent")
 
     # teleport: count consecutive GPS pairs implying > teleport_kmh. A few are
     # normal GPS noise; only flag when there are many (systematic teleporting).

@@ -429,6 +429,9 @@ PIPELINE_RULES = [
     ("impossible_gforce", "Impossible g-force",
      "Flag if the sustained (2s) g-force exceeds a physical limit. "
      "A fall spikes g for a split second — that's a warning, not a cheat.", ["max_g"]),
+    ("impossible_ascent", "Impossible ascent",
+     "Flag a ride that gains more than ~300 m of climb per km ridden — GPS/altitude "
+     "noise or fabricated elevation, not a real climb.", []),
     ("teleport", "GPS teleporting",
      "Flag many GPS point-to-point jumps that imply impossible travel speed.",
      ["teleport_kmh", "teleport_max_jumps"]),
