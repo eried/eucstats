@@ -584,12 +584,15 @@ const GBOARDS=[
  {k:"trips",key:"trips",u:"",ic:GIC_TRIP},
  {k:"ascent",key:"ascent_m",u:" m",ic:IC.ascent},
  {k:"range",key:"range_km",conv:"dist",ic:IC.range},
- {k:"eff",key:"wh_per_km",u:" Wh/km",asc:true,ic:IC.efficiency}];
+ {k:"eff",key:"wh_per_km",u:" Wh/km",asc:true,ic:IC.efficiency},
+ {k:"climb",key:"climb_m",conv:"alt",ic:IC.peak},
+ {k:"alt",key:"max_alt",conv:"alt",ic:IC.altking},
+ {k:"temp",key:"max_temp",conv:"temp",ic:IC.rocket}];
 // group-board i18n keys: names reuse the rider trophies where they match; descs are the short "g.*" set
-const GNK={dist:"b.mileage.n",speed:"b.speed.n",accel:"b.accel.n",gforce:"b.gforce.n",power:"b.power.n",current:"b.current.n",voltage:"b.voltage.n",riders:"g.riders",trips:"g.rides",ascent:"b.ascent.n",range:"b.range.n",eff:"b.efficiency.n"};
+const GNK={dist:"b.mileage.n",speed:"b.speed.n",accel:"b.accel.n",gforce:"b.gforce.n",power:"b.power.n",current:"b.current.n",voltage:"b.voltage.n",riders:"g.riders",trips:"g.rides",ascent:"b.ascent.n",range:"b.range.n",eff:"b.efficiency.n",climb:"b.peak.n",alt:"b.althigh.n",temp:"b.temphigh.n"};
 GBOARDS.forEach(b=>{b.nk=GNK[b.k]||("b."+b.k+".n");b.dk="g."+b.k+".d";});
 let GROWS=null;
-function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();return r2(v)+(b.u||"");}
+function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();if(b.conv==="alt")return anum(v)+" "+aunit();if(b.conv==="temp")return tnum(v)+tunit();return r2(v)+(b.u||"");}
 function renderGroup(b,cfg){
   const cont=document.getElementById("lb");if(!cont||!GROWS)return;
   setCap(b.ic||'',bd(b));

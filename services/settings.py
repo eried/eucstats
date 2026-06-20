@@ -315,6 +315,9 @@ METRIC_GROUPS = [
     ("ascent", "Total Climb", "Total elevation climbed"),
     ("range", "Best Range", "Longest est. range"),
     ("eff", "Efficiency", "Lowest Wh/km · best"),
+    ("climb", "Biggest Climb", "Biggest single climb"),
+    ("alt", "Max Altitude", "Highest altitude reached"),
+    ("temp", "High Temp", "Hottest the board ran"),
 ]
 # All-time single records shown in the Records section (keys match Record.key / RECLABEL).
 METRIC_RECORDS = [

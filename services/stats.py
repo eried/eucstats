@@ -420,10 +420,14 @@ def _grp_aggs(blocked=None):
             func.min(_mask(Trip.fastest_0_40_s, "accel", blocked)),
             func.coalesce(func.sum(_mask(Trip.ascent_m, "altitude", blocked)), 0.0),
             func.max(_mask(Trip.est_range_km, "range", blocked)),
-            func.min(_mask(Trip.wh_per_km, "efficiency", blocked)))
+            func.min(_mask(Trip.wh_per_km, "efficiency", blocked)),
+            func.max(_mask(Trip.ascent_m, "altitude", blocked)),       # biggest single climb
+            func.max(_mask(Trip.max_altitude_m, "altitude", blocked)),  # highest point reached
+            func.max(_mask(Trip.max_temp, "temp", blocked)))            # hottest the board ran
 
 
-def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, whkm):
+def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, whkm,
+               climb, alt, temp):
     return {"name": name, "total_km": round(km or 0, 1), "riders": riders, "trips": trips,
             "top_speed": round(speed, 1) if speed else None,
             "max_gforce": round(g, 3) if g else None,
@@ -432,7 +436,10 @@ def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, w
             "peak_voltage": round(v, 1) if v else None,
             "accel_s": round(accel, 2) if accel else None,
             "ascent_m": round(ascent or 0, 0), "range_km": round(rng, 1) if rng else None,
-            "wh_per_km": round(whkm, 1) if whkm else None}
+            "wh_per_km": round(whkm, 1) if whkm else None,
+            "climb_m": round(climb, 0) if climb else None,
+            "max_alt": round(alt, 0) if alt is not None else None,
+            "max_temp": round(temp, 1) if temp else None}
 
 
 def by_brand(db, limit=50):

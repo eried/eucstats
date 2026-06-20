@@ -237,6 +237,9 @@ EN: dict[str, str] = {
     "g.ascent.d": "Total elevation climbed",
     "g.range.d": "Longest est. range",
     "g.eff.d": "Lowest Wh/km · best",
+    "g.climb.d": "Biggest single climb",
+    "g.alt.d": "Highest altitude reached",
+    "g.temp.d": "Hottest the board ran",
 }
 
 # Native names shown in the language selector (never translated).
