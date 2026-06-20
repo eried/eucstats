@@ -410,6 +410,18 @@ def _corrob_speed(s: Sample) -> float | None:
     return min(s.speed, s.gps_speed) if s.gps_speed is not None else s.speed
 
 
+MOVE_KMH = 3.0   # a sample only counts as "real riding" above this corroborated speed
+
+
+def _moving(s: Sample, min_kmh: float = MOVE_KMH) -> bool:
+    """Anti-cheat gate: True only when the rider is genuinely moving (corroborated
+    wheel+GPS speed >= min_kmh). A wheel spun on a stand reads GPS ~0, so the min is
+    ~0 and the sample is excluded — performance/extreme metrics are only credited for
+    real riding, not stationary stunts or parked logs."""
+    v = _corrob_speed(s)
+    return v is not None and v >= min_kmh
+
+
 def _speeds(samples: list[Sample], wheel_speeds: list[float],
             max_accel: float = MAX_ACCEL_KMH_S,
             freespin_margin: float = 5.0) -> tuple[float | None, float | None]:
@@ -471,34 +483,42 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     moving_s = _moving_seconds(samples)        # real ride time (rolling >2 km/h), not the whole log
     max_speed, max_freespin = _speeds(samples, speeds, c["max_accel"], c["freespin_margin"])
 
-    # G-force: the leaderboard value is the SUSTAINED g (best `sustain_secs` average)
-    # — real cornering/braking load, not a crash. The instantaneous peak (a fall
-    # spikes the wheel briefly) is kept separately as a warning, never as the metric.
+    # --- ANTI-CHEAT GATE: performance & extreme metrics are only credited while the rider
+    # is genuinely MOVING (corroborated wheel+GPS speed >= MOVE_KMH). A wheel spun on a stand
+    # reads GPS ~0, so the min is ~0 and those samples drop out — no free scores from stationary
+    # stunts or parked logs. Distance, ride-time and realistic top speed keep their own logic.
+    mov = [s for s in samples if _moving(s)]
+    g_moving = lambda s: abs(s.g) if (s.g is not None and _moving(s)) else None
+
+    # G-force board = SUSTAINED g over real riding. The instantaneous peak is kept raw (any g)
+    # for the crash/plausibility warning, never as the leaderboard metric.
     gs = [abs(s.g) for s in samples if s.g is not None]
     max_gforce_spike = max(gs) if gs else None
-    max_gforce = _sustained_max(samples, lambda s: abs(s.g) if s.g is not None else None, c["sustain_secs"])
+    max_gforce = _sustained_max(samples, g_moving, c["sustain_secs"])
 
     wh = _energy_wh(samples)
     wh_per_km = (wh / distance) if (wh is not None and distance > 0) else None
 
+    # voltage is NOT movement-gated: peak voltage is just battery charge, and sag is measured
+    # against the RESTING baseline (rest -> hard pull), which gating away would destroy.
     volts = [s.voltage for s in samples if s.voltage is not None]
     peak_voltage = max(volts) if volts else None
     max_voltage_sag = _max_voltage_sag(samples, c["sag_window_s"])
-    max_sustained_w = _sustained_max(samples, _power, c["sustain_secs"])
-    max_sustained_a = _sustained_max(samples, lambda s: s.current, c["sustain_secs"])
+    max_sustained_w = _sustained_max(samples, lambda s: _power(s) if _moving(s) else None, c["sustain_secs"])
+    max_sustained_a = _sustained_max(samples, lambda s: s.current if _moving(s) else None, c["sustain_secs"])
     fastest_0_40_s = _fastest_0_40(samples, c["accel_target_kmh"], c["accel_min_s"], c["accel_max_s"])
-    sustained_accel = _max_sustained_accel(samples, c["sustain_accel_lo_s"], c["sustain_accel_hi_s"])
-    ascent_m = _ascent_m(samples, c["ascent_hysteresis_m"])
-    alt_range_m = _alt_range(samples)
-    battery_used_pct = _battery_used(samples)
+    sustained_accel = _max_sustained_accel(mov, c["sustain_accel_lo_s"], c["sustain_accel_hi_s"])
+    ascent_m = _ascent_m(mov, c["ascent_hysteresis_m"])
+    alt_range_m = _alt_range(mov)
+    battery_used_pct = _battery_used(mov)
     est_range_km = (round(distance * 100.0 / battery_used_pct, 1)
                     if (battery_used_pct and battery_used_pct >= c["range_min_battery_pct"] and distance > 0) else None)
 
-    # absolute per-trip extremes (feed gated min/max boards; computed live with a gate)
-    alts = [s.alt for s in samples if s.alt is not None]
-    temps = [s.temp for s in samples if s.temp is not None]
-    pwms = [s.pwm for s in samples if s.pwm is not None]
-    batts = [s.battery for s in samples if s.battery is not None]
+    # absolute per-trip extremes (feed gated min/max boards) — also gated to real riding
+    alts = [s.alt for s in mov if s.alt is not None]
+    temps = [s.temp for s in mov if s.temp is not None]
+    pwms = [s.pwm for s in mov if s.pwm is not None]
+    batts = [s.battery for s in mov if s.battery is not None]
     max_altitude_m = round(max(alts), 1) if alts else None
     min_altitude_m = round(min(alts), 1) if alts else None
     max_temp = round(max(temps), 1) if temps else None
@@ -507,25 +527,25 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     min_battery_pct = round(min(batts), 1) if batts else None
 
     # --- newer (hidden) metrics, fed to gated leaderboards ---------------------
-    # Group A: longer sustained windows (the 2s spikes were getting too easy to game).
-    g_abs = lambda s: abs(s.g) if s.g is not None else None
-    g_sust_4s = _sustained_max(samples, g_abs, 4.0)
-    g_sust_6s = _sustained_max(samples, g_abs, 6.0)
-    pwm_sust_3s = _sustained_max(samples, lambda s: s.pwm, 3.0)
+    # Group A: longer sustained windows (the 2s spikes were getting too easy to game),
+    # all gated to real riding via g_moving / _moving.
+    g_sust_4s = _sustained_max(samples, g_moving, 4.0)
+    g_sust_6s = _sustained_max(samples, g_moving, 6.0)
+    pwm_sust_3s = _sustained_max(samples, lambda s: s.pwm if _moving(s) else None, 3.0)
     speed_sust_5s = _sustained_max(samples, _corrob_speed, 5.0)
     speed_sust_10s = _sustained_max(samples, _corrob_speed, 10.0)
-    power_sust_6s = _sustained_max(samples, _power, 6.0)
-    current_sust_6s = _sustained_max(samples, lambda s: s.current, 6.0)
+    power_sust_6s = _sustained_max(samples, lambda s: _power(s) if _moving(s) else None, 6.0)
+    current_sust_6s = _sustained_max(samples, lambda s: s.current if _moving(s) else None, 6.0)
     # Group B: g-force while genuinely fast (sustained over the calibration window).
     sw = c["sustain_secs"]
     g_fast_20 = _sustained_max(samples, _g_fast(20.0), sw)
     g_fast_30 = _sustained_max(samples, _g_fast(30.0), sw)
     g_fast_40 = _sustained_max(samples, _g_fast(40.0), sw)
-    # Group C: directional g — sideways (cornering) and fore-aft (braking/launch).
-    g_lateral = _sustained_max(samples, lambda s: abs(s.gx) if s.gx is not None else None, sw)
-    g_brake = _sustained_max(samples, lambda s: abs(s.gy) if s.gy is not None else None, sw)
-    # Group D: experimental wobble/shake index (lateral-g oscillation).
-    shake_index = _max_shake(samples, sw)
+    # Group C: directional g — sideways (cornering) and fore-aft (braking/launch), gated to riding.
+    g_lateral = _sustained_max(samples, lambda s: abs(s.gx) if (s.gx is not None and _moving(s)) else None, sw)
+    g_brake = _sustained_max(samples, lambda s: abs(s.gy) if (s.gy is not None and _moving(s)) else None, sw)
+    # Group D: experimental wobble/shake index (lateral-g oscillation) — only while moving.
+    shake_index = _max_shake(mov, sw)
     # Speed-derived longitudinal g: how hard you launch / brake (every wheel reports speed).
     accel_g, brake_g = _speed_g(samples, 1.0)
     # Cheat-proof sprints + banded roll-on/braking g + emergency-stop times (all from real speed).

@@ -209,8 +209,9 @@ def test_sustained_windows_hold_a_steady_value():
 
 def test_longer_window_dilutes_a_spike_more():
     # one 1s g-spike of 10 between long calm stretches: the wider window averages it down further
-    samples = ([_s(i, g=1.0) for i in range(5)] + [_s(5, g=10.0)]
-               + [_s(i, g=1.0) for i in range(6, 12)])
+    # (speed present so samples count as real riding under the anti-cheat gate)
+    samples = ([_s(i, speed=20, gps_speed=20, g=1.0) for i in range(5)] + [_s(5, speed=20, gps_speed=20, g=10.0)]
+               + [_s(i, speed=20, gps_speed=20, g=1.0) for i in range(6, 12)])
     sm = summarize(samples)
     assert sm.g_sust_6s < sm.g_sust_4s
 
@@ -231,8 +232,9 @@ def test_directional_g_from_axes():
 
 
 def test_shake_index_detects_oscillation_not_steady_corner():
-    steady = summarize([_s(i, gx=0.8, g=0.8) for i in range(6)])          # constant lateral g
-    shaky = summarize([_s(i, gx=(0.8 if i % 2 == 0 else -0.8), g=0.8)     # rapid side-to-side
+    # speed present so the anti-cheat gate counts these as real riding
+    steady = summarize([_s(i, speed=20, gps_speed=20, gx=0.8, g=0.8) for i in range(6)])
+    shaky = summarize([_s(i, speed=20, gps_speed=20, gx=(0.8 if i % 2 == 0 else -0.8), g=0.8)
                        for i in range(6)])
     assert shaky.shake_index is not None and shaky.shake_index > 0.5
     assert (steady.shake_index or 0.0) < shaky.shake_index
