@@ -364,9 +364,9 @@ _GATED_SPEC = [
     ("pw6",      "Power 6s",    "Highest power held for 6 seconds",        "power_sust_6s",    "max", " W",       "",     "power"),
     ("cur6",     "Current 6s",     "Highest current held for 6 seconds",      "current_sust_6s",  "max", " A",       "",     "current"),
     # --- g-force while genuinely fast ---
-    ("gf20",     "G over 20",  "Strongest g-force sustained above 20 km/h", "g_fast_20",      "max", "",         "",     "gforce"),
-    ("gf30",     "G over 30",  "Strongest g-force sustained above 30 km/h", "g_fast_30",      "max", "",         "",     "gforce"),
-    ("gf40",     "G over 40",  "Strongest g-force sustained above 40 km/h", "g_fast_40",      "max", "",         "",     "gforce"),
+    ("gf20",     "Grip G @20",  "Strongest g-force sustained above 20 km/h", "g_fast_20",      "max", "",         "",     "gforce"),
+    ("gf30",     "Grip G @30",  "Strongest g-force sustained above 30 km/h", "g_fast_30",      "max", "",         "",     "gforce"),
+    ("gf40",     "Grip G @40",  "Strongest g-force sustained above 40 km/h", "g_fast_40",      "max", "",         "",     "gforce"),
     # --- experimental shake (the fakeable IMU brake/lateral boards were dropped) ---
     ("shake",    "Wobble",   "Biggest speed-wobble / shake index (experimental)", "shake_index", "max", "",   "",     "gforce"),
     # --- speed turned into a longitudinal g-force: launch (green) and braking (red) ---
