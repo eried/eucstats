@@ -58,8 +58,9 @@ def test_trip_track_geojson(db):
     from ingest.parser import Sample
     from repository.trips import TripRepo
     _seed(db)
-    pts = [Sample(t=datetime(2026, 6, 1, 10, 0, i), lat=69.6 + i * 0.001,
-                  lon=18.9 + i * 0.001, speed=20.0, g=1.0) for i in range(5)]
+    # realistic spacing (~0.0001 deg/s ≈ 40 km/h) so no segment trips the teleport detector
+    pts = [Sample(t=datetime(2026, 6, 1, 10, 0, i), lat=69.6 + i * 0.0001,
+                  lon=18.9 + i * 0.0001, speed=20.0, g=1.0) for i in range(5)]
     TripRepo(db).save_track("tr1", encode_track(pts))
     db.commit()
     with TestClient(app) as client:
@@ -72,6 +73,25 @@ def test_trip_track_geojson(db):
         line = next(f for f in g["features"] if f["properties"]["role"] == "path")
         assert len(line["geometry"]["coordinates"]) == 5
         assert line["geometry"]["coordinates"][0] == [18.9, 69.6]   # [lon, lat] order
+
+
+def test_trip_track_marks_teleport(db):
+    from datetime import datetime
+    from ingest.downsample import encode_track
+    from ingest.parser import Sample
+    from repository.trips import TripRepo
+    _seed(db)
+    # 3 close points, then a huge jump (10 deg ≈ 1100 km) in 1s -> a teleport segment
+    pts = [Sample(t=datetime(2026, 6, 1, 10, 0, i), lat=69.6 + i * 0.0001, lon=18.9, speed=20.0) for i in range(3)]
+    pts.append(Sample(t=datetime(2026, 6, 1, 10, 0, 3), lat=79.6, lon=18.9, speed=20.0))
+    TripRepo(db).save_track("tr1", encode_track(pts))
+    db.commit()
+    with TestClient(app) as client:
+        _auth(client)
+        g = client.get("/admin/explorer/trip/tr1/track.geojson").json()
+        roles = [f["properties"]["role"] for f in g["features"]]
+        assert "teleport" in roles                       # the jump is flagged
+        assert "path" in roles                            # the real run still solid
 
 
 def test_trip_track_requires_auth(db):
