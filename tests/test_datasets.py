@@ -139,3 +139,15 @@ def test_delete_removes_file_and_entry(clean):
     datasets.delete(slug)
     assert not path.exists()
     assert datasets._get_entry(slug) is None
+
+
+def test_prune_autos_keeps_manual_and_newest(clean):
+    _seed_active_rider()
+    datasets.save_current("keep me", origin="manual")
+    for i in range(5):
+        datasets.save_current(f"auto {i}", origin="auto")
+    deleted = datasets.prune_autos(keep=2)
+    assert deleted == 3
+    rows = datasets.list_datasets()["datasets"]
+    assert len([d for d in rows if d["origin"] == "auto"]) == 2
+    assert len([d for d in rows if d["origin"] == "manual"]) == 1   # manual never pruned

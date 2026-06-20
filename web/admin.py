@@ -1025,6 +1025,8 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
             f'</td></tr>')
     if not rows:
         rows = '<tr><td colspan=7 class=mut>no saved datasets yet</td></tr>'
+    n_auto = sum(1 for d in listing["datasets"]
+                 if d.get("origin") in ("auto", "pre-switch", "pre-edit") and not d.get("live"))
 
     inner = f"""
     {banner}
@@ -1056,6 +1058,17 @@ def _datasets_html(db: Session, msg: str = "", err: str = "") -> str:
     <table><tr><th>name</th><th>riders</th><th>trips</th><th>size</th><th>created (UTC)</th><th>origin</th><th>actions</th></tr>{rows}</table>
     <p class=mut>Switching or deleting requires typing the dataset's exact name. A switch auto-backs-up the
     current dataset (unless it's empty), then reconnects instantly, no restart, no downtime.</p>
+    <div class=card>
+      <h2>Automatic backups</h2>
+      <p class=hint>Scheduled dailies and the safety backups taken before a switch or a name edit.
+      There {"is" if n_auto == 1 else "are"} currently <b>{n_auto}</b> of them. Switches now self-prune,
+      and you can trim the pile here. Manual snapshots are never touched.</p>
+      <form method=post action="/admin/datasets/prune" class=inline
+            onsubmit="return confirm('Delete automatic backups beyond the newest kept count?')">
+        <label>Keep newest <input type=number name=keep min=0 max=100 value="10" style="width:70px"></label>
+        <button class=danger>Clean up automatic backups</button>
+      </form>
+    </div>
     {_retention_card(db)}
     """
     return _ds_page(inner, "/admin/datasets")
@@ -1125,6 +1138,15 @@ def datasets_rename(request: Request, slug: str = Form(...), new_name: str = For
         return _redir(msg="renamed")
     except datasets.DatasetError as e:
         return _redir(err=str(e))
+
+
+@admin_router.post("/datasets/prune")
+def datasets_prune(request: Request, keep: int = Form(10)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    n = datasets.prune_autos(max(0, keep))
+    audit.log("dataset_prune", f"keep={keep} deleted={n}")
+    return _redir(msg=f"cleaned up {n} automatic backup{'' if n == 1 else 's'}")
 
 
 @admin_router.post("/datasets/delete")
@@ -1905,28 +1927,38 @@ _SCORE_JS = """
 <script>
 (function(){
   var pv=document.getElementById('scoreprev'), out=document.getElementById('scoreout'), form=document.getElementById('scoreform');
-  if(!pv||!form)return;
+  if(!out||!form)return;
   function cell(label,c){return c?('<tr><td>'+label+'</td><td>'+(c.name||c.store_id||'?')+'</td><td><b>'+c.score+'</b></td><td>'+c.km+' km</td><td>'+c.hours+' h</td><td>'+c.top_speed+' km/h</td></tr>'):('<tr><td>'+label+'</td><td colspan=5 class=mut>no rides in window</td></tr>');}
-  pv.onclick=function(){
-    out.innerHTML='<span class=mut>computing preview…</span>';
+  var seq=0;
+  function run(){
+    var mine=++seq;                       // ignore stale responses if values change fast
+    out.innerHTML='<span class=mut>computing live…</span>';
     fetch('/admin/score/preview',{method:'POST',body:new URLSearchParams(new FormData(form)),credentials:'same-origin'})
       .then(function(r){return r.ok?r.json():Promise.reject();})
       .then(function(d){
+        if(mine!==seq)return;
         out.innerHTML='<p class=hint style="margin:0 0 6px"><code>'+d.formula+'</code></p>'
           +'<table><tr><th>Window</th><th>Champion</th><th>Score</th><th>Dist</th><th>Hours</th><th>Top</th></tr>'
           +cell('Day',d.day)+cell('Week',d.week)+cell('Month',d.month)+'</table>'
-          +'<p class=hint style="margin:6px 0 0">Preview only — not saved.</p>';
-      }).catch(function(){out.innerHTML='<span class=mut>preview failed</span>';});
-  };
-  // preset formulas: fill the form then auto-preview (Save still required to apply)
+          +'<p class=hint style="margin:6px 0 0">Live preview — Save to apply.</p>';
+      }).catch(function(){if(mine===seq)out.innerHTML='<span class=mut>preview failed</span>';});
+  }
+  var t; function schedule(){clearTimeout(t); t=setTimeout(run,250);}   // debounce while typing/sliding
+  form.addEventListener('input', schedule);
+  form.addEventListener('change', schedule);
+  if(pv)pv.onclick=function(){run();};
+  // Enter in a field refreshes the preview instead of saving (Save stays an explicit click)
+  form.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.tagName==='INPUT'){ e.preventDefault(); run(); }});
+  // preset formulas: fill the form then the input event live-previews
   var PRE={classic:{dist_exp:1,speed_div:100,hours_div:10,speed_on:true,hours_on:true},
            spicy:{dist_exp:1.3,speed_div:50,hours_div:5,speed_on:true,hours_on:true}};
   form.querySelectorAll('[data-preset]').forEach(function(b){b.onclick=function(){
     var p=PRE[b.dataset.preset]; if(!p)return;
     form.dist_exp.value=p.dist_exp; form.speed_div.value=p.speed_div; form.hours_div.value=p.hours_div;
     form.speed_on.checked=p.speed_on; form.hours_on.checked=p.hours_on;
-    pv.click();
+    run();
   };});
+  run();                                  // initial paint with the saved formula
 })();
 </script>"""
 
@@ -1940,7 +1972,7 @@ def _score_card(db: Session) -> str:
       <h2>EUC Planet Score <span class=mut>· the champions formula</span></h2>
       <p class=hint>How the day / week / month champions are ranked. Distance is the base raised to the
       exponent (&gt;1 rewards big rides harder); each factor adds a boost where a <b>lower divisor = spicier</b>.
-      Hit Preview to see who would win before you apply.</p>
+      The preview below recomputes <b>live</b> as you change the values — Save to apply.</p>
       <form method=post action="/admin/score/save" id=scoreform>
         <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
           <label>Distance exponent<br><input type=number step=any min=0.1 max=3 name=dist_exp value="{c['dist_exp']:g}" style="{nin}"></label>
@@ -1956,7 +1988,7 @@ def _score_card(db: Session) -> str:
           <button type=button class="ghost mini" data-preset="spicy" style="margin-left:6px">Spicy</button>
         </div>
         <div class=qa style="margin-top:14px">
-          <button type=button class=ghost id=scoreprev>{_IC['search']} Preview (no save)</button>
+          <button type=button class=ghost id=scoreprev>{_IC['search']} Refresh preview</button>
           <button>{_IC['check']} Save formula</button>
         </div>
       </form>

@@ -295,6 +295,7 @@ def switch_to(slug: str, reload_app: Optional[Callable[[], None]] = None) -> str
         save_current(_timestamped("pre-switch"),
                      note=f"auto backup before switching to {entry['name']}",
                      origin="pre-switch")
+        prune_autos()          # keep the safety backups from piling up over time
     # 2) stage the incoming file, then atomically swap it in
     incoming = Path(str(active) + ".incoming")
     shutil.copyfile(snap, incoming)
@@ -319,8 +320,28 @@ def switch_to(slug: str, reload_app: Optional[Callable[[], None]] = None) -> str
     return slug
 
 
+# origins created automatically (vs. a manual "Save snapshot"): scheduled dailies + the safety
+# backups taken before a switch / brand-name edit. Only these are ever auto-pruned.
+AUTO_ORIGINS = ("auto", "pre-switch", "pre-edit")
+DEFAULT_BACKUP_KEEP = 10
+
+
+def prune_autos(keep: int = DEFAULT_BACKUP_KEEP) -> int:
+    """Delete automatic backups beyond the newest `keep` (keep<=0 deletes them all). Never touches
+    the active dataset or manual snapshots. Returns how many were deleted."""
+    m = _load()
+    active = m.get("active")
+    autos = sorted((x for x in m["datasets"]
+                    if x.get("origin") in AUTO_ORIGINS and x["slug"] != active),  # never prune active
+                   key=lambda x: x.get("created", ""))
+    victims = autos if keep <= 0 else autos[:-keep]
+    for old in victims:
+        delete(old["slug"])
+    return len(victims)
+
+
 def auto_backup(keep: int = 14, today: Optional[date] = None) -> Optional[str]:
-    """Daily rotated backup. Idempotent per day; prunes old auto-* beyond keep."""
+    """Daily rotated backup. Idempotent per day; prunes old automatic backups beyond keep."""
     d = today or date.today()
     name = f"auto-{d.isoformat()}"
     slug = _slugify(name)
@@ -328,13 +349,7 @@ def auto_backup(keep: int = 14, today: Optional[date] = None) -> Optional[str]:
     if not _get_entry(slug):
         created = save_current(name, note="scheduled backup", origin="auto")
     if keep > 0:
-        m = _load()
-        active = m.get("active")
-        autos = sorted((x for x in m["datasets"]
-                        if x.get("origin") == "auto" and x["slug"] != active),  # never prune active
-                       key=lambda x: x.get("created", ""))
-        for old in autos[:-keep]:
-            delete(old["slug"])
+        prune_autos(keep)
     return created or slug
 
 
