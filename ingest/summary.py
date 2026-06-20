@@ -169,32 +169,43 @@ def _power(s: Sample):
 
 
 def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
-                  min_s: float = 1.5, max_s: float = 20.0) -> float | None:
-    """Shortest time (s) to launch from a near-stop (<=2 km/h) up to target_kmh, using the
-    corroborated wheel/GPS speed so it can't be faked. The crossing time is LINEARLY
-    INTERPOLATED between the two bracketing samples, so 0->40 and 0->60 differ even when the
-    wheel blows through both between two readings (otherwise both snap to the same sample).
+                  min_s: float = 1.5, max_s: float = 20.0,
+                  start_kmh: float = 2.0, max_gap_s: float = 5.0, dip_frac: float = 0.8) -> float | None:
+    """Shortest time (s) for a GENUINE launch from a near-stop up to target_kmh. A launch only
+    counts when it is a real, continuous run — not just "the wheel was over target_kmh":
+      * starts from a near-stop (corroborated speed <= start_kmh),
+      * GPS-corroborated every sample (gps_speed present) — wheel-only/freespin can't qualify,
+      * continuous in time (no gap > max_gap_s — a paused/resumed log isn't one launch),
+      * monotonic-ish climb (a dip below dip_frac x the run's peak ends the attempt — a coast or
+        stop-and-go isn't a launch).
+    The crossing time is interpolated between the bracketing samples (so 0->40 and 0->60 differ).
     Lower is better."""
     best = None
-    start = None
-    prev = None                      # (time, corroborated speed) of the previous valid sample
+    start = None          # time of the near-stop the current launch began at
+    runmax = 0.0          # peak corroborated speed since start (for dip detection)
+    prev = None           # (time, corroborated speed) of the previous valid, GPS-corroborated sample
     for s in samples:
         sp = _corrob_speed(s)
-        if sp is None:
+        if sp is None or s.gps_speed is None:      # need GPS to corroborate a real launch
+            start, prev, runmax = None, None, 0.0
             continue
-        if sp <= 2.0:
-            start = s.t
-        elif start is not None and sp >= target_kmh:
-            cross = s.t
-            if prev is not None and prev[1] < target_kmh and sp > prev[1]:
-                frac = (target_kmh - prev[1]) / (sp - prev[1])      # where between the two readings it crossed
-                cross = prev[0] + (s.t - prev[0]) * frac
-            dt = (cross - start).total_seconds()
-            # min_s floor rejects sensor noise; max_s ceiling rejects casual coasts
-            # (only a genuine hard launch from a stop to the target counts)
-            if min_s <= dt <= max_s and (best is None or dt < best):
-                best = dt
-            start = None
+        if prev is not None and (s.t - prev[0]).total_seconds() > max_gap_s:
+            start, runmax = None, 0.0              # discontinuous log -> not one clean launch
+        if sp <= start_kmh:
+            start, runmax = s.t, sp                # (re)arm at a near-stop
+        elif start is not None:
+            if sp < runmax * dip_frac:             # speed dropped back -> coast/restart, not a launch
+                start, runmax = None, 0.0
+            else:
+                runmax = max(runmax, sp)
+                if sp >= target_kmh:
+                    cross = s.t
+                    if prev is not None and prev[1] < target_kmh and sp > prev[1]:
+                        cross = prev[0] + (s.t - prev[0]) * ((target_kmh - prev[1]) / (sp - prev[1]))
+                    dt = (cross - start).total_seconds()
+                    if min_s <= dt <= max_s and (best is None or dt < best):
+                        best = dt
+                    start, runmax = None, 0.0
         prev = (s.t, sp)
     return best
 
@@ -232,6 +243,8 @@ def _max_sustained_accel(samples: list[Sample], lo: float = 2.0, hi: float = 6.0
             if dt > hi:
                 break
             a = (pts[j][1] - pts[i][1]) / dt
+            if a * _KMH_S_TO_G > MAX_LON_G:    # unphysical -> speed glitch, not real acceleration
+                continue
             if a > best:
                 best = a
     return round(best, 2) if best > 0 else None
@@ -276,6 +289,10 @@ def _max_shake(samples: list[Sample], window_s: float = 2.0) -> float | None:
 
 
 _KMH_S_TO_G = (1000.0 / 3600.0) / 9.80665   # km/h-per-second -> g (1 km/h/s ≈ 0.0283 g)
+# Physical ceiling for speed-derived longitudinal g. An EUC can't brake/accelerate harder than
+# tyre grip + rider balance allow (~0.5-0.7 g hard); anything above this is a speed glitch or a
+# GPS dropout across the window (e.g. 70->2 km/h in ~1 s = ~1.9 g), so we drop that window.
+MAX_LON_G = 1.2
 
 
 def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
@@ -297,6 +314,8 @@ def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None
         if dt <= 0:
             continue
         g = abs((pts[right][1] - pts[left][1]) / dt) * _KMH_S_TO_G
+        if g > MAX_LON_G:                      # unphysical -> speed glitch / GPS dropout, not a real g
+            continue
         if pts[right][1] >= pts[left][1]:
             best_acc = max(best_acc, g)
         else:
@@ -321,6 +340,8 @@ def _speed_g_band(samples: list[Sample], band: float, window_s: float = 1.0) -> 
         if dt <= 0 or pts[left][1] < band:
             continue
         g = abs((pts[right][1] - pts[left][1]) / dt) * _KMH_S_TO_G
+        if g > MAX_LON_G:                      # unphysical -> speed glitch / GPS dropout, not a real g
+            continue
         if pts[right][1] >= pts[left][1]:
             best_acc = max(best_acc, g)
         else:

@@ -93,8 +93,9 @@ def test_ascent_hysteresis_param_changes_metric():
 
 
 def test_launch_target_param_changes_metric():
-    # ramp 0..50 over 5s; "0->40" finds a launch, "0->100" does not
-    s = [_s(i, speed=10 * i) for i in range(6)]
+    # ramp 0..50 over 5s (GPS-corroborated, as a real launch must be);
+    # "0->40" finds a launch, "0->100" does not
+    s = [_s(i, speed=10 * i, gps_speed=10 * i) for i in range(6)]
     assert summarize(s, cal={"accel_target_kmh": 40}).fastest_0_40_s is not None
     assert summarize(s, cal={"accel_target_kmh": 100}).fastest_0_40_s is None
 
