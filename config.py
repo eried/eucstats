@@ -45,6 +45,11 @@ MAX_KMH = float(os.environ.get("EUCSTATS_MAX_KMH", "120"))            # sample s
 MAX_G = float(os.environ.get("EUCSTATS_MAX_G", "12"))                 # |G-Force| cap -> flag
 TELEPORT_KMH = float(os.environ.get("EUCSTATS_TELEPORT_KMH", "150"))  # implied speed between GPS fixes
 TELEPORT_MAX_JUMPS = int(os.environ.get("EUCSTATS_TELEPORT_MAX_JUMPS", "8"))  # tolerate isolated spikes
+# a jump only counts as a teleport when GPS was sampling continuously (gap below this) AND the wheel
+# was riding (above this) — so indoor GPS drift (wheel idle) and tunnel re-acquisitions (long GPS gap)
+# aren't flagged.
+TELEPORT_GAP_S = float(os.environ.get("EUCSTATS_TELEPORT_GAP_S", "20"))
+TELEPORT_MIN_KMH = float(os.environ.get("EUCSTATS_TELEPORT_MIN_KMH", "8"))
 DIST_TOLERANCE = float(os.environ.get("EUCSTATS_DIST_TOLERANCE", "0.4"))      # odometer-vs-gps mismatch
 UNVERIFIED_DIST_KM = float(os.environ.get("EUCSTATS_UNVERIFIED_DIST_KM", "3.0"))  # flag long rides with no GPS at all
 

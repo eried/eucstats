@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from .parser import Sample
-from .summary import TripSummary, _haversine_km
+from .summary import TripSummary, _haversine_km, teleport_segments
 
 
 def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           max_kmh: float = 120.0, max_g: float = 12.0,
           teleport_kmh: float = 150.0, teleport_max_jumps: int = 8,
+          teleport_gap_s: float = 20.0, teleport_min_kmh: float = 8.0,
           dist_tolerance: float = 0.4, unverified_dist_km: float = 3.0,
           mismatch_min_km: float = 0.5, max_ascent_per_km: float = 300.0,
           disabled=frozenset()):
@@ -41,18 +42,11 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
             and summary.ascent_m / summary.distance_km > max_ascent_per_km:
         add("impossible_ascent")
 
-    # teleport: count consecutive GPS pairs implying > teleport_kmh. A few are
-    # normal GPS noise; only flag when there are many (systematic teleporting).
-    prev = None
-    teleport_jumps = 0
-    for s in samples:
-        if s.lat is not None and s.lon is not None:
-            if prev is not None:
-                d = _haversine_km(prev[0], prev[1], s.lat, s.lon)
-                dt = (s.t - prev[2]).total_seconds()
-                if dt > 0 and (d / (dt / 3600.0)) > teleport_kmh:
-                    teleport_jumps += 1
-            prev = (s.lat, s.lon, s.t)
+    # teleport: count GPS jumps implying > teleport_kmh, but only genuine ones — riding (not indoor
+    # drift) and with GPS sampling continuously (not a tunnel re-acquisition). A few are normal GPS
+    # noise; only flag when there are many (systematic teleporting).
+    pts = [(s.t, s.lat, s.lon, s.speed) for s in samples if s.lat is not None and s.lon is not None]
+    teleport_jumps = len(teleport_segments(pts, teleport_kmh, teleport_gap_s, teleport_min_kmh))
     if teleport_jumps > teleport_max_jumps:
         add("teleport")
 

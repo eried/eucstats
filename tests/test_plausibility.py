@@ -38,8 +38,20 @@ def test_mock_location_flagged():
 
 
 def test_teleport_flagged_when_many_jumps():
-    s = clean_samples()
-    s[2] = mk(101, lat=80.0, lon=18.0, speed=20.0, odo=100.8)  # huge jump in 1s (2 jumps)
-    # one isolated spike is tolerated by default; flag when jumps exceed the cap
+    # continuous GPS (1s apart), riding speed, alternating far positions = repeated teleports
+    s = [mk(i, lat=(69.0 if i % 2 == 0 else 80.0), lon=18.0, speed=20.0,
+            odo=100.0 + i * 0.01, g=0.5) for i in range(6)]
+    # several jumps are tolerated by default; flag once they exceed the cap
     assert "teleport" not in check(s, summarize(s))[1]
     assert "teleport" in check(s, summarize(s), teleport_max_jumps=1)[1]
+
+
+def test_teleport_ignores_indoor_drift_and_tunnel():
+    # idle wheel (indoor GPS drift): big position jumps but speed ~0 -> not flagged
+    indoor = [mk(i, lat=(69.0 if i % 2 == 0 else 80.0), lon=18.0, speed=0.0, odo=100.0)
+              for i in range(6)]
+    assert "teleport" not in check(indoor, summarize(indoor), teleport_max_jumps=1)[1]
+    # tunnel: riding, but every fix is 100s apart (signal gaps) -> re-acquisition, not teleport
+    tunnel = [mk(i * 100, lat=(69.0 if i % 2 == 0 else 80.0), lon=18.0, speed=20.0,
+                 odo=100.0 + i * 0.4) for i in range(6)]
+    assert "teleport" not in check(tunnel, summarize(tunnel), teleport_max_jumps=1)[1]

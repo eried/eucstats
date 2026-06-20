@@ -95,6 +95,29 @@ class TripSummary:
     sample_count: int
 
 
+def teleport_segments(pts, teleport_kmh: float = 150.0, max_gap_s: float = 20.0,
+                      min_ride_kmh: float = 8.0):
+    """GPS hops that look like a GENUINE teleport, excluding the two benign cases:
+      * indoor / standing GPS drift — the wheel wasn't really riding (speed < min_ride_kmh),
+      * tunnel / signal loss — the jump just spans a GPS outage (gap > max_gap_s).
+    A hop counts only when the rider was riding, GPS was sampling continuously, AND the implied
+    speed still exceeds teleport_kmh. `pts` is [(time, lat, lon, wheel_speed)]; returns the jump
+    segments as [[lon,lat],[lon,lat]] (GeoJSON order)."""
+    segs = []
+    prev = None
+    for (t, lat, lon, ws) in pts:
+        if lat is None or lon is None:
+            continue
+        if prev is not None and t and prev[0]:
+            dt = (t - prev[0]).total_seconds()
+            d = _haversine_km(prev[1], prev[2], lat, lon)
+            wheel = max(prev[3] or 0.0, ws or 0.0)          # wheel speed around the hop
+            if 0 < dt <= max_gap_s and wheel >= min_ride_kmh and (d / (dt / 3600.0)) > teleport_kmh:
+                segs.append([[prev[2], prev[1]], [lon, lat]])
+        prev = (t, lat, lon, ws)
+    return segs
+
+
 def gps_distance_km(samples: list[Sample], teleport_kmh: float = 150.0) -> float:
     """Sum of GPS hops, but a hop whose implied speed exceeds teleport_kmh is a teleport
     (GPS glitch) and is NOT credited — so an accepted trip with teleports can't inflate distance."""

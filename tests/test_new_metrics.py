@@ -282,6 +282,19 @@ def test_cutout_detection():
                          + [_s(4, speed=80, gps_speed=78, g=3.6)]) == 0
 
 
+def test_teleport_segments_excludes_indoor_and_tunnel():
+    from datetime import timedelta
+    from ingest.summary import teleport_segments
+    b = datetime(2026, 6, 1, 10, 0, 0)
+    j = lambda sec, lat, sp: (b + timedelta(seconds=sec), lat, 10.0, sp)
+    # genuine: riding (30 km/h), GPS continuous (1 s), impossible position jump
+    assert len(teleport_segments([j(0, 60.0, 30), j(1, 60.5, 30)])) == 1
+    # indoor drift: same jump but the wheel is idle -> not a teleport
+    assert len(teleport_segments([j(0, 60.0, 0), j(1, 60.5, 0)])) == 0
+    # tunnel: riding, but a 60 s GPS gap -> re-acquisition, not a teleport
+    assert len(teleport_segments([j(0, 60.0, 30), j(60, 60.5, 30)])) == 0
+
+
 def test_gps_distance_skips_teleport():
     from ingest.summary import gps_distance_km
     base = [_s(i, lat=60.0 + i * 0.0001, lon=10.0) for i in range(4)]   # ~11 m/s, normal
