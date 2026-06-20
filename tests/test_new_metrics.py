@@ -330,7 +330,7 @@ def test_distance_ignores_stationary_wheelspin():
     spin = [_s(i, speed=40, gps_speed=0, lat=59.9, lon=10.7, odo=100.0 + i * 0.05) for i in range(20)]
     assert summarize(spin).distance_km < 0.1            # GPS says stationary -> no phantom km
     # identical odometer climb but GPS genuinely moving -> distance is credited
-    real = [_s(i, speed=40, gps_speed=40, lat=59.9 + i * 0.001, lon=10.7, odo=100.0 + i * 0.05) for i in range(20)]
+    real = [_s(i, speed=40, gps_speed=40, lat=59.9 + i * 0.0003, lon=10.7, odo=100.0 + i * 0.05) for i in range(20)]
     assert summarize(real).distance_km > 0.5
 
 
