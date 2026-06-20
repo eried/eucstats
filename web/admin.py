@@ -693,6 +693,7 @@ _TRIP_MAP_TMPL = """
           m.addSource("trk",{type:"geojson",data:g});
           m.addLayer({id:"trk-glow",type:"line",source:"trk",filter:["==",["get","role"],"path"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#2ea8ff","line-width":9,"line-blur":6,"line-opacity":0.3}});
           m.addLayer({id:"trk-line",type:"line",source:"trk",filter:["==",["get","role"],"path"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#7fd0ff","line-width":3}});
+          m.addLayer({id:"trk-teleport",type:"line",source:"trk",filter:["==",["get","role"],"teleport"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ff5b6e","line-width":2,"line-dasharray":[1,2.2],"line-opacity":0.95}});
           m.addLayer({id:"trk-start",type:"circle",source:"trk",filter:["==",["get","role"],"start"],paint:{"circle-radius":6,"circle-color":"#39d98a","circle-stroke-color":"#eaffff","circle-stroke-width":2}});
           m.addLayer({id:"trk-end",type:"circle",source:"trk",filter:["==",["get","role"],"end"],paint:{"circle-radius":6,"circle-color":"#ff8585","circle-stroke-color":"#ffecec","circle-stroke-width":2}});
           var b=new maplibregl.LngLatBounds();
@@ -837,23 +838,59 @@ def explorer_trip_track(trip_uuid: str, request: Request, db: Session = Depends(
     """The trip's downsampled GPS path as GeoJSON (admin only, exact coords)."""
     if not _is_authenticated(request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from datetime import datetime
     from ingest.downsample import decode_track
+    from ingest.summary import _haversine_km
     from models import TripTrack
     t = db.get(Trip, trip_uuid)
-    coords = []
+    tel_kmh = settings.get_thresholds(db)["teleport_kmh"]
+
+    def _piso(s):
+        if not s:
+            return None
+        try:
+            return datetime.fromisoformat(str(s).replace("Z", ""))
+        except Exception:
+            return None
+
+    pts, coords = [], []                         # pts: (time, lon, lat) ; coords: flat for bounds
     tr = db.get(TripTrack, trip_uuid)
     if tr and tr.points:
         try:
-            for row in decode_track(tr.points):     # [iso_t, lat, lon, speed, g]
+            for row in decode_track(tr.points):  # [iso_t, lat, lon, speed, g]
                 lat, lon = row[1], row[2]
                 if lat is not None and lon is not None:
+                    pts.append((_piso(row[0]), lon, lat))
                     coords.append([lon, lat])
         except Exception:
-            coords = []
+            pts, coords = [], []
     feats = []
-    if len(coords) >= 2:
-        feats.append({"type": "Feature", "properties": {"role": "path"},
-                      "geometry": {"type": "LineString", "coordinates": coords}})
+    if len(pts) >= 2:
+        # split the path: real-movement runs (solid) vs teleport jumps (dotted) — a segment whose
+        # GPS-implied speed exceeds the teleport threshold is drawn as a dotted line.
+        run, runs, jumps = [list(pts[0][1:])], [], []
+        for i in range(1, len(pts)):
+            (pt, plon, plat), (ct, clon, clat) = pts[i - 1], pts[i]
+            jump = False
+            if pt and ct:
+                dt = (ct - pt).total_seconds()
+                if dt > 0 and (_haversine_km(plat, plon, clat, clon) / (dt / 3600.0)) > tel_kmh:
+                    jump = True
+            if jump:
+                if len(run) >= 2:
+                    runs.append(run)
+                jumps.append([[plon, plat], [clon, clat]])
+                run = [[clon, clat]]
+            else:
+                run.append([clon, clat])
+        if len(run) >= 2:
+            runs.append(run)
+        for r in runs:
+            feats.append({"type": "Feature", "properties": {"role": "path"},
+                          "geometry": {"type": "LineString", "coordinates": r}})
+        for j in jumps:
+            feats.append({"type": "Feature", "properties": {"role": "teleport"},
+                          "geometry": {"type": "LineString", "coordinates": j}})
         feats.append({"type": "Feature", "properties": {"role": "start"},
                       "geometry": {"type": "Point", "coordinates": coords[0]}})
         feats.append({"type": "Feature", "properties": {"role": "end"},
