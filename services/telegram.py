@@ -274,14 +274,27 @@ def check_records() -> None:
         settings.set_meta(db, "tg_record_holders", json.dumps(snap))
         db.commit()
 
+        # group a rider's simultaneous new #1s into ONE message — a single big ride can sweep
+        # several boards, and we don't want a burst of one post per board for the same rider.
+        by_rider: dict = {}
         for board, top, old_sid in rider_hits:
-            name, desc = _board_label(board)
-            oldr = db.get(Rider, old_sid)
-            beat = (f", beating <b>{_esc(oldr.display_name)}</b>"
-                    if oldr and oldr.display_name else "")
-            descpart = f" ({_esc(desc)})" if desc else ""
-            text = (f"🏆 New record! <b>{_esc(top.get('name'))}</b> {_flag_emoji(top.get('flag'))} "
-                    f"is the new <b>{_esc(name)}</b>{descpart}{beat}.\n{cfg['link_url']}")
+            slot = by_rider.setdefault(top["store_id"], {"top": top, "hits": []})
+            slot["hits"].append((board, old_sid))
+        for info in by_rider.values():
+            top, hits = info["top"], info["hits"]
+            who = f"<b>{_esc(top.get('name'))}</b> {_flag_emoji(top.get('flag'))}"
+            if len(hits) == 1:
+                board, old_sid = hits[0]
+                name, desc = _board_label(board)
+                oldr = db.get(Rider, old_sid)
+                beat = f", beating <b>{_esc(oldr.display_name)}</b>" if oldr and oldr.display_name else ""
+                descpart = f" ({_esc(desc)})" if desc else ""
+                text = (f"🏆 New record! {who} is the new <b>{_esc(name)}</b>{descpart}{beat}."
+                        f"\n{cfg['link_url']}")
+            else:
+                titles = ", ".join(f"<b>{_esc(_board_label(b)[0])}</b>" for b, _ in hits)
+                text = (f"🏆 {who} just swept {len(hits)} #1 spots: {titles}."
+                        f"\n{cfg['link_url']}")
             send_message(text, cfg)
 
         for kind, top, old_label in group_hits:

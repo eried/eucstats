@@ -303,9 +303,10 @@ def commuter(db, limit=50):
     return [{**_rider_brief(db, sid), "weekday_km": round(v or 0, 2)} for sid, v in rows]
 
 
-def gated_leaderboard(db, col, direction, min_s, min_km, limit=50):
-    """Live max/min of a per-trip column over QUALIFYING trips (ride >= min_s seconds
-    AND >= min_km km). Anti-gaming gate for spikeable / fakeable metrics. Excludes
+def gated_leaderboard(db, col, direction, min_s, min_km, limit=50, min_avg=0.0):
+    """Live max/min of a per-trip column over QUALIFYING trips (ride >= min_s seconds AND
+    >= min_km km, and >= min_avg km/h average when set — the low tier uses the avg-speed floor
+    so a brief creep can't qualify). Anti-gaming gate for spikeable / fakeable metrics. Excludes
     banned / self-deleted / opted-out riders."""
     from services.aggregator import _excluded_ids
     import services.settings as settings
@@ -322,6 +323,8 @@ def gated_leaderboard(db, col, direction, min_s, min_km, limit=50):
         q = q.filter(Trip.duration_s >= min_s)
     if min_km:
         q = q.filter(Trip.distance_km >= min_km)
+    if min_avg:
+        q = q.filter(Trip.avg_speed >= min_avg)
     excl = _excluded_ids(db)
     if excl:
         q = q.filter(~Trip.rider_store_id.in_(excl))
@@ -368,9 +371,9 @@ BOARDS = {
 def _register_gated_boards():
     import services.settings as _s
     for b in _s.gated_boards() + _s.ungated_new_boards():
-        col, d, ms, mk = b["col"], b["dir"], b["min_s"], b["min_km"]
-        BOARDS[b["k"]] = (lambda db, limit=50, col=col, d=d, ms=ms, mk=mk:
-                          gated_leaderboard(db, col, d, ms, mk, limit))
+        col, d, ms, mk, ma = b["col"], b["dir"], b["min_s"], b["min_km"], b.get("min_avg", 0.0)
+        BOARDS[b["k"]] = (lambda db, limit=50, col=col, d=d, ms=ms, mk=mk, ma=ma:
+                          gated_leaderboard(db, col, d, ms, mk, limit, ma))
 
 
 _register_gated_boards()

@@ -342,7 +342,10 @@ METRIC_RECORDS = [
 # tier's minimums live in the description (shown km/mi to match the UI). Computed live
 # from the Trip column (max or min) over qualifying trips. Absolute physical extremes
 # (altitude, top speed, g) need no gate — a trivial ride can't move their max/min.
-GATE_TIERS = [("b", 300, 1.5), ("s", 600, 3.0), ("m", 1800, 15.0), ("l", 3600, 40.0)]   # (suffix, min_seconds, min_km)
+# (suffix, min_seconds, min_km, min_avg_kmh). The "x" tier has the lowest distance/time bar but
+# adds an average-speed floor so a short creep can't qualify — it had to be a real (if brief) ride.
+GATE_TIERS = [("x", 60, 0.5, 8.0), ("b", 300, 1.5, 0.0), ("s", 600, 3.0, 0.0),
+              ("m", 1800, 15.0, 0.0), ("l", 3600, 40.0, 0.0)]
 
 # (base, name, desc, trip_col, direction, unit, conv, icon)  -- gated (spikeable/fakeable)
 _GATED_SPEC = [
@@ -394,16 +397,16 @@ def gated_boards() -> list[dict]:
     """Every gated board variant: one per (metric, tier)."""
     out = []
     for base, name, desc, col, d, unit, conv, icon in _GATED_SPEC:
-        for suf, ms, mk in GATE_TIERS:
+        for suf, ms, mk, ma in GATE_TIERS:
             out.append({"k": f"{base}_{suf}", "base": base, "name": name, "desc": desc,
                         "col": col, "dir": d, "u": unit, "conv": conv, "ic": icon,
-                        "min_s": ms, "min_km": mk})
+                        "min_s": ms, "min_km": mk, "min_avg": ma})
     return out
 
 
 def ungated_new_boards() -> list[dict]:
     return [{"k": base, "base": base, "name": name, "desc": desc, "col": col, "dir": d,
-             "u": unit, "conv": conv, "ic": icon, "min_s": 0, "min_km": 0}
+             "u": unit, "conv": conv, "ic": icon, "min_s": 0, "min_km": 0, "min_avg": 0.0}
             for base, name, desc, col, d, unit, conv, icon in _UNGATED_NEW]
 
 
