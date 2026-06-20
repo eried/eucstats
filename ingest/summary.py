@@ -469,9 +469,15 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
 
     gps_km = gps_distance_km(samples)
     odo_km, has_odo = odometer_distance_km(samples, c["odo_max_step_km"])
-    # Prefer the wheel odometer when it's meaningful and not severely under GPS
-    # (a coarse/non-updating odometer should defer to GPS-measured movement).
-    if has_odo and odo_km > 0.1 and (gps_km <= 0 or odo_km >= gps_km * (1 - gps_tolerance)):
+    gps_present = sum(1 for s in samples if s.lat is not None and s.lon is not None) >= 2
+    # ANTI-CHEAT: never credit the wheel odometer when GPS is present and shows the rider
+    # barely moved — that's a stationary wheel-spin faking distance (GPS ~0, odo climbing).
+    # GPS noise inflates distance, never deflates it to ~0, so near-zero GPS = truly stationary.
+    if gps_present and gps_km < 0.2 and odo_km > gps_km:
+        distance = gps_km
+    # Otherwise prefer the odometer when meaningful: no GPS at all (legit no-signal ride), or
+    # odo isn't severely under GPS (a coarse/non-updating odometer defers to GPS movement).
+    elif has_odo and odo_km > 0.1 and (not gps_present or odo_km >= gps_km * (1 - gps_tolerance)):
         distance = odo_km
     else:
         distance = gps_km

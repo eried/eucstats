@@ -289,6 +289,15 @@ def test_sprints_use_corroborated_speed():
     assert sm.fastest_0_40_s == 2.0 and sm.t_0_60_s == 3.0   # corroborated (min) speed, not the GPS spoof
 
 
+def test_distance_ignores_stationary_wheelspin():
+    # GPS pinned at one spot (not moving) while the odometer climbs ~1 km: the stand-spin cheat
+    spin = [_s(i, speed=40, gps_speed=0, lat=59.9, lon=10.7, odo=100.0 + i * 0.05) for i in range(20)]
+    assert summarize(spin).distance_km < 0.1            # GPS says stationary -> no phantom km
+    # identical odometer climb but GPS genuinely moving -> distance is credited
+    real = [_s(i, speed=40, gps_speed=40, lat=59.9 + i * 0.001, lon=10.7, odo=100.0 + i * 0.05) for i in range(20)]
+    assert summarize(real).distance_km > 0.5
+
+
 def test_sprint_thresholds_interpolated_so_40_and_60_differ():
     # coarse launch 0 -> 10 -> 70 km/h: it blows through both 40 and 60 between the last two
     # readings. Without interpolation both snap to the same sample (the reported bug); with it
