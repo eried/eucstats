@@ -134,13 +134,16 @@ def test_trip_explorer_pagination(db):
 def test_metrics_tree_shows_descriptions(db):
     with TestClient(app) as client:
         _auth(client)
-        r = client.get("/admin/appearance")   # metrics tree lives under Appearance now
+        r = client.get("/admin/metrics")   # metrics tree has its own page now
         assert r.status_code == 200
         assert "Most Distance" in r.text and "Most distance ever ridden" in r.text
         assert "class=mnode" in r.text and 'data-parent="riders"' in r.text   # nested tree
         assert 'data-parent="records"' in r.text and "Top Speed" in r.text    # records have children now
         assert "Freespin" in r.text and "Voltage Sag" in r.text and "Rocket" in r.text   # new boards hideable
-        assert "Heatmap" in r.text and "Site banner" in r.text                # appearance also owns these
+        assert "id=mfilter" in r.text                                          # the metric filter box
+        a = client.get("/admin/appearance")
+        assert "Heatmap" in a.text and "Site banner" in a.text                # appearance keeps these
+        assert "class=mnode" not in a.text                                    # metrics moved off appearance
 
 
 def test_records_visibility_save(db):

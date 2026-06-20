@@ -94,7 +94,8 @@ def _counts(db: Session) -> dict:
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Riders & Trips"),
         ("/admin/wheels", "Wheels"), ("/admin/ingest", "Ingest"),
-        ("/admin/appearance", "Public site"), ("/admin/datasets", "Data & backups"),
+        ("/admin/metrics", "Metrics"), ("/admin/appearance", "Public site"),
+        ("/admin/datasets", "Data & backups"),
         ("/admin/telegram", "Telegram"), ("/admin/system", "System")]
 
 _IC = {
@@ -1826,22 +1827,64 @@ def _metrics_section(db: Session) -> str:
                 f'<input type=hidden name="order_{okey}" class=ordfield value="{",".join(k for k, *_ in items)}"></div>')
 
     tree = "".join(node(k) for k, *_ in settings.METRIC_SECTIONS)
+    fin = ("background:#0b1124;border:1px solid #26345e;color:#e9eefb;padding:8px 11px;"
+           "border-radius:9px;width:min(360px,100%);margin-bottom:12px")
     return f"""
     <div class=card>
       <h2>Metric visibility</h2>
       <p class=hint>Untick to hide a metric from the public site. Hidden metrics are still processed, just not shown.
       The <b>i</b> badge shows the metric audit — hover it; green = mitigated, amber/red = still gameable (a coloured left edge flags those).</p>
+      <input id=mfilter type=search autocomplete=off spellcheck=false
+             placeholder="Filter metrics by name or description…" style="{fin}">
       <form method=post action="/admin/metrics/save">
         <div class=mtree2>{tree}</div>
         <button>{_IC['check']} Save visibility</button>
       </form>
     </div>
-    {_METRICS_JS}"""
+    {_METRICS_JS}
+    {_MFILTER_JS}"""
 
 
-@admin_router.get("/metrics")            # back-compat: old bookmark -> Appearance
-def metrics_redirect():
-    return RedirectResponse("/admin/appearance", status_code=307)
+_MFILTER_JS = """
+<script>
+(function(){
+  var f=document.getElementById('mfilter'); if(!f)return;
+  function apply(){
+    var q=f.value.trim().toLowerCase();
+    document.querySelectorAll('.mtree2 .mnode').forEach(function(node){
+      var any=false;
+      node.querySelectorAll('.krow').forEach(function(row){
+        var kl=row.querySelector('.kl'), kd=row.querySelector('.kd');
+        var txt=((kl?kl.textContent:'')+' '+(kd?kd.textContent:'')).toLowerCase();
+        var show=!q||txt.indexOf(q)>=0;
+        row.style.display=show?'':'none';
+        if(show)any=true;
+      });
+      node.style.display=(any||!q)?'':'none';   // hide whole sections with no match while filtering
+    });
+  }
+  f.addEventListener('input', apply);
+})();
+</script>"""
+
+
+def _metrics_html(db: Session, msg: str = "") -> str:
+    banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
+    inner = f"""
+    {banner}
+    <h1>Metrics</h1>
+    <p class=sub>Every leaderboard, group board, record and app stat. Toggle what the public sees, drag to
+    reorder, and use the filter to find one fast. Hidden metrics are still computed, just not shown.</p>
+    {_metrics_section(db)}
+    """
+    return _ds_page(inner, "/admin/metrics")
+
+
+@admin_router.get("/metrics", response_class=HTMLResponse)
+def metrics_page(request: Request, db: Session = Depends(get_db), msg: str = ""):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    return HTMLResponse(_metrics_html(db, msg))
 
 
 @admin_router.post("/metrics/save")
@@ -1871,7 +1914,7 @@ def metrics_save(request: Request, db: Session = Depends(get_db),
     audit.log("metrics_save", "hidden boards=%d app=%d rec=%d grp c/w/b=%d/%d/%d" % (
         len(hidden_boards), len(hidden_app), len(hidden_records),
         len(groups["countries"]), len(groups["wheels"]), len(groups["brands"])))
-    return RedirectResponse("/admin/appearance?msg=" + quote("visibility saved, live now"),
+    return RedirectResponse("/admin/metrics?msg=" + quote("visibility saved, live now"),
                             status_code=303)
 
 
@@ -2062,9 +2105,9 @@ def _appearance_html(db: Session, msg: str = "") -> str:
     inner = f"""
     {banner}
     <h1>Public site</h1>
-    <p class=sub>Everything visitors see, which metrics show, the activity heatmap, the look of the map,
-    the intro and the site banner. Changes apply on the next page load.</p>
-    {_metrics_section(db)}
+    <p class=sub>Everything visitors see — the activity heatmap, the EUC Planet Score, the look of the map,
+    the intro and the site banner. Metric show/hide lives in <a href="/admin/metrics">Metrics</a> now.
+    Changes apply on the next page load.</p>
     {_heatmap_card(db)}
     {_score_card(db)}
     <form method=post action="/admin/settings/save">
