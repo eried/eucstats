@@ -259,6 +259,14 @@ def test_speed_g_helper_edges():
     assert a is not None and abs(a - 0.566) < 0.02 and b is None   # pure acceleration, no braking
 
 
+def test_clean_model_name_strips_serial():
+    from services import settings
+    assert settings.clean_model_name("InMotion P6 (A14219B0600259A6)") == "InMotion P6"
+    assert settings.clean_model_name("InMotion V14 Adventure") == "InMotion V14 Adventure"
+    assert settings.clean_model_name("Sherman (Venom)") == "Sherman (Venom)"   # word, not a serial
+    assert settings.clean_model_name("Master (V2)") == "Master (V2)"           # too short to be a serial
+
+
 def test_cutout_detection():
     from ingest.summary import _cutout_count
     # riding at 25 km/h (GPS follows), then the wheel free-spins to 80 in 1s (GPS stays ~0)

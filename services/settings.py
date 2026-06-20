@@ -119,10 +119,25 @@ def set_name_rules(db: Session, rules) -> None:
     set_meta(db, "wheel_name_rules", json.dumps(clean))
 
 
+# A trailing serial some uploads append to the model, e.g. "InMotion P6 (A14219B0600259A6)".
+# Requires 8+ alphanumerics WITH a digit, so real word-parentheticals ("(Pro)", "(Adventure)")
+# and short tags are left alone.
+_MODEL_SERIAL = re.compile(r"\s*\((?=[0-9A-Za-z]*\d)[0-9A-Za-z]{8,}\)\s*$")
+
+
+def clean_model_name(model):
+    """Strip a trailing serial the uploader appends to some models:
+    'InMotion P6 (A14219B0600259A6)' -> 'InMotion P6'. Clean names pass through."""
+    if not model:
+        return model
+    return _MODEL_SERIAL.sub("", model).strip() or model
+
+
 def canonicalize_name(brand, model, app_version, rules) -> tuple:
     """(brand, model) reported by app_version -> corrected (brand, model). A rule matches when its
     (optional) brand/model equal the reported values and app_version is within its cutoff; matched
-    rules overwrite brand/model with their set_* values."""
+    rules overwrite brand/model with their set_* values. The model also has any trailing serial
+    stripped (some apps append it)."""
     nb, nm = brand, model
     for r in rules:
         if r.get("m_brand") and r["m_brand"] != brand:
@@ -136,7 +151,7 @@ def canonicalize_name(brand, model, app_version, rules) -> tuple:
             nb = r["set_brand"]
         if r.get("set_model"):
             nm = r["set_model"]
-    return nb, nm
+    return nb, clean_model_name(nm)
 
 
 def name_fix_changes(db: Session, rules=None) -> list[dict]:
