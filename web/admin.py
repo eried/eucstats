@@ -833,61 +833,78 @@ def explorer_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db
     return HTMLResponse(page)
 
 
-@admin_router.get("/explorer/trip/{trip_uuid}/track.geojson")
-def explorer_trip_track(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
-    """The trip's downsampled GPS path as GeoJSON (admin only, exact coords)."""
-    if not _is_authenticated(request):
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+def _gps_points_track(db, trip_uuid):
+    """GPS points [(time, lon, lat)] from the downsampled track (light, for drawing the path)."""
     from datetime import datetime
     from ingest.downsample import decode_track
-    from ingest.summary import _haversine_km
     from models import TripTrack
-    t = db.get(Trip, trip_uuid)
-    tel_kmh = settings.get_thresholds(db)["teleport_kmh"]
-
-    def _piso(s):
-        if not s:
-            return None
-        try:
-            return datetime.fromisoformat(str(s).replace("Z", ""))
-        except Exception:
-            return None
-
-    pts, coords = [], []                         # pts: (time, lon, lat) ; coords: flat for bounds
+    out = []
     tr = db.get(TripTrack, trip_uuid)
     if tr and tr.points:
+        def _piso(x):
+            try:
+                return datetime.fromisoformat(str(x).replace("Z", ""))
+            except Exception:
+                return None
         try:
-            for row in decode_track(tr.points):  # [iso_t, lat, lon, speed, g]
-                lat, lon = row[1], row[2]
-                if lat is not None and lon is not None:
-                    pts.append((_piso(row[0]), lon, lat))
-                    coords.append([lon, lat])
+            for row in decode_track(tr.points):     # [iso_t, lat, lon, speed, g]
+                if row[1] is not None and row[2] is not None:
+                    out.append((_piso(row[0]), row[2], row[1]))
         except Exception:
-            pts, coords = [], []
-    feats = []
-    if len(pts) >= 2:
-        # split the path: real-movement runs (solid) vs teleport jumps (dotted) — a segment whose
-        # GPS-implied speed exceeds the teleport threshold is drawn as a dotted line.
-        run, runs, jumps = [list(pts[0][1:])], [], []
-        for i in range(1, len(pts)):
-            (pt, plon, plat), (ct, clon, clat) = pts[i - 1], pts[i]
-            jump = False
-            if pt and ct:
-                dt = (ct - pt).total_seconds()
-                if dt > 0 and (_haversine_km(plat, plon, clat, clon) / (dt / 3600.0)) > tel_kmh:
-                    jump = True
-            if jump:
-                if len(run) >= 2:
-                    runs.append(run)
+            out = []
+    return out
+
+
+def _gps_points_raw(db, trip_uuid):
+    """GPS points [(time, lon, lat)] from the RAW upload at full resolution. Teleport jumps are
+    intact here — the downsampled track averages them out, so jump detection must use this."""
+    out = []
+    from models import RawUpload
+    ru = db.get(RawUpload, trip_uuid)
+    if ru and ru.blob:
+        try:
+            import config
+            from ingest.parser import parse_csv
+            from services.ingest import _gunzip_capped, _is_gzip
+            cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
+            data = _gunzip_capped(ru.blob, cap) if _is_gzip(ru.blob) else ru.blob
+            for s in parse_csv(data.decode("utf-8", "replace"), 0):
+                if s.lat is not None and s.lon is not None:
+                    out.append((s.t, s.lon, s.lat))
+        except Exception:
+            out = []
+    return out
+
+
+def _teleport_jumps(pts, tel_kmh):
+    """[[lon,lat],[lon,lat]] segments whose GPS-implied speed exceeds tel_kmh."""
+    from ingest.summary import _haversine_km
+    jumps = []
+    for i in range(1, len(pts)):
+        (pt, plon, plat), (ct, clon, clat) = pts[i - 1], pts[i]
+        if pt and ct:
+            dt = (ct - pt).total_seconds()
+            if dt > 0 and (_haversine_km(plat, plon, clat, clon) / (dt / 3600.0)) > tel_kmh:
                 jumps.append([[plon, plat], [clon, clat]])
-                run = [[clon, clat]]
-            else:
-                run.append([clon, clat])
-        if len(run) >= 2:
-            runs.append(run)
-        for r in runs:
-            feats.append({"type": "Feature", "properties": {"role": "path"},
-                          "geometry": {"type": "LineString", "coordinates": r}})
+    return jumps
+
+
+@admin_router.get("/explorer/trip/{trip_uuid}/track.geojson")
+def explorer_trip_track(trip_uuid: str, request: Request, db: Session = Depends(get_db)):
+    """The trip's GPS path as GeoJSON (admin only, exact coords). The solid path is the light
+    downsampled track; teleport jumps are detected on the full-resolution raw upload (so the
+    downsampling can't hide them) and drawn as dotted lines."""
+    if not _is_authenticated(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    t = db.get(Trip, trip_uuid)
+    tel_kmh = settings.get_thresholds(db)["teleport_kmh"]
+    solid = _gps_points_track(db, trip_uuid) or _gps_points_raw(db, trip_uuid)
+    jumps = _teleport_jumps(_gps_points_raw(db, trip_uuid) or solid, tel_kmh)
+    feats = []
+    if len(solid) >= 2:
+        coords = [[lon, lat] for (_, lon, lat) in solid]
+        feats.append({"type": "Feature", "properties": {"role": "path"},
+                      "geometry": {"type": "LineString", "coordinates": coords}})
         for j in jumps:
             feats.append({"type": "Feature", "properties": {"role": "teleport"},
                           "geometry": {"type": "LineString", "coordinates": j}})
