@@ -324,6 +324,16 @@ _KMH_S_TO_G = (1000.0 / 3600.0) / 9.80665   # km/h-per-second -> g (1 km/h/s ≈
 # GPS dropout across the window (e.g. 70->2 km/h in ~1 s = ~1.9 g), so we drop that window.
 MAX_LON_G = 1.2
 
+# Board/battery temperature is the EUC's internal sensor, not ambient air. EUC firmware emits
+# 0.0 as a "no reading" placeholder (and occasionally wild garbage like -304 C, below absolute
+# zero), so exact-zero and out-of-band samples are dropped before taking per-trip min/max --
+# otherwise the "Coldest ride" board fills with sensor dropouts instead of genuinely cold rides.
+TEMP_MIN_C, TEMP_MAX_C = -40.0, 150.0
+
+
+def _plausible_temp(t: float | None) -> bool:
+    return t is not None and t != 0.0 and TEMP_MIN_C <= t <= TEMP_MAX_C
+
 
 def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
     """Longitudinal g from how hard wheel speed changes: the strongest sustained push
@@ -619,7 +629,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
 
     # absolute per-trip extremes (feed gated min/max boards) — also gated to real riding
     alts = [s.alt for s in mov if s.alt is not None]
-    temps = [s.temp for s in mov if s.temp is not None]
+    temps = [s.temp for s in mov if _plausible_temp(s.temp)]
     pwms = [s.pwm for s in mov if s.pwm is not None]
     batts = [s.battery for s in mov if s.battery is not None]
     max_altitude_m = round(max(alts), 1) if alts else None

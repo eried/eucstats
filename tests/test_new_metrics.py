@@ -65,6 +65,27 @@ def test_sustained_accel_helper_direct():
     assert _max_sustained_accel([_s(0, speed=10), _s(3, speed=10)]) is None   # no gain
 
 
+# ---------- summary: board temperature sanity ----------
+
+def test_temp_extremes_ignore_dropout_and_garbage():
+    # EUC firmware emits 0.0 as a "no reading" sentinel and occasional wild garbage
+    # (e.g. below absolute zero); per-trip min/max board temp must ignore both so the
+    # "Coldest ride" board reflects real cold, not a sensor dropout.
+    sm = summarize([_s(0, speed=20, gps_speed=20, temp=42.0),
+                    _s(1, speed=20, gps_speed=20, temp=0.0),       # dropout sentinel
+                    _s(2, speed=20, gps_speed=20, temp=-304.6),    # below absolute zero
+                    _s(3, speed=20, gps_speed=20, temp=51.0),
+                    _s(4, speed=20, gps_speed=20, temp=45.0)])
+    assert sm.min_temp == 42.0     # not 0.0 and not -304.6
+    assert sm.max_temp == 51.0
+
+
+def test_temp_none_when_all_implausible():
+    sm = summarize([_s(0, speed=20, gps_speed=20, temp=0.0),
+                    _s(1, speed=20, gps_speed=20, temp=-91.3)])
+    assert sm.min_temp is None and sm.max_temp is None
+
+
 # ---------- summary: freespin (already wired, re-checked here) ----------
 
 def test_freespin_recorded():
