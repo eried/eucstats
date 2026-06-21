@@ -326,13 +326,45 @@ MAX_LON_G = 1.2
 
 # Board/battery temperature is the EUC's internal sensor, not ambient air. EUC firmware emits
 # 0.0 as a "no reading" placeholder (and occasionally wild garbage like -304 C, below absolute
-# zero), so exact-zero and out-of-band samples are dropped before taking per-trip min/max --
-# otherwise the "Coldest ride" board fills with sensor dropouts instead of genuinely cold rides.
-TEMP_MIN_C, TEMP_MAX_C = -40.0, 150.0
+# zero), in bursts that arrive as an impossible cliff -- e.g. 73,73,0,0,...,0,41. A flat band
+# isn't enough (a genuine 0 should still count), so per-trip min/max temp is taken over a
+# slew-limited series: board temperature has thermal inertia, it drifts, it can't fall 73 C in
+# one sample. Without this the "Coldest ride" board fills with sensor dropouts, not cold rides.
+TEMP_MIN_C, TEMP_MAX_C = -40.0, 150.0   # absolute plausibility band (kills sub-absolute-zero etc.)
+TEMP_MAX_SLEW_C_S = 5.0                 # max believable board-temp change per second
+TEMP_STEP_CAP_C = 20.0                  # ceiling on one accepted step across a sample gap
 
 
-def _plausible_temp(t: float | None) -> bool:
-    return t is not None and t != 0.0 and TEMP_MIN_C <= t <= TEMP_MAX_C
+def _valid_temp_series(samples: list[Sample]) -> list[float]:
+    """Board temps with sensor dropouts removed. We anchor on the median reading
+    (robust while dropouts are a minority) and walk outward in both directions,
+    keeping a sample only when it sits within a thermally-plausible step of the last
+    accepted one. A 30,0,0,32 dropout -- or a 976-sample run of 0s entered on a cliff
+    -- is rejected; a genuine 0 that drifts in with its neighbours survives."""
+    pts = [(s.t, s.temp) for s in samples
+           if s.temp is not None and TEMP_MIN_C <= s.temp <= TEMP_MAX_C]
+    if len(pts) <= 1:
+        return [v for _, v in pts]
+    vals = [v for _, v in pts]
+    anchor = sorted(vals)[len(vals) // 2]                       # median
+    seed = min(range(len(pts)), key=lambda i: abs(pts[i][1] - anchor))
+
+    def _ok(t_a, v_a, t_b, v_b) -> bool:
+        dt = abs((t_a - t_b).total_seconds())
+        return abs(v_a - v_b) <= min(TEMP_STEP_CAP_C, TEMP_MAX_SLEW_C_S * max(dt, 1.0))
+
+    kept = [pts[seed][1]]
+    last_t, last_v = pts[seed]
+    for i in range(seed + 1, len(pts)):                         # forward
+        t, v = pts[i]
+        if _ok(t, v, last_t, last_v):
+            kept.append(v); last_t, last_v = t, v
+    last_t, last_v = pts[seed]
+    for i in range(seed - 1, -1, -1):                           # backward
+        t, v = pts[i]
+        if _ok(t, v, last_t, last_v):
+            kept.append(v); last_t, last_v = t, v
+    return kept
 
 
 def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
@@ -629,7 +661,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
 
     # absolute per-trip extremes (feed gated min/max boards) — also gated to real riding
     alts = [s.alt for s in mov if s.alt is not None]
-    temps = [s.temp for s in mov if _plausible_temp(s.temp)]
+    temps = _valid_temp_series(mov)
     pwms = [s.pwm for s in mov if s.pwm is not None]
     batts = [s.battery for s in mov if s.battery is not None]
     max_altitude_m = round(max(alts), 1) if alts else None

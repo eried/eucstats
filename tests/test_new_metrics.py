@@ -67,22 +67,39 @@ def test_sustained_accel_helper_direct():
 
 # ---------- summary: board temperature sanity ----------
 
-def test_temp_extremes_ignore_dropout_and_garbage():
-    # EUC firmware emits 0.0 as a "no reading" sentinel and occasional wild garbage
-    # (e.g. below absolute zero); per-trip min/max board temp must ignore both so the
-    # "Coldest ride" board reflects real cold, not a sensor dropout.
-    sm = summarize([_s(0, speed=20, gps_speed=20, temp=42.0),
-                    _s(1, speed=20, gps_speed=20, temp=0.0),       # dropout sentinel
-                    _s(2, speed=20, gps_speed=20, temp=-304.6),    # below absolute zero
-                    _s(3, speed=20, gps_speed=20, temp=51.0),
-                    _s(4, speed=20, gps_speed=20, temp=45.0)])
-    assert sm.min_temp == 42.0     # not 0.0 and not -304.6
-    assert sm.max_temp == 51.0
+def test_temp_ignores_dropout_cliff():
+    # Board temp drifts (thermal inertia); a 41->0 cliff and back is a sensor dropout,
+    # not a real cold reading, so it must not win the coldest/hottest board.
+    sm = summarize([_s(0, speed=20, gps_speed=20, temp=40.0),
+                    _s(1, speed=20, gps_speed=20, temp=41.0),
+                    _s(2, speed=20, gps_speed=20, temp=0.0),   # dropout
+                    _s(3, speed=20, gps_speed=20, temp=0.0),   # dropout (run)
+                    _s(4, speed=20, gps_speed=20, temp=43.0),
+                    _s(5, speed=20, gps_speed=20, temp=44.0)])
+    assert sm.min_temp == 40.0     # not 0.0 -- the cliff is rejected
+    assert sm.max_temp == 44.0
 
 
-def test_temp_none_when_all_implausible():
-    sm = summarize([_s(0, speed=20, gps_speed=20, temp=0.0),
-                    _s(1, speed=20, gps_speed=20, temp=-91.3)])
+def test_temp_keeps_genuine_zero():
+    # A real ~0 C ride: readings drift through zero with neighbour support -> 0 counts.
+    sm = summarize([_s(0, speed=20, gps_speed=20, temp=2.0),
+                    _s(1, speed=20, gps_speed=20, temp=1.0),
+                    _s(2, speed=20, gps_speed=20, temp=0.0),
+                    _s(3, speed=20, gps_speed=20, temp=1.0)])
+    assert sm.min_temp == 0.0      # corroborated zero survives
+
+
+def test_temp_ignores_out_of_band_garbage():
+    # Below absolute zero / wild values are impossible; dropped before min/max.
+    sm = summarize([_s(0, speed=20, gps_speed=20, temp=36.0),
+                    _s(1, speed=20, gps_speed=20, temp=-304.6),
+                    _s(2, speed=20, gps_speed=20, temp=37.0),
+                    _s(3, speed=20, gps_speed=20, temp=38.0)])
+    assert sm.min_temp == 36.0 and sm.max_temp == 38.0
+
+
+def test_temp_none_without_readings():
+    sm = summarize([_s(0, speed=20, gps_speed=20), _s(1, speed=20, gps_speed=20)])
     assert sm.min_temp is None and sm.max_temp is None
 
 
