@@ -86,3 +86,39 @@ def test_reprocess_admin_route(db):
         _auth(client)
         r = client.post("/admin/pipeline/reprocess", follow_redirects=False)
         assert r.status_code == 303
+
+
+# 3 moving samples; a 26->0->26 dropout cliff in the middle. De-spiked temp = 26.
+_CSV_TEMP = (b"Date,Speed,Voltage,Temperature,Battery level,Altitude,Latitude,Longitude,Total mileage,GPS speed,Current,PWM,G-Force,G-Force X,G-Force Y\n"
+             b"01.06.2026 20:24:31.204,20,84,26,100,68,69.6500,18.9500,1000.0,20,1,0,0.3,0,0\n"
+             b"01.06.2026 20:24:32.204,20,84,0,100,68,69.6501,18.9501,1000.1,20,1,0,0.3,0,0\n"
+             b"01.06.2026 20:24:33.204,20,84,26,100,68,69.6502,18.9502,1000.2,20,1,0,0.3,0,0\n")
+
+
+def test_reprocess_refreshes_temp_extremes(db):
+    # Regression: reprocess must copy per-trip temp extremes back. They were omitted,
+    # so a stale/garbage min_temp (e.g. a 0 dropout) survived a reprocess and kept
+    # winning the "Coldest ride" board.
+    from services.reprocess import reprocess_with_calibration
+    meta = {"store_id": "rt", "platform": "google_play", "source_app": "eucplanet",
+            "schema_version": "eucplanet-v3-gforce", "tz": "Europe/Oslo"}
+    with TestClient(app) as client:
+        _auth(client)
+        client.post("/api/v1/riders", json={"store_id": "rt", "display_name": "Temp", "flag": "NO"})
+        files = {"trip": ("t.gz", gzip.compress(_CSV_TEMP), "application/gzip")}
+        r = client.post("/api/v1/trips", data={"meta": json.dumps({**meta, "trip_uuid": "tt1"})}, files=files)
+        assert r.status_code == 201
+
+    db.expire_all()
+    t = db.get(models.Trip, "tt1")
+    assert t.min_temp == 26.0 and t.max_temp == 26.0     # de-spiked at ingest already
+    # simulate an older summarizer having stored garbage
+    t.min_temp = -300.0
+    t.max_temp = 999.0
+    db.commit()
+
+    out = reprocess_with_calibration(db)
+    assert out["reprocessed"] == 1 and out["failed"] == 0
+    db.expire_all()
+    t = db.get(models.Trip, "tt1")
+    assert t.min_temp == 26.0 and t.max_temp == 26.0     # refreshed, garbage gone
