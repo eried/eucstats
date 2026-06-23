@@ -202,6 +202,7 @@ class IngestService:
                 cutout_count=sm.cutout_count,
                 max_altitude_m=sm.max_altitude_m, min_altitude_m=sm.min_altitude_m,
                 max_temp=sm.max_temp, min_temp=sm.min_temp,
+                temp_rise_rate=sm.temp_rise_rate, temp_drop_rate=sm.temp_drop_rate,
                 max_pwm=sm.max_pwm, min_battery_pct=sm.min_battery_pct,
                 g_sust_4s=sm.g_sust_4s, g_sust_6s=sm.g_sust_6s, pwm_sust_3s=sm.pwm_sust_3s,
                 speed_sust_5s=sm.speed_sust_5s, speed_sust_10s=sm.speed_sust_10s,

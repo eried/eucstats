@@ -65,6 +65,8 @@ class TripSummary:
     min_altitude_m: float | None
     max_temp: float | None
     min_temp: float | None
+    temp_rise_rate: float | None   # fastest sustained board heat-up (deg/s) while riding
+    temp_drop_rate: float | None   # fastest sustained board cool-down (deg/s) while riding
     max_pwm: float | None
     min_battery_pct: float | None
     # --- newer (hidden) metrics: longer sustained windows, high-speed / directional g, shake ---
@@ -335,16 +337,16 @@ TEMP_MAX_SLEW_C_S = 5.0                 # max believable board-temp change per s
 TEMP_STEP_CAP_C = 20.0                  # ceiling on one accepted step across a sample gap
 
 
-def _valid_temp_series(samples: list[Sample]) -> list[float]:
-    """Board temps with sensor dropouts removed. We anchor on the median reading
-    (robust while dropouts are a minority) and walk outward in both directions,
-    keeping a sample only when it sits within a thermally-plausible step of the last
-    accepted one. A 30,0,0,32 dropout -- or a 976-sample run of 0s entered on a cliff
-    -- is rejected; a genuine 0 that drifts in with its neighbours survives."""
+def _valid_temp_points(samples: list[Sample]) -> list[tuple]:
+    """Board temp (time, value) pairs with sensor dropouts removed, in time order. We
+    anchor on the median reading (robust while dropouts are a minority) and walk outward
+    in both directions, keeping a sample only when it sits within a thermally-plausible
+    step of the last accepted one. A 30,0,0,32 dropout -- or a 976-sample run of 0s
+    entered on a cliff -- is rejected; a genuine 0 that drifts in with neighbours survives."""
     pts = [(s.t, s.temp) for s in samples
            if s.temp is not None and TEMP_MIN_C <= s.temp <= TEMP_MAX_C]
     if len(pts) <= 1:
-        return [v for _, v in pts]
+        return pts
     vals = [v for _, v in pts]
     anchor = sorted(vals)[len(vals) // 2]                       # median
     seed = min(range(len(pts)), key=lambda i: abs(pts[i][1] - anchor))
@@ -353,18 +355,54 @@ def _valid_temp_series(samples: list[Sample]) -> list[float]:
         dt = abs((t_a - t_b).total_seconds())
         return abs(v_a - v_b) <= min(TEMP_STEP_CAP_C, TEMP_MAX_SLEW_C_S * max(dt, 1.0))
 
-    kept = [pts[seed][1]]
+    keep = [False] * len(pts)
+    keep[seed] = True
     last_t, last_v = pts[seed]
     for i in range(seed + 1, len(pts)):                         # forward
         t, v = pts[i]
         if _ok(t, v, last_t, last_v):
-            kept.append(v); last_t, last_v = t, v
+            keep[i] = True; last_t, last_v = t, v
     last_t, last_v = pts[seed]
     for i in range(seed - 1, -1, -1):                           # backward
         t, v = pts[i]
         if _ok(t, v, last_t, last_v):
-            kept.append(v); last_t, last_v = t, v
-    return kept
+            keep[i] = True; last_t, last_v = t, v
+    return [pts[i] for i in range(len(pts)) if keep[i]]         # time-ordered
+
+
+def _valid_temp_series(samples: list[Sample]) -> list[float]:
+    """De-spiked board temps as plain values (for per-trip min/max)."""
+    return [v for _, v in _valid_temp_points(samples)]
+
+
+# Temp incline/decline rate: how fast the board heats up / cools down while riding.
+# Measured over the de-spiked series so a dropout can't fake a huge slope, and only
+# within continuous data (a window can't bridge a > TEMP_RATE_GAP_S signal gap).
+TEMP_RATE_LO_S, TEMP_RATE_HI_S, TEMP_RATE_GAP_S = 5.0, 60.0, 15.0
+
+
+def _max_temp_rate(points: list[tuple], rising: bool,
+                   lo: float = TEMP_RATE_LO_S, hi: float = TEMP_RATE_HI_S,
+                   max_gap_s: float = TEMP_RATE_GAP_S) -> float | None:
+    """Fastest sustained board-temp change in deg/s (rising or falling), held for at
+    least `lo`s (a real trend, not one sample) and at most `hi`s (so a long slow drift
+    doesn't dilute a sharp change). `points` is the de-spiked (time, temp) series."""
+    best = 0.0
+    n = len(points)
+    for i in range(n):
+        for k in range(i + 1, n):
+            if (points[k][0] - points[k - 1][0]).total_seconds() > max_gap_s:
+                break                                  # don't measure across a signal gap
+            dt = (points[k][0] - points[i][0]).total_seconds()
+            if dt < lo:
+                continue
+            if dt > hi:
+                break
+            rate = (points[k][1] - points[i][1]) / dt
+            r = rate if rising else -rate
+            if r > best:
+                best = r
+    return round(best, 3) if best > 0 else None
 
 
 def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
@@ -661,13 +699,16 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
 
     # absolute per-trip extremes (feed gated min/max boards) — also gated to real riding
     alts = [s.alt for s in mov if s.alt is not None]
-    temps = _valid_temp_series(mov)
+    temp_pts = _valid_temp_points(mov)
+    temps = [v for _, v in temp_pts]
     pwms = [s.pwm for s in mov if s.pwm is not None]
     batts = [s.battery for s in mov if s.battery is not None]
     max_altitude_m = round(max(alts), 1) if alts else None
     min_altitude_m = round(min(alts), 1) if alts else None
     max_temp = round(max(temps), 1) if temps else None
     min_temp = round(min(temps), 1) if temps else None
+    temp_rise_rate = _max_temp_rate(temp_pts, rising=True)
+    temp_drop_rate = _max_temp_rate(temp_pts, rising=False)
     max_pwm = round(max(pwms), 1) if pwms else None
     min_battery_pct = round(min(batts), 1) if batts else None
 
@@ -713,7 +754,9 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         fastest_0_40_s=fastest_0_40_s, ascent_m=ascent_m, descent_m=descent_m,
         battery_used_pct=battery_used_pct, est_range_km=est_range_km,
         alt_range_m=alt_range_m, max_altitude_m=max_altitude_m, min_altitude_m=min_altitude_m,
-        max_temp=max_temp, min_temp=min_temp, max_pwm=max_pwm, min_battery_pct=min_battery_pct,
+        max_temp=max_temp, min_temp=min_temp,
+        temp_rise_rate=temp_rise_rate, temp_drop_rate=temp_drop_rate,
+        max_pwm=max_pwm, min_battery_pct=min_battery_pct,
         g_sust_4s=g_sust_4s, g_sust_6s=g_sust_6s, pwm_sust_3s=pwm_sust_3s,
         speed_sust_5s=speed_sust_5s, speed_sust_10s=speed_sust_10s,
         power_sust_6s=power_sust_6s, current_sust_6s=current_sust_6s,

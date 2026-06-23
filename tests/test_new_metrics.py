@@ -10,7 +10,7 @@ import models
 from ingest.parser import Sample
 from ingest.summary import (summarize, _max_voltage_sag, _max_sustained_accel, _max_shake,
                             _speed_g, _speed_g_band, _fastest_stop)
-from services import stats
+from services import stats, settings
 from services.aggregator import Aggregator, rebuild_all
 
 
@@ -101,6 +101,28 @@ def test_temp_ignores_out_of_band_garbage():
 def test_temp_none_without_readings():
     sm = summarize([_s(0, speed=20, gps_speed=20), _s(1, speed=20, gps_speed=20)])
     assert sm.min_temp is None and sm.max_temp is None
+
+
+def test_temp_rise_and_drop_rate():
+    # board heats 20->30 over 10s (+1 deg/s), then cools 30->20 over 10s (-1 deg/s)
+    up = [_s(i, speed=20, gps_speed=20, temp=20.0 + i) for i in range(11)]          # t0..10 -> 20..30
+    down = [_s(10 + i, speed=20, gps_speed=20, temp=30.0 - i) for i in range(1, 11)]  # t11..20 -> 29..20
+    sm = summarize(up + down)
+    assert sm.temp_rise_rate == 1.0
+    assert sm.temp_drop_rate == 1.0
+
+
+def test_temp_rate_ignores_dropout_spike():
+    # a lone 0 dropout among flat 30s is de-spiked, so it can't register as a huge rate
+    sm = summarize([_s(i, speed=20, gps_speed=20, temp=(0.0 if i == 5 else 30.0)) for i in range(11)])
+    assert (sm.temp_drop_rate or 0) < 0.5 and (sm.temp_rise_rate or 0) < 0.5
+
+
+def test_temp_rate_boards_registered():
+    # two new gated boards (one per tier) flow through automatically, shipped hidden
+    assert "temprise_b" in stats.BOARDS and "tempdrop_l" in stats.BOARDS
+    assert "temprise_x" in settings.new_board_keys() and "tempdrop_l" in settings.new_board_keys()
+    assert "temprise_x" in settings.DEFAULT_OFF_BOARDS   # ships hidden until enabled
 
 
 # ---------- summary: freespin (already wired, re-checked here) ----------

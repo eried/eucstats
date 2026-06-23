@@ -55,6 +55,7 @@ def reprocess_with_calibration(db) -> dict:
             # per-trip extremes feeding the gated min/max boards (altitude / temp / pwm / battery)
             t.max_altitude_m, t.min_altitude_m = sm.max_altitude_m, sm.min_altitude_m
             t.max_temp, t.min_temp = sm.max_temp, sm.min_temp
+            t.temp_rise_rate, t.temp_drop_rate = sm.temp_rise_rate, sm.temp_drop_rate
             t.max_pwm, t.min_battery_pct = sm.max_pwm, sm.min_battery_pct
             t.battery_used_pct, t.est_range_km = sm.battery_used_pct, sm.est_range_km
             t.max_freespin, t.max_voltage_sag = sm.max_freespin, sm.max_voltage_sag

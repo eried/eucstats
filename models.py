@@ -83,6 +83,8 @@ class Trip(Base):
     min_altitude_m = Column(Float)
     max_temp = Column(Float)
     min_temp = Column(Float)
+    temp_rise_rate = Column(Float)       # fastest sustained board heat-up (deg/s) while riding
+    temp_drop_rate = Column(Float)       # fastest sustained board cool-down (deg/s) while riding
     max_pwm = Column(Float)
     min_battery_pct = Column(Float)
     # newer (hidden) gated metrics: longer sustained windows, high-speed / directional g, shake

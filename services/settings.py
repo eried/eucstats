@@ -39,7 +39,7 @@ WHEEL_METRIC_FIELDS = {
     "efficiency": ["wh_per_km"],
     "battery": ["min_battery_pct", "battery_used_pct"],
     "pwm": ["max_pwm", "pwm_sust_3s"],
-    "temp": ["max_temp", "min_temp"],
+    "temp": ["max_temp", "min_temp", "temp_rise_rate", "temp_drop_rate"],
     "freespin": ["max_freespin"],
 }
 WHEEL_METRICS = list(WHEEL_METRIC_FIELDS)
@@ -371,6 +371,8 @@ _GATED_SPEC = [
     ("battery",  "Battery Drain",  "Biggest battery drain in one ride",       "battery_used_pct", "max", " %",       "",     "battery"),
     ("temphigh", "High Temp",          "Hottest the board ever ran",              "max_temp",         "max", "°",   "temp", "rocket"),
     ("templow",  "Low Temp",        "Coldest ride",                            "min_temp",         "min", "°",   "temp", "streak"),
+    ("temprise", "Temp Climb",       "Fastest the board heated up while riding",  "temp_rise_rate",   "max", "",    "trate", "rocket"),
+    ("tempdrop", "Temp Drop",        "Fastest the board cooled down while riding","temp_drop_rate",   "max", "",    "trate", "sag"),
     ("pwm",      "Peak PWM",          "Closest to maxing the motor (PWM)",       "max_pwm",          "max", " %",       "",     "speed"),
     ("battlow",  "Low Battery", "Lowest battery % reached",                "min_battery_pct",  "min", " %",       "",     "range"),
     # --- newer hidden metrics: longer sustained windows (spikes were too easy to game) ---
