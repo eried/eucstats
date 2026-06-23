@@ -377,12 +377,14 @@ const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
 const tnum=c=>mph()?(""+r1(c*9/5+32)):(""+r1(c)), tunit=()=>mph()?"°F":"°C";   // temperature
+const trnum=c=>mph()?(""+r2(c*9/5)):(""+r2(c)), trunit=()=>mph()?"°F/s":"°C/s";   // temp rate (a delta: scale only, no +32 offset)
 const anum=m=>mph()?(""+Math.round(m*3.28084)):(""+Math.round(m)), aunit=()=>mph()?"ft":"m";   // altitude
 function bval(b,v){if(v==null)v=0;
   var s;
   if(b.conv==="dist")s=dnum(v)+" "+dunit();
   else if(b.conv==="spd")s=snum(v)+" "+sunit();
   else if(b.conv==="temp")s=tnum(v)+tunit();
+  else if(b.conv==="trate")s=trnum(v)+trunit();
   else if(b.conv==="alt")s=anum(v)+" "+aunit();
   else s=r2(v)+b.u;
   return b.tone?'<span style="color:'+b.tone+'">'+s+'</span>':s;}
@@ -459,9 +461,11 @@ function fitTop3(rows,coordFn){
   const b=new maplibregl.LngLatBounds();pts.forEach(p=>b.extend(p));
   try{map.fitBounds(b,{padding:{top:90,bottom:340,left:50,right:50},maxZoom:7,duration:2200,essential:true});}catch(e){}
 }
-let flowRunning=false;
-function flowClear(){if(!map)return;["flow-glow","flow-line","flow-pt"].forEach(l=>{if(map.getLayer(l))map.removeLayer(l);});["flow","flowpts"].forEach(s=>{if(map.getSource(s))map.removeSource(s);});flowRunning=false;}
-function flowDash(){flowRunning=true;(function step(){if(!flowRunning||!map.getLayer("flow-line"))return;const s=Math.floor((performance.now()/55)%DASH.length);map.setPaintProperty("flow-line","line-dasharray",DASH[s]);requestAnimationFrame(step);})();}
+let flowRunning=false,flowTok=0,flowTimers=[];
+function flowStop(){flowTimers.forEach(clearTimeout);flowTimers=[];flowRunning=false;}   // cancel a run's pending timers + loops
+function flowTimer(fn,ms,tok){flowTimers.push(setTimeout(()=>{if(tok===flowTok)fn();},ms));}
+function flowClear(){flowTok++;flowStop();if(!map)return;["flow-glow","flow-line","flow-pt"].forEach(l=>{if(map.getLayer(l))map.removeLayer(l);});["flow","flowpts"].forEach(s=>{if(map.getSource(s))map.removeSource(s);});}
+function flowDash(tok){flowRunning=true;(function step(){if(tok!==flowTok||!flowRunning||!map.getLayer("flow-line"))return;const s=Math.floor((performance.now()/55)%DASH.length);map.setPaintProperty("flow-line","line-dasharray",DASH[s]);requestAnimationFrame(step);})();}
 function arcCoords(a,b,n=48,bulge=0.22){   // curved bezier arc, always bulging UP (north) — flight-path look
   const x1=a[0],y1=a[1],x2=b[0],y2=b[1],mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1;
   let ox=-dy,oy=dx;if(oy<0){ox=-ox;oy=-oy;}   // force the perpendicular bulge toward the top of the map
@@ -471,9 +475,12 @@ function arcCoords(a,b,n=48,bulge=0.22){   // curved bezier arc, always bulging 
 }
 function brandFlow(brand){
   if(!map)return;
+  flowClear();                      // cancel any prior run's timers + wipe its layers now
+  const tok=flowTok;                // this run's id; a newer selection bumps flowTok and supersedes us
   j("/groups/brand/"+encodeURIComponent(brand)+"/flow").then(d=>{
+    if(tok!==flowTok)return;         // superseded by a newer brand click while fetching -> drop
     if(!d||!d.factory||!d.points||!d.points.length)return;
-    closePanel();flowClear();
+    closePanel();
     const F=[d.factory.lon,d.factory.lat];
     const arcs=d.points.map(p=>arcCoords(F,[p.lon,p.lat]));
     map.addSource("flow",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
@@ -482,18 +489,18 @@ function brandFlow(brand){
     map.addLayer({id:"flow-line",type:"line",source:"flow",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#cfe9ff","line-width":1.7,"line-opacity":0.85}});
     map.addLayer({id:"flow-pt",type:"circle",source:"flowpts",paint:{"circle-radius":["case",["==",["get","f"],1],8,5],"circle-color":["case",["==",["get","f"],1],"#ffd24a","#39c0ff"],"circle-blur":0.3,"circle-opacity":0,"circle-opacity-transition":{duration:700},"circle-stroke-color":"#eaf4ff","circle-stroke-width":1.4,"circle-stroke-opacity":0,"circle-stroke-opacity-transition":{duration:700}}});
     map.flyTo({center:F,zoom:4.2,duration:1500,curve:1.5,essential:true});
-    setTimeout(()=>{const b=new maplibregl.LngLatBounds();b.extend(F);d.points.forEach(p=>b.extend([p.lon,p.lat]));try{map.fitBounds(b,{padding:70,duration:3000,maxZoom:5,essential:true});}catch(e){}try{map.setPaintProperty("flow-pt","circle-opacity",0.95);map.setPaintProperty("flow-pt","circle-stroke-opacity",0.95);}catch(e){}},1500);
+    flowTimer(()=>{const b=new maplibregl.LngLatBounds();b.extend(F);d.points.forEach(p=>b.extend([p.lon,p.lat]));try{map.fitBounds(b,{padding:70,duration:3000,maxZoom:5,essential:true});}catch(e){}try{map.setPaintProperty("flow-pt","circle-opacity",0.95);map.setPaintProperty("flow-pt","circle-stroke-opacity",0.95);}catch(e){}},1500,tok);
     let t0=null;flowRunning=true;
     function grow(now){
-      if(!flowRunning||!map.getSource("flow"))return;
+      if(tok!==flowTok||!flowRunning||!map.getSource("flow"))return;
       if(t0===null)t0=now;const t=Math.min(1,(now-t0)/1900),e=1-Math.pow(1-t,3);
       const feats=arcs.map(a=>({type:"Feature",geometry:{type:"LineString",coordinates:a.slice(0,Math.max(2,Math.round(a.length*e)))}}));
       try{map.getSource("flow").setData({type:"FeatureCollection",features:feats});}catch(e2){}
-      if(t<1)requestAnimationFrame(grow);else flowDash();
+      if(t<1)requestAnimationFrame(grow);else flowDash(tok);
     }
-    setTimeout(()=>requestAnimationFrame(grow),700);
-    setTimeout(()=>{flowRunning=false;["flow-glow","flow-line"].forEach(l=>{try{map.setPaintProperty(l,"line-opacity-transition",{duration:700});map.setPaintProperty(l,"line-opacity",0);}catch(e){}});try{map.setPaintProperty("flow-pt","circle-opacity",0);map.setPaintProperty("flow-pt","circle-stroke-opacity",0);}catch(e){}},8200);
-    setTimeout(flowClear,9400);
+    flowTimer(()=>requestAnimationFrame(grow),700,tok);
+    flowTimer(()=>{flowRunning=false;["flow-glow","flow-line"].forEach(l=>{try{map.setPaintProperty(l,"line-opacity-transition",{duration:700});map.setPaintProperty(l,"line-opacity",0);}catch(e){}});try{map.setPaintProperty("flow-pt","circle-opacity",0);map.setPaintProperty("flow-pt","circle-stroke-opacity",0);}catch(e){}},8200,tok);
+    flowTimer(()=>flowClear(),9400,tok);
   }).catch(()=>{});
 }
 
@@ -595,7 +602,7 @@ const GBOARDS=[
 const GNK={dist:"b.mileage.n",speed:"b.speed.n",accel:"b.accel.n",gforce:"b.gforce.n",power:"b.power.n",current:"b.current.n",voltage:"b.voltage.n",riders:"g.riders",trips:"g.rides",ascent:"b.ascent.n",range:"b.range.n",eff:"b.efficiency.n",climb:"b.peak.n",alt:"b.althigh.n",temp:"b.temphigh.n",cutout:"b.cutout.n"};
 GBOARDS.forEach(b=>{b.nk=GNK[b.k]||("b."+b.k+".n");b.dk="g."+b.k+".d";});
 let GROWS=null;
-function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.k==="cutout")return r1(mph()?v*1.609:v)+" /1000"+(mph()?"mi":"km");if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();if(b.conv==="alt")return anum(v)+" "+aunit();if(b.conv==="temp")return tnum(v)+tunit();return r2(v)+(b.u||"");}
+function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.k==="cutout")return r1(mph()?v*1.609:v)+" /1000"+(mph()?"mi":"km");if(b.conv==="dist")return dnum(v)+" "+dunit();if(b.conv==="spd")return snum(v)+" "+sunit();if(b.conv==="alt")return anum(v)+" "+aunit();if(b.conv==="temp")return tnum(v)+tunit();if(b.conv==="trate")return trnum(v)+trunit();return r2(v)+(b.u||"");}
 function renderGroup(b,cfg){
   const cont=document.getElementById("lb");if(!cont||!GROWS)return;
   setCap(b.ic||'',bd(b));
