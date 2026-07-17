@@ -101,6 +101,37 @@ def test_attach_one_refuses_a_trip_that_already_has_a_wheel(db):
     assert db.get(models.Trip, "d-linked").wheel_id == "BB:01"
 
 
+def test_same_model_twice_is_still_unambiguous(db):
+    # One physical wheel can register twice — keyed by MAC on one ride, by serial on
+    # another. The boards group by brand+model, so either row gives the same answer.
+    _rider(db, "twin", "Twin Tim")
+    _wheel(db, "CC:01", "twin", "InMotion", "InMotion P6")
+    _wheel(db, "SERIAL123", "twin", "InMotion", "InMotion P6")
+    db.commit()
+    _trip(db, "t-orphan", "twin", 17.3)
+    db.commit()
+
+    by = {r["store_id"]: r for r in orphans.orphan_summary(db)}
+    assert by["twin"]["auto"] is True
+    done = orphans.attach_auto(db)
+    assert [t for t, _ in done] == ["t-orphan"]
+    db.expire_all()
+    assert db.get(models.Trip, "t-orphan").wheel_id in ("CC:01", "SERIAL123")
+
+
+def test_same_brand_different_model_still_needs_a_human(db):
+    _rider(db, "mix", "Mixed Max")
+    _wheel(db, "DD:01", "mix", "InMotion", "InMotion P6")
+    _wheel(db, "DD:02", "mix", "InMotion", "InMotion V14")
+    db.commit()
+    _trip(db, "m-orphan", "mix", 4.0)
+    db.commit()
+
+    by = {r["store_id"]: r for r in orphans.orphan_summary(db)}
+    assert by["mix"]["auto"] is False
+    assert orphans.attach_auto(db) == []
+
+
 def test_orphan_count_is_cheap(db):
     _seed(db)
     assert orphans.orphan_count(db) == 3

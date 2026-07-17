@@ -56,11 +56,22 @@ def _wheels_of(db, store_id) -> list:
     return db.query(Wheel).filter(Wheel.rider_store_id == store_id).all()
 
 
+def _unambiguous(wheels) -> bool:
+    """True when attaching can't pick wrong: every candidate is the same brand+model.
+
+    Usually that means one wheel. It also covers one physical wheel registered twice —
+    keyed by ble_mac on a ride where the serial never arrived, by serial on one where it
+    did. The boards group by brand+model, so either row produces the same standings.
+    """
+    return len({(w.brand, w.model) for w in wheels}) == 1
+
+
 def orphan_summary(db) -> list:
     """Orphans grouped by rider, with that rider's wheels as attach candidates.
 
-    `auto` marks riders we can attach without guessing — they own exactly one wheel, so
-    there is only one answer. Riders with several wheels need a human to pick.
+    `auto` marks riders we can attach without guessing — every wheel they own is the
+    same model, so there is only one answer. Riders with genuinely different wheels
+    need a human to pick.
     """
     rows = (db.query(Trip.rider_store_id, Rider.display_name,
                      func.count(Trip.trip_uuid), func.coalesce(func.sum(Trip.distance_km), 0.0))
@@ -73,7 +84,7 @@ def orphan_summary(db) -> list:
         out.append({
             "store_id": store_id, "rider": name, "trips": n, "km": round(km or 0, 1),
             "wheels": [{"wheel_id": w.wheel_id, "brand": w.brand, "model": w.model} for w in ws],
-            "auto": len(ws) == 1,
+            "auto": bool(ws) and _unambiguous(ws),
         })
     return out
 

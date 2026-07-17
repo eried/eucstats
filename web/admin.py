@@ -1599,8 +1599,9 @@ def _orphan_card(db: Session) -> str:
         who = html.escape(r["rider"] or r["store_id"][:8])
         if r["auto"]:
             w = r["wheels"][0]
-            tag = (f'<span class=obadge-ok>1 wheel · auto-attachable to '
-                   f'<b>{html.escape(w["brand"] or "?")} {html.escape(w["model"] or "")}</b></span>')
+            dup = " (registered twice)" if len(r["wheels"]) > 1 else ""
+            tag = (f'<span class=obadge-ok>auto-attachable to '
+                   f'<b>{html.escape(w["brand"] or "?")} {html.escape(w["model"] or "")}</b>{dup}</span>')
         elif r["wheels"]:
             tag = f'<span class=obadge-warn>{len(r["wheels"])} wheels · needs a choice</span>'
         else:
