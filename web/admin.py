@@ -1760,10 +1760,15 @@ def wheels_orphan_auto(request: Request, db: Session = Depends(get_db)):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     from services import orphans
+    try:                                   # snapshot first — a bulk attach is reversible
+        datasets.save_current(datasets._timestamped("pre-orphan-attach"),
+                              note="auto backup before attaching wheel-less trips", origin="pre-edit")
+    except Exception:
+        pass
     done = orphans.attach_auto(db)
     audit.log("orphan_attach_auto", f"{len(done)} trips")
     return RedirectResponse("/admin/wheels?msg=" + quote(
-        f"attached {len(done)} trip(s) to their rider's only wheel"), status_code=303)
+        f"attached {len(done)} trip(s) to their rider's wheel, snapshot saved"), status_code=303)
 
 
 @admin_router.post("/wheels/orphan-attach")
