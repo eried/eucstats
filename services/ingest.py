@@ -225,7 +225,11 @@ class IngestService:
                              if meta.get(k) is not None}
                             | ({"max_gforce_spike": round(sm.max_gforce_spike, 3)}
                                if (sm.max_gforce_spike and sm.max_gforce
-                                   and sm.max_gforce_spike > sm.max_gforce * 1.3) else {}))
+                                   and sm.max_gforce_spike > sm.max_gforce * 1.3) else {})
+                            # No serial/MAC -> this trip can't reach any wheel board. Keep what
+                            # the app did send so /admin/wheels can tell a phone-only ride (empty)
+                            # from a lost-identity upload (brand/name but no key) later.
+                            | ({"wheel_unresolved": wheel} if not wid else {}))
                            or None),
             )
         except IntegrityError:

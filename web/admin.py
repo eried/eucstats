@@ -306,6 +306,13 @@ def _dash_html(db: Session) -> str:
     cur_test = settings.is_test_mode()
     kpis = "".join(f'<div class=box><div class=n>{c[k]}</div><div class=l>{k}</div></div>'
                    for k in ("riders", "trips", "validated", "flagged"))
+    # Trips with no wheel reach no wheel/brand board — worth seeing before it rots.
+    from services import orphans
+    n_orph = orphans.orphan_count(db)
+    if n_orph:
+        kpis += (f'<a class=box href="/admin/wheels" style="border-color:rgba(255,170,80,.45);text-decoration:none">'
+                 f'<div class=n style="color:#ffca8a">{n_orph}</div>'
+                 f'<div class=l>no wheel · {orphans.orphan_km(db)} km</div></a>')
 
     flagged = db.query(Trip).filter(Trip.validation_status == "flagged").order_by(desc(Trip.created_at)).limit(50).all()
     _fr = {r.store_id: r for r in db.query(Rider).filter(
@@ -1575,6 +1582,82 @@ def _name_fix_card(db: Session) -> str:
     </script>"""
 
 
+def _orphan_card(db: Session) -> str:
+    """Trips with no wheel attached — invisible on every wheel/brand board until fixed."""
+    from services import orphans
+    rows = orphans.orphan_summary(db)
+    if not rows:
+        return """
+    <div class=card>
+      <h2>Unattached trips <span class=mut>· rides with no wheel</span></h2>
+      <p class=mut>None — every trip is attached to a wheel.</p>
+    </div>"""
+
+    n_auto = sum(r["trips"] for r in rows if r["auto"])
+    body = []
+    for r in rows:
+        who = html.escape(r["rider"] or r["store_id"][:8])
+        if r["auto"]:
+            w = r["wheels"][0]
+            tag = (f'<span class=obadge-ok>1 wheel · auto-attachable to '
+                   f'<b>{html.escape(w["brand"] or "?")} {html.escape(w["model"] or "")}</b></span>')
+        elif r["wheels"]:
+            tag = f'<span class=obadge-warn>{len(r["wheels"])} wheels · needs a choice</span>'
+        else:
+            tag = '<span class=obadge-mut>no wheels registered</span>'
+        # List every orphan with what the upload carried — that diagnostic is the whole
+        # point of the card. The assign form only appears when there is a wheel to pick.
+        opts = "".join(f'<option value="{html.escape(w["wheel_id"])}">'
+                       f'{html.escape(w["brand"] or "?")} {html.escape(w["model"] or "")}</option>'
+                       for w in r["wheels"])
+        tl = []
+        for o in orphans.orphan_trips(db):
+            if o["store_id"] != r["store_id"]:
+                continue
+            act = (f'<form method=post action="/admin/wheels/orphan-attach" class=oform>'
+                   f'<input type=hidden name=trip_uuid value="{html.escape(o["trip_uuid"])}">'
+                   f'<select name=wheel_id>{opts}</select>'
+                   f'<button class=mini>attach</button></form>') if r["wheels"] else ""
+            tl.append(
+                f'<tr><td><a href="/admin/explorer/trip/{html.escape(o["trip_uuid"])}">'
+                f'{html.escape(o["trip_uuid"][:8])}</a></td>'
+                f'<td>{o["km"]} km</td><td class=mut>{str(o["start_utc"])[:16]}</td>'
+                f'<td class=mut>{html.escape(o["why"])}</td><td>{act}</td></tr>')
+        trips_html = (f'<table class=otab><thead><tr><th>trip<th>dist<th>when<th>what arrived<th></tr>'
+                      f'</thead><tbody>{"".join(tl)}</tbody></table>')
+        body.append(f'<div class=orow><div class=ohead><b>{who}</b> {tag}'
+                    f'<span class=mut>· {r["trips"]} trip(s) · {r["km"]} km</span></div>{trips_html}</div>')
+
+    auto_form = ""
+    if n_auto:
+        auto_form = (f'<form method=post action="/admin/wheels/orphan-auto" '
+                     f"onsubmit=\"return confirm('Attach {n_auto} trip(s) to their rider\\'s only wheel?')\">"
+                     f'<button class=go>{_IC["check"]} Attach {n_auto} unambiguous trip(s)</button></form>')
+
+    return f"""
+    <style>
+    .orow{{border:1px solid #26345e;border-radius:8px;padding:9px 11px;margin:7px 0}}
+    .ohead{{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:12px}}
+    .obadge-ok{{background:rgba(80,220,150,.12);border:1px solid rgba(80,220,150,.4);color:#8ff0bd;border-radius:6px;padding:2px 7px;font-size:11px}}
+    .obadge-warn{{background:rgba(255,170,80,.1);border:1px solid rgba(255,170,80,.4);color:#ffca8a;border-radius:6px;padding:2px 7px;font-size:11px}}
+    .obadge-mut{{background:#0b1124;border:1px solid #26345e;color:#8b97b8;border-radius:6px;padding:2px 7px;font-size:11px}}
+    .otab{{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px}}
+    .otab th{{text-align:left;color:#8b97b8;font-weight:500;padding:3px 6px}}
+    .otab td{{padding:3px 6px;border-top:1px solid #1b2542;vertical-align:middle}}
+    .oform{{display:flex;gap:5px;margin:0}}
+    .oform select{{background:#0b1124;border:1px solid #26345e;color:#e9eefb;border-radius:6px;font-size:11px;padding:2px 5px}}
+    </style>
+    <div class=card>
+      <h2>Unattached trips <span class=mut>· rides with no wheel</span></h2>
+      <p class=hint>These rides count for the rider but reach <b>no wheel or brand board</b> — the model
+      shows less distance than it really has. The app snapshots the wheel's identity when a ride ends, so a
+      wheel powered off first can upload without a serial or MAC. Riders with a single wheel can be attached
+      automatically; riders with several need you to pick.</p>
+      {"".join(body)}
+      {auto_form}
+    </div>"""
+
+
 def _wheels_html(db: Session, msg: str = "") -> str:
     banner = f'<div class="flash ok">{html.escape(msg)}</div>' if msg else ""
     inner = f"""
@@ -1582,6 +1665,7 @@ def _wheels_html(db: Session, msg: str = "") -> str:
     <h1>Wheels &amp; data quality</h1>
     <p class=sub>Every brand/model that has reported data. Fix wrong <b>names</b> (brand/model) below, or
     ignore bad <b>numbers</b> (metrics) per model further down.</p>
+    {_orphan_card(db)}
     {_name_fix_card(db)}
     {_wheel_quality_card(db)}"""
     return _ds_page(inner, "/admin/wheels")
@@ -1668,6 +1752,30 @@ def wheels_name_apply(request: Request, db: Session = Depends(get_db)):
     audit.log("name_fix_apply", f"{len(changes)} wheels")
     return RedirectResponse("/admin/wheels?msg=" + quote(f"renamed {len(changes)} wheel(s), snapshot saved"),
                             status_code=303)
+
+
+@admin_router.post("/wheels/orphan-auto")
+def wheels_orphan_auto(request: Request, db: Session = Depends(get_db)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services import orphans
+    done = orphans.attach_auto(db)
+    audit.log("orphan_attach_auto", f"{len(done)} trips")
+    return RedirectResponse("/admin/wheels?msg=" + quote(
+        f"attached {len(done)} trip(s) to their rider's only wheel"), status_code=303)
+
+
+@admin_router.post("/wheels/orphan-attach")
+def wheels_orphan_attach(request: Request, db: Session = Depends(get_db),
+                         trip_uuid: str = Form(...), wheel_id: str = Form(...)):
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    from services import orphans
+    ok = orphans.attach_one(db, trip_uuid, wheel_id)
+    if ok:
+        audit.log("orphan_attach", f"trip={trip_uuid} wheel={wheel_id}")
+    note = f"attached {trip_uuid[:8]}" if ok else "could not attach (wrong rider, or already attached)"
+    return RedirectResponse("/admin/wheels?msg=" + quote(note), status_code=303)
 
 
 @admin_router.post("/wheel-quality")
