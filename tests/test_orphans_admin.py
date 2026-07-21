@@ -29,7 +29,7 @@ def _seed(db):
     db.commit()
     TripRepo(db).insert_trip(trip_uuid="s-orphan", rider_store_id="solo", distance_km=7.0,
                              start_utc=datetime(2026, 6, 1), validation_status="validated",
-                             meta_json={"wheel_unresolved": {}})
+                             app_version="0.13.1", meta_json={"wheel_unresolved": {}})
     TripRepo(db).insert_trip(trip_uuid="d-orphan", rider_store_id="duo", distance_km=9.0,
                              start_utc=datetime(2026, 6, 2), validation_status="validated",
                              meta_json={"wheel_unresolved": {"brand": "LeaperKim"}})
@@ -49,6 +49,8 @@ def test_orphan_card_lists_and_explains(db):
         # the diagnostic distinguishes the two failure modes
         assert "phone-only ride" in r.text
         assert "partial, no serial/MAC" in r.text
+        # the app-version column: spot which build a lost-identity trip came from
+        assert "<th>version" in r.text and "0.13.1" in r.text
 
 
 def test_orphan_auto_attach_route(db):

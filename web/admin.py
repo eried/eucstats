@@ -1622,9 +1622,10 @@ def _orphan_card(db: Session) -> str:
             tl.append(
                 f'<tr><td><a href="/admin/explorer/trip/{html.escape(o["trip_uuid"])}">'
                 f'{html.escape(o["trip_uuid"][:8])}</a></td>'
+                f'<td class=mut>{html.escape(o["app_version"] or "—")}</td>'
                 f'<td>{o["km"]} km</td><td class=mut>{str(o["start_utc"])[:16]}</td>'
                 f'<td class=mut>{html.escape(o["why"])}</td><td>{act}</td></tr>')
-        trips_html = (f'<table class=otab><thead><tr><th>trip<th>dist<th>when<th>what arrived<th></tr>'
+        trips_html = (f'<table class=otab><thead><tr><th>trip<th>version<th>dist<th>when<th>what arrived<th></tr>'
                       f'</thead><tbody>{"".join(tl)}</tbody></table>')
         body.append(f'<div class=orow><div class=ohead><b>{who}</b> {tag}'
                     f'<span class=mut>· {r["trips"]} trip(s) · {r["km"]} km</span></div>{trips_html}</div>')
