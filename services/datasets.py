@@ -159,14 +159,36 @@ def _validate_sqlite(path: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def _disk_floor() -> float:
+    """The admin-configured free-space floor, falling back to the env/config default.
+
+    The floor is exposed as a System setting; honour it here so the control isn't dead
+    wiring. Read straight from the active DB's app_meta with a throwaway connection —
+    this module is path-based and must not hold an ORM pool handle (on Windows a lingering
+    handle blocks the atomic file swap in switch_to). set_retention already clamps the
+    stored value, so a raw read is safe; any failure falls back to the config default.
+    """
+    try:
+        con = sqlite3.connect(str(_active()))
+        try:
+            row = con.execute("SELECT value FROM app_meta WHERE key='ret_floor_gb'").fetchone()
+        finally:
+            con.close()
+        if row and row[0] is not None:
+            return float(row[0])
+    except Exception:
+        pass
+    return config.DISK_FLOOR_GB
+
+
 def _disk_floor_ok() -> None:
     try:
         free_gb = shutil.disk_usage(str(_datasets_dir().parent)).free / 1e9
     except Exception:
         return
-    if free_gb < config.DISK_FLOOR_GB:
-        raise DatasetError(
-            f"refusing: only {free_gb:.1f} GB free (floor {config.DISK_FLOOR_GB} GB)")
+    floor = _disk_floor()
+    if free_gb < floor:
+        raise DatasetError(f"refusing: only {free_gb:.1f} GB free (floor {floor:g} GB)")
 
 
 def _record(slug: str, name: str, note: str, origin: str) -> None:

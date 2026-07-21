@@ -51,6 +51,33 @@ def test_save_lists_with_counts(clean):
     assert entry["note"] == "hi"
 
 
+def test_disk_floor_uses_admin_setting_not_just_config(clean, monkeypatch):
+    # Pretend the disk has 5 GB free.
+    from collections import namedtuple
+    Usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(datasets.shutil, "disk_usage", lambda _p: Usage(24e9, 19e9, 5e9))
+
+    from database import SessionLocal
+    from services import settings
+    s = SessionLocal()
+
+    # Admin floor 10 GB > 5 GB free -> refuses.
+    settings.set_retention(s, days=30, disk_floor_gb=10, interval_s=3600)
+    s.commit()
+    with pytest.raises(datasets.DatasetError):
+        datasets.save_current("blocked")
+
+    # Lower the admin floor to 3 GB (< 5 free) -> the same save now goes through,
+    # proving the admin setting actually drives enforcement.
+    settings.set_retention(s, days=30, disk_floor_gb=3, interval_s=3600)
+    s.commit()
+    s.close()
+    from database import engine
+    engine.dispose()
+    _seed_active_rider()
+    assert datasets.save_current("allowed")             # no raise
+
+
 def test_create_empty_has_schema_and_zero_rows(clean):
     slug = datasets.create_empty("fresh")
     path = datasets._datasets_dir() / f"{slug}.sqlite"
