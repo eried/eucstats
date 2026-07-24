@@ -319,6 +319,27 @@ def test_speed_g_helper_edges():
     assert a is not None and abs(a - 0.566) < 0.02 and b is None   # pure acceleration, no braking
 
 
+def test_speed_g_ignores_a_transient_gps_spike():
+    # Real InMotion-V14 GPS glitch: the speed channel wobbles 56->21 then bounces back to 41 in a
+    # second. The 56->21 drop reads as ~1 g of "braking" that never happened (motor did nothing) —
+    # it's undone immediately, so it must NOT count. This is the bogus 1.009 g Brake-50 record.
+    speeds = [42, 42, 56, 21, 22, 41, 27, 23]
+    samples = [_s(i, speed=v, gps_speed=v) for i, v in enumerate(speeds)]
+    _, brk = _speed_g(samples)
+    assert (brk or 0) < 0.6                     # no ~1 g phantom brake from the spike
+    _, brk50 = _speed_g_band(samples, 50.0)     # and it can't mint a Brake-50 record either
+    assert (brk50 or 0) < 0.6
+
+
+def test_speed_g_keeps_a_sustained_hard_brake():
+    # A genuine emergency stop: brake 50 -> 13 over ~3 s and STAY down. Must still be credited —
+    # the sustained-persistence guard only rejects spikes that bounce back, not real stops.
+    speeds = [50, 50, 32, 15, 14, 13, 12]
+    samples = [_s(i, speed=v, gps_speed=v) for i, v in enumerate(speeds)]
+    _, brk = _speed_g(samples)
+    assert brk is not None and brk > 0.4        # the real stop counts
+
+
 def test_clean_model_name_strips_serial():
     from services import settings
     assert settings.clean_model_name("InMotion P6 (A14219B0600259A6)") == "InMotion P6"

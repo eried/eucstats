@@ -322,9 +322,11 @@ def _max_shake(samples: list[Sample], window_s: float = 2.0) -> float | None:
 
 _KMH_S_TO_G = (1000.0 / 3600.0) / 9.80665   # km/h-per-second -> g (1 km/h/s ≈ 0.0283 g)
 # Physical ceiling for speed-derived longitudinal g. An EUC can't brake/accelerate harder than
-# tyre grip + rider balance allow (~0.5-0.7 g hard); anything above this is a speed glitch or a
-# GPS dropout across the window (e.g. 70->2 km/h in ~1 s = ~1.9 g), so we drop that window.
-MAX_LON_G = 1.2
+# tyre grip + rider balance allow — ~0.5-0.7 g is already a hard stop/launch. Anything meaningfully
+# above that is a speed glitch or a GPS dropout across the window (e.g. 70->2 km/h in ~1 s = ~1.9 g,
+# or a noisy GPS-only speed channel wobbling ±35 km/h/s), so we drop that window. Set just above the
+# real ceiling so a genuine emergency stop still counts but phantom ~1 g records can't form.
+MAX_LON_G = 0.8
 
 # Board/battery temperature is the EUC's internal sensor, not ambient air. EUC firmware emits
 # 0.0 as a "no reading" placeholder (and occasionally wild garbage like -304 C, below absolute
@@ -405,14 +407,37 @@ def _max_temp_rate(points: list[tuple], rising: bool,
     return round(best, 3) if best > 0 else None
 
 
-def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
-    """Longitudinal g from how hard wheel speed changes: the strongest sustained push
-    (acceleration) and the strongest sustained slow-down (braking), each as a g-force.
-    Speed-derived (corroborated wheel/GPS speed) so it works on every wheel without
-    trusting a noisy IMU axis. Returns (accel_g, brake_g). A ~1s window keeps it a real
-    hold rather than a one-sample spike. O(n) sliding window."""
-    pts = [(s.t, _corrob_speed(s)) for s in samples]
-    pts = [(t, v) for t, v in pts if v is not None]
+# A speed-derived accel/brake g only counts if the change PERSISTS: a real stop stays stopped,
+# a real launch stays fast. A transient speed spike swings back within a second or two — e.g. a
+# noisy GPS channel wobbling 56->21->41 km/h reads as a ~1 g "brake" that never happened (the
+# motor did nothing). If the speed reverts by more than half its change inside _G_HOLD_S, the
+# window was a spike, not a real g-event, and is dropped. This is what corroboration can't catch
+# on wheels whose speed column is GPS-only (wheel_speed == gps_speed).
+_G_HOLD_S = 3.0
+_G_REVERT_FRAC = 0.5
+
+
+def _sustained_speed_change(pts, right: int, delta: float, accel: bool) -> bool:
+    """True unless the speed reached at index `right` is undone within _G_HOLD_S. A braked-to
+    speed that bounces back UP (or a launched-to speed that falls back DOWN) past half its change
+    was a transient spike, not a sustained g-event. No look-ahead data (end of ride / a gap) ->
+    can't disprove -> accepted."""
+    s_end, t_end = pts[right][1], pts[right][0]
+    limit = s_end + _G_REVERT_FRAC * delta if not accel else s_end - _G_REVERT_FRAC * delta
+    for k in range(right + 1, len(pts)):
+        if (pts[k][0] - t_end).total_seconds() > _G_HOLD_S:
+            break
+        reverted = pts[k][1] > limit if not accel else pts[k][1] < limit
+        if reverted:
+            return False
+    return True
+
+
+def _best_speed_g(pts, window_s: float, band: float | None = None) -> tuple[float | None, float | None]:
+    """(accel_g, brake_g): the strongest SUSTAINED speed-derived longitudinal g over ~window_s
+    windows. `band` (optional) counts only windows that start at >= band km/h. Windows whose speed
+    change reverts (see [_sustained_speed_change]) are dropped, so GPS-noise spikes can't mint fake
+    records. O(n) sliding window; the persistence look-ahead is bounded by _G_HOLD_S."""
     if len(pts) < 2:
         return None, None
     best_acc = best_brk = 0.0
@@ -421,42 +446,40 @@ def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None
         while right - left > 1 and (pts[right][0] - pts[left][0]).total_seconds() > window_s:
             left += 1
         dt = (pts[right][0] - pts[left][0]).total_seconds()
-        if dt <= 0:
+        if dt <= 0 or (band is not None and pts[left][1] < band):
             continue
-        g = abs((pts[right][1] - pts[left][1]) / dt) * _KMH_S_TO_G
+        delta = pts[right][1] - pts[left][1]
+        g = abs(delta / dt) * _KMH_S_TO_G
         if g > MAX_LON_G:                      # unphysical -> speed glitch / GPS dropout, not a real g
             continue
-        if pts[right][1] >= pts[left][1]:
+        accel = delta >= 0
+        if not _sustained_speed_change(pts, right, abs(delta), accel):
+            continue                           # transient spike that swings back -> not a real g
+        if accel:
             best_acc = max(best_acc, g)
         else:
             best_brk = max(best_brk, g)
     return (round(best_acc, 3) or None), (round(best_brk, 3) or None)
+
+
+def _corrob_speed_pts(samples: list[Sample]) -> list:
+    return [(t, v) for t, v in ((s.t, _corrob_speed(s)) for s in samples) if v is not None]
+
+
+def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
+    """Longitudinal g from how hard wheel speed changes: the strongest sustained push
+    (acceleration) and the strongest sustained slow-down (braking), each as a g-force.
+    Speed-derived (corroborated wheel/GPS speed) so it works on every wheel without
+    trusting a noisy IMU axis. Returns (accel_g, brake_g). A ~1s window plus a persistence
+    check keeps it a real hold, not a one-sample spike."""
+    return _best_speed_g(_corrob_speed_pts(samples), window_s)
 
 
 def _speed_g_band(samples: list[Sample], band: float, window_s: float = 1.0) -> tuple[float | None, float | None]:
     """Same speed-derived longitudinal g as _speed_g, but only counts windows that START at or
     above `band` km/h: roll-on acceleration (pushing hard while already fast) and braking from
     real speed. Cheat-resistant — you must genuinely be going `band`+ km/h. Returns (accel_g, brake_g)."""
-    pts = [(s.t, _corrob_speed(s)) for s in samples]
-    pts = [(t, v) for t, v in pts if v is not None]
-    if len(pts) < 2:
-        return None, None
-    best_acc = best_brk = 0.0
-    left = 0
-    for right in range(1, len(pts)):
-        while right - left > 1 and (pts[right][0] - pts[left][0]).total_seconds() > window_s:
-            left += 1
-        dt = (pts[right][0] - pts[left][0]).total_seconds()
-        if dt <= 0 or pts[left][1] < band:
-            continue
-        g = abs((pts[right][1] - pts[left][1]) / dt) * _KMH_S_TO_G
-        if g > MAX_LON_G:                      # unphysical -> speed glitch / GPS dropout, not a real g
-            continue
-        if pts[right][1] >= pts[left][1]:
-            best_acc = max(best_acc, g)
-        else:
-            best_brk = max(best_brk, g)
-    return (round(best_acc, 3) or None), (round(best_brk, 3) or None)
+    return _best_speed_g(_corrob_speed_pts(samples), window_s, band=band)
 
 
 def _fastest_stop(samples: list[Sample], from_kmh: float, to_kmh: float = 2.0) -> float | None:
