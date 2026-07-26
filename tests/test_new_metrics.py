@@ -411,6 +411,16 @@ def test_speed_band_and_stop_helpers():
     assert _fastest_stop(samples, 50.0) is None            # never reached 50
 
 
+def test_fastest_stop_ignores_impossibly_fast_stops():
+    # A speed glitch (sensor/GPS dropout reading full speed -> 0 in one sample) implies a
+    # deceleration no wheel can produce; it must NOT mint a phantom sub-second stop record.
+    glitch = [_s(0, speed=40, gps_speed=40), _s(1, speed=0, gps_speed=0)]   # 40->0 in 1s ≈ 1.1 g
+    assert _fastest_stop(glitch, 30.0) is None
+    # A genuine hard stop (40 -> 0 over 2 s ≈ 0.57 g) still counts.
+    real = [_s(0, speed=40, gps_speed=40), _s(1, speed=20, gps_speed=20), _s(2, speed=0, gps_speed=0)]
+    assert _fastest_stop(real, 30.0) == 2.0
+
+
 def test_sprints_use_corroborated_speed():
     # GPS says fast early (spoof attempt) but wheel speed is the real, slower curve -> uses the min
     samples = [_s(0, speed=0, gps_speed=0), _s(1, speed=20, gps_speed=99),

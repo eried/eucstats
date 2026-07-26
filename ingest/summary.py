@@ -485,20 +485,24 @@ def _speed_g_band(samples: list[Sample], band: float, window_s: float = 1.0) -> 
 def _fastest_stop(samples: list[Sample], from_kmh: float, to_kmh: float = 2.0) -> float | None:
     """Shortest time to brake from `from_kmh`+ down to a near-standstill (<=`to_kmh`), using the
     corroborated speed. An emergency-stop metric — can't be faked (you must really be going fast,
-    then really stop). Lower is better. Re-accelerating back above `from_kmh` resets the window."""
+    then really stop). Lower is better. Re-accelerating back above `from_kmh` resets the window.
+    A stop faster than tyre grip allows (implied deceleration > MAX_LON_G) is a speed glitch — a
+    sensor/GPS dropout reading full speed -> 0 in one sample — not a real stop, so it's skipped."""
+    max_decel = MAX_LON_G / _KMH_S_TO_G       # km/h shed per second a real EUC can manage
     best = None
-    start = None
+    start_t = start_v = None
     for s in samples:
         sp = _corrob_speed(s)
         if sp is None:
             continue
         if sp >= from_kmh:
-            start = s.t                       # latest moment at/above the entry speed
-        elif sp <= to_kmh and start is not None:
-            dt = (s.t - start).total_seconds()
-            if dt > 0 and (best is None or dt < best):
-                best = dt
-            start = None
+            start_t, start_v = s.t, sp        # latest moment at/above the entry speed
+        elif sp <= to_kmh and start_t is not None:
+            dt = (s.t - start_t).total_seconds()
+            if dt > 0 and (start_v - sp) / dt <= max_decel:   # physical deceleration only
+                if best is None or dt < best:
+                    best = dt
+            start_t = start_v = None
     return round(best, 2) if best is not None else None
 
 
