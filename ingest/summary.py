@@ -98,13 +98,21 @@ class TripSummary:
 
 
 def teleport_segments(pts, teleport_kmh: float = 150.0, max_gap_s: float = 20.0,
-                      min_ride_kmh: float = 8.0):
-    """GPS hops that look like a GENUINE teleport, excluding the two benign cases:
+                      min_ride_kmh: float = 8.0, min_jump_m: float = 150.0):
+    """GPS hops that look like a GENUINE teleport, excluding the three benign cases:
       * indoor / standing GPS drift — the wheel wasn't really riding (speed < min_ride_kmh),
-      * tunnel / signal loss — the jump just spans a GPS outage (gap > max_gap_s).
-    A hop counts only when the rider was riding, GPS was sampling continuously, AND the implied
-    speed still exceeds teleport_kmh. `pts` is [(time, lat, lon, wheel_speed)]; returns the jump
-    segments as [[lon,lat],[lon,lat]] (GeoJSON order)."""
+      * tunnel / signal loss — the jump just spans a GPS outage (gap > max_gap_s),
+      * ordinary position noise — the hop didn't actually move the rider (< min_jump_m).
+    A hop counts only when the rider was riding, GPS was sampling continuously, the implied
+    speed exceeds teleport_kmh AND the rider really was displaced.
+
+    That last test matters because implied speed alone is meaningless at short sample
+    intervals: at 1 Hz a 42 m hop already reads as >150 km/h, and phone GPS wanders further
+    than that near buildings and trees (a single bad fix produces two hops, out and back).
+    A real teleport moves you hundreds of metres; noise doesn't, however fast it looks.
+
+    `pts` is [(time, lat, lon, wheel_speed)]; returns the jump segments as
+    [[lon,lat],[lon,lat]] (GeoJSON order)."""
     segs = []
     prev = None
     for (t, lat, lon, ws) in pts:
@@ -114,7 +122,8 @@ def teleport_segments(pts, teleport_kmh: float = 150.0, max_gap_s: float = 20.0,
             dt = (t - prev[0]).total_seconds()
             d = _haversine_km(prev[1], prev[2], lat, lon)
             wheel = max(prev[3] or 0.0, ws or 0.0)          # wheel speed around the hop
-            if 0 < dt <= max_gap_s and wheel >= min_ride_kmh and (d / (dt / 3600.0)) > teleport_kmh:
+            if 0 < dt <= max_gap_s and wheel >= min_ride_kmh and d * 1000.0 >= min_jump_m \
+                    and (d / (dt / 3600.0)) > teleport_kmh:
                 segs.append([[prev[2], prev[1]], [lon, lat]])
         prev = (t, lat, lon, ws)
     return segs

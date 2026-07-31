@@ -897,7 +897,8 @@ def explorer_trip_track(trip_uuid: str, request: Request, db: Session = Depends(
     thr = settings.get_thresholds(db)
     solid = _gps_points_track(db, trip_uuid) or _gps_points_raw(db, trip_uuid)
     jumps = teleport_segments(_gps_points_raw(db, trip_uuid) or solid,
-                              thr["teleport_kmh"], thr["teleport_gap_s"], thr["teleport_min_kmh"])
+                              thr["teleport_kmh"], thr["teleport_gap_s"], thr["teleport_min_kmh"],
+                              thr["teleport_min_jump_m"])
     feats = []
     if len(solid) >= 2:
         coords = [[lon, lat] for (_, lat, lon, _sp) in solid]
@@ -1205,6 +1206,8 @@ _PIPELINE_CALC_JS = """
         max_g:function(v){return (v*9.81).toFixed(0)+' m/s², '+v+'× gravity';},
         teleport_kmh:function(v){return (v/3.6).toFixed(0)+' m/s between GPS fixes';},
         teleport_max_jumps:function(v){return v+' noisy GPS jumps tolerated before flagging';},
+        teleport_min_jump_m:function(v){return 'hops under '+v+' m are GPS noise, never a teleport';},
+        teleport_jump_rate:function(v){return 'plus '+Math.round(v*100)+'% of GPS fixes, so long rides get proportional slack';},
         dist_tolerance:function(v){return Math.round(v*100)+'% odometer-vs-GPS disagreement allowed';},
         mismatch_min_km:function(v){return 'only judged on rides longer than '+v+' km';},
         unverified_dist_km:function(v){return 'flag a GPS-less ride longer than '+v+' km';},

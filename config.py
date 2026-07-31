@@ -50,6 +50,13 @@ TELEPORT_MAX_JUMPS = int(os.environ.get("EUCSTATS_TELEPORT_MAX_JUMPS", "8"))  # 
 # aren't flagged.
 TELEPORT_GAP_S = float(os.environ.get("EUCSTATS_TELEPORT_GAP_S", "20"))
 TELEPORT_MIN_KMH = float(os.environ.get("EUCSTATS_TELEPORT_MIN_KMH", "8"))
+# A hop must also DISPLACE the rider this far. Implied speed alone is meaningless at short
+# sample intervals (at 1 Hz a 42 m hop already reads as >150 km/h) and phone GPS wanders
+# further than that in a city, so without a floor ordinary noise reads as teleporting.
+TELEPORT_MIN_JUMP_M = float(os.environ.get("EUCSTATS_TELEPORT_MIN_JUMP_M", "150"))
+# Jumps tolerated as a fraction of GPS fixes, so a long ride isn't flagged for being long
+# (the flat TELEPORT_MAX_JUMPS stays the floor for short rides).
+TELEPORT_JUMP_RATE = float(os.environ.get("EUCSTATS_TELEPORT_JUMP_RATE", "0.01"))
 DIST_TOLERANCE = float(os.environ.get("EUCSTATS_DIST_TOLERANCE", "0.4"))      # odometer-vs-gps mismatch
 UNVERIFIED_DIST_KM = float(os.environ.get("EUCSTATS_UNVERIFIED_DIST_KM", "3.0"))  # flag long rides with no GPS at all
 

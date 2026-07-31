@@ -465,7 +465,8 @@ PIPELINE_RULES = [
     ("teleport", "GPS teleporting",
      "Flag many GPS jumps that imply impossible travel speed — but only while actually riding "
      "(ignores indoor GPS drift) and with GPS sampling continuously (ignores tunnel re-acquisition).",
-     ["teleport_kmh", "teleport_max_jumps", "teleport_gap_s", "teleport_min_kmh"]),
+     ["teleport_kmh", "teleport_max_jumps", "teleport_gap_s", "teleport_min_kmh",
+      "teleport_min_jump_m", "teleport_jump_rate"]),
     ("distance_mismatch", "Odometer vs GPS mismatch",
      "Flag when odometer distance and GPS-measured distance disagree beyond tolerance.",
      ["dist_tolerance", "mismatch_min_km"]),
@@ -481,6 +482,8 @@ PIPELINE_THRESHOLDS = [
     ("teleport_max_jumps", "Teleport jumps allowed", "thr_teleport_jumps", "TELEPORT_MAX_JUMPS", "int", 0, 1000),
     ("teleport_gap_s", "Teleport: ignore GPS gaps over (s)", "thr_teleport_gap", "TELEPORT_GAP_S", "float", 1, 600),
     ("teleport_min_kmh", "Teleport: min riding speed (km/h)", "thr_teleport_min", "TELEPORT_MIN_KMH", "float", 0, 100),
+    ("teleport_min_jump_m", "Teleport: min jump distance (m)", "thr_teleport_jump_m", "TELEPORT_MIN_JUMP_M", "float", 0, 100000),
+    ("teleport_jump_rate", "Teleport: jumps allowed per GPS fix (0–1)", "thr_teleport_rate", "TELEPORT_JUMP_RATE", "float", 0, 1),
     ("dist_tolerance", "Odo/GPS mismatch tolerance (0–1)", "thr_dist_tol", "DIST_TOLERANCE", "float", 0, 1),
     ("mismatch_min_km", "Min distance before mismatch is judged (km)", "thr_mismatch_min", "MISMATCH_MIN_KM", "float", 0, 1000),
     ("unverified_dist_km", "Unverified distance limit (km)", "thr_unverified_km", "UNVERIFIED_DIST_KM", "float", 0, 10000),

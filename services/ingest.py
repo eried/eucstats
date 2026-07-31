@@ -155,6 +155,7 @@ class IngestService:
             max_kmh=thr["max_kmh"], max_g=thr["max_g"],
             teleport_kmh=thr["teleport_kmh"], teleport_max_jumps=thr["teleport_max_jumps"],
             teleport_gap_s=thr["teleport_gap_s"], teleport_min_kmh=thr["teleport_min_kmh"],
+            teleport_min_jump_m=thr["teleport_min_jump_m"], teleport_jump_rate=thr["teleport_jump_rate"],
             dist_tolerance=thr["dist_tolerance"], unverified_dist_km=thr["unverified_dist_km"],
             mismatch_min_km=thr["mismatch_min_km"], disabled=disabled,
         )

@@ -9,6 +9,7 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           max_kmh: float = 120.0, max_g: float = 12.0,
           teleport_kmh: float = 150.0, teleport_max_jumps: int = 8,
           teleport_gap_s: float = 20.0, teleport_min_kmh: float = 8.0,
+          teleport_min_jump_m: float = 150.0, teleport_jump_rate: float = 0.01,
           dist_tolerance: float = 0.4, unverified_dist_km: float = 3.0,
           mismatch_min_km: float = 0.5, max_ascent_per_km: float = 300.0,
           disabled=frozenset()):
@@ -43,11 +44,16 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
         add("impossible_ascent")
 
     # teleport: count GPS jumps implying > teleport_kmh, but only genuine ones — riding (not indoor
-    # drift) and with GPS sampling continuously (not a tunnel re-acquisition). A few are normal GPS
-    # noise; only flag when there are many (systematic teleporting).
+    # drift), GPS sampling continuously (not a tunnel re-acquisition), and a real displacement (not
+    # position noise). A few are normal GPS noise; only flag when there are many (systematic
+    # teleporting).
     pts = [(s.t, s.lat, s.lon, s.speed) for s in samples if s.lat is not None and s.lon is not None]
-    teleport_jumps = len(teleport_segments(pts, teleport_kmh, teleport_gap_s, teleport_min_kmh))
-    if teleport_jumps > teleport_max_jumps:
+    teleport_jumps = len(teleport_segments(pts, teleport_kmh, teleport_gap_s, teleport_min_kmh,
+                                           teleport_min_jump_m))
+    # Scale the allowance with the number of fixes. A flat count punishes distance: a two-hour ride
+    # meets more noise than a ten-minute one purely by lasting longer. Spoofing corrupts a large
+    # FRACTION of a track, so a rate catches it while leaving honest long rides alone.
+    if teleport_jumps > max(teleport_max_jumps, int(len(pts) * teleport_jump_rate)):
         add("teleport")
 
     # odometer vs GPS distance disagreement (only when both are meaningful)
