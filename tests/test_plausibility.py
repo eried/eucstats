@@ -24,11 +24,23 @@ def test_clean_trip_validated():
 
 
 def test_impossible_speed_flagged():
-    s = clean_samples()
-    s[2].speed = 400.0
+    # a SUSTAINED impossible speed, reached through a believable ramp, is a cheat flag
+    s = [mk(i, odo=100.0 + i * 0.05, lat=69.0 + i * 1e-3, lon=18.0,
+            speed=min(15.0 * i, 400.0), g=0.5) for i in range(40)]
     status, reasons = check(s, summarize(s))
     assert status == "flagged"
     assert "impossible_speed" in reasons
+
+
+def test_isolated_speed_spike_is_freespin_not_a_cheat_flag():
+    # One 400 km/h reading in a sparsely-logged ride is a sensor spike, not a ride at
+    # 400 km/h: recorded as freespin (its own category), never as a realistic top speed.
+    # See _speeds() — and the module note that momentary spikes are warnings, not cheats.
+    s = clean_samples()
+    s[2].speed = 400.0
+    sm = summarize(s)
+    assert sm.max_freespin == 400.0
+    assert "impossible_speed" not in check(s, sm)[1]
 
 
 def test_mock_location_flagged():

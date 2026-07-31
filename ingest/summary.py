@@ -13,6 +13,7 @@ EARTH_KM = 6371.0088
 # ingest layer overrides these from settings; tests/direct callers get sane defaults.
 CALIBRATION_DEFAULTS = {
     "max_accel": 20.0,            # km/h per s — believable accel; faster = freespin/spike
+    "accel_gap_max_s": 3.0,       # s — cap the accel allowance across a logging gap
     "sustain_secs": 2.0,          # s — window for sustained power/current/g-force
     "freespin_margin": 5.0,       # km/h — raw speed must beat realistic by this to be a freespin
     "ascent_hysteresis_m": 3.0,   # m — ignore elevation wiggles under this
@@ -636,7 +637,8 @@ def _moving(s: Sample, min_kmh: float = MOVE_KMH) -> bool:
 
 def _speeds(samples: list[Sample], wheel_speeds: list[float],
             max_accel: float = MAX_ACCEL_KMH_S,
-            freespin_margin: float = 5.0) -> tuple[float | None, float | None]:
+            freespin_margin: float = 5.0,
+            gap_max_s: float = 3.0) -> tuple[float | None, float | None]:
     """Return (realistic_max_speed, max_freespin).
 
     A real top speed must be *reached through believable acceleration*. We walk
@@ -644,7 +646,14 @@ def _speeds(samples: list[Sample], wheel_speeds: list[float],
     decelerations are always allowed. The realistic top speed is the peak of this
     acceleration-limited track. The raw peak that the cap rejected (an instantaneous
     jump with no ramp — a freespin or sensor spike) is reported separately as
-    max_freespin so it can be celebrated as its own category, not counted as speed."""
+    max_freespin so it can be celebrated as its own category, not counted as speed.
+
+    The allowance across one step is capped at gap_max_s seconds' worth. Without that
+    bound a pause in the log dissolved the limiter entirely — over a 60 s gap it
+    permitted a 1200 km/h rise — so one garbage sample after a pause became the trip's
+    top speed. We genuinely don't know what happened during a gap, so a bounded rise
+    is the honest reading: enough to accept a ride that resumes faster than it paused,
+    not enough to wave through a sensor spike."""
     plausible = None      # running believable speed
     realistic = None      # peak of the believable track
     prev_t = None
@@ -657,7 +666,7 @@ def _speeds(samples: list[Sample], wheel_speeds: list[float],
         elif v <= plausible:
             plausible = v                                      # slowing down: always believable
         else:
-            dt = max((s.t - prev_t).total_seconds(), 0.0)
+            dt = min(max((s.t - prev_t).total_seconds(), 0.0), gap_max_s)
             plausible = min(v, plausible + max_accel * dt)     # speeding up: capped by accel
         prev_t = s.t
         realistic = plausible if realistic is None else max(realistic, plausible)
@@ -699,7 +708,8 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     moving = [v for v in (_corrob_speed(s) for s in samples) if v is not None and v > 2.0]
     avg_speed = (sum(moving) / len(moving)) if moving else None
     moving_s = _moving_seconds(samples)        # real ride time (rolling >2 km/h), not the whole log
-    max_speed, max_freespin = _speeds(samples, speeds, c["max_accel"], c["freespin_margin"])
+    max_speed, max_freespin = _speeds(samples, speeds, c["max_accel"], c["freespin_margin"],
+                                      c["accel_gap_max_s"])
 
     # --- ANTI-CHEAT GATE: performance & extreme metrics are only credited while the rider
     # is genuinely MOVING (corroborated wheel+GPS speed >= MOVE_KMH). A wheel spun on a stand

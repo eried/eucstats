@@ -62,6 +62,9 @@ UNVERIFIED_DIST_KM = float(os.environ.get("EUCSTATS_UNVERIFIED_DIST_KM", "3.0"))
 
 # --- Telemetry calibration (physics limits used when summarizing a trip) ---
 MAX_ACCEL_KMH_S = float(os.environ.get("EUCSTATS_MAX_ACCEL_KMH_S", "20"))     # believable accel; faster rise = freespin/spike, not real speed
+# Cap the accel allowance across one sample step. Unbounded, a pause in the log dissolved the
+# limiter (a 60 s gap permitted a 1200 km/h rise), so one spike after a pause became the top speed.
+ACCEL_GAP_MAX_S = float(os.environ.get("EUCSTATS_ACCEL_GAP_MAX_S", "3"))
 SUSTAIN_SECS = float(os.environ.get("EUCSTATS_SUSTAIN_SECS", "2"))            # window for "sustained" power/current/g-force metrics
 FREESPIN_MARGIN_KMH = float(os.environ.get("EUCSTATS_FREESPIN_MARGIN_KMH", "5"))  # raw speed must beat realistic by this to count as a freespin
 ASCENT_HYSTERESIS_M = float(os.environ.get("EUCSTATS_ASCENT_HYSTERESIS_M", "3"))  # ignore elevation wiggles under this (GPS noise)

@@ -505,6 +505,7 @@ def set_pipeline_enabled(db: Session, enabled_keys) -> None:
 # Keys match ingest.summary.CALIBRATION_DEFAULTS.
 CALIBRATION = [
     ("max_accel", "Max believable acceleration (km/h per s)", "cal_max_accel", "MAX_ACCEL_KMH_S", "float", 1, 100),
+    ("accel_gap_max_s", "Accel allowance across a log gap (s)", "cal_accel_gap", "ACCEL_GAP_MAX_S", "float", 0.5, 60),
     ("sustain_secs", "Sustained-metric window (s)", "cal_sustain_secs", "SUSTAIN_SECS", "float", 0.5, 30),
     ("freespin_margin", "Freespin margin over realistic (km/h)", "cal_freespin_margin", "FREESPIN_MARGIN_KMH", "float", 0, 200),
     ("accel_target_kmh", "Launch metric target (km/h)", "cal_accel_target", "ACCEL_TARGET_KMH", "float", 5, 200),

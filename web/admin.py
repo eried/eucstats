@@ -1212,6 +1212,7 @@ _PIPELINE_CALC_JS = """
         mismatch_min_km:function(v){return 'only judged on rides longer than '+v+' km';},
         unverified_dist_km:function(v){return 'flag a GPS-less ride longer than '+v+' km';},
         max_accel:function(v){return '0–100 km/h in '+(100/v).toFixed(1)+'s · 0–50 in '+(50/v).toFixed(1)+'s';},
+        accel_gap_max_s:function(v){return 'after a pause in the log, speed may rise at most '+(v*20).toFixed(0)+' km/h in one step';},
         sustain_secs:function(v){return 'power / current / g-force must hold '+v+'s to count';},
         freespin_margin:function(v){return 'a spike must beat realistic speed by '+v+' km/h to be a freespin';},
         accel_target_kmh:function(v){return 'launch metric measures 0 → '+v+' km/h';},
