@@ -365,20 +365,33 @@ const ORDER=window.__ORDER__||{};
 function orderBy(arr,ord,kf){if(!ord||!ord.length)return arr.slice();const p={};ord.forEach((k,i)=>{p[k]=i;});return arr.slice().sort((a,b)=>(p[kf(a)]!==undefined?p[kf(a)]:1e9)-(p[kf(b)]!==undefined?p[kf(b)]:1e9));}
 function rowsCls(n){return n<=3?' onerow':(n>=7?' threerow':'');}   // 1 row (<=3), 3 rows (>=7), else 2
 (function(){const o=orderBy(BOARDS,ORDER.boards,b=>b.k);BOARDS.length=0;o.forEach(b=>BOARDS.push(b));})();
-// --- units (km/h <-> mph), remembered + smart default by locale; + map style ---
-const MI=0.621371, MPH_REGIONS=["US","GB","LR","MM"];
-function defaultUnit(){try{const r=((navigator.language||"").split("-")[1]||"").toUpperCase();return MPH_REGIONS.includes(r)?"mph":"kmh";}catch(e){return "kmh";}}
+// --- units (km/h <-> mph), remembered + smart default by REGION; + map style ---
+// The default follows where the rider IS (their timezone), NOT the language their browser
+// is set to. Reading the site in English says nothing about which units you use — keying
+// off navigator.language served miles to every Dane, German and Japanese on an English UI.
+// Only four countries use imperial road units, so we list their zones explicitly and treat
+// every other (or unrecognized) zone as metric: never guess imperial.
+const MI=0.621371;
+const IMPERIAL_TZ={"America/New_York":"US","America/Detroit":"US","America/Kentucky/Louisville":"US","America/Kentucky/Monticello":"US","America/Indiana/Indianapolis":"US","America/Indiana/Vincennes":"US","America/Indiana/Winamac":"US","America/Indiana/Marengo":"US","America/Indiana/Petersburg":"US","America/Indiana/Vevay":"US","America/Indiana/Tell_City":"US","America/Indiana/Knox":"US","America/Chicago":"US","America/Menominee":"US","America/North_Dakota/Center":"US","America/North_Dakota/New_Salem":"US","America/North_Dakota/Beulah":"US","America/Denver":"US","America/Boise":"US","America/Phoenix":"US","America/Los_Angeles":"US","America/Anchorage":"US","America/Juneau":"US","America/Sitka":"US","America/Metlakatla":"US","America/Yakutat":"US","America/Nome":"US","America/Adak":"US","Pacific/Honolulu":"US","Europe/London":"GB","Africa/Monrovia":"LR","Asia/Yangon":"MM","Asia/Rangoon":"MM"};
+// Which quantities each profile shows in imperial (d=distance/speed, t=temperature, a=altitude).
+// The UK and Myanmar use miles and mph on the road but Celsius and metres for everything else,
+// so "imperial" is per-quantity — one global flag handed British riders °F and feet they never use.
+const UNIT_PROFILES={"kmh":{"d":0,"t":0,"a":0},"mph":{"d":1,"t":1,"a":1},"road":{"d":1,"t":0,"a":0}};
+const REGION_PROFILE={"US":"mph","LR":"mph","GB":"road","MM":"road"};
+function homeRegion(){try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)return IMPERIAL_TZ[tz]||"";}catch(e){}return "";}
+function defaultUnit(){return REGION_PROFILE[homeRegion()]||"kmh";}
 let UNIT=localStorage.getItem("eucstats_unit")||defaultUnit();
 const RASTER=(t,a)=>({version:8,sources:{r:{type:"raster",tiles:[t],tileSize:256,attribution:a,maxzoom:19}},layers:[{id:"r",type:"raster",source:"r"}]});
 const STYLES={dark:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",light:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",voyager:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",satellite:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}","© Esri, Maxar"),terrain:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}","© Esri")};
 let MAPSTYLE=localStorage.getItem("eucstats_style")||(window.__CFG__&&window.__CFG__.map_style)||"dark";
-const mph=()=>UNIT==="mph";
+const U=()=>UNIT_PROFILES[UNIT]||UNIT_PROFILES.kmh;
+const mph=()=>!!U().d, fahr=()=>!!U().t, feet=()=>!!U().a;   // per-quantity, not one imperial flag
 const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
 const snum=kmh=>mph()?(""+r1(kmh*MI)):(""+r1(kmh)), sunit=()=>mph()?"mph":"km/h";
-const tnum=c=>mph()?(""+r1(c*9/5+32)):(""+r1(c)), tunit=()=>mph()?"°F":"°C";   // temperature
-const trnum=c=>mph()?(""+r2(c*9/5)):(""+r2(c)), trunit=()=>mph()?"°F/s":"°C/s";   // temp rate (a delta: scale only, no +32 offset)
-const anum=m=>mph()?(""+Math.round(m*3.28084)):(""+Math.round(m)), aunit=()=>mph()?"ft":"m";   // altitude
+const tnum=c=>fahr()?(""+r1(c*9/5+32)):(""+r1(c)), tunit=()=>fahr()?"°F":"°C";   // temperature
+const trnum=c=>fahr()?(""+r2(c*9/5)):(""+r2(c)), trunit=()=>fahr()?"°F/s":"°C/s";   // temp rate (a delta: scale only, no +32 offset)
+const anum=m=>feet()?(""+Math.round(m*3.28084)):(""+Math.round(m)), aunit=()=>feet()?"ft":"m";   // altitude
 function bval(b,v){if(v==null)v=0;
   var s;
   if(b.conv==="dist")s=dnum(v)+" "+dunit();
@@ -758,7 +771,7 @@ function setupCfg(){
     const maps=[["dark",t("map.dark")],["light",t("map.light")],["voyager",t("map.voyager")],["satellite",t("map.satellite")],["terrain",t("map.topo")]];
     const langs=Object.keys(LANGS).map(l=>`<option value="${l}" ${LANG===l?'selected':''}>${LANGS[l]}</option>`).join("");
     cfg.innerHTML=`<div class="crow"><span>${t("cfg.language")}</span><select id="langsel" class="csel">${langs}</select></div>`+
-      `<div class="crow"><span>${t("cfg.units")}</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">${t("u.metric")}</button><button data-u="mph" class="${UNIT==='mph'?'on':''}">${t("u.imperial")}</button></div></div>`+
+      `<div class="crow"><span>${t("cfg.units")}</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">${t("u.metric")}</button><button data-u="mph" class="${UNIT!=='kmh'?'on':''}">${t("u.imperial")}</button></div></div>`+
       `<div class="crow"><span>${t("cfg.map")}</span><select id="mapsel" class="csel">${maps.map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
       `<div class="crow"><span>${t("cfg.intro")}</span><span class="introctl">`+
         `<label class="cck${adminOff?' dis':''}" title="${adminOff?t('cfg.intro_off'):t('cfg.intro_play')}"><input type="checkbox" id="introchk"${on?' checked':''}${adminOff?' disabled':''}> ${t("cfg.enabled")}</label>`+
