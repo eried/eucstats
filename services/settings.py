@@ -133,16 +133,34 @@ def clean_model_name(model):
     return _MODEL_SERIAL.sub("", model).strip() or model
 
 
+def _name_match(pattern, value) -> bool:
+    """Does a rule's brand/model matcher accept the reported value?
+
+    Plain text must equal the value. A pattern containing `*` is a wildcard, so one rule can
+    cover a whole marque: `NOSFET*` catches every Nosfet model the maker ever ships, where
+    exact matching needed a new rule per model and silently mis-filed the next one. `*Lynx*`
+    matches anywhere in the name.
+
+    Matching ignores case throughout: apps report brand/model casing inconsistently
+    ("LeaperKim" / "leaperkim" / "NOSFET" / "Nosfet") and case never distinguishes two real
+    wheels."""
+    v, p = (value or "").strip(), (pattern or "").strip()
+    if "*" not in p:
+        return p.lower() == v.lower()
+    rx = "".join(".*" if part == "*" else re.escape(part) for part in re.split(r"(\*)", p))
+    return re.fullmatch(rx, v, re.IGNORECASE) is not None
+
+
 def canonicalize_name(brand, model, app_version, rules) -> tuple:
     """(brand, model) reported by app_version -> corrected (brand, model). A rule matches when its
-    (optional) brand/model equal the reported values and app_version is within its cutoff; matched
-    rules overwrite brand/model with their set_* values. The model also has any trailing serial
-    stripped (some apps append it)."""
+    (optional) brand/model patterns accept the reported values (see [_name_match] — exact text, or
+    `*` wildcards) and app_version is within its cutoff; matched rules overwrite brand/model with
+    their set_* values. The model also has any trailing serial stripped (some apps append it)."""
     nb, nm = brand, model
     for r in rules:
-        if r.get("m_brand") and r["m_brand"] != brand:
+        if r.get("m_brand") and not _name_match(r["m_brand"], brand):
             continue
-        if r.get("m_model") and r["m_model"] != model:
+        if r.get("m_model") and not _name_match(r["m_model"], model):
             continue
         cut = r.get("max_app_version")
         if cut and not _app_ver_le(app_version, cut):

@@ -1559,14 +1559,19 @@ def _name_fix_card(db: Session) -> str:
     </style>
     <div class=card>
       <h2>Brand &amp; model fixes <span class=mut>· rename mislabeled wheels</span></h2>
-      <p class=hint>Rename wheels the app mislabels (e.g. Leaperkim/Veteran reported as KingSong). Match the
-      reported values, set the correct ones. <b>app ≤</b> limits it to old builds (blank = always).
-      <b>Apply</b> rewrites existing wheels (the dataset is snapshotted first, so you can revert).</p>
+      <p class=hint>Rename wheels the app mislabels (e.g. every Nosfet reported as LeaperKim). Match the
+      reported values, set the correct ones. Pick <b>pattern…</b> to type a match instead of choosing an
+      existing value: <code>NOSFET*</code> covers a whole marque including models not seen yet, and
+      <code>*Lynx*</code> matches anywhere. Matching ignores case. <b>app ≤</b> limits it to old builds
+      (blank = always). <b>Apply</b> rewrites existing wheels (the dataset is snapshotted first, so you
+      can revert).</p>
       {rules_html}
       <form method=post action="/admin/wheels/name-rule/add" class=nfadd>
         <span>If</span>
-        <select name=m_brand><option value="">(any brand)</option>{bopts}</select>
-        <select name=m_model><option value="">(any model)</option>{mopts}</select>
+        <select name=m_brand_sel class=nfsel><option value="">(any brand)</option>{bopts}<option value="__new__">pattern…</option></select>
+        <input name=m_brand_new class=nfnew placeholder="e.g. Leaper*">
+        <select name=m_model_sel class=nfsel><option value="">(any model)</option>{mopts}<option value="__new__">pattern…</option></select>
+        <input name=m_model_new class=nfnew placeholder="e.g. NOSFET*">
         <select name=max_app_version><option value="">(all versions)</option>{vopts}</select>
         <span><b>⇒</b> set</span>
         <select name=set_brand_sel class=nfsel><option value="">keep brand</option>{bopts}<option value="__new__">new brand…</option></select>
@@ -1716,12 +1721,15 @@ def wheels_ranges(request: Request, brand: str = "", model: str = "", cutoff: st
 
 @admin_router.post("/wheels/name-rule/add")
 def wheels_name_rule_add(request: Request, db: Session = Depends(get_db),
-                         m_brand: str = Form(""), m_model: str = Form(""), max_app_version: str = Form(""),
+                         m_brand_sel: str = Form(""), m_brand_new: str = Form(""),
+                         m_model_sel: str = Form(""), m_model_new: str = Form(""),
+                         max_app_version: str = Form(""),
                          set_brand_sel: str = Form(""), set_brand_new: str = Form(""),
                          set_model_sel: str = Form(""), set_model_new: str = Form("")):
     if not _is_authenticated(request):
         return RedirectResponse("/admin", status_code=303)
     resolve = lambda sel, new: (new.strip() if sel == "__new__" else sel.strip())
+    m_brand, m_model = resolve(m_brand_sel, m_brand_new), resolve(m_model_sel, m_model_new)
     sb, sm = resolve(set_brand_sel, set_brand_new), resolve(set_model_sel, set_model_new)
     if not (sb or sm):
         return RedirectResponse("/admin/wheels?msg=" + quote("nothing to set, rule ignored"), status_code=303)
