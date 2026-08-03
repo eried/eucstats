@@ -76,6 +76,12 @@ ACCEL_MAX_S = float(os.environ.get("EUCSTATS_ACCEL_MAX_S", "20"))             # 
 SUSTAIN_ACCEL_LO_S = float(os.environ.get("EUCSTATS_SUSTAIN_ACCEL_LO_S", "2"))  # sustained-acceleration min window
 SUSTAIN_ACCEL_HI_S = float(os.environ.get("EUCSTATS_SUSTAIN_ACCEL_HI_S", "6"))  # sustained-acceleration max window
 RANGE_MIN_BATTERY_PCT = float(os.environ.get("EUCSTATS_RANGE_MIN_BATTERY_PCT", "10"))  # min battery drop to estimate full-charge range
+# Efficiency (Wh/km) is only meaningful over a real distance and within physical bounds. Real
+# EUCs sit around 15-80 Wh/km; outside a generous band the power channel is broken or scaled
+# wrong, and reporting nothing beats ranking a wheel on an impossible number.
+EFF_MIN_KM = float(os.environ.get("EUCSTATS_EFF_MIN_KM", "1"))
+EFF_MIN_WH_KM = float(os.environ.get("EUCSTATS_EFF_MIN_WH_KM", "5"))
+EFF_MAX_WH_KM = float(os.environ.get("EUCSTATS_EFF_MAX_WH_KM", "300"))
 MISMATCH_MIN_KM = float(os.environ.get("EUCSTATS_MISMATCH_MIN_KM", "0.5"))    # min distance before odo-vs-GPS mismatch is judged
 
 # --- Rate limits (per hour; 0 disables a given limit) ---

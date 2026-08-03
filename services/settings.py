@@ -535,6 +535,9 @@ CALIBRATION = [
     ("ascent_hysteresis_m", "Ascent noise filter (m)", "cal_ascent_hyst", "ASCENT_HYSTERESIS_M", "float", 0, 100),
     ("odo_max_step_km", "Max odometer jump per reading (km)", "cal_odo_step", "ODO_MAX_STEP_KM", "float", 0.1, 1000),
     ("range_min_battery_pct", "Min battery drop to estimate range (%)", "cal_range_minbatt", "RANGE_MIN_BATTERY_PCT", "float", 1, 100),
+    ("eff_min_km", "Min ride distance for Wh/km (km)", "cal_eff_min_km", "EFF_MIN_KM", "float", 0, 100),
+    ("eff_min_wh_km", "Lowest believable Wh/km", "cal_eff_min_whkm", "EFF_MIN_WH_KM", "float", 0, 100),
+    ("eff_max_wh_km", "Highest believable Wh/km", "cal_eff_max_whkm", "EFF_MAX_WH_KM", "float", 10, 5000),
 ]
 
 

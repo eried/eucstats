@@ -25,6 +25,9 @@ CALIBRATION_DEFAULTS = {
     "sustain_accel_lo_s": 2.0,    # s — sustained-acceleration min window
     "sustain_accel_hi_s": 6.0,    # s — sustained-acceleration max window
     "range_min_battery_pct": 10.0,  # % — min battery drop to estimate full-charge range
+    "eff_min_km": 1.0,            # km — shorter than this and Wh/km is noise, not efficiency
+    "eff_min_wh_km": 5.0,         # Wh/km — below this the power channel is broken, not thrifty
+    "eff_max_wh_km": 300.0,       # Wh/km — above this it's a unit/scale error, not a hungry wheel
 }
 MAX_ACCEL_KMH_S = CALIBRATION_DEFAULTS["max_accel"]   # kept for backward compatibility
 
@@ -168,7 +171,23 @@ def odometer_distance_km(samples: list[Sample], max_step_km: float = 5.0) -> tup
     return dist, has_odo
 
 
-def _energy_wh(samples: list[Sample]) -> float | None:
+# Power is held across a sample interval to integrate energy. Generous enough that any real
+# log rate (1 Hz to a coarse one-per-minute) integrates normally, tight enough that a genuine
+# multi-minute pause can't hold the last wattage and invent energy never drawn.
+ENERGY_MAX_GAP_S = 120.0
+
+
+def _energy_wh(samples: list[Sample], max_gap_s: float = ENERGY_MAX_GAP_S) -> float | None:
+    """Energy DRAWN from the pack over the ride, in Wh.
+
+    Regenerative braking (negative power) is clamped to zero rather than subtracted. Summing
+    signed power made consumption cancel out: a regen-heavy descent drove the integral toward
+    zero, so the harder you braked the more "efficient" you looked — which is what filled the
+    efficiency board with impossible sub-1 Wh/km figures. Gross draw is the honest measure of
+    what the ride cost, and it can't be gamed by braking.
+
+    A sample's power is also only integrated across a real interval: a logging gap must not
+    hold the last known wattage for minutes and invent energy that was never drawn."""
     if not any(s.current is not None for s in samples):
         return None
     wh = 0.0
@@ -178,9 +197,21 @@ def _energy_wh(samples: list[Sample]) -> float | None:
             s.voltage * s.current if (s.voltage is not None and s.current is not None) else None)
         if prev is not None and prev[1] is not None:
             dt = (s.t - prev[0]).total_seconds()
-            wh += prev[1] * dt / 3600.0
+            if 0 < dt <= max_gap_s:
+                wh += max(prev[1], 0.0) * dt / 3600.0     # regen never pays energy back
         prev = (s.t, p)
     return wh if wh > 0 else None
+
+
+def _wh_per_km(wh: float | None, distance_km: float, c: dict) -> float | None:
+    """Wh/km, or None when the ride can't support the claim. Reporting nothing keeps a broken
+    reading off the board entirely; clamping would invent a plausible-looking number instead.
+    Real EUCs sit around 15-80 Wh/km, so anything outside a generous band is a broken power
+    channel or a unit/scale mismatch, not a remarkable wheel."""
+    if wh is None or distance_km < c["eff_min_km"] or distance_km <= 0:
+        return None
+    v = wh / distance_km
+    return v if c["eff_min_wh_km"] <= v <= c["eff_max_wh_km"] else None
 
 
 def _sustained_max(samples: list[Sample], fn, window_s: float = 2.0) -> float | None:
@@ -725,7 +756,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     max_gforce = _sustained_max(samples, g_moving, c["sustain_secs"])
 
     wh = _energy_wh(samples)
-    wh_per_km = (wh / distance) if (wh is not None and distance > 0) else None
+    wh_per_km = _wh_per_km(wh, distance, c)
 
     # voltage is NOT movement-gated: peak voltage is just battery charge, and sag is measured
     # against the RESTING baseline (rest -> hard pull), which gating away would destroy.
