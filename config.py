@@ -82,6 +82,10 @@ RANGE_MIN_BATTERY_PCT = float(os.environ.get("EUCSTATS_RANGE_MIN_BATTERY_PCT", "
 EFF_MIN_KM = float(os.environ.get("EUCSTATS_EFF_MIN_KM", "1"))
 EFF_MIN_WH_KM = float(os.environ.get("EUCSTATS_EFF_MIN_WH_KM", "5"))
 EFF_MAX_WH_KM = float(os.environ.get("EUCSTATS_EFF_MAX_WH_KM", "300"))
+# Full-charge range is extrapolated from one ride, so a short hop or a tiny drain multiplies
+# straight into a number no wheel could achieve. Both the ride and the result must be plausible.
+RANGE_MIN_KM = float(os.environ.get("EUCSTATS_RANGE_MIN_KM", "1"))
+RANGE_MAX_KM = float(os.environ.get("EUCSTATS_RANGE_MAX_KM", "400"))
 MISMATCH_MIN_KM = float(os.environ.get("EUCSTATS_MISMATCH_MIN_KM", "0.5"))    # min distance before odo-vs-GPS mismatch is judged
 
 # --- Rate limits (per hour; 0 disables a given limit) ---

@@ -28,6 +28,8 @@ CALIBRATION_DEFAULTS = {
     "eff_min_km": 1.0,            # km — shorter than this and Wh/km is noise, not efficiency
     "eff_min_wh_km": 5.0,         # Wh/km — below this the power channel is broken, not thrifty
     "eff_max_wh_km": 300.0,       # Wh/km — above this it's a unit/scale error, not a hungry wheel
+    "range_min_km": 1.0,          # km — too short a ride to extrapolate a full-charge range from
+    "range_max_km": 400.0,        # km — beyond any real EUC, so the drain reading was wrong
 }
 MAX_ACCEL_KMH_S = CALIBRATION_DEFAULTS["max_accel"]   # kept for backward compatibility
 
@@ -631,18 +633,38 @@ def _alt_range(samples: list[Sample]) -> float | None:
     return round(max(alts) - min(alts), 1) if len(alts) >= 2 else None
 
 
-def _battery_used(samples: list[Sample]) -> float | None:
-    """Total battery % consumed (sum of drops; ignores mid-ride charging)."""
+def _battery_used(samples: list[Sample], edge_n: int = 30) -> float | None:
+    """Battery % the ride actually consumed: the level it started at minus the level it ended
+    at, each taken as a MEDIAN over the first/last `edge_n` readings.
+
+    Battery % is voltage-derived, so it sags under load and recovers when you ease off.
+    Summing every downward tick counted that sag as consumption — a ride using 20% with 4%
+    sag dips reported 974% drain — which then crushed est_range, since range divides by it.
+    Medians at the two ends only move when the level genuinely moved, and are unbothered by
+    a ride that happens to start or finish mid-sag.
+
+    A ride that charges part-way nets out here rather than accumulating. The extrapolation
+    would be meaningless on such a ride anyway, so netting it out keeps the estimate off the
+    board instead of inventing a flattering one."""
     bs = [s.battery for s in samples if s.battery is not None]
     if len(bs) < 2:
         return None
-    drop = 0.0
-    prev = bs[0]
-    for b in bs[1:]:
-        if b < prev:
-            drop += prev - b
-        prev = b
-    return round(drop, 1)
+    k = max(1, min(edge_n, len(bs) // 4))
+    start = sorted(bs[:k])[k // 2]
+    end = sorted(bs[-k:])[k // 2]
+    drop = start - end
+    return round(drop, 1) if drop > 0 else None
+
+
+def _est_range(distance_km: float, battery_used_pct: float | None, c: dict) -> float | None:
+    """Full-charge range extrapolated from this ride, or None when the ride can't support the
+    claim. A short hop or a tiny drain multiplies straight into a confident-looking number
+    that no wheel could achieve, so both the ride and the result must be plausible."""
+    if (not battery_used_pct or battery_used_pct < c["range_min_battery_pct"]
+            or distance_km < c["range_min_km"]):
+        return None
+    v = distance_km * 100.0 / battery_used_pct
+    return round(v, 1) if v <= c["range_max_km"] else None
 
 
 def _corrob_speed(s: Sample) -> float | None:
@@ -771,8 +793,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     descent_m = _descent_m(mov, c["ascent_hysteresis_m"])
     alt_range_m = _alt_range(mov)
     battery_used_pct = _battery_used(mov)
-    est_range_km = (round(distance * 100.0 / battery_used_pct, 1)
-                    if (battery_used_pct and battery_used_pct >= c["range_min_battery_pct"] and distance > 0) else None)
+    est_range_km = _est_range(distance, battery_used_pct, c)
 
     # absolute per-trip extremes (feed gated min/max boards) — also gated to real riding
     alts = [s.alt for s in mov if s.alt is not None]

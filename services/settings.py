@@ -538,6 +538,8 @@ CALIBRATION = [
     ("eff_min_km", "Min ride distance for Wh/km (km)", "cal_eff_min_km", "EFF_MIN_KM", "float", 0, 100),
     ("eff_min_wh_km", "Lowest believable Wh/km", "cal_eff_min_whkm", "EFF_MIN_WH_KM", "float", 0, 100),
     ("eff_max_wh_km", "Highest believable Wh/km", "cal_eff_max_whkm", "EFF_MAX_WH_KM", "float", 10, 5000),
+    ("range_min_km", "Min ride distance to estimate range (km)", "cal_range_min_km", "RANGE_MIN_KM", "float", 0, 100),
+    ("range_max_km", "Highest believable range (km)", "cal_range_max_km", "RANGE_MAX_KM", "float", 10, 5000),
 ]
 
 

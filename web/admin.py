@@ -1217,6 +1217,8 @@ _PIPELINE_CALC_JS = """
         eff_min_km:function(v){return 'rides under '+v+' km report no Wh/km (too short to measure)';},
         eff_min_wh_km:function(v){return 'under '+v+' Wh/km is a broken power channel, not efficiency';},
         eff_max_wh_km:function(v){return 'over '+v+' Wh/km is a unit/scale error, not a hungry wheel';},
+        range_min_km:function(v){return 'rides under '+v+' km estimate no range (too short to extrapolate)';},
+        range_max_km:function(v){return 'over '+v+' km means the battery drain reading was wrong';},
         freespin_margin:function(v){return 'a spike must beat realistic speed by '+v+' km/h to be a freespin';},
         accel_target_kmh:function(v){return 'launch metric measures 0 → '+v+' km/h';},
         accel_min_s:function(v){return 'launches under '+v+'s are treated as sensor noise';},
