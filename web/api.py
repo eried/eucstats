@@ -225,7 +225,32 @@ def weekly_champion(db: Session = Depends(get_db)):
     return snap.payload if snap else {"champion": None, "top": []}
 
 
-# --- trip ingest ---
+# --- trip status / ingest ---
+
+@router.get("/trips/{trip_uuid}")
+def trip_status(trip_uuid: str, db: Session = Depends(get_db)):
+    """Current verdict for one trip, so the app can refresh a ride it was told was held.
+
+    Without this the upload response was the app's only look at a verdict, and it never
+    expired: a trip an admin later approved stayed "under review" on the phone forever,
+    while already counting on the leaderboards. Re-uploading doesn't help either — the same
+    trip_uuid hits the dedupe and returns the same status.
+
+    Deliberately narrow: verdict, distance and any flag reasons (all of which the upload
+    response already returns), and nothing about who rode where. A trip_uuid is unguessable,
+    but this must not become a way to look up a rider or a location.
+    """
+    from models import Trip
+    t = db.get(Trip, trip_uuid)
+    if t is None:
+        raise HTTPException(404, "trip not found")
+    from services.ingest import _verdict
+    return {"trip_uuid": t.trip_uuid,
+            "validation_status": t.validation_status,
+            "verdict": _verdict(t.validation_status),
+            "distance_km": round(t.distance_km, 3) if t.distance_km is not None else None,
+            "reasons": list(t.flag_reasons or [])}
+
 
 @router.post("/trips")
 async def upload_trip(request: Request, background_tasks: BackgroundTasks,

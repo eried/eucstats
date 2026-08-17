@@ -89,6 +89,30 @@ G-force leaderboards depend on it (DarknessBot CSVs have none).
 
 ---
 
+## 3b. Re-check a held trip — `GET /trips/{trip_uuid}`
+
+```json
+{"trip_uuid":"…","validation_status":"validated","verdict":"accepted",
+ "distance_km":27.5,"reasons":[]}
+```
+
+The upload response is a snapshot, not a final answer. A trip returned as `under_review` is
+held for a human to look at, and when they approve it the verdict changes server-side — the
+app has no way to know unless it asks. **Poll this for any trip the app is still showing as
+pending** (on app open, or when the rider views their rides) and update the icon from the
+result. `404` means the upload never created a trip.
+
+Two things this fixes, both of which riders hit today:
+
+* **Pending is not a failure, and not the rider's fault.** `under_review` means the upload
+  fully succeeded; the ride is stored and simply awaiting review. Don't show it the way an
+  upload error is shown, and don't imply the rider should do something.
+* **Re-uploading does nothing.** The same `trip_uuid` hits the dedupe and returns the same
+  status, so a "retry" affordance on a pending trip can only ever look broken. Retry belongs
+  on transport/HTTP errors (a `4xx`/`5xx` with no trip created), not on a verdict.
+
+---
+
 ## 4. Backfill historical trips
 Offer a "sync past rides" action that uploads the existing files in
 `/sdcard/download/euc/trips/` with their original timestamps (set `tz_known:false` if the
