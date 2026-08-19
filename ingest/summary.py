@@ -217,18 +217,38 @@ def _wh_per_km(wh: float | None, distance_km: float, c: dict) -> float | None:
 
 
 def _sustained_max(samples: list[Sample], fn, window_s: float = 2.0) -> float | None:
-    """Max average of fn(sample) over any trailing window of ~window_s seconds."""
+    """Max average of fn(sample) over any trailing window of ~window_s seconds.
+
+    A window only counts as evidence that a value was HELD when it actually covers the
+    period: at least two points, spanning at least half of window_s, with no internal hole
+    bigger than window_s. Without those checks a lone point was its own window and its
+    instantaneous value was reported as sustained.
+
+    That mattered because the series is not continuous. Callers filter out samples that fail
+    the movement gate, so the surviving points are full of holes, and a single spike landing
+    after one of them stood alone. On a real 1 Hz ride whose g readings had a median of 0.08,
+    one pothole sample sat 9.1 s clear of its neighbours and became a 3.15 g "2-second
+    sustained" record. Every sustained metric is built on this helper, so a single sample
+    could mint a record on any of them.
+
+    Returns None when no window qualifies: no claim is better than a false one."""
     pts = [(s.t, fn(s)) for s in samples if fn(s) is not None]
-    if not pts:
+    if len(pts) < 2:
         return None
+    min_span = window_s * 0.5      # the window has to cover most of the period it claims
     best = None
     left = 0
     ssum = 0.0
     for right in range(len(pts)):
+        if right > 0 and (pts[right][0] - pts[right - 1][0]).total_seconds() > window_s:
+            left, ssum = right, 0.0            # a hole breaks continuity: start a fresh window
         ssum += pts[right][1]
         while (pts[right][0] - pts[left][0]).total_seconds() > window_s:
             ssum -= pts[left][1]
             left += 1
+        span = (pts[right][0] - pts[left][0]).total_seconds()
+        if right - left + 1 < 2 or span < min_span:
+            continue                           # one point, or too little of the period covered
         avg = ssum / (right - left + 1)
         if best is None or avg > best:
             best = avg

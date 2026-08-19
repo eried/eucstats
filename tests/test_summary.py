@@ -22,7 +22,10 @@ def test_summary_odometer_distance():
     assert s.duration_s == 200
     assert s.max_speed == 20.0
     assert s.avg_speed == 15.0                 # mean of MOVING samples >2 km/h: mean(20,10), the 0 is a stop
-    assert s.max_gforce == 0.5
+    # Samples 100 s apart carry no evidence that any g was HELD for 2 s, so the
+    # sustained g-force is not reported. The raw peak is still available as a spike.
+    assert s.max_gforce is None
+    assert s.max_gforce_spike == 0.5
     assert s.wh_per_km is not None and s.wh_per_km > 0
 
 
