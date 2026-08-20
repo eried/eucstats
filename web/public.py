@@ -457,7 +457,11 @@ function flyToRider(e){
   showArea(olon,olat,2.7);                                             // dotted ring near the real area
   map.flyTo({center:[olon,olat],zoom:11.2,curve:1.9,duration:2800,easing:easeInOutCubic,essential:true});
 }
-const CENTROIDS={US:[-98,39,4],GB:[-2,54,5],DE:[10,51,5.2],FR:[2.5,47,5],NO:[9,61,4.6],SE:[16,62,4.4],NL:[5.3,52,6.3],ES:[-3.7,40,5.2],IT:[12.5,42,5.2],PL:[19,52,5.2],CA:[-100,56,3.6],AU:[134,-25,3.9],JP:[138,37,4.6],FI:[26,64,4.4],DK:[10,56,6.2],CH:[8.2,46.8,6.4],AT:[14.5,47.5,5.8],CZ:[15.5,49.8,6.2],PT:[-8,39.5,5.8],SG:[103.8,1.35,9],BR:[-50,-12,3.7],MX:[-102,23,4.5]};
+// [lon, lat, zoom]. The zoom frames the country: wide for the big ones so a fly-to
+// does not land on an anonymous patch of Texas or Siberia, closer for the small ones so
+// Denmark is not shown mostly as its neighbours. Missing entries fall back to CTRY_ZOOM.
+const CENTROIDS={US:[-98,39,4],GB:[-2,54,5],DE:[10,51,5.2],FR:[2.5,47,5],NO:[9,61,4.6],SE:[16,62,4.4],NL:[5.3,52,6.3],ES:[-3.7,40,5.2],IT:[12.5,42,5.2],PL:[19,52,5.2],CA:[-100,56,3.6],AU:[134,-25,3.9],JP:[138,37,4.6],FI:[26,64,4.4],DK:[10,56,6.2],CH:[8.2,46.8,6.4],AT:[14.5,47.5,5.8],CZ:[15.5,49.8,6.2],PT:[-8,39.5,5.8],SG:[103.8,1.35,9],BR:[-50,-12,3.7],MX:[-102,23,4.5],RU:[95,60,2.7],CN:[104,35,3.6],IN:[79,22,4.2],KZ:[67,48,4],AR:[-64,-38,3.6],ID:[118,-2,4],UA:[31,49,5],BE:[4.5,50.6,7],TR:[35,39,4.8],ZA:[25,-29,4.6],NZ:[172,-41,5],IE:[-8,53.2,6.4],HU:[19.5,47.2,6.2],RO:[25,45.9,5.8],GR:[22,39,5.6],BG:[25.5,42.7,6.2],HR:[16.5,45.2,6.4],RS:[21,44,6.4],SK:[19.7,48.7,6.6],SI:[14.8,46.1,7.4],LT:[24,55.3,6.4],LV:[24.9,56.9,6.6],EE:[25.5,58.7,6.6],KR:[128,36.5,6.2],TH:[101,15,5],PH:[122,12,5],IL:[35,31.5,7.2],AE:[54,24,6.4],CL:[-71,-35,4],CO:[-74,4.5,5],PE:[-75,-10,4.6],LU:[6.1,49.8,8.2],MT:[14.4,35.9,9.4],IS:[-19,65,5.4],HK:[114.15,22.35,9.2]};
+const CTRY_ZOOM=5.8;   // fallback for a country with no framing zoom of its own
 function flyToCountry(arg){
   if(!map)return;closePanel();
   const isObj=arg&&typeof arg==="object";
@@ -465,7 +469,9 @@ function flyToCountry(arg){
   const lon=(isObj&&arg.lon!=null)?arg.lon:(c?c[0]:null);   // pan to where riders actually are
   const lat=(isObj&&arg.lat!=null)?arg.lat:(c?c[1]:null);
   if(lon==null||lat==null)return;
-  map.flyTo({center:[lon,lat],zoom:5.8,curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});  // not too near
+  // Frame by country size: a fixed zoom lands too tight in Russia or the US and too wide
+  // in Denmark. CENTROIDS carries a per-country zoom; use it, falling back when unknown.
+  map.flyTo({center:[lon,lat],zoom:(c&&c[2])||CTRY_ZOOM,curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});
 }
 function fitTop3(rows,coordFn){
   if(!map||!rows||!rows.length)return;
@@ -519,6 +525,20 @@ function brandFlow(brand){
 
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
 let openPanel=null;
+// Which tab a section opens on. Always opening the first one meant every other board went
+// unseen, so pick one at random - but only ONCE per browser session, so reopening a panel
+// or coming back to it does not reshuffle under the reader. A fresh page load picks again.
+// Storage blocked (private mode) falls back to the first tab, as before.
+function initialTab(sec,n){
+  if(n<=1)return 0;
+  try{
+    const k="eucstats_tab_"+sec, v=parseInt(sessionStorage.getItem(k),10);
+    if(v>=0&&v<n)return v;
+    const i=Math.floor(Math.random()*n);
+    sessionStorage.setItem(k,i);
+    return i;
+  }catch(e){return 0;}
+}
 function RA(i){return i<3?('animation:rowin .5s both, shinebg 7s ease-in-out '+(1.1+i*0.55)+'s infinite'):('animation:rowin .5s both;animation-delay:'+(i*55)+'ms');}
 function GSB(i){return i===0?' gold1':i===1?' silv':i===2?' brnz':'';}
 function _tipEl(){return document.getElementById("tip");}
@@ -582,9 +602,10 @@ function podList(rows,cfg){
 function showRiders(){
   const isH=b=>HIDE.boards.includes(b.k);
   const vis=isAdminView()?BOARDS:BOARDS.filter(b=>!isH(b));
-  setPanel("riders",t("title.riders"),`<div class="tabs${rowsCls(vis.length)}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||IC[b.ic]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  const sel=initialTab("riders",vis.length);
+  setPanel("riders",t("title.riders"),`<div class="tabs${rowsCls(vis.length)}">${vis.map((b,i)=>`<button class="tab${i===sel?' on':''}${isH(b)?' peek':''}" data-b="${b.k}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${IC[b.k]||IC[b.ic]||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");loadBoard(t.dataset.b);});
-  bindTips(pbody,true);if(vis[0])loadBoard(vis[0].k);
+  bindTips(pbody,true);if(vis[sel])loadBoard(vis[sel].k);
 }
 async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
@@ -631,9 +652,10 @@ async function showGroupPanel(kind,name,title,cfg){
   const isH=b=>hid.includes(b.k);
   const gord=orderBy(GBOARDS,ORDER[{countries:"gcountries",wheels:"gwheels",brands:"gbrands"}[name]],b=>b.k);
   const vis=isAdminView()?gord:gord.filter(b=>!isH(b));
-  setPanel(name,title,`<div class="tabs${rowsCls(vis.length)}">${vis.map((b,i)=>`<button class="tab${i?'':' on'}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
+  const sel=initialTab(name,vis.length);
+  setPanel(name,title,`<div class="tabs${rowsCls(vis.length)}">${vis.map((b,i)=>`<button class="tab${i===sel?' on':''}${isH(b)?' peek':''}" data-b="${i}" data-tip="${(bd(b)||'').replace(/"/g,'&quot;')}">${b.ic||''}<span>${bt(b)}</span></button>`).join("")}</div><div class="tabcap" id="tabcap"></div><div id="lb"></div>`);
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
-  bindTips(pbody,true);if(vis[0])renderGroup(vis[0],cfg);
+  bindTips(pbody,true);if(vis[sel])renderGroup(vis[sel],cfg);
 }
 function showCountries(){showGroupPanel("country","countries",t("title.countries"),{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
 function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+t("u.riders",{n:e.riders||0})});}
