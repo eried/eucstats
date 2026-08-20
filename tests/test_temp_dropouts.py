@@ -52,10 +52,16 @@ def test_a_genuinely_cold_ride_still_registers():
     assert sm.max_temp <= 2.0
 
 
-def test_an_all_zero_channel_is_left_alone():
-    """No non-zero reading exists to prefer, so behaviour is unchanged."""
-    kept = [v for _, v in _valid_temp_points(ride([0.0] * 100))]
-    assert kept and max(kept) == 0.0
+def test_an_all_zero_channel_reports_nothing():
+    """Never a real reading: the wheel has no temperature sensor wired, it is not freezing.
+
+    Publishing 0 C would put a wheel that never reported a temperature at the top of the
+    coldest-ride board. A genuinely freezing ride has sensor resolution and drift, so it is
+    never exactly 0.0 for every single sample.
+    """
+    assert _valid_temp_points(ride([0.0] * 100)) == []
+    sm = summarize(ride([0.0] * 100))
+    assert sm.min_temp is None and sm.max_temp is None
 
 
 def test_a_normal_warm_ride_is_unaffected():

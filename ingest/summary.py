@@ -421,8 +421,12 @@ def _valid_temp_points(samples: list[Sample]) -> list[tuple]:
     # around zero and still has non-zero samples to anchor on, so it is unaffected, and a
     # channel that is all zeros has nothing to prefer and behaves exactly as before.
     real = [v for v in vals if v != 0.0]
-    basis = real or vals
-    anchor = sorted(basis)[len(basis) // 2]                     # median of real readings
+    if not real:
+        return []      # every reading is the placeholder: the channel is dead, not freezing.
+                       # Publishing 0 C would put a wheel that never reported a temperature
+                       # at the top of the coldest-ride board. A real freezing ride has
+                       # sensor resolution and drift, so it is never exactly 0.0 throughout.
+    anchor = sorted(real)[len(real) // 2]                       # median of real readings
     seed = min(range(len(pts)), key=lambda i: abs(pts[i][1] - anchor))
 
     def _ok(t_a, v_a, t_b, v_b) -> bool:
