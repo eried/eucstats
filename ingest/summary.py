@@ -413,7 +413,16 @@ def _valid_temp_points(samples: list[Sample]) -> list[tuple]:
     if len(pts) <= 1:
         return pts
     vals = [v for _, v in pts]
-    anchor = sorted(vals)[len(vals) // 2]                       # median
+    # Exactly 0.0 is the firmware's "no reading" placeholder, and on some logs it is the
+    # MAJORITY of samples (79-81% on real rides). Anchoring on the overall median would
+    # then land on 0.0 and the slew walk below would evict every genuine reading instead
+    # of the dropouts, publishing a board that ran at 55 C as a ride at freezing point.
+    # Prefer a real reading as the anchor when one exists. A genuinely cold ride drifts
+    # around zero and still has non-zero samples to anchor on, so it is unaffected, and a
+    # channel that is all zeros has nothing to prefer and behaves exactly as before.
+    real = [v for v in vals if v != 0.0]
+    basis = real or vals
+    anchor = sorted(basis)[len(basis) // 2]                     # median of real readings
     seed = min(range(len(pts)), key=lambda i: abs(pts[i][1] - anchor))
 
     def _ok(t_a, v_a, t_b, v_b) -> bool:
