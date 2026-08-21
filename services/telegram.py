@@ -17,7 +17,7 @@ import html
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -319,6 +319,54 @@ def _local_day_range_utc(tz_name: str, the_date) -> tuple[datetime, datetime]:
             end_local.astimezone(utc).replace(tzinfo=None))
 
 
+def _trip_zone(tz_value, fallback: str):
+    """The zone a trip was ridden in. Ingest stores either an IANA name ("America/New_York")
+    or, when the app sent no zone, the raw tz_offset_min as a string ("-240")."""
+    s = str(tz_value or "").strip()
+    if s:
+        try:
+            return _zone(s)
+        except Exception:
+            pass
+        try:
+            return timezone(timedelta(minutes=int(float(s))))
+        except (TypeError, ValueError):
+            pass
+    return _zone(fallback)
+
+
+def _local_day(start_utc, tz_value, fallback: str):
+    """The rider's own calendar date for a trip (DB times are naive UTC)."""
+    return start_utc.replace(tzinfo=_zone("UTC")).astimezone(
+        _trip_zone(tz_value, fallback)).date()
+
+
+def day_trips(db, the_date, cfg: dict) -> list:
+    """Validated trips whose LOCAL day is `the_date`, wherever the rider was.
+
+    The recap used to take one UTC window from the site's timezone and apply it to
+    everyone. Riders here span UTC+8 to UTC-6, so a New York evening ride landed in the
+    next day's recap and a single evening could be split across two posts. Each trip
+    records its own zone, so bucket by that instead.
+
+    The candidate window is widened by a day either side to cover every offset on earth
+    (UTC-12..UTC+14); the exact test is then done per trip.
+    """
+    from models import Trip
+    tz_name = cfg.get("summary_tz") or "Europe/Oslo"
+    lo = datetime(the_date.year, the_date.month, the_date.day) - timedelta(days=1)
+    hi = lo + timedelta(days=3)
+    rows = db.query(Trip).filter(
+        Trip.start_utc >= lo, Trip.start_utc < hi,
+        Trip.start_utc.isnot(None),
+        Trip.validation_status == "validated").all()
+    return [t for t in rows if _local_day(t.start_utc, t.tz, tz_name) == the_date]
+
+
+def day_distance_km(db, the_date, cfg: dict) -> float:
+    return round(sum(t.distance_km or 0.0 for t in day_trips(db, the_date, cfg)), 1)
+
+
 def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
     """Recap of one local day. Returns None for a silent day (no new riders and no rides)."""
     from sqlalchemy import func
@@ -326,25 +374,22 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
     from services import stats
     start, end = _local_day_range_utc(cfg.get("summary_tz") or "Europe/Oslo", recap_date)
 
+    # New riders are a site-level count, so they keep the site's day. Rides are bucketed by
+    # the rider's own day: see [day_trips].
     new_riders = db.query(func.count(Rider.store_id)).filter(
         Rider.created_at >= start, Rider.created_at < end,
         Rider.deleted_at.is_(None), Rider.consent_public.is_(True)).scalar() or 0
-    day_trips = db.query(Trip).filter(
-        Trip.start_utc >= start, Trip.start_utc < end,
-        Trip.validation_status == "validated")
-    trips_n = day_trips.count()
-    km = round(db.query(func.coalesce(func.sum(Trip.distance_km), 0.0)).filter(
-        Trip.start_utc >= start, Trip.start_utc < end,
-        Trip.validation_status == "validated").scalar() or 0, 1)
+    trips = day_trips(db, recap_date, cfg)
+    trips_n = len(trips)
+    km = round(sum(t.distance_km or 0.0 for t in trips), 1)
     if new_riders == 0 and trips_n == 0:
         return None
 
     top_line = ""
-    rows = (db.query(Trip.rider_store_id, func.sum(Trip.distance_km).label("d"))
-              .filter(Trip.start_utc >= start, Trip.start_utc < end,
-                      Trip.validation_status == "validated")
-              .group_by(Trip.rider_store_id)
-              .order_by(func.sum(Trip.distance_km).desc()).all())
+    per_rider = {}
+    for tr_ in trips:                             # same day definition as the totals above
+        per_rider[tr_.rider_store_id] = per_rider.get(tr_.rider_store_id, 0.0) + (tr_.distance_km or 0.0)
+    rows = sorted(per_rider.items(), key=lambda kv: kv[1], reverse=True)
     for sid, d in rows:                           # first public, non-deleted rider wins
         tr = db.get(Rider, sid)
         if tr and tr.deleted_at is None and tr.consent_public:
