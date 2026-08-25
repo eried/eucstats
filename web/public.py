@@ -141,7 +141,7 @@ table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;text-align:left}
 tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:700;font-variant-numeric:tabular-nums}
 .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
 .mut{color:var(--mut)}.rider{display:flex;align-items:center;gap:9px}
-.anonav{box-shadow:0 0 0 1.5px rgba(154,166,200,.55),0 1px 5px rgba(0,0,0,.5);image-rendering:pixelated}.anonflag{opacity:.7;filter:grayscale(.35)}.anonrow>span:last-child{color:var(--mut)}.av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto;vertical-align:middle;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 1px 5px rgba(0,0,0,.5)}
+.anonav{box-shadow:0 0 0 1.5px rgba(154,166,200,.55),0 1px 5px rgba(0,0,0,.5);image-rendering:pixelated}.anonflag{opacity:.9}.anonrow>span:last-child{color:var(--mut)}.av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto;vertical-align:middle;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 1px 5px rgba(0,0,0,.5)}
 .avph{background:linear-gradient(135deg,#2a3566,#141a30)}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
@@ -306,7 +306,15 @@ function dazzle(mark){
     `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">`+
     `<rect width="50" height="50" fill="hsl(${hue},34%,16%)"/>${cells}</svg>`);
 }
-const GLOBE='<span class="flag anonflag">&#127760;</span>';
+// A neutral stand-in at exactly the same 20x15 geometry as a real flag, so rows still
+// line up. Inline SVG rather than an emoji: .flag is sized and shadowed for an <img>,
+// so a glyph in that box gets clipped into a rectangle, and 🌐 is missing from some
+// system fonts entirely. No country colours, by design.
+const GLOBE='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" aria-label="Country hidden">'
+  +'<rect width="20" height="15" rx="2" fill="#252d4d"/>'
+  +'<circle cx="10" cy="7.5" r="4.3" fill="none" stroke="#9aa6c8" stroke-width="1.1"/>'
+  +'<path d="M5.7 7.5h8.6M10 3.2c1.85 2.2 1.85 6.4 0 8.6M10 3.2c-1.85 2.2-1.85 6.4 0 8.6" fill="none" stroke="#9aa6c8" stroke-width="1.1" stroke-linecap="round"/>'
+  +'</svg>';
 const anonName=e=>e.alias||e.name||"Rider";
 const av=(id,has,e)=>anonView(e)?`<img class="av anonav" alt="" src="${dazzle(e.mark)}"/>`
   :(has===false?'<span class="av avph"></span>':`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
