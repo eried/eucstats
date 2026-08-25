@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta
 
-from sqlalchemy import case, desc, func
+from sqlalchemy import and_, case, desc, func, null
 
 from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip, Wheel, utcnow
 
@@ -438,14 +438,30 @@ def _mask(col, metric, blocked):
     return case((Trip.trip_uuid.in_(ids), None), else_=col) if ids else col
 
 
-def _grp_aggs(blocked=None):
+def _public_speed(limits):
+    """Trip.max_speed, nulled where it is above the limit for the country it was ridden in.
+
+    A group's top speed names nobody, but the VALUE does: an anonymised rider showing
+    93.3 km/h beside a country whose top speed is 93.3 km/h identifies them, and the same
+    correlation runs through the wheel and brand boards - often one rider owns the only wheel
+    of a model. So a ride that is incognito on the rider board is dropped from every public
+    speed aggregate, not just the country one.
+    """
+    if not limits:
+        return Trip.max_speed
+    whens = [(and_(Trip.country == code, Trip.max_speed > lim), null())
+             for code, lim in limits.items()]
+    return case(*whens, else_=Trip.max_speed)
+
+
+def _grp_aggs(blocked=None, limits=None):
     """Full metric set for a group (country / brand / wheel) — same dimensions as the rider
     boards. `blocked` (from settings.blocked_trip_uuids) nulls metrics flagged invalid for a
     wheel model so a bad channel doesn't poison the group standings."""
     return (func.coalesce(func.sum(Trip.distance_km), 0.0),
             func.count(func.distinct(Trip.rider_store_id)),
             func.count(Trip.trip_uuid),
-            func.max(_mask(Trip.max_speed, "speed", blocked)),
+            func.max(_mask(_public_speed(limits), "speed", blocked)),
             func.max(_mask(Trip.max_gforce, "gforce", blocked)),
             func.max(_mask(Trip.max_sustained_w, "power", blocked)),
             func.max(_mask(Trip.max_sustained_a, "current", blocked)),
@@ -482,7 +498,8 @@ def _grp_entry(name, km, riders, trips, speed, g, w, a, v, accel, ascent, rng, w
 def by_brand(db, limit=50):
     import services.settings as settings
     blk = settings.blocked_trip_uuids(db)
-    rows = (db.query(Wheel.brand, *_grp_aggs(blk))
+    lim = settings.get_speed_privacy(db)
+    rows = (db.query(Wheel.brand, *_grp_aggs(blk, lim))
             .join(Trip, Trip.wheel_id == Wheel.wheel_id)
             .filter(Trip.validation_status == "validated", Wheel.brand.isnot(None), Wheel.brand != "")
             .group_by(Wheel.brand).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
@@ -500,7 +517,8 @@ def _wheel_name(brand, model):
 def by_wheel(db, limit=50):
     import services.settings as settings
     blk = settings.blocked_trip_uuids(db)
-    rows = (db.query(Wheel.brand, Wheel.model, *_grp_aggs(blk))
+    lim = settings.get_speed_privacy(db)
+    rows = (db.query(Wheel.brand, Wheel.model, *_grp_aggs(blk, lim))
             .join(Trip, Trip.wheel_id == Wheel.wheel_id)
             .filter(Trip.validation_status == "validated", Wheel.model.isnot(None), Wheel.model != "")
             .group_by(Wheel.brand, Wheel.model).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
@@ -515,7 +533,8 @@ def by_wheel(db, limit=50):
 def by_country(db, limit=50):
     import services.settings as settings
     blk = settings.blocked_trip_uuids(db)
-    rows = (db.query(Trip.country, *_grp_aggs(blk))
+    lim = settings.get_speed_privacy(db)
+    rows = (db.query(Trip.country, *_grp_aggs(blk, lim))
             .join(Rider, Rider.store_id == Trip.rider_store_id)
             .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False),
                     Trip.country.isnot(None), Trip.country != "")

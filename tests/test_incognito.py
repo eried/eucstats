@@ -110,3 +110,50 @@ def test_limits_are_editable_without_a_deploy(db):
     assert settings.speed_privacy_limit(db, "DK") == 30
     assert settings.speed_privacy_limit(db, "ZZ") == 10
     assert settings.speed_privacy_limit(db, "FR") is None      # replaced wholesale
+
+
+# --- group boards must not re-identify an anonymised rider ------------------------------
+
+def _trip(db, sid, uuid, country, speed, km=10.0, wheel=None):
+    db.add(models.Trip(trip_uuid=uuid, rider_store_id=sid, country=country,
+                       max_speed=speed, distance_km=km, wheel_id=wheel,
+                       validation_status="validated"))
+    db.commit()
+
+
+def test_a_country_does_not_publish_an_over_limit_top_speed(db):
+    """The value itself identifies: an anonymous rider at 93.3 and a country whose top speed
+    is 93.3 name each other, which undoes the anonymity on the rider board."""
+    _rider(db, "ua1", "Fast", "UA", 93.3)
+    _trip(db, "ua1", "t-fast", "UA", 93.3)
+    _trip(db, "ua1", "t-legal", "UA", 24.0)
+    row = [e for e in stats.by_country(db) if e["name"] == "UA"][0]
+    assert row["top_speed"] != 93.3, "the over-limit speed is still published"
+    assert row["top_speed"] == 24.0, "should fall back to the fastest publishable ride"
+
+
+def test_a_country_with_no_rule_publishes_normally(db):
+    _rider(db, "us9", "Yank", "US", 134.2)
+    _trip(db, "us9", "t-us", "US", 134.2)
+    row = [e for e in stats.by_country(db) if e["name"] == "US"][0]
+    assert row["top_speed"] == 134.2
+
+
+def test_the_wheel_board_is_masked_too(db):
+    """One rider often owns the only wheel of a model, so a model's top speed names them."""
+    _rider(db, "dk9", "Dane", "DK", 80.0)
+    db.add(models.Wheel(wheel_id="W1", rider_store_id="dk9", brand="Veteran", model="Lynx S"))
+    db.commit()
+    _trip(db, "dk9", "t-w1", "DK", 80.0, wheel="W1")
+    _trip(db, "dk9", "t-w2", "DK", 19.0, wheel="W1")
+    row = [e for e in stats.by_wheel(db) if e["name"] == "Lynx S"][0]
+    assert row["top_speed"] != 80.0
+    assert row["top_speed"] == 19.0
+
+
+def test_a_country_with_only_over_limit_rides_publishes_nothing(db):
+    """Better no value than one that points at a person."""
+    _rider(db, "no9", "Norsk", "NO", 60.0)
+    _trip(db, "no9", "t-no", "NO", 60.0)
+    row = [e for e in stats.by_country(db) if e["name"] == "NO"][0]
+    assert row["top_speed"] is None
