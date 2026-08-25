@@ -861,6 +861,17 @@ async function init(){
     runIntro();
   }
   const vid=document.getElementById("intro"),fx=document.getElementById("introfx");
+  // Declared HERE, in init() scope, because doIntro() above calls it. A const inside the
+  // else-branch below is block-scoped and invisible to doIntro, which threw a ReferenceError
+  // and took the whole UI down with it - the page loaded a map and no chrome.
+  //
+  // Clearing the video waits for the map: the chrome only appears from doIntro(), so tearing
+  // down first left a skipped intro looking like a page that had failed to load. Holding the
+  // last frame costs nothing when the map is already there, and covers the gap when it isn't.
+  let tornDown=false;
+  const teardown=()=>{ if(tornDown) return; tornDown=true;
+    if(vid){vid.classList.add("done"); setTimeout(()=>{vid&&vid.remove();},2000);}
+    if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} };
   const _C=window.__CFG__||{};
   const _introOff=localStorage.getItem("eucstats_intro_off")==="1";   // visitor opted out via the gear menu
   if(_C.intro_enabled===false||_introOff){ if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; }
@@ -870,15 +881,6 @@ async function init(){
   // Skipping is just a fourth trigger for the single exit path below (the others being the
   // video ending, erroring, and the safety timeout), so it needs no state of its own.
   let skipOff=null;
-  // Clearing the video is deferred until the map is ready. The iris used to close the moment
-  // the video finished, but the chrome behind it only appears from doIntro(), which waits for
-  // mapReady - so skipping ahead of a slow map left the page looking unloaded. Holding the
-  // last frame costs nothing when the map is already there (the common case), and covers the
-  // gap when it is not.
-  let tornDown=false;
-  const teardown=()=>{ if(tornDown) return; tornDown=true;
-    if(vid){vid.classList.add("done"); setTimeout(()=>{vid&&vid.remove();},2000);}
-    if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} };
   const endVideo=()=>{ if(videoDone) return; videoDone=true;
     if(skipOff){skipOff();skipOff=null;}
     try{localStorage.setItem("eucstats_intro_seen","1");}catch(e){}
