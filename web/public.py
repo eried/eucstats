@@ -841,22 +841,32 @@ async function init(){
   const introSeen=localStorage.getItem("eucstats_intro_seen");
   // Skipping is just a fourth trigger for the single exit path below (the others being the
   // video ending, erroring, and the safety timeout), so it needs no state of its own.
-  let keySkip=null;
+  let skipOff=null;
   const endVideo=()=>{ if(videoDone) return; videoDone=true;
-    if(keySkip){removeEventListener("keydown",keySkip);keySkip=null;}
+    if(skipOff){skipOff();skipOff=null;}
     try{localStorage.setItem("eucstats_intro_seen","1");}catch(e){}
     if(vid){vid.classList.add("done"); setTimeout(()=>{vid&&vid.remove();},2000);}
     if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} doIntro(); };
   if(vid){
     vid.onended=endVideo; vid.onerror=endVideo;
-    // Tap/click anywhere, or Esc, skips. The video already covers the viewport at z-index
-    // 3000 with no controls, so a click on it does nothing today, and #introfx above it is
-    // pointer-events:none so taps fall through to here. Nothing else is clickable during
-    // the intro (the dock and gear are .intro without .show), so this steals no clicks.
-    // doIntro() still waits for mapReady, so skipping early cannot reveal a half-built map.
-    vid.addEventListener("pointerdown",endVideo);
-    keySkip=e=>{if(e.key==="Escape"||e.key==="Enter"||e.key===" ")endVideo();};
-    addEventListener("keydown",keySkip);
+    // Click/tap or Esc runs the video to its end instead of cutting it short: seek into the
+    // last second and let it finish, so `onended` fires exactly as it always did and the
+    // closing frames still play. Nothing below is touched by this - the full first view, the
+    // seek-to-the-end repeat view and the "no intro" setting all keep their own logic.
+    // The listener is on window rather than the video: the video is under a full-screen
+    // overlay and its own clip-path, and nothing else is clickable during the intro anyway
+    // (the dock and gear are .intro without .show), so this steals no clicks.
+    const skip=e=>{
+      if(e.type==="keydown"&&!(e.key==="Escape"||e.key==="Enter"||e.key===" "))return;
+      var seeked=false;
+      try{ var target=vid.duration-1.0;
+        if(isFinite(target)&&target>vid.currentTime){ vid.currentTime=target; seeked=true;
+          var p2=vid.play&&vid.play(); if(p2&&p2.catch)p2.catch(()=>{}); }
+      }catch(_){}
+      if(!seeked) endVideo();   // duration unknown, or already inside the last second
+    };
+    addEventListener("pointerdown",skip); addEventListener("keydown",skip);
+    skipOff=()=>{removeEventListener("pointerdown",skip);removeEventListener("keydown",skip);};
     if(introSeen){   // repeat visit: hide frame 0, seek to the final second, then reveal
       vid.style.filter="brightness(0)";
       const reveal1=()=>{vid.style.filter="";};
