@@ -839,11 +839,24 @@ async function init(){
   else {
   if(vid&&_C.intro_src){const _so=vid.querySelector("source"); if(_so&&_so.getAttribute("src")!==_C.intro_src){_so.setAttribute("src",_C.intro_src); vid.load();}}
   const introSeen=localStorage.getItem("eucstats_intro_seen");
-  const endVideo=()=>{ if(videoDone) return; videoDone=true; try{localStorage.setItem("eucstats_intro_seen","1");}catch(e){}
+  // Skipping is just a fourth trigger for the single exit path below (the others being the
+  // video ending, erroring, and the safety timeout), so it needs no state of its own.
+  let keySkip=null;
+  const endVideo=()=>{ if(videoDone) return; videoDone=true;
+    if(keySkip){removeEventListener("keydown",keySkip);keySkip=null;}
+    try{localStorage.setItem("eucstats_intro_seen","1");}catch(e){}
     if(vid){vid.classList.add("done"); setTimeout(()=>{vid&&vid.remove();},2000);}
     if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} doIntro(); };
   if(vid){
     vid.onended=endVideo; vid.onerror=endVideo;
+    // Tap/click anywhere, or Esc, skips. The video already covers the viewport at z-index
+    // 3000 with no controls, so a click on it does nothing today, and #introfx above it is
+    // pointer-events:none so taps fall through to here. Nothing else is clickable during
+    // the intro (the dock and gear are .intro without .show), so this steals no clicks.
+    // doIntro() still waits for mapReady, so skipping early cannot reveal a half-built map.
+    vid.addEventListener("pointerdown",endVideo);
+    keySkip=e=>{if(e.key==="Escape"||e.key==="Enter"||e.key===" ")endVideo();};
+    addEventListener("keydown",keySkip);
     if(introSeen){   // repeat visit: hide frame 0, seek to the final second, then reveal
       vid.style.filter="brightness(0)";
       const reveal1=()=>{vid.style.filter="";};
