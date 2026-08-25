@@ -141,7 +141,7 @@ table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;text-align:left}
 tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:700;font-variant-numeric:tabular-nums}
 .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
 .mut{color:var(--mut)}.rider{display:flex;align-items:center;gap:9px}
-.av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto;vertical-align:middle;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 1px 5px rgba(0,0,0,.5)}
+.anonav{box-shadow:0 0 0 1.5px rgba(154,166,200,.55),0 1px 5px rgba(0,0,0,.5);image-rendering:pixelated}.anonflag{opacity:.7;filter:grayscale(.35)}.anonrow>span:last-child{color:var(--mut)}.av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto;vertical-align:middle;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 1px 5px rgba(0,0,0,.5)}
 .avph{background:linear-gradient(135deg,#2a3566,#141a30)}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
@@ -282,8 +282,35 @@ function applyI18n(){
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
-const av=(id,has)=>has===false?'<span class="av avph"></span>':`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`;
-const rider=e=>`<span class="rider">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
+// --- incognito riders (speed boards only) -------------------------------------------
+// A speed entry above the local limit is published with no identity: the server sends an
+// alias and a "mark" instead of a name, flag, avatar and rider id. Nothing here can undo
+// that, because nothing here was ever given the identity. For a signed-in admin the server
+// DOES send the real rider alongside the marker, so the eye toggle can show either view -
+// which is why this asks isAdminView() rather than trusting the payload alone.
+const anonView=e=>!!(e&&e.anon)&&!isAdminView();
+// Deterministic pattern drawn from the mark: stable per rider (so one anonymous rider keeps
+// one face across the board) and carrying nothing that can be run backwards.
+function dazzle(mark){
+  const h=[];for(let i=0;i<(mark||"").length;i++)h.push(parseInt(mark[i],16)||0);
+  if(!h.length)h.push(0);
+  const hue=((h[0]*16+(h[1]||0))*360/256)|0;
+  let cells="";
+  for(let y=0;y<5;y++)for(let x=0;x<3;x++){
+    if((h[(y*3+x)%h.length]&1)===0)continue;
+    const c=`hsl(${(hue+h[(y+x)%h.length]*7)%360},64%,${52+(h[(y*2+x)%h.length]%5)*4}%)`;
+    cells+=`<rect x="${x*10}" y="${y*10}" width="10" height="10" fill="${c}"/>`;
+    if(x<2)cells+=`<rect x="${(4-x)*10}" y="${y*10}" width="10" height="10" fill="${c}"/>`;
+  }
+  return "data:image/svg+xml;utf8,"+encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">`+
+    `<rect width="50" height="50" fill="hsl(${hue},34%,16%)"/>${cells}</svg>`);
+}
+const GLOBE='<span class="flag anonflag">&#127760;</span>';
+const anonName=e=>e.alias||e.name||"Rider";
+const av=(id,has,e)=>anonView(e)?`<img class="av anonav" alt="" src="${dazzle(e.mark)}"/>`
+  :(has===false?'<span class="av avph"></span>':`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
+const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.store_id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||e.store_id)}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
 const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v3a2 2 0 0 1-2 2H4M20 9h-3a2 2 0 0 1-2-2V4M4 15h3a2 2 0 0 1 2 2v3M15 20v-3a2 2 0 0 1 2-2h3"/></svg>';
@@ -593,10 +620,10 @@ function brandLogo(name){const mono=(name||"?").replace(/[^A-Za-z0-9]/g,"").slic
   return `<span class="blogo"><span class="bmono">${mono}</span><img alt="" src="/static/brands/${BRANDSLUG(name)}.png" onerror="this.remove()"></span>`;}
 function podList(rows,cfg){
   if(!rows||!rows.length) return '<div class="empty">'+t("empty.nodata")+'</div>';
-  const o=[1,0,2],rkn=[t("pod.1"),t("pod.2"),t("pod.3")],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>cfg.flag?cc(cfg.flag(e)):'';
-  const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.store_id,e.has_avatar):(cfg.iconFn?`<div class="podic">${cfg.iconFn(e)}</div>`:(cfg.icon?`<div class="podic">${cfg.icon}</div>`:''))}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
+  const o=[1,0,2],rkn=[t("pod.1"),t("pod.2"),t("pod.3")],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>anonView(e)?GLOBE:(cfg.flag?cc(cfg.flag(e)):'');
+  const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.store_id,e.has_avatar,e):(cfg.iconFn?`<div class="podic">${cfg.iconFn(e)}</div>`:(cfg.icon?`<div class="podic">${cfg.icon}</div>`:''))}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
   const rest=rows.slice(3);let list='';
-  if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td><span class="celln">${cfg.av?av(e.store_id,e.has_avatar):''}${fl(e)}<span>${cfg.label(e)}</span></span></td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
+  if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td><span class="celln">${cfg.av?av(e.store_id,e.has_avatar,e):''}${fl(e)}<span>${cfg.label(e)}</span></span></td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
   return pod+list;
 }
 function showRiders(){
@@ -611,7 +638,7 @@ async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
   if(!cont)return;
   if(b){var ci=IC[b.k]||IC[b.ic]||'';setCap(b.tone?'<span style="color:'+b.tone+'">'+ci+'</span>':ci,bd(b));}
-  cont.innerHTML=podList(rows,{av:true,flag:e=>e.flag,label:e=>e.name||e.store_id,val:e=>bval(b,e[b.c]),click:true});
+  cont.innerHTML=podList(rows,{av:true,flag:e=>anonView(e)?null:e.flag,label:e=>anonView(e)?anonName(e):(e.name||e.store_id),val:e=>bval(b,e[b.c]),click:true});
   cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToRider(rows[+el.dataset.i]));
   fitTop3(rows,e=>[e.lon,e.lat]);
 }
@@ -662,13 +689,13 @@ function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WH
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
   const recs=orderBy((await j("/records")).filter(r=>r.value!=null&&(isAdminView()||!HIDE.records.includes(r.key))),ORDER.records,r=>r.key);
-  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar)}<span>${r.rider.name||r.rider.store_id}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
+  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${anonView(r.rider)?GLOBE:cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar,r.rider)}<span>${anonView(r.rider)?anonName(r.rider):(r.rider.name||r.rider.store_id)}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
 async function showTech(){
   const d=await j("/stats/versions");
   const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
-  const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar)}${cc(e.flag)}<span>${e.name||e.store_id}</span></span>`;
+  const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||e.store_id)}</span></span>`;
   const sec=(key,t,h)=>{var hid=HIDE.app.includes(key);if(hid&&!isAdminView())return "";return `<div class="vsec${hid?' peek':''}"><div class="vtitle">${t}</div>${h}</div>`;};
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>'+t("empty.nodata")+'</td></tr>'}</table>`;
   const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>'+t("empty.nodata")+'</p>';};
@@ -828,6 +855,7 @@ async function init(){
   }
   function doIntro(){
     if(introRan||!mapReady||!videoDone) return; introRan=true;
+    teardown();                       // safe to clear the video now: there is a map behind it
     const [tlon,tlat,tz]=pickTarget();
     map.flyTo({center:[tlon,tlat],zoom:Math.max(1.5,tz-0.5),duration:5000,curve:1.5,easing:easeInOutCubic,essential:true});  // -0.5: settle slightly further out
     runIntro();
@@ -842,11 +870,20 @@ async function init(){
   // Skipping is just a fourth trigger for the single exit path below (the others being the
   // video ending, erroring, and the safety timeout), so it needs no state of its own.
   let skipOff=null;
+  // Clearing the video is deferred until the map is ready. The iris used to close the moment
+  // the video finished, but the chrome behind it only appears from doIntro(), which waits for
+  // mapReady - so skipping ahead of a slow map left the page looking unloaded. Holding the
+  // last frame costs nothing when the map is already there (the common case), and covers the
+  // gap when it is not.
+  let tornDown=false;
+  const teardown=()=>{ if(tornDown) return; tornDown=true;
+    if(vid){vid.classList.add("done"); setTimeout(()=>{vid&&vid.remove();},2000);}
+    if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} };
   const endVideo=()=>{ if(videoDone) return; videoDone=true;
     if(skipOff){skipOff();skipOff=null;}
     try{localStorage.setItem("eucstats_intro_seen","1");}catch(e){}
-    if(vid){vid.classList.add("done"); setTimeout(()=>{vid&&vid.remove();},2000);}
-    if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} doIntro(); };
+    if(mapReady) teardown();
+    doIntro(); };
   if(vid){
     vid.onended=endVideo; vid.onerror=endVideo;
     // Click/tap or Esc runs the video to its end instead of cutting it short: seek into the
@@ -859,7 +896,7 @@ async function init(){
     const skip=e=>{
       if(e.type==="keydown"&&!(e.key==="Escape"||e.key==="Enter"||e.key===" "))return;
       var seeked=false;
-      try{ var target=vid.duration-1.0;
+      try{ var target=vid.duration-0.4;
         if(isFinite(target)&&target>vid.currentTime){ vid.currentTime=target; seeked=true;
           var p2=vid.play&&vid.play(); if(p2&&p2.catch)p2.catch(()=>{}); }
       }catch(_){}

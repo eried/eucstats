@@ -164,12 +164,24 @@ def i18n_locale(loc: str):
     return table
 
 
+def _admin_session(request: Request) -> bool:
+    """A signed-in admin gets incognito entries with the identity still attached, so the
+    panel's eye toggle can show either view. Everyone else never receives it at all."""
+    try:
+        return bool(request.session.get("admin_auth", False))
+    except Exception:
+        return False
+
+
 @router.get("/leaderboards/{board}")
-def leaderboard(board: str, limit: int = 50, db: Session = Depends(get_db)):
+def leaderboard(board: str, request: Request, limit: int = 50, db: Session = Depends(get_db)):
     fn = stats.BOARDS.get(board)
     if fn is None:
         raise HTTPException(404, f"unknown board: {board}")
-    return {"board": board, "entries": fn(db, min(limit, 200))}
+    n = min(limit, 200)
+    if board == "speed":                        # the only board that can carry incognito rows
+        return {"board": board, "entries": fn(db, n, reveal=_admin_session(request))}
+    return {"board": board, "entries": fn(db, n)}
 
 
 @router.get("/countries")
@@ -178,8 +190,8 @@ def list_countries(db: Session = Depends(get_db)):
 
 
 @router.get("/records")
-def list_records(db: Session = Depends(get_db)):
-    return stats.records(db)
+def list_records(request: Request, db: Session = Depends(get_db)):
+    return stats.records(db, reveal=_admin_session(request))
 
 
 @router.get("/map/cells")

@@ -628,6 +628,57 @@ def set_retention(db: Session, days, disk_floor_gb, interval_s) -> None:
     set_meta(db, "ret_interval_s", str(_clamp_int(interval_s, config.RETENTION_INTERVAL_S, 60, 86400)))
 
 
+# --- speed privacy: where a top-speed entry is published without a rider ---
+# Country -> the speed a rider is meant to stay under, in km/h. An entry above it goes on
+# the speed boards with no identity attached (see services/privacy.py).
+#
+# Deliberately a SETTING and not a constant: this is law, it differs by country, it changes,
+# and a stale table published as fact is worse than no table. Admin can edit it without a
+# deploy. A country that is absent never triggers this - the site does not guess at a rule
+# it does not know, so the US, Canada and anywhere unlisted stay as they are.
+SPEED_PRIVACY_DEFAULTS = {
+    # 20 km/h
+    "NO": 20, "DK": 20, "SE": 20, "PL": 20, "DE": 20, "IT": 20, "CH": 20,
+    # 25 km/h
+    "AT": 25, "BE": 25, "FR": 25, "ES": 25, "PT": 25, "CZ": 25, "NL": 25, "FI": 25,
+    "IE": 25, "GR": 25, "HU": 25, "RO": 25, "SK": 25, "SI": 25, "HR": 25, "BG": 25,
+    "EE": 25, "LV": 25, "LT": 25, "LU": 25, "UA": 25,
+}
+
+
+def get_speed_privacy(db: Session) -> dict:
+    """country -> km/h. Admin overrides replace the defaults wholesale."""
+    raw = get_meta(db, "speed_privacy_limits", None)
+    if raw:
+        try:
+            v = json.loads(raw)
+            if isinstance(v, dict):
+                return {str(k).upper(): float(x) for k, x in v.items()}
+        except Exception:
+            pass
+    return dict(SPEED_PRIVACY_DEFAULTS)
+
+
+def set_speed_privacy(db: Session, limits: dict) -> None:
+    clean = {}
+    for k, v in (limits or {}).items():
+        code = str(k).strip().upper()
+        try:
+            kmh = float(v)
+        except (TypeError, ValueError):
+            continue
+        if len(code) == 2 and kmh >= 0:
+            clean[code] = kmh
+    set_meta(db, "speed_privacy_limits", json.dumps(clean))
+
+
+def speed_privacy_limit(db: Session, country) -> float | None:
+    """The limit for a country, or None when there is no rule for it."""
+    if not country:
+        return None
+    return get_speed_privacy(db).get(str(country).strip().upper())
+
+
 # --- page behaviour (consumed by the public frontend as window.__CFG__) ---
 MAP_STYLES = ["dark", "light", "voyager", "satellite", "terrain"]
 _FALSEY = ("0", "false", "False", "")

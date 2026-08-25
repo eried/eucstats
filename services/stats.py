@@ -42,9 +42,19 @@ def mileage_leaderboard(db, limit=50):
              "trips": rs.trip_count} for rs in _board(db, RiderStat.total_km, limit)]
 
 
-def speed_leaderboard(db, limit=50):
-    return [{**_rider_brief(db, rs.store_id), "best_speed": round(rs.best_speed or 0, 1)}
-            for rs in _board(db, RiderStat.best_speed, limit, positive_only=True)]
+def speed_leaderboard(db, limit=50, reveal=False):
+    """Top speed. Entries above a jurisdiction's limit are published without an identity -
+    see services/privacy.py. `reveal` is for a signed-in admin, whose eye toggle needs both
+    the real rider and the incognito marker."""
+    from services import privacy
+    out = []
+    for rs in _board(db, RiderStat.best_speed, limit, positive_only=True):
+        base = _rider_brief(db, rs.store_id)
+        r = db.get(Rider, rs.store_id)
+        speed = round(rs.best_speed or 0, 1)
+        out.append({**privacy.brief(db, base, r.flag if r else None, speed, reveal),
+                    "best_speed": speed})
+    return out
 
 
 def streak_leaderboard(db, limit=50):
@@ -386,14 +396,22 @@ def countries(db):
             for c in rows]
 
 
-def records(db):
+# Records whose value is a speed, and so can be evidence against the rider who set it.
+SPEED_RECORDS = {"top_speed"}
+
+
+def records(db, reveal=False):
+    from services import privacy
     out = []
     for rec in db.query(Record).all():
         r = db.get(Rider, rec.store_id)
         if r is None or r.consent_public is False:  # skip purged + opted-out riders
             continue
+        brief = _rider_brief(db, rec.store_id)
+        if rec.key in SPEED_RECORDS:
+            brief = privacy.brief(db, brief, r.flag, rec.value, reveal)
         out.append({"key": rec.key, "value": rec.value,
-                    "rider": _rider_brief(db, rec.store_id), "trip_uuid": rec.trip_uuid})
+                    "rider": brief, "trip_uuid": rec.trip_uuid})
     return out
 
 

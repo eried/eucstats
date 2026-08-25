@@ -25,7 +25,7 @@ def _skip_js() -> str:
 
 def test_skip_seeks_into_the_last_second():
     js = _skip_js()
-    assert "vid.duration-1.0" in js
+    assert "vid.duration-0.4" in js
     assert "vid.currentTime=target" in js
 
 
@@ -64,3 +64,14 @@ def test_the_single_exit_path_is_still_single():
     page = _page()
     assert "videoDone) return; videoDone=true" in page
     assert page.count("doIntro(); };") == 1
+
+
+def test_the_video_is_not_cleared_before_the_map_is_ready():
+    """The chrome only appears from doIntro(), which waits for mapReady. Clearing the video
+    first left a skipped intro looking like a page that had failed to load, so the last
+    frame is held until there is a map behind it."""
+    page = _page()
+    assert "if(mapReady) teardown();" in page, "teardown is unconditional again"
+    assert "const teardown=()=>{ if(tornDown) return; tornDown=true;" in page
+    m = re.search(r"function doIntro\(\)\{.*?\n  \}", page, re.S)
+    assert m and "teardown();" in m.group(0), "doIntro must clear the video once both are ready"
