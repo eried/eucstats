@@ -220,7 +220,12 @@ def groups(kind: str, db: Session = Depends(get_db)):
     fn = fns.get(kind)
     if fn is None:
         raise HTTPException(404, f"unknown group: {kind}")
-    return {"kind": kind, "entries": fn(db, 50)}
+    out = {"kind": kind, "entries": fn(db, 50)}
+    if kind == "country":
+        # Real top speeds that cannot be shown against a country name; see
+        # stats.anon_country_speeds. Served separately so the pairing is not in the payload.
+        out["anon_speed"] = stats.anon_country_speeds(db)
+    return out
 
 
 @router.get("/champions")

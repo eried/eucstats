@@ -288,7 +288,7 @@ const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||
 // that, because nothing here was ever given the identity. For a signed-in admin the server
 // DOES send the real rider alongside the marker, so the eye toggle can show either view -
 // which is why this asks isAdminView() rather than trusting the payload alone.
-const anonView=e=>!!(e&&e.anon)&&!isAdminView();
+const anonView=e=>!!(e&&e.anon)&&!(isAdminView()&&(e.store_id!=null||e.country!=null));
 // Deterministic pattern drawn from the mark: stable per rider (so one anonymous rider keeps
 // one face across the board) and carrying nothing that can be run backwards.
 function dazzle(mark){
@@ -504,9 +504,23 @@ function flyToCountry(arg){
   const lon=(isObj&&arg.lon!=null)?arg.lon:(c?c[0]:null);   // pan to where riders actually are
   const lat=(isObj&&arg.lat!=null)?arg.lat:(c?c[1]:null);
   if(lon==null||lat==null)return;
-  // Frame by country size: a fixed zoom lands too tight in Russia or the US and too wide
-  // in Denmark. CENTROIDS carries a per-country zoom; use it, falling back when unknown.
-  map.flyTo({center:[lon,lat],zoom:(c&&c[2])||CTRY_ZOOM,curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});
+  // Frame what is actually there. A single zoom per country cannot be right for both a
+  // country and its riders: zoom 4 shows the whole US, but every US rider is in the
+  // northeast, so that lands on a half-empty map. Fit the box the riders occupy instead,
+  // capped so a tight cluster in a big country does not drop to street level. The
+  // per-country zoom in CENTROIDS stays as that cap, and as the fallback when there is no
+  // box (a country with one rider, or none of its trips carrying a start point).
+  const z=(c&&c[2])||CTRY_ZOOM, bb=isObj&&arg.bbox;
+  const wide=bb&&(Math.abs(bb[2]-bb[0])>0.25||Math.abs(bb[3]-bb[1])>0.25);
+  if(wide){
+    try{
+      const b=new maplibregl.LngLatBounds([bb[0],bb[1]],[bb[2],bb[3]]);
+      map.fitBounds(b,{padding:{top:90,bottom:200,left:60,right:60},maxZoom:z+1.5,
+                       duration:2400,essential:true});
+      return;
+    }catch(e){}
+  }
+  map.flyTo({center:[lon,lat],zoom:z,curve:1.6,duration:2400,easing:easeInOutCubic,essential:true});
 }
 function fitTop3(rows,coordFn){
   if(!map||!rows||!rows.length)return;
@@ -559,6 +573,7 @@ function brandFlow(brand){
 }
 
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
+let GANON=[];
 let openPanel=null;
 // Which tab a section opens on. Always opening the first one meant every other board went
 // unseen, so pick one at random - but only ONCE per browser session, so reopening a panel
@@ -675,14 +690,18 @@ function gval(b,e){const v=e[b.key];if(v==null)return "—";if(b.k==="cutout")re
 function renderGroup(b,cfg){
   const cont=document.getElementById("lb");if(!cont||!GROWS)return;
   setCap(b.ic||'',bd(b));
-  const rows=GROWS.filter(e=>e[b.key]!=null).slice().sort((x,y)=>b.asc?((x[b.key]||1e9)-(y[b.key]||1e9)):((y[b.key]||0)-(x[b.key]||0)));
+  // The detached speeds belong to this one board: their countries cannot be named, so
+  // they carry no distance, climb or rider stats to show anywhere else.
+  const src=(b.key==="top_speed"&&GANON.length)?GROWS.concat(GANON):GROWS;
+  const rows=src.filter(e=>e[b.key]!=null).slice().sort((x,y)=>b.asc?((x[b.key]||1e9)-(y[b.key]||1e9)):((y[b.key]||0)-(x[b.key]||0)));
   cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>t("u.riders",{n:e.riders})},cfg));
   if(cfg.click){cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToCountry(rows[+el.dataset.i]));
     fitTop3(rows,e=>{const c=CENTROIDS[(e.country||"").toUpperCase()];return c?[c[0],c[1]]:null;});}
   if(cfg.flow) cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>brandFlow(rows[+el.dataset.i].name));
 }
 async function showGroupPanel(kind,name,title,cfg){
-  GROWS=(await j("/groups/"+kind)).entries;
+  const _g=await j("/groups/"+kind);
+  GROWS=_g.entries; GANON=_g.anon_speed||[];   // real speeds with no country attached
   const hid=(HIDE.groups&&HIDE.groups[name])||[];   // each section keeps its own hidden tabs
   const isH=b=>hid.includes(b.k);
   const gord=orderBy(GBOARDS,ORDER[{countries:"gcountries",wheels:"gwheels",brands:"gbrands"}[name]],b=>b.k);
@@ -692,7 +711,7 @@ async function showGroupPanel(kind,name,title,cfg){
   pbody.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{pbody.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));t.classList.add("on");renderGroup(vis[+t.dataset.b],cfg);});
   bindTips(pbody,true);if(vis[sel])renderGroup(vis[sel],cfg);
 }
-function showCountries(){showGroupPanel("country","countries",t("title.countries"),{flag:e=>e.country,label:e=>cname(e.country)||e.country,click:true});}
+function showCountries(){showGroupPanel("country","countries",t("title.countries"),{flag:e=>e.anon?null:e.country,label:e=>e.anon?e.name:(cname(e.country)||e.country),click:true});}
 function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+t("u.riders",{n:e.riders||0})});}
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){

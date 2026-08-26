@@ -35,9 +35,9 @@ def token(db, store_id: str) -> str:
     return hmac.new(_salt(db), (store_id or "").encode(), hashlib.sha256).hexdigest()
 
 
-def alias(tok: str) -> str:
-    """Display name for an anonymous rider, e.g. "Rider #4F2A"."""
-    return "Rider #" + tok[:4].upper()
+def alias(tok: str, kind: str = "Rider") -> str:
+    """Display name for an anonymous entry, e.g. "Rider #4F2A" or "Country #B7C1"."""
+    return kind + " #" + tok[:4].upper()
 
 
 def is_incognito(db, country: str | None, speed_kmh: float | None) -> bool:

@@ -157,3 +157,48 @@ def test_a_country_with_only_over_limit_rides_publishes_nothing(db):
     _trip(db, "no9", "t-no", "NO", 60.0)
     row = [e for e in stats.by_country(db) if e["name"] == "NO"][0]
     assert row["top_speed"] is None
+
+
+# --- the country keeps its speed, but not its name -------------------------------------
+
+def test_an_over_limit_country_speed_is_served_detached(db):
+    """Asked for: anonymise the COUNTRY, keep the real speed."""
+    _rider(db, "ua2", "Fast", "UA", 93.3)
+    _trip(db, "ua2", "t-ua", "UA", 93.3)
+    anon = stats.anon_country_speeds(db)
+    assert len(anon) == 1
+    e = anon[0]
+    assert e["top_speed"] == 93.3, "the real speed must survive"
+    assert e["anon"] is True
+    assert e["name"].startswith("Country #")
+    assert "UA" not in str(e), "the country leaked into its own anonymised entry"
+
+
+def test_the_country_row_does_not_also_carry_that_speed(db):
+    """Otherwise the response pairs the name and the value straight back together."""
+    _rider(db, "ua3", "Fast", "UA", 93.3)
+    _trip(db, "ua3", "t-ua", "UA", 93.3)
+    row = [e for e in stats.by_country(db) if e["name"] == "UA"][0]
+    assert row["top_speed"] is None
+
+
+def test_a_country_within_its_limit_is_not_detached(db):
+    _rider(db, "ua4", "Slow", "UA", 20.0)
+    _trip(db, "ua4", "t-slow", "UA", 20.0)
+    assert stats.anon_country_speeds(db) == []
+    assert [e for e in stats.by_country(db) if e["name"] == "UA"][0]["top_speed"] == 20.0
+
+
+def test_a_country_with_no_rule_is_never_detached(db):
+    _rider(db, "us8", "Yank", "US", 134.2)
+    _trip(db, "us8", "t-us", "US", 134.2)
+    assert stats.anon_country_speeds(db) == []
+
+
+def test_two_countries_get_different_marks(db):
+    _rider(db, "dk8", "D", "DK", 60.0); _trip(db, "dk8", "t-dk", "DK", 60.0)
+    _rider(db, "no8", "N", "NO", 55.0); _trip(db, "no8", "t-no", "NO", 55.0)
+    anon = stats.anon_country_speeds(db)
+    assert len(anon) == 2
+    assert anon[0]["mark"] != anon[1]["mark"]
+    assert anon[0]["top_speed"] == 60.0 and anon[1]["top_speed"] == 55.0   # sorted desc

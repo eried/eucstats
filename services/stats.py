@@ -530,6 +530,40 @@ def by_wheel(db, limit=50):
     return out
 
 
+def anon_country_speeds(db, limit=50):
+    """Top speeds that are real but not attributable to a country.
+
+    A country whose fastest ride is over its own limit does not publish that speed against
+    its name (see [_public_speed]): the value alone would identify the anonymised rider who
+    set it, because the same figure appears on the rider board. The speed is still true and
+    worth showing, so it is served here detached from the country instead - a pseudonym and
+    a mark, exactly as an incognito rider gets.
+
+    Kept OUT of the country rows on purpose. Those rows carry every other metric, so they
+    have to keep their real name for the distance and climb boards; leaving a real speed on
+    them would hand the pairing straight back through the API.
+    """
+    from services import privacy, settings
+    limits = settings.get_speed_privacy(db)
+    if not limits:
+        return []
+    rows = (db.query(Trip.country, func.max(Trip.max_speed), func.count(func.distinct(Trip.rider_store_id)))
+            .join(Rider, Rider.store_id == Trip.rider_store_id)
+            .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False),
+                    Trip.country.isnot(None), Trip.country != "")
+            .group_by(Trip.country).all())
+    out = []
+    for code, top, riders in rows:
+        lim = limits.get((code or "").upper())
+        if lim is None or top is None or top <= lim:
+            continue                       # published against its own name, nothing to detach
+        tok = privacy.token(db, "country:" + str(code))
+        out.append({"name": privacy.alias(tok, "Country"), "mark": tok[:16], "anon": True,
+                    "top_speed": round(top, 1), "riders": riders})
+    out.sort(key=lambda e: e["top_speed"], reverse=True)
+    return out[:limit]
+
+
 def by_country(db, limit=50):
     import services.settings as settings
     blk = settings.blocked_trip_uuids(db)
@@ -539,8 +573,14 @@ def by_country(db, limit=50):
             .filter(Trip.validation_status == "validated", Rider.consent_public.isnot(False),
                     Trip.country.isnot(None), Trip.country != "")
             .group_by(Trip.country).order_by(func.sum(Trip.distance_km).desc()).limit(limit).all())
-    coords = {c: (la, lo) for c, la, lo in
-              db.query(Trip.country, func.avg(Trip.start_lat), func.avg(Trip.start_lon))
+    # Average start point, plus the box the country's riders actually occupy. A single
+    # framing zoom per country cannot be right for both: the US zoom that shows the whole
+    # country lands on an empty frame when every rider is in the northeast. The box lets the
+    # map fit what is there, and the per-country zoom stays as the cap and the fallback.
+    coords = {c: (la, lo, w, s, e_, n) for c, la, lo, w, s, e_, n in
+              db.query(Trip.country, func.avg(Trip.start_lat), func.avg(Trip.start_lon),
+                       func.min(Trip.start_lon), func.min(Trip.start_lat),
+                       func.max(Trip.start_lon), func.max(Trip.start_lat))
               .filter(Trip.validation_status == "validated", Trip.start_lat.isnot(None),
                       Trip.country.isnot(None), Trip.country != "")
               .group_by(Trip.country).all()}
@@ -549,9 +589,12 @@ def by_country(db, limit=50):
         e = _grp_entry(country, *rest)
         e["country"] = country
         e["avg"] = round(e["total_km"] / e["riders"], 1) if e["riders"] else 0
-        la, lo = coords.get(country, (None, None))
+        la, lo, w, s, e_, n = coords.get(country, (None,) * 6)
         e["lat"] = round(la, 3) if la is not None else None    # where this country's riders ride
         e["lon"] = round(lo, 3) if lo is not None else None
+        # Rounded to ~1 km so the box frames a region, never a doorstep.
+        e["bbox"] = ([round(w, 2), round(s, 2), round(e_, 2), round(n, 2)]
+                     if None not in (w, s, e_, n) else None)
         out.append(e)
     return out
 
