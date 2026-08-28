@@ -112,7 +112,7 @@ class Trip(Base):
     stop_30_s = Column(Float)            # fastest stop from 30 / 50 km/h (lower better)
     stop_50_s = Column(Float)
     cutout_count = Column(Integer, default=0)   # unloaded spin while travelling: a fall
-    lift_count = Column(Integer, default=0)     # unloaded spin from rest: a pickup/free spin
+    spin_count = Column(Integer, default=0)     # free spin: the wheel spun up off the ground
     battery_used_pct = Column(Float)
     est_range_km = Column(Float)
     country = Column(String, index=True)

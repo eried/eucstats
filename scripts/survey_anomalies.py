@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dry-run the free-spin / lift / fall detector over the stored trips. Writes nothing.
+"""Dry-run the fall / free-spin detector over the stored trips. Writes nothing.
 
     cd /opt/eucstats && .venv/bin/python scripts/survey_anomalies.py
     cd /opt/eucstats && .venv/bin/python scripts/survey_anomalies.py --all --verbose
@@ -8,7 +8,7 @@ Before a detector is allowed to put a number on a public board, it has to be loo
 real rides. This replays every trip's stored raw upload through ingest/anomalies.py and
 reports what it would have counted, next to the count the old detector left in the database.
 
-Falls and lifts are listed one per line, because those are the two the boards will show and
+Falls and free spins are listed one per line, because those are the two the boards show and
 the two a rider would dispute. Spikes and glitches are only totalled - they are the detector
 saying "something is off in this log", not a claim about the rider.
 """
@@ -50,17 +50,19 @@ def _explain(db, cal, cap, prefix: str, anomalies) -> int:
         amps = [abs(x.current) for x in ev if x.current is not None]
         load = anomalies._median(amps) if amps else None
         idle = 1.0 if load is None or load < c["motor_active_a"] else 0.0
+        prior = [x.speed for x in samples[max(0, start - anomalies._RUNUP):start] if x.speed is not None]
+        from_rest = not prior or (anomalies._median(prior) < anomalies._MOVING_KMH)
         is_fall = (before is True and after is False
                    and len(ev) >= c["min_fall_len"]
                    and anomalies._span(ev) >= c["min_fall_s"])
-        is_lift = (before is False and after is not True and len(ev) >= c["min_event_len"]
+        is_spin = (from_rest and after is not True and len(ev) >= c["min_event_len"]
                    and anomalies._span(ev) >= c["min_event_s"])
         around = (samples[max(0, start - anomalies._SURROUND):start]
                   + samples[end + 1:end + 1 + anomalies._SURROUND])
         worked = (not has_motor) or any(anomalies._drawing(x, c["motor_active_a"]) for x in around)
-        if not (worked and peak >= c["free_spin_kmh"] and idle >= 0.7 and (is_fall or is_lift)):
-            continue                              # only the ones that become a fall or a lift
-        kind = "FALL" if is_fall else "LIFT"
+        if not (worked and peak >= c["free_spin_kmh"] and idle >= 0.7 and (is_fall or is_spin)):
+            continue                              # only the ones that become a fall or a spin
+        kind = "FALL" if is_fall else "SPIN"
         print(f"== {kind}  samples {start}-{end}  peak {peak:.1f} km/h  idle {idle:.0%}  "
               f"before_moving={before} after_moving={after} median_load={load}")
         for i in range(max(0, start - 6), min(len(samples), end + 7)):
@@ -159,7 +161,7 @@ def _sensitivity(db, cal, cap, kind: str, everything: bool, detect, one=None) ->
     from services.ingest import _gunzip_capped, _is_gzip
 
     print(SENSITIVITY_DOC)
-    want = "fall" if kind == "fall" else "lift"
+    want = "fall" if kind == "fall" else "spin"
     inject = _inject_fall if kind == "fall" else _inject_spin
     if one:                                       # a single trip, with the event's evidence
         t = next(x for x in db.query(Trip).all() if x.trip_uuid.startswith(one))
@@ -266,8 +268,8 @@ def _grade(e, near, bucket=None, uuid=None):
             return bump(f"FALL-SHAPED but only {e['n']} sample(s)")
         return bump(f"FALL-SHAPED but only {e['span']:.1f}s long")
     if e["n"] < 3:
-        return bump(f"LIFT-SHAPED but only {e['n']} sample(s)")
-    return bump(f"LIFT-SHAPED but only {e['span']:.1f}s long")
+        return bump(f"SPIN-SHAPED but only {e['n']} sample(s)")
+    return bump(f"SPIN-SHAPED but only {e['span']:.1f}s long")
 
 
 def _fixture(db, cap, prefix: str, lo: int, hi: int) -> int:
@@ -303,7 +305,7 @@ def main() -> int:
     ap.add_argument("--all", action="store_true",
                     help="include flagged/rejected trips (default: validated only)")
     ap.add_argument("--verbose", action="store_true", help="list every trip, not just the hits")
-    ap.add_argument("--trip", help="dump the samples around each fall/lift of one trip")
+    ap.add_argument("--trip", help="dump the samples around each fall/spin of one trip")
     ap.add_argument("--fixture", help="TRIP:LO:HI - emit that sample range as a test fixture")
     ap.add_argument("--inject", choices=("fall", "spin"),
                     help="splice a synthetic event into every real trip and see if it is found")
@@ -335,7 +337,7 @@ def main() -> int:
         names = {r.store_id: r.display_name for r in db.query(Rider).all()}
         print(f"{len(trips)} trip(s) to survey\n")
 
-        tot = {"fall": 0, "lift": 0, "spike": 0, "glitch": 0}
+        tot = {"fall": 0, "spin": 0, "spike": 0, "glitch": 0}
         near, misses = {}, []
         hits, no_raw, no_current, no_gps, old_only = [], 0, 0, 0, []
         for t in trips:
@@ -362,9 +364,9 @@ def main() -> int:
             who = (names.get(t.rider_store_id) or "?")[:14].ljust(14)
             head = (f"  {t.trip_uuid[:8]} {who} {str(t.start_utc)[:10]} "
                     f"{(t.distance_km or 0):7.1f} km {(t.max_speed or 0):5.1f} km/h")
-            line = (f"{head}  fall={r['fall']} lift={r['lift']} "
+            line = (f"{head}  fall={r['fall']} spin={r['spin']} "
                     f"spike={r['spike']:4d} glitch={r['glitch']:3d}  (stored cutouts={t.cutout_count or 0})")
-            if r["fall"] or r["lift"]:
+            if r["fall"] or r["spin"]:
                 hits.append(line)
             elif (t.cutout_count or 0):
                 old_only.append(line)
@@ -372,7 +374,7 @@ def main() -> int:
                 print(line)
 
         if hits:
-            print(f"\nFALLS / LIFTS ({len(hits)} trip(s)):")
+            print(f"\nFALLS / FREE SPINS ({len(hits)} trip(s)):")
             for h in hits:
                 print(h)
         if old_only:

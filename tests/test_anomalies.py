@@ -40,10 +40,10 @@ def test_a_fall_is_travelling_then_an_unloaded_spin_then_stopped():
            + [s(20 + i, 0.0, 0.0, 0.1) for i in range(14)])             # stopped
     r = detect(log)
     assert r["fall"] == 1, r
-    assert r["lift"] == 0
+    assert r["spin"] == 0
 
 
-def test_a_lift_is_from_rest_and_back_to_rest():
+def test_a_free_spin_is_from_rest_and_back_to_rest():
     """A real pickup test happens mid-ride: ride, stop, lift and spin it, set it down, ride
     on. The riding either side is what proves the motor was alive; a log where nothing ever
     draws current is a dead board, and the spec calls that a glitch rather than a lift."""
@@ -53,7 +53,7 @@ def test_a_lift_is_from_rest_and_back_to_rest():
            + [s(22 + i, 0.0, 0.0, 0.5) for i in range(6)]               # set down
            + ride(10, start=28))                                        # rode off
     r = detect(log)
-    assert r["lift"] == 1, r
+    assert r["spin"] == 1, r
     assert r["fall"] == 0
 
 
@@ -62,7 +62,7 @@ def test_riding_through_a_gps_dropout_is_not_a_fall():
     log = ride(14) + [s(14 + i, 30.0, 0.0, 9.0) for i in range(4)] + ride(14, start=18)
     r = detect(log)
     assert r["fall"] == 0, "a GPS dropout was read as a fall"
-    assert r["lift"] == 0
+    assert r["spin"] == 0
 
 
 def test_a_hard_launch_with_current_is_not_a_free_spin():
@@ -71,7 +71,7 @@ def test_a_hard_launch_with_current_is_not_a_free_spin():
            + [s(10 + i, 12.0 * (i + 1), 12.0 * (i + 1), 28.0) for i in range(5)]
            + ride(12, wheel=60.0, gps=60.0, start=15))
     r = detect(log)
-    assert r["fall"] == 0 and r["lift"] == 0, r
+    assert r["fall"] == 0 and r["spin"] == 0, r
 
 
 def test_a_log_with_no_motor_column_never_reports_a_dead_motor():
@@ -86,7 +86,7 @@ def test_a_log_with_no_motor_column_never_reports_a_dead_motor():
            + [s(18 + i, 0.0, 0.0) for i in range(12)])
     r = detect(log)
     assert r["glitch"] == 0, "a missing column was read as an idle motor"
-    assert r["lift"] == 1, "the acceleration proxy should still find the lift"
+    assert r["spin"] == 1, "the acceleration proxy should still find the lift"
 
 
 def test_walking_a_wheel_is_not_a_lift():
@@ -94,14 +94,14 @@ def test_walking_a_wheel_is_not_a_lift():
     log = ([s(i, 0.0, 0.0, 0.1) for i in range(10)]
            + [s(10 + i, 7.0, 0.0, 0.3) for i in range(8)]
            + [s(18 + i, 0.0, 0.0, 0.1) for i in range(10)])
-    assert detect(log)["lift"] == 0
+    assert detect(log)["spin"] == 0
 
 
 def test_a_logging_gap_cannot_manufacture_an_event():
     """No dt guard and a gap becomes infinite acceleration."""
     log = ride(10) + [s(400, 60.0, 0.0, 0.2)] + ride(10, start=401)
     r = detect(log)
-    assert r["fall"] == 0 and r["lift"] == 0, r
+    assert r["fall"] == 0 and r["spin"] == 0, r
 
 
 def test_thresholds_are_tunable():
@@ -115,7 +115,7 @@ def test_thresholds_are_tunable():
 
 
 def test_an_empty_or_tiny_log_is_safe():
-    assert detect([]) == {"fall": 0, "lift": 0, "spike": 0, "glitch": 0}
+    assert detect([]) == {"fall": 0, "spin": 0, "spike": 0, "glitch": 0}
     assert detect([s(0, 10.0)])["fall"] == 0
 
 
@@ -165,7 +165,7 @@ def test_a_frozen_telemetry_feed_is_a_glitch_not_a_fall():
     log = [sp(i, 12.2, 13.0 if i < 6 else 0.0, -0.9, 41.8174, -72.6897, 5.0)
            for i in range(20)]
     r = detect(log)
-    assert r["fall"] == 0 and r["lift"] == 0
+    assert r["fall"] == 0 and r["spin"] == 0
 
 
 def test_a_real_fall_survives_all_of_those_guards():
@@ -255,15 +255,15 @@ def test_a_stalled_gps_speedometer_with_a_moving_track_is_not_a_fall():
     assert detect(replay(STALLED_SPEEDO))["fall"] == 0
 
 
-def test_a_two_second_current_dip_while_circling_on_the_spot_is_not_a_lift():
+def test_a_two_second_current_dip_while_circling_on_the_spot_is_not_a_free_spin():
     """Erwin, 2026-06-28. Riding tight circles in a car park: the wheel does 8-16 km/h while
     the rider goes nowhere, so the surroundings honestly read as stopped. What says a rider
     is aboard is the load - 6.2 A one sample, 0.8 A two later - and the wheel is never
     unloaded for longer than a control cycle."""
-    assert detect(replay(CIRCLING_A_CAR_PARK))["lift"] == 0
+    assert detect(replay(CIRCLING_A_CAR_PARK))["spin"] == 0
 
 
-def test_a_wheel_actually_picked_up_is_still_a_lift():
+def test_a_wheel_actually_picked_up_is_still_a_free_spin():
     """The guard must not cost us the real thing: stationary, then spinning free with no load
     for a good few seconds, then set back down."""
     log = ([sp(i, 22.0, 21.0, 7.0, 55.0 + i * 5e-5, 11.0) for i in range(10)]   # rode there
@@ -271,7 +271,7 @@ def test_a_wheel_actually_picked_up_is_still_a_lift():
            + [sp(18 + i, 20.0, 0.0, 0.2, 55.0005, 11.0) for i in range(8)]       # picked up
            + [sp(26 + i, 0.0, 0.0, 0.1, 55.0005, 11.0) for i in range(6)]        # set down
            + [sp(32 + i, 22.0, 21.0, 7.0, 55.0005 + i * 5e-5, 11.0) for i in range(10)])
-    assert detect(log)["lift"] == 1
+    assert detect(log)["spin"] == 1
 
 
 def test_the_stop_does_not_bleed_backwards_into_the_before_window():
@@ -292,7 +292,7 @@ def test_a_fall_is_never_filed_as_a_free_spin():
     log = ([sp(i, 30.0, 29.0, 8.0, 55.0 + i * 7e-5, 11.0) for i in range(20)]
            + [sp(20 + i, 42.0, 0.0, 0.2, 55.00133, 11.0) for i in range(6)]
            + [sp(26 + i, 0.0, 0.0, 0.1, 55.00133, 11.0) for i in range(16)])
-    assert detect(log)["lift"] == 0
+    assert detect(log)["spin"] == 0
 
 
 def test_coarse_gps_that_repeats_a_fix_is_not_a_standstill():
@@ -306,3 +306,52 @@ def test_coarse_gps_that_repeats_a_fix_is_not_a_standstill():
     rows += [sp(40 + i, 55.0, 0.0, 0.2, 55.0035, 11.0) for i in range(6)]
     rows += [sp(46 + i, 0.0, 0.0, 0.1, 55.0035, 11.0) for i in range(16)]
     assert detect(rows)["fall"] == 1
+
+
+# --- Free spins, defined by SPEED alone. ---------------------------------------------------
+# A free spin is a wheel accelerating to a speed no loaded wheel could have reached: lift one
+# off the ground and the balance algorithm spins it up in a second or two. That is a speed
+# signature, so it needs no current channel - which matters, because 122 of the 789 trips in
+# the library have no current channel at all and could never be judged on motor load.
+
+def spin_only(log):
+    return detect(log)["spin"]
+
+
+def test_a_wheel_spun_up_off_the_ground_is_a_free_spin():
+    """0 to 45 km/h in two seconds, GPS flat on the floor. No wheel does that with a rider."""
+    log = ([sp(i, 0.0, 0.0, None, 55.0, 11.0) for i in range(10)]
+           + [sp(10 + i, 22.0 * (i + 1), 0.0, None, 55.0, 11.0) for i in range(2)]
+           + [sp(12 + i, 45.0, 0.0, None, 55.0, 11.0) for i in range(8)]
+           + [sp(20 + i, 0.0, 0.0, None, 55.0, 11.0) for i in range(8)])
+    assert spin_only(log) == 1
+
+
+def test_a_hard_but_real_launch_is_not_a_free_spin():
+    """0 to 40 km/h in five seconds with the ground agreeing the whole way. That is just a
+    quick rider on a quick wheel, and it must never land on a board about wheels in the air."""
+    log = [sp(i, 8.0 * i, 8.0 * i, 12.0, 55.0 + i * 2e-4, 11.0) for i in range(6)]
+    log += [sp(6 + i, 40.0, 40.0, 9.0, 55.0012 + i * 3e-4, 11.0) for i in range(14)]
+    assert spin_only(log) == 0
+
+
+def test_a_gps_dropout_mid_ride_is_not_a_free_spin():
+    """The ground speed reading vanishing does not mean the ground stopped. This is the
+    commonest event in the library by far - 178 of them - so getting it wrong would bury the
+    board in noise."""
+    log = []
+    for i in range(30):
+        lost = 12 <= i <= 18
+        log.append(sp(i, 38.0, 0.0 if lost else 37.0, 10.0,
+                      None if lost else 55.0 + i * 3e-4, None if lost else 11.0))
+    assert spin_only(log) == 0
+
+
+def test_a_falls_runaway_spin_is_not_also_counted_as_a_free_spin():
+    """A cutout spins the wheel up too, but there is nothing harmless about it. It belongs on
+    the fall board and only there."""
+    log = ([sp(i, 30.0, 29.0, 8.0, 55.0 + i * 7e-5, 11.0) for i in range(20)]
+           + [sp(20 + i, 60.0, 0.0, 0.2, 55.00133, 11.0) for i in range(6)]
+           + [sp(26 + i, 0.0, 0.0, 0.1, 55.00133, 11.0) for i in range(16)])
+    r = detect(log)
+    assert (r["fall"], r["spin"]) == (1, 0)

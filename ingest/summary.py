@@ -100,7 +100,7 @@ class TripSummary:
     stop_30_s: float | None     # fastest stop from 30 / 50 km/h to a standstill (lower better)
     stop_50_s: float | None
     cutout_count: int           # unloaded spin while travelling: a fall (cutouts land here)
-    lift_count: int             # unloaded spin from a standstill: a free spin / pickup test
+    spin_count: int             # free spin: the wheel spun to a speed no loaded wheel reaches
     sample_count: int
 
 
@@ -850,7 +850,7 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     # which none were genuinely unloaded, and never once fired on its full condition.
     from .anomalies import detect as _detect_anomalies
     _anom = _detect_anomalies(samples, cal)
-    cutout_count, lift_count = _anom["fall"], _anom["lift"]
+    cutout_count, spin_count = _anom["fall"], _anom["spin"]
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration, moving_s=moving_s,
@@ -876,6 +876,6 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         accel_g_30=accel_g_30, accel_g_50=accel_g_50,
         brake_g_30=brake_g_30, brake_g_50=brake_g_50,
         stop_30_s=stop_30_s, stop_50_s=stop_50_s, cutout_count=cutout_count,
-        lift_count=lift_count,
+        spin_count=spin_count,
         sample_count=len(samples),
     )

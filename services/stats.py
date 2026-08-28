@@ -125,7 +125,7 @@ def _anomaly_leaderboard(db, col, key, limit):
 def spin_leaderboard(db, limit=50):
     """Most free spins - the wheel turning with nobody on it, from a standstill. Harmless, and
     kept well away from the fall board for that reason."""
-    return _anomaly_leaderboard(db, Trip.lift_count, "spins", limit)
+    return _anomaly_leaderboard(db, Trip.spin_count, "spins", limit)
 
 
 def cutout_leaderboard(db, limit=50):

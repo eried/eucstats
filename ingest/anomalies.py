@@ -34,6 +34,8 @@ DEFAULTS = {
     "gps_stopped_kmh": 2.0,   # GPS speed treated as stationary
     "accel_impossible": 6.0,  # m/s^2 a loaded wheel cannot produce (a real EUC peaks near 3)
     "motor_active_a": 1.0,    # amps that count as the motor doing work (watts track at x100)
+    "max_accel": 20.0,        # km/h per s a loaded wheel can gain; beyond it the speed is fiction
+    "freespin_margin": 5.0,   # km/h the wheel must beat the believable track by to be a free spin
     "track_moving_kmh": 3.0,  # ground speed FROM THE TRACK that contradicts a reported stop
     "min_event_len": 3,       # shortest run of samples that can be a lift, and
     "min_event_s": 2.0,       # the seconds it must cover
@@ -46,6 +48,7 @@ _CHANNEL_JITTER = 0.05        # amps of variation that prove the current channel
 _SURROUND = 8                 # samples either side for "did the motor ever work"
 _CONTEXT = 10                 # samples either side for "was it travelling"
 _MOVING_KMH = 3.0             # median GPS speed that counts as travelling
+_RUNUP = 4                    # samples of run-up that decide whether a spin began from rest
 
 
 def _span(ev) -> float:
@@ -87,6 +90,43 @@ def _track_kmh(samples, half: int = 2, max_span_s: float = 8.0) -> list:
         d = _haversine_km(samples[a].lat, samples[a].lon, samples[b].lat, samples[b].lon)
         out[i] = d / (dt / 3600.0)
     return out
+
+
+def _believable(samples, c) -> list:
+    """The fastest each sample COULD honestly be going, walking the ride forwards and letting
+    speed rise only as fast as a loaded wheel can rise.
+
+    This is the free-spin test, and it needs no current channel - which is the point, because
+    122 of the 789 trips in the library carry no current at all and could never be judged on
+    motor load. Lift a wheel off the ground and the balance algorithm spins it to 40 or 50
+    km/h in a second or two; nothing with a rider aboard does that. Ground speed is the lower
+    of wheel and GPS, so a wheel turning above a stationary ground runs away from this track
+    on its own.
+    """
+    out = [None] * len(samples)
+    plausible = prev_t = None
+    for i, s in enumerate(samples):
+        v = s.speed if s.gps_speed is None else min(s.speed or 0.0, s.gps_speed)
+        if s.speed is None:
+            continue
+        if plausible is None or prev_t is None:
+            plausible = v
+        elif v <= plausible:
+            plausible = v
+        else:
+            dt = min(max((s.t - prev_t).total_seconds(), 0.0), c["max_gap_s"])
+            plausible = min(v, plausible + c["max_accel"] * dt)
+        prev_t = s.t
+        out[i] = plausible
+    return out
+
+
+def _at_rest(samples, lo, hi, c) -> bool:
+    """Did the wheel stop and stay stopped? The tell Erwin named for a fall on a log with no
+    current: the speed does something violent and then everything simply ends. A rider braking
+    hard is still riding a second later; a rider on the ground is not."""
+    win = [x.speed for x in samples[max(0, lo):hi] if x.speed is not None]
+    return len(win) >= 3 and _median(win) < _MOVING_KMH
 
 
 def _stopped(s, c, needs_fix: bool, track) -> bool:
@@ -161,8 +201,12 @@ def _flag(samples, c, has_motor, needs_fix, track) -> list:
         if b.speed > c["free_spin_kmh"] and _stopped(b, c, needs_fix, track[i]):
             flags[i] = True
             continue
-        # (b) acceleration a loaded wheel cannot produce
-        if ((b.speed - a.speed) / 3.6) / dt > c["accel_impossible"] and b.speed > 10:
+        # (b) a speed CHANGE a loaded wheel cannot produce, in either direction. Braking
+        #     counts as well as accelerating: an EUC pulls up at roughly half a g, so 30 km/h
+        #     to nothing in a second is not a rider stopping, it is a rider hitting something.
+        #     Only the acceleration half was tested before, which left the whole crash-into-a
+        #     -kerb shape invisible on any log without a current channel.
+        if abs((b.speed - a.speed) / 3.6) / dt > c["accel_impossible"] and max(a.speed, b.speed) > 10:
             flags[i] = True
             continue
         # (c) phantom speed with nothing drawing current anywhere near it: a logger writing
@@ -227,12 +271,13 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
     test each near miss failed - so the survey tool reads this rather than re-deriving the
     decision and grading its own homework."""
     c = {**DEFAULTS, **(cal or {})}
-    out = {"fall": 0, "lift": 0, "spike": 0, "glitch": 0}
+    out = {"fall": 0, "spin": 0, "spike": 0, "glitch": 0}
     if len(samples) < 3:
         return out
     has_motor = _has_motor_data(samples)
     needs_fix = any(s.lat is not None and s.lon is not None for s in samples)
     track = _track_kmh(samples)
+    believable = _believable(samples, c)
     flags = _flag(samples, c, has_motor, needs_fix, track)
 
     for start, end in _events(flags):
@@ -265,9 +310,14 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
             if a.speed is not None and b.speed is not None and 0 < dt <= c["max_gap_s"]:
                 peak_accel = max(peak_accel, ((b.speed - a.speed) / 3.6) / dt)
 
-        # Current decides when it exists; acceleration is only the proxy for logs without it.
+        # Was the wheel doing something no loaded wheel does? Current answers it outright
+        # when the log carries current. When it does not, speed answers it on its own: a wheel
+        # that runs away from the believable track by a clear margin has nothing on it.
+        runaway = max((s.speed or 0.0) - (believable[k] or 0.0)
+                      for k, s in enumerate(samples[start:end + 1], start))
         unloaded = peak >= c["free_spin_kmh"] and (
-            idle >= 0.7 if has_motor else peak_accel >= c["accel_impossible"])
+            idle >= 0.7 if has_motor
+            else (runaway > c["freespin_margin"] or peak_accel >= c["accel_impossible"]))
         before = _moving(samples, start - _CONTEXT, start, has_motor, c, track)
         after = _moving(samples, end + 1, end + 1 + _CONTEXT, has_motor, c, track)
         # A lift starts from rest, and the wheel's own speed says so without needing GPS at
@@ -275,29 +325,42 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         # could not establish that the rider had been travelling, a 28 km/h fall was being
         # filed as a free spin. The two boards mean opposite things, so putting a crash on the
         # harmless one is worse than reporting nothing.
-        prior = [x.speed for x in samples[max(0, start - _CONTEXT):start] if x.speed is not None]
+        # "From rest" means the wheel was stopped WHEN THIS BEGAN, so it reads the immediate
+        # run-up rather than a ten-sample median: a rider who stops, steps off and picks the
+        # wheel up has a window straddling both, and the median of riding-then-stopped lands
+        # halfway between and answers neither question.
+        prior = [x.speed for x in samples[max(0, start - _RUNUP):start] if x.speed is not None]
         from_rest = not prior or (_median(prior) < _MOVING_KMH)
 
         # The asymmetry is deliberate: a fall must be positively confirmed by a stop, while a
         # lift may end in unknown territory, which is common at the end of a log.
+        # A fall ends the ride. That is the whole difference between the two boards: a wheel
+        # spun up on a stand is put back down and life goes on, while a rider on the ground
+        # stays there. Erwin's tell for a log with no current - the speed does something
+        # violent and then everything simply stops.
+        ended = _at_rest(samples, end + 1, end + 1 + _CONTEXT, c)
         if trace is not None:
             trace.append({"start": start, "end": end, "n": len(ev), "span": _span(ev),
                           "peak": peak, "load": load, "unloaded": unloaded,
                           "before": before, "after": after, "worked": surrounding_worked,
-                          "from_rest": from_rest,
+                          "from_rest": from_rest, "ended": ended, "runaway": runaway,
                           "at_end": end >= len(samples) - _CONTEXT})
+        long_enough = len(ev) >= c["min_fall_len"] and _span(ev) >= c["min_fall_s"]
         if not surrounding_worked:
             out["glitch"] += 1
-        elif (unloaded and before is True and after is False
-              and len(ev) >= c["min_fall_len"] and _span(ev) >= c["min_fall_s"]):
+        elif unloaded and before is True and (after is False or ended) and long_enough:
             out["fall"] += 1
-        elif (unloaded and before is False and after is not True and from_rest
-              and len(ev) >= c["min_event_len"] and _span(ev) >= c["min_event_s"]):
-            # The same floor a fall gets, and for the same reason. Riding tight circles in a
-            # car park moves the rider nowhere, so the context reads "stopped" honestly; what
-            # kept trip 97a15220 from being called a pickup test is that the wheel was only
-            # unloaded for two samples, between one sample pulling 6.2 A and the next 0.8 A.
-            out["lift"] += 1
+        elif unloaded and from_rest and len(ev) >= c["min_event_len"]                 and _span(ev) >= c["min_event_s"]:
+            # No condition on what happens afterwards. The commonest free spin there is goes
+            # stop, pick the wheel up, spin it, set it down, ride on - and requiring the rider
+            # NOT to be moving after it ruled out exactly that. Falls are tested first, so a
+            # crash cannot fall through to here.
+            # Free spins are judged from rest by the WHEEL's own speed, not by GPS context.
+            # Riding tight circles in a car park moves the rider nowhere, so the ground reads
+            # stopped quite honestly - what kept trip 97a15220 off this board is that its
+            # wheel had been turning at 12 km/h all along, and a wheel somebody just picked up
+            # had not.
+            out["spin"] += 1
         else:
             out["spike"] += 1
     return out

@@ -52,7 +52,7 @@ def reprocess_with_calibration(db) -> dict:
             t.fastest_0_40_s = sm.fastest_0_40_s
             t.ascent_m, t.alt_range_m = sm.ascent_m, sm.alt_range_m
             t.descent_m, t.cutout_count = sm.descent_m, sm.cutout_count
-            t.lift_count = sm.lift_count
+            t.spin_count = sm.spin_count
             # per-trip extremes feeding the gated min/max boards (altitude / temp / pwm / battery)
             t.max_altitude_m, t.min_altitude_m = sm.max_altitude_m, sm.min_altitude_m
             t.max_temp, t.min_temp = sm.max_temp, sm.min_temp

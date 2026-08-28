@@ -321,9 +321,9 @@ METRIC_BOARDS = [
     ("explorer", "Explorer", "Most distinct map areas ridden"),
     ("bigday", "Busiest Day", "Most rides in a single day"),
     ("commuter", "Commuter", "Most distance ridden on weekdays"),
-    ("freespin", "Freespin", "Biggest freespin / spin-up spike (wheel lifted or a crash)"),
-    ("cutouts", "Falls", "Most falls detected — riding, then the wheel spinning free with nobody on it"),
-    ("spins", "Free Spins", "Most times the wheel was spun up off the ground — harmless, just for fun"),
+    ("freespin", "Biggest Freespin", "Highest speed a wheel reached while spinning free — one spike, in km/h"),
+    ("cutouts", "Falls / Cutouts", "Most falls detected — riding, then the wheel spinning free and the ride ending"),
+    ("spins", "Freespins", "Most times the wheel was spun up off the ground — harmless, just for fun"),
     ("sag", "Voltage Sag", "Biggest voltage drop under load — the hardest battery pull"),
     ("rocket", "Rocket", "Hardest sustained acceleration held for 2s or more"),
 ]
@@ -353,7 +353,7 @@ METRIC_GROUPS = [
     ("climb", "Biggest Climb", "Biggest single climb"),
     ("alt", "Max Altitude", "Highest altitude reached"),
     ("temp", "High Temp", "Hottest the board ran"),
-    ("cutout", "Falls", "Falls per 1000 km ridden"),
+    ("cutout", "Falls / Cutouts", "Falls per 1000 km ridden"),
 ]
 # All-time single records shown in the Records section (keys match Record.key / RECLABEL).
 METRIC_RECORDS = [
