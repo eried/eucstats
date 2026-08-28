@@ -303,21 +303,27 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         watts = [abs(x.power) / _W_PER_A for x in ev if x.power is not None]
         load = _median(amps if amps else watts)
         idle = 1.0 if load is None else (1.0 if load < c["motor_active_a"] else 0.0)
-        peak_accel = 0.0
+        peak_accel = 0.0                          # the most violent speed change either way
         for k in range(start + 1, end + 1):
             a, b = samples[k - 1], samples[k]
             dt = (b.t - a.t).total_seconds()
             if a.speed is not None and b.speed is not None and 0 < dt <= c["max_gap_s"]:
-                peak_accel = max(peak_accel, ((b.speed - a.speed) / 3.6) / dt)
+                peak_accel = max(peak_accel, abs((b.speed - a.speed) / 3.6) / dt)
 
-        # Was the wheel doing something no loaded wheel does? Current answers it outright
-        # when the log carries current. When it does not, speed answers it on its own: a wheel
-        # that runs away from the believable track by a clear margin has nothing on it.
+        # Was the wheel doing something no loaded wheel does?
+        #
+        # SPEED is the base test and always applies, so a log with no current channel can
+        # still be judged - 122 of the 789 trips in the library have none. Where there IS
+        # current it CORROBORATES rather than substitutes: both have to agree. That is
+        # strictly stronger than either alone, and it is the pairing that matters, because a
+        # wheel whose speed ran away while the motor pulled 9 A had a rider on it, and a wheel
+        # drawing nothing whose speed never did anything impossible was only coasting.
         runaway = max((s.speed or 0.0) - (believable[k] or 0.0)
                       for k, s in enumerate(samples[start:end + 1], start))
-        unloaded = peak >= c["free_spin_kmh"] and (
-            idle >= 0.7 if has_motor
-            else (runaway > c["freespin_margin"] or peak_accel >= c["accel_impossible"]))
+        impossible_speed = peak >= c["free_spin_kmh"] and (
+            runaway > c["freespin_margin"] or peak_accel >= c["accel_impossible"])
+        current_agrees = (not has_motor) or idle >= 0.7
+        unloaded = impossible_speed and current_agrees
         before = _moving(samples, start - _CONTEXT, start, has_motor, c, track)
         after = _moving(samples, end + 1, end + 1 + _CONTEXT, has_motor, c, track)
         # A lift starts from rest, and the wheel's own speed says so without needing GPS at
@@ -342,6 +348,7 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         if trace is not None:
             trace.append({"start": start, "end": end, "n": len(ev), "span": _span(ev),
                           "peak": peak, "load": load, "unloaded": unloaded,
+                          "impossible_speed": impossible_speed, "current_agrees": current_agrees,
                           "before": before, "after": after, "worked": surrounding_worked,
                           "from_rest": from_rest, "ended": ended, "runaway": runaway,
                           "at_end": end >= len(samples) - _CONTEXT})

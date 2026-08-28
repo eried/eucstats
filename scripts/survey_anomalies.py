@@ -255,6 +255,10 @@ def _grade(e, near, bucket=None, uuid=None):
 
     if not e["worked"]:
         return bump("motor never worked nearby -> glitch")
+    if not e.get("impossible_speed", True):
+        return bump("speed was believable for a loaded wheel")
+    if not e.get("current_agrees", True):
+        return bump("speed looked impossible but the motor was pulling: a rider was on it")
     if not e["unloaded"]:
         return bump("motor was loaded (a rider was on it)")
     if e["before"] is None or e["after"] is None:
@@ -390,7 +394,7 @@ def main() -> int:
         print("\nwhy events were not counted (the first test each one failed):")
         for reason, n in sorted(near.items(), key=lambda kv: -kv[1]):
             print(f"   {n:6d}  {reason}")
-        print(f"\ntotals: falls={tot['fall']} lifts={tot['lift']} "
+        print(f"\ntotals: falls={tot['fall']} spins={tot['spin']} "
               f"spikes={tot['spike']} glitches={tot['glitch']}")
         print(f"coverage: {no_current} trip(s) with no current channel, {no_gps} with no GPS speed, "
               f"{no_raw} with the raw upload already evicted")

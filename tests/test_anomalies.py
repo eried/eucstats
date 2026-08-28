@@ -355,3 +355,17 @@ def test_a_falls_runaway_spin_is_not_also_counted_as_a_free_spin():
            + [sp(26 + i, 0.0, 0.0, 0.1, 55.00133, 11.0) for i in range(16)])
     r = detect(log)
     assert (r["fall"], r["spin"]) == (1, 0)
+
+
+def test_speed_and_current_must_agree_when_the_log_has_both():
+    """Speed is the base test, so a log with no current channel can still be judged. Where
+    there IS current it has to corroborate, not substitute: a wheel whose speed ran away but
+    whose motor was pulling 9 A had a rider on it, and a wheel drawing nothing whose speed
+    never did anything impossible was simply coasting."""
+    spun_up_but_loaded = ([sp(i, 0.0, 0.0, 0.2, 55.0, 11.0) for i in range(10)]
+                          + [sp(10 + i, 45.0, 0.0, 9.0, 55.0, 11.0) for i in range(8)]
+                          + [sp(18 + i, 0.0, 0.0, 0.2, 55.0, 11.0) for i in range(8)])
+    assert detect(spun_up_but_loaded)["spin"] == 0, "the motor was working: somebody was on it"
+
+    coasting_unloaded = [sp(i, 25.0, 25.0, 0.3, 55.0 + i * 6e-5, 11.0) for i in range(30)]
+    assert detect(coasting_unloaded)["spin"] == 0, "no impossible speed: just coasting"
