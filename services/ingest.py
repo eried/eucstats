@@ -200,7 +200,7 @@ class IngestService:
                 max_freespin=sm.max_freespin, max_voltage_sag=sm.max_voltage_sag,
                 sustained_accel=sm.sustained_accel,
                 ascent_m=sm.ascent_m, descent_m=sm.descent_m, alt_range_m=sm.alt_range_m,
-                cutout_count=sm.cutout_count,
+                cutout_count=sm.cutout_count, lift_count=sm.lift_count,
                 max_altitude_m=sm.max_altitude_m, min_altitude_m=sm.min_altitude_m,
                 max_temp=sm.max_temp, min_temp=sm.min_temp,
                 temp_rise_rate=sm.temp_rise_rate, temp_drop_rate=sm.temp_drop_rate,

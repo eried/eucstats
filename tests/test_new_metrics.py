@@ -348,19 +348,12 @@ def test_clean_model_name_strips_serial():
     assert settings.clean_model_name("Master (V2)") == "Master (V2)"           # too short to be a serial
 
 
-def test_cutout_detection():
-    from ingest.summary import _cutout_count
-    # riding at 25 km/h (GPS follows), then the wheel free-spins to 80 in 1s (GPS stays ~0)
-    # with an impact g-spike -> one cutout event
-    ride = [_s(i, speed=25, gps_speed=25, g=1.0) for i in range(4)]
-    spike = [_s(4, speed=80, gps_speed=2, g=3.6)]
-    after = [_s(i, speed=0, gps_speed=0, g=1.0) for i in range(5, 8)]
-    assert _cutout_count(ride + spike + after) == 1
-    # a clean ride (no free-spin, no impact) -> none
-    assert _cutout_count([_s(i, speed=25, gps_speed=25, g=1.0) for i in range(8)]) == 0
-    # free-spin but GPS follows (real hard accel, not a cutout) -> none
-    assert _cutout_count([_s(i, speed=25, gps_speed=25, g=1.0) for i in range(4)]
-                         + [_s(4, speed=80, gps_speed=78, g=3.6)]) == 0
+def test_the_old_geometry_cutout_detector_is_gone():
+    """It looked for a wheel-speed leap plus a g-spike, and across 789 real trips it fired on
+    exactly nothing - its full condition never once came true. ingest/anomalies.py replaces it
+    by asking what actually distinguishes a fall: whether the motor was loaded."""
+    import ingest.summary as summary
+    assert not hasattr(summary, "_cutout_count")
 
 
 def test_teleport_segments_excludes_indoor_and_tunnel():

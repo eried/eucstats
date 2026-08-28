@@ -99,7 +99,8 @@ class TripSummary:
     brake_g_50: float | None
     stop_30_s: float | None     # fastest stop from 30 / 50 km/h to a standstill (lower better)
     stop_50_s: float | None
-    cutout_count: int           # detected cutout/overlean fall events (ride@speed -> freespin + impact)
+    cutout_count: int           # unloaded spin while travelling: a fall (cutouts land here)
+    lift_count: int             # unloaded spin from a standstill: a free spin / pickup test
     sample_count: int
 
 
@@ -599,35 +600,6 @@ def _moving_seconds(samples: list[Sample], min_kmh: float = 2.0, max_gap_s: floa
     return round(total, 1) if total > 0 else None
 
 
-def _cutout_count(samples: list[Sample], ride_kmh: float = 20.0, freespin_jump: float = 40.0,
-                  g_fall: float = 2.5, window_s: float = 2.0) -> int:
-    """Count cutout / overlean fall events. The classic signature, all in one short window:
-    you were riding at speed (corroborated >= ride_kmh just before), then the wheel SUDDENLY
-    free-spins (wheel speed leaps >= freespin_jump km/h in <=1.5s while GPS does NOT follow —
-    the motor cut out so the wheel spins free), with a g-force impact spike (|g| >= g_fall)
-    within window_s — the fall. Clustered so one crash counts once. Strict on purpose: a false
-    positive wrongly blames a wheel model."""
-    g_times = [s.t for s in samples if s.g is not None and abs(s.g) >= g_fall]
-    if not g_times:
-        return 0
-    n = 0
-    last = None
-    prev = None                       # (t, wheel speed, corroborated speed) of the previous sample
-    for s in samples:
-        ws = s.speed
-        if prev is not None and ws is not None and prev[1] is not None:
-            dt = (s.t - prev[0]).total_seconds()
-            gps_follows = s.gps_speed is not None and s.gps_speed >= ws - 15   # real accel, not a free-spin
-            riding = prev[2] is not None and prev[2] >= ride_kmh               # at speed just before
-            if 0 < dt <= 1.5 and (ws - prev[1]) >= freespin_jump and not gps_follows and riding \
-                    and any(abs((gt - s.t).total_seconds()) <= window_s for gt in g_times):
-                if last is None or (s.t - last).total_seconds() > 5:
-                    n += 1
-                    last = s.t
-        prev = (s.t, ws, _corrob_speed(s))
-    return n
-
-
 def _ascent_m(samples: list[Sample], hysteresis_m: float = 3.0) -> float | None:
     """Elevation gain from altitude samples, with a hysteresis to filter GPS noise."""
     alts = [s.alt for s in samples if s.alt is not None]
@@ -872,7 +844,13 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     accel_g_50, brake_g_50 = _speed_g_band(samples, 50.0, 1.0)
     stop_30_s = _fastest_stop(samples, 30.0)
     stop_50_s = _fastest_stop(samples, 50.0)
-    cutout_count = _cutout_count(samples)        # overlean/cutout fall events (per-wheel-model safety signal)
+    # Falls and lifts are the same physical event - an unloaded spin - told apart by what
+    # the wheel was doing either side. See ingest/anomalies.py; the previous detector
+    # compared wheel speed against GPS, which on this library flagged 3691 candidates of
+    # which none were genuinely unloaded, and never once fired on its full condition.
+    from .anomalies import detect as _detect_anomalies
+    _anom = _detect_anomalies(samples, cal)
+    cutout_count, lift_count = _anom["fall"], _anom["lift"]
 
     return TripSummary(
         start_utc=start, end_utc=end, duration_s=duration, moving_s=moving_s,
@@ -898,5 +876,6 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
         accel_g_30=accel_g_30, accel_g_50=accel_g_50,
         brake_g_30=brake_g_30, brake_g_50=brake_g_50,
         stop_30_s=stop_30_s, stop_50_s=stop_50_s, cutout_count=cutout_count,
+        lift_count=lift_count,
         sample_count=len(samples),
     )

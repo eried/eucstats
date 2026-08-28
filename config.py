@@ -86,6 +86,15 @@ EFF_MAX_WH_KM = float(os.environ.get("EUCSTATS_EFF_MAX_WH_KM", "300"))
 # straight into a number no wheel could achieve. Both the ride and the result must be plausible.
 RANGE_MIN_KM = float(os.environ.get("EUCSTATS_RANGE_MIN_KM", "1"))
 RANGE_MAX_KM = float(os.environ.get("EUCSTATS_RANGE_MAX_KM", "400"))
+# Falls and free spins (ingest/anomalies.py). A fall and a free spin are the same telemetry -
+# the wheel turning with nothing loading it - so what these knobs really tune is how sure we
+# insist on being before putting either on a board with a rider's name against it.
+FREE_SPIN_KMH = float(os.environ.get("EUCSTATS_FREE_SPIN_KMH", "12"))
+GPS_STOPPED_KMH = float(os.environ.get("EUCSTATS_GPS_STOPPED_KMH", "2"))
+TRACK_MOVING_KMH = float(os.environ.get("EUCSTATS_TRACK_MOVING_KMH", "3"))
+MOTOR_ACTIVE_A = float(os.environ.get("EUCSTATS_MOTOR_ACTIVE_A", "1"))
+ANOM_MIN_EVENT_S = float(os.environ.get("EUCSTATS_ANOM_MIN_EVENT_S", "2"))
+ANOM_MIN_FALL_S = float(os.environ.get("EUCSTATS_ANOM_MIN_FALL_S", "2"))
 MISMATCH_MIN_KM = float(os.environ.get("EUCSTATS_MISMATCH_MIN_KM", "0.5"))    # min distance before odo-vs-GPS mismatch is judged
 
 # --- Rate limits (per hour; 0 disables a given limit) ---

@@ -110,8 +110,26 @@ def rocket_leaderboard(db, limit=50):
             for rs in _board(db, RiderStat.best_sustained_accel, limit, positive_only=True)]
 
 
+def _anomaly_leaderboard(db, col, key, limit):
+    """Most of one anomaly per rider. Falls and free spins are the same query over different
+    columns - what separates them is only which side of the wheel the rider was on."""
+    sub = (db.query(Trip.rider_store_id.label("sid"),
+                    func.coalesce(func.sum(col), 0).label("v"))
+           .filter(Trip.validation_status == "validated")
+           .group_by(Trip.rider_store_id).having(func.sum(col) > 0).subquery())
+    rows = (db.query(sub.c.sid, sub.c.v).join(Rider, Rider.store_id == sub.c.sid)
+            .filter(Rider.consent_public.isnot(False)).order_by(desc(sub.c.v)).limit(limit).all())
+    return [{**_rider_brief(db, sid), key: int(v or 0)} for sid, v in rows]
+
+
+def spin_leaderboard(db, limit=50):
+    """Most free spins - the wheel turning with nobody on it, from a standstill. Harmless, and
+    kept well away from the fall board for that reason."""
+    return _anomaly_leaderboard(db, Trip.lift_count, "spins", limit)
+
+
 def cutout_leaderboard(db, limit=50):
-    """Most detected cutout/overlean falls per rider (raw count)."""
+    """Most detected falls per rider (raw count)."""
     sub = (db.query(Trip.rider_store_id.label("sid"),
                     func.coalesce(func.sum(Trip.cutout_count), 0).label("v"))
            .filter(Trip.validation_status == "validated")
@@ -375,6 +393,7 @@ BOARDS = {
     "commuter": commuter,
     "freespin": freespin_leaderboard,
     "cutouts": cutout_leaderboard,
+    "spins": spin_leaderboard,
 }
 
 

@@ -322,7 +322,8 @@ METRIC_BOARDS = [
     ("bigday", "Busiest Day", "Most rides in a single day"),
     ("commuter", "Commuter", "Most distance ridden on weekdays"),
     ("freespin", "Freespin", "Biggest freespin / spin-up spike (wheel lifted or a crash)"),
-    ("cutouts", "Cutout Survivor", "Most detected cutout / overlean falls (ride at speed → freespin + impact)"),
+    ("cutouts", "Falls", "Most falls detected — riding, then the wheel spinning free with nobody on it"),
+    ("spins", "Free Spins", "Most times the wheel was spun up off the ground — harmless, just for fun"),
     ("sag", "Voltage Sag", "Biggest voltage drop under load — the hardest battery pull"),
     ("rocket", "Rocket", "Hardest sustained acceleration held for 2s or more"),
 ]
@@ -352,7 +353,7 @@ METRIC_GROUPS = [
     ("climb", "Biggest Climb", "Biggest single climb"),
     ("alt", "Max Altitude", "Highest altitude reached"),
     ("temp", "High Temp", "Hottest the board ran"),
-    ("cutout", "Cutouts", "Cutout / overlean falls per 1000 km ridden"),
+    ("cutout", "Falls", "Falls per 1000 km ridden"),
 ]
 # All-time single records shown in the Records section (keys match Record.key / RECLABEL).
 METRIC_RECORDS = [
@@ -459,7 +460,7 @@ METRIC_BOARDS = [b for b in METRIC_BOARDS if b[0] not in _GATED_BASES]
 METRIC_BOARDS += [(b["k"], b["name"], b["desc"] + _gate_note(b["min_s"], b["min_km"]))
                   for b in gated_boards()]
 METRIC_BOARDS += [(b["k"], b["name"], b["desc"]) for b in ungated_new_boards()]
-DEFAULT_OFF_BOARDS = set(new_board_keys()) | {"cutouts"}   # ship every new board hidden until enabled
+DEFAULT_OFF_BOARDS = set(new_board_keys()) | {"cutouts", "spins"}   # ship every new board hidden until enabled
 
 # --- ingest pipeline plausibility rules (admin-toggleable) ---
 # (key, label, description, [threshold keys it uses]). Keys match plausibility.check()'s
@@ -540,6 +541,14 @@ CALIBRATION = [
     ("eff_max_wh_km", "Highest believable Wh/km", "cal_eff_max_whkm", "EFF_MAX_WH_KM", "float", 10, 5000),
     ("range_min_km", "Min ride distance to estimate range (km)", "cal_range_min_km", "RANGE_MIN_KM", "float", 0, 100),
     ("range_max_km", "Highest believable range (km)", "cal_range_max_km", "RANGE_MAX_KM", "float", 10, 5000),
+    # Falls / free spins. free_spin_kmh is the strongest lever on false positives here: drop it
+    # to 5 and walking a wheel off a lift gets published as somebody's crash.
+    ("free_spin_kmh", "Wheel speed that can be a free spin (km/h)", "cal_free_spin_kmh", "FREE_SPIN_KMH", "float", 3, 100),
+    ("gps_stopped_kmh", "GPS speed treated as standing still (km/h)", "cal_gps_stopped", "GPS_STOPPED_KMH", "float", 0, 20),
+    ("track_moving_kmh", "Track speed that contradicts a reported stop (km/h)", "cal_track_moving", "TRACK_MOVING_KMH", "float", 0, 20),
+    ("motor_active_a", "Current that counts as the motor working (A)", "cal_motor_active_a", "MOTOR_ACTIVE_A", "float", 0.1, 20),
+    ("min_event_s", "Shortest free spin worth counting (s)", "cal_anom_min_event_s", "ANOM_MIN_EVENT_S", "float", 0.5, 60),
+    ("min_fall_s", "Shortest fall worth counting (s)", "cal_anom_min_fall_s", "ANOM_MIN_FALL_S", "float", 0.5, 60),
 ]
 
 
