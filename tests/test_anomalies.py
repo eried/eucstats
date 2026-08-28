@@ -426,3 +426,70 @@ def test_the_one_real_freespin_in_the_library_still_counts():
             (2.6, 0.4, 0.4), (3.0, 0.3, 0.3), (2.6, 0.6, 0.3), (1.9, 0.8, 0.0)]
     log = [sp(i, w, g, a, 50.32947, 4.25329) for i, (w, g, a) in enumerate(rows)]
     assert detect(log)["spin"] == 1
+
+
+# --- Impact falls: the other way a rider goes down. -----------------------------------------
+# A cutout unloads the motor and the wheel runs away. A collision does the opposite - whatever
+# was hit stops the wheel, the motor slams to its limit trying to hold the rider up, and the
+# body carries on forward without it. Requiring an unloaded motor missed the only real crash
+# in the library, because a crash loads the motor harder than anything else in the ride.
+#
+# The signature is the exact inverse of a free spin: there the wheel spins and the ground is
+# still; here the ground moves and the wheel is not.
+
+def gsp(dt, wheel, gps, amps, g=None, lat=55.2746, lon=11.9246):
+    return Sample(t=BASE + timedelta(seconds=dt), speed=wheel, gps_speed=gps,
+                  current=amps, g=g, lat=lat, lon=lon)
+
+
+# Trip 234406ef, JonahOnEUC, 2026-07-31. Verbatim, positions included - an earlier version of
+# this fixture invented them as a straight line and the track never stopped, which is the one
+# thing the whole test turns on.
+JONAHS_CRASH = [
+    (0, 22.2, 15.3, 10.5, 0.29, 55.27452, 11.92351), (1, 24.9, 17.7, -39.8, 0.00, 55.27453, 11.92359),
+    (3, 27.1, 20.4, 15.9, 0.00, 55.27455, 11.92372), (3, 28.6, 22.6, 18.8, 0.66, 55.27456, 11.92385),
+    (5, 27.8, 26.5, -14.5, 0.00, 55.27457, 11.92397), (5, 28.7, 26.8, -19.0, 0.00, 55.27458, 11.92410),
+    (7, 30.7, 28.0, 14.2, 0.20, 55.27459, 11.92423), (7, 30.0, 25.2, -4.3, 0.16, 55.27460, 11.92434),
+    (9, 20.4, 26.7, 64.3, 0.00, 55.27463, 11.92446), (9, 10.3, 24.7, 98.8, 0.00, 55.27465, 11.92456),
+    (11, 1.7, 17.9, 1.9, 4.18, 55.27466, 11.92465), (11, 0.0, 17.8, 1.3, 0.36, 55.27466, 11.92472),
+    (13, 0.2, 2.8, 6.3, 0.00, 55.27464, 11.92475), (13, 0.0, 3.5, 13.3, 0.11, 55.27461, 11.92474),
+    (15, 0.0, 2.4, 1.2, 0.12, 55.27460, 11.92474), (16, 0.8, 1.3, 16.7, 0.00, 55.27460, 11.92475),
+    (17, 0.0, 2.8, 17.8, 0.07, 55.27457, 11.92477), (18, 0.0, 1.2, 1.2, 0.00, 55.27457, 11.92477),
+    (19, 0.0, 1.2, 0.9, 0.06, 55.27457, 11.92477), (20, 0.0, 1.1, 7.3, 0.06, 55.27459, 11.92477),
+    (21, 0.0, 0.9, 6.7, 0.05, 55.27458, 11.92478), (22, 0.0, 0.9, 0.9, 0.00, 55.27458, 11.92478),
+    (23, 0.0, 0.3, 1.3, 0.04, 55.27458, 11.92478), (24, 0.0, 0.5, 4.8, 0.16, 55.27456, 11.92477),
+    (25, 0.0, 1.5, 6.0, 0.03, 55.27454, 11.92477), (26, 0.0, 2.4, 1.0, 0.00, 55.27452, 11.92478),
+    (27, 0.0, 1.5, 1.0, 0.04, 55.27452, 11.92478), (28, 0.0, 0.6, 7.6, 0.05, 55.27452, 11.92478),
+    (29, 0.0, 0.7, 1.1, 0.00, 55.27452, 11.92479), (30, 0.0, 0.8, 0.9, 0.06, 55.27453, 11.92479),
+]
+
+
+def crash_log():
+    return [gsp(dt, w, g, a, gf, lat, lon) for dt, w, g, a, gf, lat, lon in JONAHS_CRASH]
+
+
+def test_the_one_real_crash_in_the_library_is_found():
+    """30 km/h, the current going to 98.8 A holding him up, a 4.2 g impact, and the wheel
+    reading 1.7 km/h while GPS still read 17.9 - his body still going forward without it.
+    Then thirty seconds stopped."""
+    assert detect(crash_log())["fall"] == 1
+
+
+def test_a_dead_bluetooth_link_is_not_an_impact_fall():
+    """Trip 10b666ce again, which looks the same for one sample and then does not: the wheel
+    reads zero while the ground carries on at 25 km/h and never stops. He rode away."""
+    log = [gsp(i, w, w, 0.0, 0.0, 69.6185 - i * 2e-5, 18.9467 - i * 4e-5)
+           for i, w in enumerate([5.7, 17.3, 28.5, 31.0])]
+    log += [gsp(4 + i, 0.0, g, 0.0, 0.0, 69.61821 - i * 3e-5, 18.94598 - i * 6e-5)
+            for i, g in enumerate([25.5, 23.0, 22.6, 32.8, 31.0, 24.4, 25.2, 24.0, 23.5, 22.0,
+                                   24.1, 25.0, 23.8, 26.2, 24.9])]
+    assert detect(log)["fall"] == 0
+
+
+def test_braking_hard_to_a_halt_is_not_an_impact_fall():
+    """The rider and the wheel slow down together, which is what stopping looks like. In a
+    crash the wheel stops and the rider does not."""
+    log = [gsp(i, 30.0 - i * 3.0, 29.0 - i * 3.0, -25.0, 0.2,
+               55.0 + (30 - i * 3) * 1e-5, 11.0) for i in range(11)]
+    log += [gsp(11 + i, 0.0, 0.0, 0.5, 0.05, 55.0, 11.0) for i in range(12)]
+    assert detect(log)["fall"] == 0

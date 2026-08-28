@@ -39,6 +39,10 @@ DEFAULTS = {
     "track_moving_kmh": 3.0,  # ground speed FROM THE TRACK that contradicts a reported stop
     "min_event_len": 3,       # shortest run of samples that can be a lift, and
     "min_event_s": 2.0,       # the seconds it must cover
+    "impact_min_kmh": 15.0,   # the rider must have been travelling for a crash to be a crash
+    "impact_ground_kmh": 8.0, # ground speed still showing when the wheel stopped: the body
+    "impact_stop_s": 5.0,     # seconds the wheel has to go from travelling to nothing
+    "impact_hold_s": 5.0,     # seconds everything must then STAY stopped
     "min_fall_len": 3,        # a fall must persist: one sample is a sensor blip, and
     "min_fall_s": 2.0,        # it must cover real time, whatever the logging rate
     "max_gap_s": 5.0,         # a longer gap makes every rate meaningless
@@ -277,6 +281,81 @@ def _moving(samples, lo, hi, has_motor, c, track=None):
     return None
 
 
+def _ground(samples, i, track):
+    """Best available ground speed at one sample: the track first, the GPS reading after."""
+    if track is not None and track[i] is not None:
+        return track[i]
+    return samples[i].gps_speed
+
+
+def _impact_falls(samples, c, track) -> int:
+    """Falls by collision rather than by cutout.
+
+    A cutout unloads the motor and the wheel runs away; a collision does the opposite. Whatever
+    was hit stops the wheel, the motor slams to its limit trying to hold the rider up, and the
+    body carries on forward without it. Trip 234406ef is the case in this library - 30 km/h,
+    the current going to 98.8 A, a 4.2 g impact, and the wheel reading 1.7 km/h while GPS still
+    read 17.9. Requiring an unloaded motor missed it entirely, because a crash loads the motor
+    harder than anything else in the whole ride. The evidence that proves it is a crash was
+    being used to dismiss it.
+
+    So the signature is the exact inverse of a free spin: there the wheel spins while the
+    ground is still, here the ground moves while the wheel is not. Three things have to hold,
+    and the third is what separates a crash from a Bluetooth link dropping out mid-ride:
+
+      * the wheel goes from travelling to nothing inside a few seconds,
+      * the ground is STILL MOVING at the moment it gets there - the rider's own momentum,
+      * and then the ground stops too, and stays stopped.
+
+    On trip 10b666ce the first two held and the third did not: the wheel read zero because the
+    link had died, and the rider carried on down the road at 25 km/h. He rode away from it.
+    """
+    n = len(samples)
+    out, last_t = 0, None
+    for i in range(n):
+        s = samples[i]
+        if s.speed is None or s.speed >= _MOVING_KMH:
+            continue                              # looking for the moment the wheel stops
+        prev = samples[max(0, i - 1)]
+        if prev.speed is None or prev.speed < _MOVING_KMH:
+            continue                              # only the first sample of the standstill
+
+        # ...arriving from real speed, fast
+        was = None
+        for k in range(i - 1, max(-1, i - 40), -1):
+            if samples[k].speed is None:
+                continue
+            if (s.t - samples[k].t).total_seconds() > c["impact_stop_s"]:
+                break
+            if samples[k].speed >= c["impact_min_kmh"]:
+                was = samples[k].speed
+                break
+        if was is None:
+            continue
+
+        # ...while the rider was still going
+        ground = _ground(samples, i, track)
+        if ground is None or ground < c["impact_ground_kmh"]:
+            continue
+
+        # ...and then everything stops, and stays stopped
+        settle = [k for k in range(i, n)
+                  if (samples[k].t - s.t).total_seconds() <= c["impact_hold_s"] * 2]
+        rest = [k for k in settle if (_ground(samples, k, track) or 0.0) < _MOVING_KMH]
+        if not rest:
+            continue
+        held = [k for k in range(rest[0], n)
+                if (samples[k].t - samples[rest[0]].t).total_seconds() <= c["impact_hold_s"]]
+        if len(held) < 3 or any((_ground(samples, k, track) or 0.0) >= c["impact_ground_kmh"]
+                                for k in held):
+            continue
+
+        if last_t is None or (s.t - last_t).total_seconds() > 30:
+            out += 1                              # one crash counts once
+            last_t = s.t
+    return out
+
+
 def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
     """Count falls, lifts, spikes and glitches across one trip's samples.
 
@@ -292,6 +371,7 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
     needs_fix = any(s.lat is not None and s.lon is not None for s in samples)
     track = _track_kmh(samples)
     believable = _believable(samples, c)
+    out["fall"] += _impact_falls(samples, c, track)
     flags = _flag(samples, c, has_motor, needs_fix, track)
 
     for start, end in _events(flags):

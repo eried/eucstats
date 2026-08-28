@@ -77,6 +77,16 @@ def _verdict_of(e, cal, anomalies):
     return "SPIKE"
 
 
+SENSITIVITY_DOC = """
+A detector that reports nothing is either right or broken, and no amount of staring at false
+positives can tell those apart. So: take each real trip, splice a textbook event into it, and
+see whether it comes back out. Specificity is what the survey measures; this is recall.
+
+The splice is deliberately the EASY case - a clean, unambiguous event of the kind the boards
+are meant to show. Anything the detector misses here it would certainly miss in the wild.
+"""
+
+
 def _at(samples, i, seconds):
     """Index `seconds` after sample i, so a splice lasts the same TIME on a 1 Hz log and a
     10 Hz one. Counting samples instead made every fast logger look like a miss."""
@@ -124,6 +134,100 @@ def _inject_spin(samples, i):
         s.current, s.power = (0.2 if spinning else 0.08) + (k % 3) * 0.03, None
         s.lat, s.lon = lat, lon
     return out
+
+
+def _impact(db, cap, prefix: str) -> int:
+    """Everything around the hardest hit in one trip: was it a crash, or a pothole?"""
+    from ingest.parser import parse_csv
+    from models import RawUpload, Trip
+    from services.ingest import _gunzip_capped, _is_gzip
+
+    t = next((x for x in db.query(Trip).all() if x.trip_uuid.startswith(prefix)), None)
+    ru = db.get(RawUpload, t.trip_uuid)
+    data = _gunzip_capped(ru.blob, cap) if _is_gzip(ru.blob) else ru.blob
+    s = parse_csv(data.decode("utf-8", "replace"), 0)
+    i = max(range(len(s)), key=lambda k: abs(s[k].g) if s[k].g is not None else -1)
+    print(f"{t.trip_uuid[:8]} {str(t.start_utc)[:16]}  {len(s)} samples  {(t.distance_km or 0):.1f} km"
+          f"  hardest hit {abs(s[i].g):.1f} g at sample {i} of {len(s)}")
+    print()
+    for k in range(max(0, i - 10), min(len(s), i + 25)):
+        x = s[k]
+        mark = ">>" if k == i else "  "
+        print(f"   {mark} {str(x.t)[11:19]} wheel={_f(x.speed):>6} gps={_f(x.gps_speed):>6} "
+              f"g={_f(x.g, 2):>6} A={_f(x.current):>7} pwm={_f(x.pwm):>5} "
+              f"lat={_f(x.lat, 5):>10} lon={_f(x.lon, 5):>10}")
+    return 0
+
+
+def _crash_scan(db, cap) -> int:
+    """Look for crashes using signals the fall detector never touches.
+
+    "No falls" is only worth believing if something else also fails to find one. A cutout
+    leaves marks besides an unloaded wheel: the board runs out of headroom first (PWM near
+    100%), the impact registers on the accelerometer, and the recording tends to stop where
+    the rider did. None of those three is an input to detect(), so agreement between them is
+    real corroboration rather than the same rule answering twice.
+    """
+    from ingest.parser import parse_csv
+    from models import RawUpload, Rider, Trip
+    from services.ingest import _gunzip_capped, _is_gzip
+
+    names = {r.store_id: r.display_name for r in db.query(Rider).all()}
+    trips = db.query(Trip).filter(Trip.validation_status == "validated").order_by(Trip.start_utc).all()
+    print(f"scanning {len(trips)} trips for crash evidence the detector does not use")
+    print()
+    hits = {"pwm": [], "impact": [], "abrupt": []}
+    for t in trips:
+        ru = db.get(RawUpload, t.trip_uuid)
+        if ru is None:
+            continue
+        try:
+            data = _gunzip_capped(ru.blob, cap) if _is_gzip(ru.blob) else ru.blob
+            s = parse_csv(data.decode("utf-8", "replace"), 0)
+        except Exception:
+            continue
+        who = (names.get(t.rider_store_id) or "?")[:13].ljust(13)
+        tag = f"  {t.trip_uuid[:8]} {who} {str(t.start_utc)[:10]}"
+
+        # 1. the board ran out of headroom: PWM pinned high is what precedes an overlean cutout
+        pwm = [x.pwm for x in s if x.pwm is not None]
+        top = sorted(pwm)[-3:] if len(pwm) >= 3 else []
+        if top and min(top) >= 90:
+            hits["pwm"].append(f"{tag}  PWM peaked at {max(top):.0f}% (3 samples >= 90%)")
+
+        # 2. an impact: a big g spike WHILE the wheel was travelling, then the speed collapses
+        for i, x in enumerate(s):
+            if x.g is None or abs(x.g) < 3.0:
+                continue
+            before = [y.speed for y in s[max(0, i - 5):i] if y.speed is not None]
+            after = [y.speed for y in s[i + 1:i + 11] if y.speed is not None]
+            if before and after and _median(before) > 15 and _median(after) < 3:
+                hits["impact"].append(f"{tag}  {abs(x.g):.1f} g at {_median(before):.0f} km/h, "
+                                      f"then stopped")
+                break
+
+        # 3. the log simply stops while the rider is still moving fast
+        tail = [x.speed for x in s[-4:] if x.speed is not None]
+        if tail and min(tail) > 25:
+            hits["abrupt"].append(f"{tag}  recording ends at {min(tail):.0f}-{max(tail):.0f} km/h")
+
+    for key, label in (("pwm", "PWM pinned near 100% (overlean, the classic cutout precursor)"),
+                       ("impact", "impact: 3g+ while travelling, then a standstill"),
+                       ("abrupt", "recording stops while still travelling fast")):
+        rows = hits[key]
+        print(f"{label}: {len(rows)}")
+        for r in rows[:10]:
+            print(r)
+        if len(rows) > 10:
+            print(f"   ... and {len(rows) - 10} more")
+        print()
+    return 0
+
+
+def _median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    return None if not n else (xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2.0)
 
 
 def _splice_point(samples):
@@ -303,6 +407,9 @@ def main() -> int:
     ap.add_argument("--verbose", action="store_true", help="list every trip, not just the hits")
     ap.add_argument("--trip", help="dump the samples around each fall/spin of one trip")
     ap.add_argument("--fixture", help="TRIP:LO:HI - emit that sample range as a test fixture")
+    ap.add_argument("--impact", help="dump the telemetry around the biggest g spike of one trip")
+    ap.add_argument("--crash-scan", action="store_true",
+                    help="hunt crashes by evidence the detector does NOT use, as a cross-check")
     ap.add_argument("--inject", choices=("fall", "spin"),
                     help="splice a synthetic event into every real trip and see if it is found")
     args = ap.parse_args()
@@ -319,6 +426,10 @@ def main() -> int:
     try:
         cal = settings.get_calibration(db)
         cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
+        if args.impact:
+            return _impact(db, cap, args.impact)
+        if args.crash_scan:
+            return _crash_scan(db, cap)
         if args.inject:
             return _sensitivity(db, cal, cap, args.inject, args.all, detect, args.trip)
         if args.fixture:
