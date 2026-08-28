@@ -132,18 +132,53 @@ def _inject_spin(samples, i):
     return out
 
 
-def _sensitivity(db, cal, cap, kind: str, everything: bool, detect) -> int:
+def _splice_point(samples):
+    """A moment the rider is genuinely under way, not the first sample above 20 km/h.
+
+    That first sample is by construction the one right after every trip's opening launch, so
+    the ten samples before it are still the standstill - the context honestly reads "was not
+    travelling", and one spliced fall in seven was thrown away for a reason that says nothing
+    about the detector.
+    """
+    run = 0
+    for k in range(len(samples) - 40):
+        s = samples[k]
+        if (s.speed or 0) > 15:
+            run += 1
+        else:
+            run = 0
+        if run >= 15 and s.lat is not None and s.current is not None:
+            return k
+    return None
+
+
+def _sensitivity(db, cal, cap, kind: str, everything: bool, detect, one=None) -> int:
     """Splice one synthetic event into every usable trip and count how many come back."""
     from ingest.parser import parse_csv
     from models import RawUpload, Trip
     from services.ingest import _gunzip_capped, _is_gzip
 
     print(SENSITIVITY_DOC)
+    want = "fall" if kind == "fall" else "lift"
+    inject = _inject_fall if kind == "fall" else _inject_spin
+    if one:                                       # a single trip, with the event's evidence
+        t = next(x for x in db.query(Trip).all() if x.trip_uuid.startswith(one))
+        ru = db.get(RawUpload, t.trip_uuid)
+        data = _gunzip_capped(ru.blob, cap) if _is_gzip(ru.blob) else ru.blob
+        samples = parse_csv(data.decode("utf-8", "replace"), 0)
+        i = _splice_point(samples)
+        tr = []
+        print(f"{t.trip_uuid[:8]}: spliced a {kind} in at sample {i} of {len(samples)}")
+        print(f"result: {detect(inject(samples, i), cal, trace=tr)}")
+        for e in tr:
+            if abs(e["start"] - i) < 40:
+                print(f"   samples {e['start']}-{e['end']} n={e['n']} span={e['span']:.1f}s "
+                      f"peak={e['peak']:.1f} load={e['load']} unloaded={e['unloaded']} "
+                      f"before={e['before']} after={e['after']} worked={e['worked']}")
+        return 0
     q = db.query(Trip)
     if not everything:
         q = q.filter(Trip.validation_status == "validated")
-    want = "fall" if kind == "fall" else "lift"
-    inject = _inject_fall if kind == "fall" else _inject_spin
     found = missed = skipped = 0
     misses, why_tot = [], {}
     for t in q.order_by(Trip.start_utc).all():
@@ -155,10 +190,7 @@ def _sensitivity(db, cal, cap, kind: str, everything: bool, detect) -> int:
             samples = parse_csv(data.decode("utf-8", "replace"), 0)
         except Exception:
             continue
-        # splice into a stretch that is riding, has a position, and has room either side
-        i = next((k for k in range(30, len(samples) - 40)
-                  if (samples[k].speed or 0) > 20 and samples[k].lat is not None
-                  and samples[k].current is not None), None)
+        i = _splice_point(samples)
         if i is None:
             skipped += 1
             continue
@@ -290,7 +322,7 @@ def main() -> int:
         cal = settings.get_calibration(db)
         cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
         if args.inject:
-            return _sensitivity(db, cal, cap, args.inject, args.all, detect)
+            return _sensitivity(db, cal, cap, args.inject, args.all, detect, args.trip)
         if args.fixture:
             u, lo, hi = args.fixture.split(":")
             return _fixture(db, cap, u, int(lo), int(hi))

@@ -270,6 +270,13 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
             idle >= 0.7 if has_motor else peak_accel >= c["accel_impossible"])
         before = _moving(samples, start - _CONTEXT, start, has_motor, c, track)
         after = _moving(samples, end + 1, end + 1 + _CONTEXT, has_motor, c, track)
+        # A lift starts from rest, and the wheel's own speed says so without needing GPS at
+        # all. Splicing crashes into real rides showed why this matters: where the context
+        # could not establish that the rider had been travelling, a 28 km/h fall was being
+        # filed as a free spin. The two boards mean opposite things, so putting a crash on the
+        # harmless one is worse than reporting nothing.
+        prior = [x.speed for x in samples[max(0, start - _CONTEXT):start] if x.speed is not None]
+        from_rest = not prior or (_median(prior) < _MOVING_KMH)
 
         # The asymmetry is deliberate: a fall must be positively confirmed by a stop, while a
         # lift may end in unknown territory, which is common at the end of a log.
@@ -277,13 +284,14 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
             trace.append({"start": start, "end": end, "n": len(ev), "span": _span(ev),
                           "peak": peak, "load": load, "unloaded": unloaded,
                           "before": before, "after": after, "worked": surrounding_worked,
+                          "from_rest": from_rest,
                           "at_end": end >= len(samples) - _CONTEXT})
         if not surrounding_worked:
             out["glitch"] += 1
         elif (unloaded and before is True and after is False
               and len(ev) >= c["min_fall_len"] and _span(ev) >= c["min_fall_s"]):
             out["fall"] += 1
-        elif (unloaded and before is False and after is not True
+        elif (unloaded and before is False and after is not True and from_rest
               and len(ev) >= c["min_event_len"] and _span(ev) >= c["min_event_s"]):
             # The same floor a fall gets, and for the same reason. Riding tight circles in a
             # car park moves the rider nowhere, so the context reads "stopped" honestly; what

@@ -272,3 +272,37 @@ def test_a_wheel_actually_picked_up_is_still_a_lift():
            + [sp(26 + i, 0.0, 0.0, 0.1, 55.0005, 11.0) for i in range(6)]        # set down
            + [sp(32 + i, 22.0, 21.0, 7.0, 55.0005 + i * 5e-5, 11.0) for i in range(10)])
     assert detect(log)["lift"] == 1
+
+
+def test_the_stop_does_not_bleed_backwards_into_the_before_window():
+    """Ground speed is smoothed over a couple of samples either side, which means the samples
+    just before a fall already carry some of the standstill that follows. Read the context
+    right up against the event and a real fall reports 'was not travelling before' and is
+    dismissed - it cost 14% of spliced falls. So the context windows stand clear of it."""
+    log = ([sp(i, 32.0, 31.0, 9.0, 55.0 + i * 8e-5, 11.0) for i in range(30)]   # riding
+           + [sp(30 + i, 44.0, 0.0, 0.2, 55.00232, 11.0) for i in range(6)]     # wheel runs free
+           + [sp(36 + i, 0.0, 0.0, 0.1, 55.00232, 11.0) for i in range(20)])    # rider is down
+    assert detect(log)["fall"] == 1
+
+
+def test_a_fall_is_never_filed_as_a_free_spin():
+    """The two boards mean opposite things, so confusing them is worse than missing the event:
+    a crash would be published as somebody messing about. What tells them apart without
+    needing GPS at all is the wheel's own speed - a lift starts from rest, a fall does not."""
+    log = ([sp(i, 30.0, 29.0, 8.0, 55.0 + i * 7e-5, 11.0) for i in range(20)]
+           + [sp(20 + i, 42.0, 0.0, 0.2, 55.00133, 11.0) for i in range(6)]
+           + [sp(26 + i, 0.0, 0.0, 0.1, 55.00133, 11.0) for i in range(16)])
+    assert detect(log)["lift"] == 0
+
+
+def test_coarse_gps_that_repeats_a_fix_is_not_a_standstill():
+    """Plenty of phones write the same position for several samples and then jump. Read the
+    track over two samples and a rider doing 40 km/h looks parked half the time, which threw
+    away one spliced fall in seven - and filed it under free spins."""
+    rows = []
+    for i in range(40):
+        lat = 55.0 + (i // 5) * 5e-4              # position updates once every five samples
+        rows.append(sp(i, 40.0, 39.0, 9.0, lat, 11.0))
+    rows += [sp(40 + i, 55.0, 0.0, 0.2, 55.0035, 11.0) for i in range(6)]
+    rows += [sp(46 + i, 0.0, 0.0, 0.1, 55.0035, 11.0) for i in range(16)]
+    assert detect(rows)["fall"] == 1
