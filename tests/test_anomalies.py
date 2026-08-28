@@ -369,3 +369,60 @@ def test_speed_and_current_must_agree_when_the_log_has_both():
 
     coasting_unloaded = [sp(i, 25.0, 25.0, 0.3, 55.0 + i * 6e-5, 11.0) for i in range(30)]
     assert detect(coasting_unloaded)["spin"] == 0, "no impossible speed: just coasting"
+
+
+# --- The wheel column that is really the GPS column. ---------------------------------------
+# Three of the four events the speed-only model reported on the real library came from this
+# one pattern. When the wheel's Bluetooth link is not up, the app fills the wheel column from
+# the phone: speed identical to the ground reading sample after sample, current exactly 0.0,
+# PWM exactly 0.0. None of that is a measurement of the wheel, so no verdict about the wheel
+# can be drawn from it.
+
+def gpsfill(i, v, lat, lon):
+    """A sample as the app writes it when no wheel is connected."""
+    return Sample(t=BASE + timedelta(seconds=i), speed=v, gps_speed=v,
+                  current=0.0, pwm=0.0, lat=lat, lon=lon)
+
+
+def test_a_wheel_column_copied_from_gps_is_not_a_freespin():
+    """Trip 2c4829c6: 46 seconds at 70-78 km/h, wheel and ground identical to the decimal,
+    nothing drawn, no PWM, and the position advancing the whole way. A rider on a road."""
+    speeds = [59.3, 59.5, 62.0, 66.8, 67.5, 70.0, 71.7, 71.8, 75.9, 77.4, 75.5, 74.8, 75.5,
+              75.2, 77.0, 76.5, 78.9, 76.9, 75.2, 76.3, 75.2, 70.6, 69.4, 69.2, 69.8, 69.3]
+    log = [gpsfill(i, v, 59.1935 - i * 5e-5, 17.752 + i * 4e-4) for i, v in enumerate(speeds)]
+    r = detect(log)
+    assert (r["fall"], r["spin"]) == (0, 0), r
+
+
+def test_a_wheel_column_copied_from_gps_is_not_a_fall_either():
+    """Trip 10b666ce: same copied column, and when the copying stops the wheel reads 0 while
+    the ground carries on at 25 km/h. That is the app losing the link, not a rider going down."""
+    log = [gpsfill(i, v, 69.6185 - i * 2e-5, 18.9467 - i * 4e-5) for i, v in
+           enumerate([5.6, 5.6, 5.6, 5.7, 5.7, 17.3, 28.5, 31.0])]
+    log += [Sample(t=BASE + timedelta(seconds=8 + i), speed=0.0, gps_speed=g, current=0.0,
+                   pwm=0.0, lat=69.61821, lon=18.94598 - i * 6e-5)
+            for i, g in enumerate([25.5, 23.0, 22.6, 32.8, 31.0, 24.4, 25.2, 24.0, 23.5, 22.0])]
+    assert detect(log)["fall"] == 0
+
+
+def test_a_wheel_speed_oscillating_between_high_and_low_is_not_a_freespin():
+    """Trip 372cb270: 26.1, 2.7, 18.6, 2.6 km/h in four seconds, with 19.7 A on the first of
+    them. A wheel that is genuinely spinning free holds its speed; this is a rider at walking
+    pace and a link dropping packets."""
+    rows = [(0.6, 3.0, 0.3), (2.2, 2.3, 0.5), (1.4, 1.0, 0.3), (0.3, 2.0, 0.2), (0.4, 2.5, 0.3),
+            (0.0, 5.3, 2.3), (26.1, 3.9, 19.7), (2.7, 5.2, 0.6), (18.6, 2.4, -0.4),
+            (2.6, 4.5, 0.5), (3.6, 2.9, 0.3), (4.6, 3.4, 0.5), (4.3, 3.0, 0.4), (6.1, 7.0, 0.6)]
+    log = [sp(i, w, g, a, 69.64834, 18.9547 + i * 1e-5) for i, (w, g, a) in enumerate(rows)]
+    assert detect(log)["spin"] == 0
+
+
+def test_the_one_real_freespin_in_the_library_still_counts():
+    """Trip b2b26ebb, and the only true positive the detector has ever produced: a parked
+    wheel, position frozen, 0 to 37.1 km/h and back inside two seconds with 16 A on the
+    spin-up. Whatever else changes, this has to keep coming out."""
+    rows = [(5.6, 0.8, 2.3), (0.8, 0.4, 0.2), (0.5, 0.3, 0.3), (0.9, 0.2, 0.3), (1.3, 0.3, 1.5),
+            (0.0, 0.3, 0.3), (0.0, 0.2, 0.2), (0.0, 0.3, 0.4), (35.5, 0.3, 16.0),
+            (37.1, 0.3, 0.1), (2.1, 0.3, 0.3), (1.3, 0.3, 0.2), (0.8, 0.3, 0.5),
+            (2.6, 0.4, 0.4), (3.0, 0.3, 0.3), (2.6, 0.6, 0.3), (1.9, 0.8, 0.0)]
+    log = [sp(i, w, g, a, 50.32947, 4.25329) for i, (w, g, a) in enumerate(rows)]
+    assert detect(log)["spin"] == 1

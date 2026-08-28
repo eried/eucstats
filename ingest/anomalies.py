@@ -121,11 +121,25 @@ def _believable(samples, c) -> list:
     return out
 
 
-def _at_rest(samples, lo, hi, c) -> bool:
-    """Did the wheel stop and stay stopped? The tell Erwin named for a fall on a log with no
+def _at_rest(samples, lo, hi, c, track=None) -> bool:
+    """Did the RIDER stop and stay stopped? The tell Erwin named for a fall on a log with no
     current: the speed does something violent and then everything simply ends. A rider braking
-    hard is still riding a second later; a rider on the ground is not."""
-    win = [x.speed for x in samples[max(0, lo):hi] if x.speed is not None]
+    hard is still riding a second later; a rider on the ground is not.
+
+    It asks the ground, not the wheel, and that distinction is the whole point. On trip
+    10b666ce the wheel column dropped from 31 km/h to nothing because the Bluetooth link died,
+    and sat at nothing while the rider carried on down the road at 25 km/h by GPS. Asking the
+    wheel called that a fall. Asking the ground does not.
+    """
+    lo, hi = max(0, lo), max(0, hi)
+    if track is not None:
+        ground = [v for v in track[lo:hi] if v is not None]
+        if len(ground) >= 3:
+            return _median(ground) < _MOVING_KMH
+    gps = [x.gps_speed for x in samples[lo:hi] if x.gps_speed is not None]
+    if len(gps) >= 3:
+        return _median(gps) < _MOVING_KMH
+    win = [x.speed for x in samples[lo:hi] if x.speed is not None]     # no ground to ask
     return len(win) >= 3 and _median(win) < _MOVING_KMH
 
 
@@ -286,6 +300,11 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         if not speeds:
             continue
         peak = max(speeds)
+        # A wheel that is genuinely spinning free HOLDS its speed. Trip 372cb270 read 26.1,
+        # 2.7, 18.6, 2.6 km/h in four seconds with 19.7 A on the first of them: that is a
+        # rider at walking pace on a link dropping packets, and a peak alone cannot tell the
+        # two apart. The median can.
+        held = _median(speeds)
 
         # Is the current channel telling us anything here? True by definition when the log
         # carries no motor data at all, so an absent column can never manufacture a "glitch".
@@ -320,7 +339,7 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         # drawing nothing whose speed never did anything impossible was only coasting.
         runaway = max((s.speed or 0.0) - (believable[k] or 0.0)
                       for k, s in enumerate(samples[start:end + 1], start))
-        impossible_speed = peak >= c["free_spin_kmh"] and (
+        impossible_speed = peak >= c["free_spin_kmh"] and held >= c["free_spin_kmh"] and (
             runaway > c["freespin_margin"] or peak_accel >= c["accel_impossible"])
         current_agrees = (not has_motor) or idle >= 0.7
         unloaded = impossible_speed and current_agrees
@@ -331,12 +350,16 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         # could not establish that the rider had been travelling, a 28 km/h fall was being
         # filed as a free spin. The two boards mean opposite things, so putting a crash on the
         # harmless one is worse than reporting nothing.
-        # "From rest" means the wheel was stopped WHEN THIS BEGAN, so it reads the immediate
+        # "From rest" means it was stopped WHEN THIS BEGAN, so it reads the immediate
         # run-up rather than a ten-sample median: a rider who stops, steps off and picks the
         # wheel up has a window straddling both, and the median of riding-then-stopped lands
         # halfway between and answers neither question.
         prior = [x.speed for x in samples[max(0, start - _RUNUP):start] if x.speed is not None]
-        from_rest = not prior or (_median(prior) < _MOVING_KMH)
+        # Both the wheel AND the ground have to have been still. Nobody picks up and spins a
+        # wheel that is travelling: on trip 2c4829c6 the wheel column read 0.0 only because
+        # the link was down, while the rider was doing 70 km/h by GPS, and taking the wheel's
+        # word for it turned a road ride into a 78.9 km/h free spin.
+        from_rest = (not prior or _median(prior) < _MOVING_KMH) and before is not True
 
         # The asymmetry is deliberate: a fall must be positively confirmed by a stop, while a
         # lift may end in unknown territory, which is common at the end of a log.
@@ -344,10 +367,10 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         # spun up on a stand is put back down and life goes on, while a rider on the ground
         # stays there. Erwin's tell for a log with no current - the speed does something
         # violent and then everything simply stops.
-        ended = _at_rest(samples, end + 1, end + 1 + _CONTEXT, c)
+        ended = _at_rest(samples, end + 1, end + 1 + _CONTEXT, c, track)
         if trace is not None:
             trace.append({"start": start, "end": end, "n": len(ev), "span": _span(ev),
-                          "peak": peak, "load": load, "unloaded": unloaded,
+                          "peak": peak, "held": held, "load": load, "unloaded": unloaded,
                           "impossible_speed": impossible_speed, "current_agrees": current_agrees,
                           "before": before, "after": after, "worked": surrounding_worked,
                           "from_rest": from_rest, "ended": ended, "runaway": runaway,

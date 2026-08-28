@@ -22,7 +22,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _explain(db, cal, cap, prefix: str, anomalies) -> int:
-    """Print the telemetry either side of every event, so a human can judge the verdict."""
+    """Print the telemetry either side of every event the detector actually counted.
+
+    It reads detect()'s own trace rather than re-deriving the decision here. Re-deriving keeps
+    two copies of the rules that drift apart, and the copy doing the explaining is the one
+    nobody tests: this printed nothing at all for trip 10b666ce while the detector was
+    reporting a fall on it.
+    """
     from ingest.parser import parse_csv
     from models import RawUpload, Trip
     from services.ingest import _gunzip_capped, _is_gzip
@@ -34,55 +40,41 @@ def _explain(db, cal, cap, prefix: str, anomalies) -> int:
     ru = db.get(RawUpload, t.trip_uuid)
     data = _gunzip_capped(ru.blob, cap) if _is_gzip(ru.blob) else ru.blob
     samples = parse_csv(data.decode("utf-8", "replace"), 0)
-    c = {**anomalies.DEFAULTS, **(cal or {})}
-    has_motor = anomalies._has_motor_data(samples)
-    needs_fix = any(x.lat is not None and x.lon is not None for x in samples)
-    track = anomalies._track_kmh(samples)
-    flags = anomalies._flag(samples, c, has_motor, needs_fix, track)
-    print(f"{t.trip_uuid} {str(t.start_utc)[:16]} {len(samples)} samples, "
-          f"has_motor={has_motor}, {(t.distance_km or 0):.1f} km")
+    tr = []
+    res = anomalies.detect(samples, cal, trace=tr)
+    print(f"{t.trip_uuid} {str(t.start_utc)[:16]}  {len(samples)} samples  "
+          f"{(t.distance_km or 0):.1f} km  ->  {res}")
     print()
-    for start, end in anomalies._events(flags):
-        ev = samples[start:end + 1]
-        peak = max((x.speed for x in ev if x.speed is not None), default=0)
-        before = anomalies._moving(samples, start - anomalies._CONTEXT, start, has_motor, c, track)
-        after = anomalies._moving(samples, end + 1, end + 1 + anomalies._CONTEXT, has_motor, c, track)
-        amps = [abs(x.current) for x in ev if x.current is not None]
-        load = anomalies._median(amps) if amps else None
-        idle = 1.0 if load is None or load < c["motor_active_a"] else 0.0
-        prior = [x.speed for x in samples[max(0, start - anomalies._RUNUP):start] if x.speed is not None]
-        from_rest = not prior or (anomalies._median(prior) < anomalies._MOVING_KMH)
-        is_fall = (before is True and after is False
-                   and len(ev) >= c["min_fall_len"]
-                   and anomalies._span(ev) >= c["min_fall_s"])
-        is_spin = (from_rest and after is not True and len(ev) >= c["min_event_len"]
-                   and anomalies._span(ev) >= c["min_event_s"])
-        around = (samples[max(0, start - anomalies._SURROUND):start]
-                  + samples[end + 1:end + 1 + anomalies._SURROUND])
-        worked = (not has_motor) or any(anomalies._drawing(x, c["motor_active_a"]) for x in around)
-        if not (worked and peak >= c["free_spin_kmh"] and idle >= 0.7 and (is_fall or is_spin)):
-            continue                              # only the ones that become a fall or a spin
-        kind = "FALL" if is_fall else "SPIN"
-        print(f"== {kind}  samples {start}-{end}  peak {peak:.1f} km/h  idle {idle:.0%}  "
-              f"before_moving={before} after_moving={after} median_load={load}")
-        for i in range(max(0, start - 6), min(len(samples), end + 7)):
+    for e in tr:
+        verdict = _verdict_of(e, cal, anomalies)
+        if verdict not in ("FALL", "SPIN"):
+            continue
+        print(f"== {verdict}  samples {e['start']}-{e['end']}  {e['n']} samples over "
+              f"{e['span']:.1f}s  peak {e['peak']:.1f} km/h  "
+              f"runaway {e.get('runaway') or 0:.1f} km/h")
+        print(f"   median load {e['load']}  travelling before={e['before']} after={e['after']}  "
+              f"from_rest={e.get('from_rest')}  ended at rest={e.get('ended')}")
+        for i in range(max(0, e["start"] - 6), min(len(samples), e["end"] + 7)):
             s = samples[i]
-            mark = ">>" if start <= i <= end else "  "
+            mark = ">>" if e["start"] <= i <= e["end"] else "  "
             print(f"   {mark} {str(s.t)[11:19]} wheel={_f(s.speed):>6} gps={_f(s.gps_speed):>6} "
-                  f"A={_f(s.current):>7} W={_f(s.power):>8} pwm={_f(s.pwm):>5} "
+                  f"A={_f(s.current):>7} pwm={_f(s.pwm):>5} "
                   f"lat={_f(s.lat, 5):>10} lon={_f(s.lon, 5):>10}")
         print()
     return 0
 
 
-SENSITIVITY_DOC = """
-A detector that reports nothing is either right or broken, and no amount of staring at false
-positives can tell those apart. So: take each real trip, splice a textbook event into it, and
-see whether it comes back out. Specificity is what the survey measures; this is recall.
-
-The splice is deliberately the EASY case - a clean, unambiguous event of the kind the boards
-are meant to show. Anything the detector misses here it would certainly miss in the wild.
-"""
+def _verdict_of(e, cal, anomalies):
+    """Replay only the final branch, from the evidence the detector itself recorded."""
+    c = {**anomalies.DEFAULTS, **(cal or {})}
+    if not e["worked"]:
+        return "GLITCH"
+    long_enough = e["n"] >= c["min_fall_len"] and e["span"] >= c["min_fall_s"]
+    if e["unloaded"] and e["before"] is True and (e["after"] is False or e.get("ended"))             and long_enough:
+        return "FALL"
+    if e["unloaded"] and e.get("from_rest") and e["n"] >= c["min_event_len"]             and e["span"] >= c["min_event_s"]:
+        return "SPIN"
+    return "SPIKE"
 
 
 def _at(samples, i, seconds):
