@@ -145,7 +145,7 @@ def _sensitivity(db, cal, cap, kind: str, everything: bool, detect) -> int:
     want = "fall" if kind == "fall" else "lift"
     inject = _inject_fall if kind == "fall" else _inject_spin
     found = missed = skipped = 0
-    misses = []
+    misses, why_tot = [], {}
     for t in q.order_by(Trip.start_utc).all():
         ru = db.get(RawUpload, t.trip_uuid)
         if ru is None:
@@ -163,17 +163,28 @@ def _sensitivity(db, cal, cap, kind: str, everything: bool, detect) -> int:
             skipped += 1
             continue
         before = detect(samples, cal)[want]
-        after = detect(inject(samples, i), cal)[want]
+        tr = []
+        after = detect(inject(samples, i), cal, trace=tr)[want]
         if after > before:
             found += 1
         else:
             missed += 1
-            if len(misses) < 12:
-                misses.append(f"   {t.trip_uuid[:8]} at sample {i}: {want} still {after}")
+            # Grade the spliced event itself: a miss is only worth acting on once you know
+            # which test threw it away.
+            near = {}
+            for e in tr:
+                if e["start"] <= i <= e["end"] or i <= e["start"] <= i + 30:
+                    _grade(e, near)
+            why = max(near, key=near.get) if near else "never even flagged"
+            why_tot[why] = why_tot.get(why, 0) + 1
+            if len(misses) < 8:
+                misses.append(f"   {t.trip_uuid[:8]} at sample {i}: {why}")
     total = found + missed
     if misses:
-        print(f"MISSED ({missed}):")
+        print(f"MISSED ({missed}) - a sample of them, then what threw each one away:")
         print(chr(10).join(misses))
+        for why, n in sorted(why_tot.items(), key=lambda kv: -kv[1]):
+            print(f"   {n:5d}  {why}")
     rate = (100.0 * found / total) if total else 0.0
     print(f"{kind}: found in {found}/{total} trips ({rate:.0f}%), "
           f"{skipped} trip(s) had no suitable place to splice one")
@@ -186,7 +197,8 @@ def _module(path):
     if not path:
         return deployed
     import importlib.util
-    spec = importlib.util.spec_from_file_location("anomalies_candidate", path)
+    import ingest                                 # so the candidate's relative imports resolve
+    spec = importlib.util.spec_from_file_location("ingest.anomalies_candidate", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
