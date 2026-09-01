@@ -493,3 +493,24 @@ def test_braking_hard_to_a_halt_is_not_an_impact_fall():
                55.0 + (30 - i * 3) * 1e-5, 11.0) for i in range(11)]
     log += [gsp(11 + i, 0.0, 0.0, 0.5, 0.05, 55.0, 11.0) for i in range(12)]
     assert detect(log)["fall"] == 0
+
+
+def test_an_ordinary_stop_is_not_an_impact_fall_however_smooth_the_gps():
+    """The first impact implementation reported 108 falls across 789 trips. It read ground
+    speed off the smoothed track, and that smoothing lags: at every ordinary stop the track
+    still shows 8 km/h when the wheel reaches nothing, so every stop looked like a rider
+    parting company with a wheel. An impact fall has to have an impact in it."""
+    log = [gsp(i, 28.0 - i * 2.5, 28.0 - i * 2.5, -18.0, 0.3,
+               55.0 + (28 - i * 2.5) * 2e-5, 11.0) for i in range(12)]
+    log += [gsp(12 + i, 0.0, 0.0, 0.6, 0.05, 55.0, 11.0) for i in range(14)]
+    assert detect(log)["fall"] == 0
+
+
+def test_a_hard_launch_current_is_not_impact_evidence():
+    """Taking a current surge as proof of a hit gave 11 falls, nearly all to one rider - the
+    one on the most powerful wheel. 40 A is an ordinary launch on a fast wheel, not a
+    collision. Where a log carries an accelerometer, that is what has to see the impact."""
+    log = [gsp(i, 30.0 - i * 3.0, 29.0 - i * 3.0, 62.0, 0.4,
+               55.0 + (30 - i * 3) * 2e-5, 11.0) for i in range(11)]
+    log += [gsp(11 + i, 0.0, 0.0, 0.5, 0.05, 55.0, 11.0) for i in range(14)]
+    assert detect(log)["fall"] == 0

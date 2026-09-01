@@ -136,6 +136,162 @@ def _inject_spin(samples, i):
     return out
 
 
+# Brand corrections. The app reports brand and model when a ride ends and guesses both from
+# the Bluetooth connection; where it guesses wrong the BLE name still says what it connected
+# to, because that string comes from the wheel itself.
+#
+# Only the first of these is confirmed by the person who owns the wheel. MackNificent: "I only
+# have a Begode Panther and a LeaperKim Oryx" - so the model was right all along and the brand
+# was not. The rest are inferred from this library disagreeing with itself about what a BLE
+# prefix means, and want the same confirmation before anyone applies them.
+CONFIRMED = [
+    {"m_brand": "KingSong", "m_model": "Panther", "set_brand": "Begode"},
+]
+PROPOSED = [
+    # LK* is LeaperKim everywhere else here (Lynx LK12787, Lynx S LK20712, Oryx LK19957/LK18872)
+    {"m_brand": "InMotion", "m_model": "", "set_brand": "LeaperKim", "_ble": "LK19486"},
+    # NF* is Nosfet everywhere else here (Aeon NF6293, Aero NF3394, Apex NF0001)
+    {"m_brand": "InMotion", "m_model": "", "set_brand": "Nosfet", "_ble": "NF3570 / NF8368"},
+]
+
+
+def _name_preview(db) -> int:
+    """What the confirmed correction would change, without changing anything."""
+    import json
+    from services import settings
+
+    print("Rule to add (Appearance -> wheel name rules):")
+    print(json.dumps(CONFIRMED, indent=2))
+    print()
+    changes = settings.name_fix_changes(db, settings.get_name_rules(db) + CONFIRMED)
+    print(f"wheels this would rewrite: {len(changes)}")
+    for c in changes:
+        print(f"   {c['brand']} / {c['model']}  ->  {c['new_brand']} / {c['new_model']}")
+    print()
+    print("Not confirmed by an owner yet - same symptom, no rule written:")
+    for r in PROPOSED:
+        print(f"   {r['m_brand']} (no model, BLE {r['_ble']})  ->  {r['set_brand']}?")
+    return 0
+
+
+def _wheels(db) -> int:
+    """Every wheel identity in the database, next to the Bluetooth name it came from.
+
+    Brand and model are not measured, they are whatever the app reported when the ride ended,
+    and the app in turn guesses them from the BLE connection. So a name nobody sells is not a
+    database problem - it is the app naming a wheel it did not recognise, and the BLE name is
+    the evidence of what it actually connected to.
+    """
+    from models import Rider, Trip, Wheel
+
+    rows = db.query(Wheel).all()
+    names = {r.store_id: r.display_name for r in db.query(Rider).all()}
+    counts = {}
+    for w_id, in db.query(Trip.wheel_id).filter(Trip.wheel_id.isnot(None)).all():
+        counts[w_id] = counts.get(w_id, 0) + 1
+    print(f"{len(rows)} wheel identit(ies)")
+    print()
+    print(f"{'brand':<14} {'model':<22} {'BLE name':<22} {'trips':>5}  rider / firmware")
+    for w in sorted(rows, key=lambda x: ((x.brand or ''), (x.model or ''))):
+        print(f"{(w.brand or '-'):<14} {(w.model or '-'):<22} {(w.ble_name or '-'):<22} "
+              f"{counts.get(w.wheel_id, 0):>5}  {names.get(w.rider_store_id, '?')}"
+              f" / {w.firmware or '-'}")
+    return 0
+
+
+def _card(db, cap, prefix: str) -> int:
+    """One trip described the way its rider would recognise it.
+
+    Local time, not UTC - nobody remembers what they were doing at 13:11 UTC. Where they set
+    off and where they finished, how long it took, and what the wheel was doing at the moment
+    in question, so the person who was actually there can say yes or no.
+    """
+    from datetime import timedelta
+    from ingest.parser import parse_csv
+    from models import RawUpload, Rider, Trip, Wheel
+    from services.ingest import _gunzip_capped, _is_gzip
+
+    t = next((x for x in db.query(Trip).all() if x.trip_uuid.startswith(prefix)), None)
+    if t is None:
+        print(f"no trip starting {prefix}")
+        return 1
+    rider = db.get(Rider, t.rider_store_id)
+    wheel = db.get(Wheel, t.wheel_id) if t.wheel_id else None
+    ru = db.get(RawUpload, t.trip_uuid)
+    data = _gunzip_capped(ru.blob, cap) if _is_gzip(ru.blob) else ru.blob
+    s = parse_csv(data.decode("utf-8", "replace"), 0)
+    # the CSV carries the rider's own local clock; the trip row carries UTC. The offset
+    # between them is what turns this back into a time a person recognises.
+    first = s[0].t.replace(tzinfo=None) if s else None
+    off = round((first - t.start_utc).total_seconds() / 900.0) * 900 if first else 0
+    loc = lambda u: (u + timedelta(seconds=off)).strftime("%A %d %B %Y, %H:%M") if u else "?"
+    dur = (t.end_utc - t.start_utc).total_seconds() / 60.0 if (t.end_utc and t.start_utc) else 0
+    last = next((x for x in reversed(s) if x.lat is not None), None)
+
+    print(f"Trip {t.trip_uuid}")
+    print(f"Rider        {rider.display_name if rider else '?'}")
+    print(f"Wheel        {(wheel.model if wheel else None) or 'not recorded'}")
+    print(f"Set off      {loc(t.start_utc)}   (local, UTC{off // 3600:+d})")
+    print(f"Finished     {loc(t.end_utc)}")
+    print(f"Duration     {dur:.0f} minutes")
+    print(f"Distance     {(t.distance_km or 0):.1f} km, top speed {(t.max_speed or 0):.1f} km/h")
+    print(f"Started at   {t.start_lat:.5f}, {t.start_lon:.5f}")
+    print(f"             https://www.openstreetmap.org/?mlat={t.start_lat:.5f}&mlon={t.start_lon:.5f}#map=17/{t.start_lat:.5f}/{t.start_lon:.5f}")
+    if last:
+        print(f"Ended near   {last.lat:.5f}, {last.lon:.5f}")
+    print(f"Uploaded     {loc(t.created_at)}")
+    print()
+    i = max(range(len(s)), key=lambda k: abs(s[k].g) if s[k].g is not None else -1)
+    x = s[i]
+    print(f"The moment in question: {str(x.t)[11:19]} local, "
+          f"{(x.t - s[0].t).total_seconds() / 60:.0f} minutes into the ride")
+    print(f"   the wheel went from about 30 km/h to a standstill over roughly four seconds,")
+    print(f"   stopped for about half a minute, then carried on for another 45 km.")
+    if x.lat is not None:
+        print(f"   where: {x.lat:.5f}, {x.lon:.5f}")
+        print(f"          https://www.openstreetmap.org/?mlat={x.lat:.5f}&mlon={x.lon:.5f}#map=18/{x.lat:.5f}/{x.lon:.5f}")
+    return 0
+
+
+def _provenance(db, prefix: str) -> int:
+    """Where a trip came from. A rider saying "I did not ride that day" outranks any reading
+    of the telemetry, so the first question is whether the trip is really theirs and really
+    that day - this library is known to have taken archive re-uploads that arrived with a
+    fresh trip_uuid long after the ride."""
+    from datetime import timedelta
+    from models import RawUpload, Rider, Trip
+
+    t = next((x for x in db.query(Trip).all() if x.trip_uuid.startswith(prefix)), None)
+    if t is None:
+        print(f"no trip starting {prefix}")
+        return 1
+    names = {r.store_id: r.display_name for r in db.query(Rider).all()}
+    lag = (t.created_at - t.start_utc).total_seconds() / 86400.0 if (t.created_at and t.start_utc) else None
+    ru = db.get(RawUpload, t.trip_uuid)
+    print(f"trip        {t.trip_uuid}")
+    print(f"rider       {names.get(t.rider_store_id)}  ({t.rider_store_id})")
+    print(f"ridden      {t.start_utc} -> {t.end_utc} UTC")
+    print(f"uploaded    {t.created_at}" + (f"   ({lag:.1f} days after the ride)" if lag is not None else ""))
+    print(f"country     {t.country}   start {t.start_lat},{t.start_lon}")
+    print(f"distance    {t.distance_km} km over {t.sample_count} samples, "
+          f"max {t.max_speed} km/h, status {t.validation_status}")
+    print(f"raw upload  {'kept' if ru else 'evicted'}"
+          + (f", {len(ru.blob)} bytes" if ru else ""))
+    print()
+    lo = t.start_utc - timedelta(days=3)
+    hi = t.start_utc + timedelta(days=3)
+    near = (db.query(Trip).filter(Trip.rider_store_id == t.rider_store_id,
+                                  Trip.start_utc >= lo, Trip.start_utc <= hi)
+            .order_by(Trip.start_utc).all())
+    print(f"that rider's trips within three days ({len(near)}):")
+    for x in near:
+        mark = "  <-- this one" if x.trip_uuid == t.trip_uuid else ""
+        xlag = (x.created_at - x.start_utc).total_seconds() / 86400.0 if (x.created_at and x.start_utc) else 0
+        print(f"   {x.trip_uuid[:8]} {str(x.start_utc)[:16]}  {(x.distance_km or 0):7.1f} km  "
+              f"{x.sample_count or 0:6d} samples  uploaded +{xlag:.1f}d  {x.validation_status}{mark}")
+    return 0
+
+
 def _impact(db, cap, prefix: str) -> int:
     """Everything around the hardest hit in one trip: was it a crash, or a pothole?"""
     from ingest.parser import parse_csv
@@ -408,6 +564,14 @@ def main() -> int:
     ap.add_argument("--trip", help="dump the samples around each fall/spin of one trip")
     ap.add_argument("--fixture", help="TRIP:LO:HI - emit that sample range as a test fixture")
     ap.add_argument("--impact", help="dump the telemetry around the biggest g spike of one trip")
+    ap.add_argument("--provenance", help="where one trip came from, and what else that rider "
+                                         "was doing around it")
+    ap.add_argument("--card", help="a plain summary of one trip, in the rider's own local time, "
+                                   "so they can tell you whether it was them")
+    ap.add_argument("--name-preview", action="store_true",
+                    help="dry-run the proposed brand corrections against the stored wheels")
+    ap.add_argument("--wheels", action="store_true",
+                    help="every wheel identity the app has reported, with what it connected to")
     ap.add_argument("--crash-scan", action="store_true",
                     help="hunt crashes by evidence the detector does NOT use, as a cross-check")
     ap.add_argument("--inject", choices=("fall", "spin"),
@@ -426,6 +590,14 @@ def main() -> int:
     try:
         cal = settings.get_calibration(db)
         cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
+        if args.name_preview:
+            return _name_preview(db)
+        if args.wheels:
+            return _wheels(db)
+        if args.card:
+            return _card(db, cap, args.card)
+        if args.provenance:
+            return _provenance(db, args.provenance)
         if args.impact:
             return _impact(db, cap, args.impact)
         if args.crash_scan:

@@ -41,6 +41,8 @@ DEFAULTS = {
     "min_event_s": 2.0,       # the seconds it must cover
     "impact_min_kmh": 15.0,   # the rider must have been travelling for a crash to be a crash
     "impact_ground_kmh": 8.0, # ground speed still showing when the wheel stopped: the body
+    "impact_g": 2.5,          # g that counts as hitting something
+    "impact_amps": 40.0,      # current surge that counts as the motor being stalled
     "impact_stop_s": 5.0,     # seconds the wheel has to go from travelling to nothing
     "impact_hold_s": 5.0,     # seconds everything must then STAY stopped
     "min_fall_len": 3,        # a fall must persist: one sample is a sensor blip, and
@@ -312,6 +314,9 @@ def _impact_falls(samples, c, track) -> int:
     """
     n = len(samples)
     out, last_t = 0, None
+    has_g = any(x.g is not None and abs(x.g) > 0 for x in samples)
+    draws = sorted(abs(x.current) for x in samples if x.current is not None)
+    typical_a = draws[int(len(draws) * 0.95)] if draws else None
     for i in range(n):
         s = samples[i]
         if s.speed is None or s.speed >= _MOVING_KMH:
@@ -333,10 +338,32 @@ def _impact_falls(samples, c, track) -> int:
         if was is None:
             continue
 
-        # ...while the rider was still going
-        ground = _ground(samples, i, track)
+        # ...while the rider was still going. This reads the REPORTED GPS speed, not the
+        # smoothed track: smoothing lags, so on the track every ordinary stop still shows
+        # 8 km/h at the moment the wheel reaches nothing. That one substitution was the
+        # difference between one fall across the library and 108 of them.
+        ground = samples[i].gps_speed
+        if ground is None:
+            ground = _ground(samples, i, track)
         if ground is None or ground < c["impact_ground_kmh"]:
             continue
+
+        # ...and something actually hit. An impact fall with no impact in it is just a stop,
+        # because GPS lag alone always leaves the ground reading a little ahead of the wheel.
+        #
+        # Where the log has an accelerometer, IT decides. Accepting a current surge as proof
+        # instead gave 11 falls across the library, nearly all to the one rider on the most
+        # powerful wheel: 40 A is an ordinary launch there, not a collision. Current is only
+        # the fallback for a log with no g channel at all, and then it has to be a surge well
+        # past anything the trip does elsewhere, not just a big absolute number.
+        near = samples[max(0, i - 3):i + 4]
+        if has_g:
+            if not any(x.g is not None and abs(x.g) >= c["impact_g"] for x in near):
+                continue
+        else:
+            amps = [abs(x.current) for x in near if x.current is not None]
+            if not amps or max(amps) < max(c["impact_amps"], 3.0 * (typical_a or 0.0)):
+                continue
 
         # ...and then everything stops, and stays stopped
         settle = [k for k in range(i, n)
@@ -346,7 +373,8 @@ def _impact_falls(samples, c, track) -> int:
             continue
         held = [k for k in range(rest[0], n)
                 if (samples[k].t - samples[rest[0]].t).total_seconds() <= c["impact_hold_s"]]
-        if len(held) < 3 or any((_ground(samples, k, track) or 0.0) >= c["impact_ground_kmh"]
+        if len(held) < 3 or any((samples[k].gps_speed if samples[k].gps_speed is not None
+                                 else _ground(samples, k, track) or 0.0) >= _MOVING_KMH
                                 for k in held):
             continue
 
