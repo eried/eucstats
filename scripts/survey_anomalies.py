@@ -196,6 +196,8 @@ def _wheels(db) -> int:
         print(f"{(w.brand or '-'):<14} {(w.model or '-'):<22} {(w.ble_name or '-'):<22} "
               f"{counts.get(w.wheel_id, 0):>5}  {names.get(w.rider_store_id, '?')}"
               f" / {w.firmware or '-'}")
+        print(f"{'':<14} key={w.wheel_id}  first seen {str(w.first_seen)[:16]}, "
+              f"last {str(w.last_seen)[:16]}")
     return 0
 
 

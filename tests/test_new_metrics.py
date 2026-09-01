@@ -471,3 +471,40 @@ def test_new_gated_leaderboard_returns_qualifying_max(db):
     brk = stats.BOARDS["brkg_b"](db, limit=10)
     assert brk and brk[0]["store_id"] == "g" and brk[0]["v"] == 0.9   # max, short ride excluded
     assert stats.BOARDS["spd5_b"](db, limit=10)[0]["v"] == 42.0
+
+
+def test_a_wheel_keeps_its_firmware_up_to_date():
+    """Firmware was written only when the wheel was first seen, so it froze at whatever the
+    wheel shipped with. MackNificent updated his Panther from GW2026201 to GW2026202 and the
+    site still showed the old one weeks later, which makes the field worse than useless: it
+    reads like a fact and is stale. The BLE name can change too - riders rename wheels."""
+    from database import SessionLocal, init_db
+    from models import Rider, Wheel
+    from services.ingest import IngestService
+
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(Wheel).filter(Wheel.wheel_id == "TESTKEY-1").delete()
+        if db.get(Rider, "rider-1") is None:
+            db.add(Rider(store_id="rider-1", display_name="Firmware Test"))
+        db.commit()
+        svc = IngestService(db)
+        svc._register_wheel("rider-1", {"brand": "Begode", "model": "Panther",
+                                        "ble_name": "GotWay_010860",
+                                        "firmware": "GW2026201"}, "TESTKEY-1")
+        assert db.get(Wheel, "TESTKEY-1").firmware == "GW2026201"
+
+        svc._register_wheel("rider-1", {"brand": "Begode", "model": "Panther",
+                                        "ble_name": "GotWay_010860",
+                                        "firmware": "GW2026202"}, "TESTKEY-1")
+        w = db.get(Wheel, "TESTKEY-1")
+        assert w.firmware == "GW2026202", "the update never reached the record"
+
+        # an upload that simply omits the field must not erase what we already knew
+        svc._register_wheel("rider-1", {"brand": "Begode", "model": "Panther"}, "TESTKEY-1")
+        assert db.get(Wheel, "TESTKEY-1").firmware == "GW2026202"
+        db.query(Wheel).filter(Wheel.wheel_id == "TESTKEY-1").delete()
+        db.commit()
+    finally:
+        db.close()

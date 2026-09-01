@@ -267,4 +267,14 @@ class IngestService:
             ))
         else:
             w.last_seen = utcnow()
+            # Firmware and BLE name change over the life of a wheel - riders flash new
+            # firmware and rename wheels - and writing them only on first sight froze them at
+            # whatever the wheel shipped with. MackNificent's Panther still read GW2026201
+            # here weeks after he had flashed GW2026202, which is worse than showing nothing:
+            # it reads as a fact. An upload that simply omits a field is not a correction, so
+            # a missing value never erases what we already knew.
+            for field in ("firmware", "ble_name"):
+                fresh = (wheel.get(field) or "").strip()
+                if fresh and fresh != getattr(w, field):
+                    setattr(w, field, fresh)
         self.db.commit()
