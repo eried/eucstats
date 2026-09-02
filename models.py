@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
-    LargeBinary, String,
+    LargeBinary, String, Text,
 )
 
 from database import Base
@@ -48,7 +48,10 @@ class Wheel(Base):
     brand = Column(String)
     model = Column(String)
     ble_name = Column(String)
+    ble_mac = Column(String)                    # kept under its own name, not just as the key
+    serial = Column(String)
     firmware = Column(String)
+    alt_keys = Column(Text)                     # JSON list: every id this wheel has been known by
     first_seen = Column(DateTime, default=utcnow)
     last_seen = Column(DateTime, default=utcnow)
 

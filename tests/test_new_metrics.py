@@ -508,3 +508,83 @@ def test_a_wheel_keeps_its_firmware_up_to_date():
         db.commit()
     finally:
         db.close()
+
+
+def test_one_wheel_stays_one_wheel_however_the_app_identifies_it():
+    """wid = serial or ble_mac, so a wheel first seen by its MAC became a SECOND wheel the day
+    the app started reporting a serial. It happened twice in the library: the same InMotion P6
+    exists once keyed E5:E5:AA:85:6B:4B and once A14219B0600259A6, splitting a rider's trips
+    across two wheels. The app also formats the MAC two ways depending on the code path, so a
+    third identity is possible for the same wheel. Every key a wheel has ever been known by is
+    remembered, and any of them finds it again."""
+    from database import SessionLocal, init_db
+    from models import Rider, Wheel
+    from services.ingest import IngestService
+
+    init_db()
+    db = SessionLocal()
+    try:
+        if db.get(Rider, "rider-2") is None:
+            db.add(Rider(store_id="rider-2", display_name="Alias Test"))
+        db.query(Wheel).filter(Wheel.rider_store_id == "rider-2").delete()
+        db.commit()
+        svc = IngestService(db)
+        p6 = {"brand": "InMotion", "model": "InMotion P6", "ble_name": "P6-600259A6"}
+
+        def ride(**ids):                       # one upload: resolve the id, then register it
+            w = {**p6, **ids}
+            key = svc.wheel_key(w)
+            svc._register_wheel("rider-2", w, key)
+            return key
+
+        a = ride(ble_mac="E5:E5:AA:85:6B:4B")                       # the app knows the MAC only
+        b = ride(serial="A14219B0600259A6", ble_mac="E5E5AA856B4B")  # learns the serial, other format
+        c = ride(serial="A14219B0600259A6")                          # later, the serial alone
+        assert a == b == c, f"same wheel, three identities: {a} / {b} / {c}"
+        assert db.query(Wheel).filter(Wheel.rider_store_id == "rider-2").count() == 1
+
+        # a genuinely different wheel is still a different wheel
+        other = svc.wheel_key({"brand": "InMotion", "model": "InMotion P6",
+                               "ble_name": "P6-600234BF", "serial": "A14219B0600234BF"})
+        assert other != a
+        db.query(Wheel).filter(Wheel.rider_store_id == "rider-2").delete()
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_every_identifier_the_app_reports_is_kept():
+    """The app sends whatever it can detect - serial, MAC, BLE name, brand, model, firmware -
+    and until now only some of it survived: serial and MAC became an opaque wheel_id, so the
+    database could not answer "does this wheel report a serial?" at all. Keep each field under
+    its own name; it costs nothing and it is what makes an identity question answerable later."""
+    from database import SessionLocal, init_db
+    from models import Rider, Wheel
+    from services.ingest import IngestService
+
+    init_db()
+    db = SessionLocal()
+    try:
+        if db.get(Rider, "rider-3") is None:
+            db.add(Rider(store_id="rider-3", display_name="Identity Test"))
+        db.query(Wheel).filter(Wheel.rider_store_id == "rider-3").delete()
+        db.commit()
+        svc = IngestService(db)
+        reported = {"brand": "Begode", "model": "Panther", "ble_name": "GotWay_010860",
+                    "ble_mac": "88:0F:62:7D:C5:A2", "serial": "GW-PANTHER-0001",
+                    "firmware": "GW2026202"}
+        key = svc.wheel_key(reported)
+        svc._register_wheel("rider-3", reported, key)
+        w = db.get(Wheel, key)
+        assert w.serial == "GW-PANTHER-0001"
+        assert w.ble_mac == "88:0F:62:7D:C5:A2"
+        assert (w.ble_name, w.brand, w.model, w.firmware) == (
+            "GotWay_010860", "Begode", "Panther", "GW2026202")
+
+        # a later upload that only knows the MAC must not blank the serial we already had
+        svc._register_wheel("rider-3", {k: v for k, v in reported.items() if k != "serial"}, key)
+        assert db.get(Wheel, key).serial == "GW-PANTHER-0001"
+        db.query(Wheel).filter(Wheel.rider_store_id == "rider-3").delete()
+        db.commit()
+    finally:
+        db.close()

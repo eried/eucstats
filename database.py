@@ -54,6 +54,7 @@ NEW_COLUMNS = {
               ("brake_g_30", "FLOAT"), ("brake_g_50", "FLOAT"),
               ("stop_30_s", "FLOAT"), ("stop_50_s", "FLOAT"), ("moving_s", "FLOAT"),
               ("cutout_count", "INTEGER"), ("descent_m", "FLOAT"), ("lift_count", "INTEGER"), ("spin_count", "INTEGER")],
+    "wheels": [("alt_keys", "TEXT"), ("ble_mac", "VARCHAR"), ("serial", "VARCHAR")],
     "rider_stats": [("best_freespin", "FLOAT"), ("best_voltage_sag", "FLOAT"),
                     ("best_sustained_accel", "FLOAT"), ("total_moving_s", "FLOAT"),
                     ("real_ride_count", "INTEGER")],

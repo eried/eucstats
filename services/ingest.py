@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import json
 import zlib
 from datetime import datetime
 
@@ -184,7 +185,7 @@ class IngestService:
             start_cell = cells.get(min(config.GRID_ZOOMS)) if cells else None
 
         wheel = meta.get("wheel") or {}
-        wid = wheel.get("serial") or wheel.get("ble_mac")
+        wid = self.wheel_key(wheel)
         self._register_wheel(store, wheel, wid, meta.get("app_version"))
 
         try:
@@ -253,6 +254,50 @@ class IngestService:
                 "verdict": _verdict(status), "reasons": reasons, "duplicate": False,
                 "distance_km": round(sm.distance_km, 3), "country": country}
 
+    @staticmethod
+    def _wheel_candidates(wheel: dict) -> list:
+        """Every id this upload could identify the wheel by, best first.
+
+        A MAC arrives in two shapes because the app formats it differently depending on which
+        code path sent it - "E5:E5:AA:85:6B:4B" from one, "E5E5AA856B4B" from the other - so
+        both forms are candidates for the same wheel.
+        """
+        out = []
+        for v in (wheel.get("serial"), wheel.get("ble_mac")):
+            v = (v or "").strip()
+            if v and v not in out:
+                out.append(v)
+        mac = (wheel.get("ble_mac") or "").replace(":", "").replace("-", "").upper()
+        if mac and mac not in out:
+            out.append(mac)
+        return out
+
+    def wheel_key(self, wheel: dict):
+        """The id to file this ride under: whichever of the wheel's ids we already know.
+
+        Keying on `serial or ble_mac` alone made a wheel into a SECOND wheel the day the app
+        started reporting a serial for it, and that happened twice in the library - the same
+        InMotion P6 stored once as E5:E5:AA:85:6B:4B and once as A14219B0600259A6, splitting
+        one rider's trips across two wheels on every board. Since an upload carries every id
+        it knows, an already-known one settles it, and each is remembered against the wheel so
+        it works whichever id turns up next time.
+        """
+        cands = self._wheel_candidates(wheel)
+        if not cands:
+            return None
+        for c in cands:
+            if self.db.get(Wheel, c) is not None:
+                return c
+        known = self.db.query(Wheel).filter(Wheel.alt_keys.isnot(None)).all()
+        for w in known:
+            try:
+                alts = json.loads(w.alt_keys) or []
+            except (TypeError, ValueError):
+                continue
+            if any(c in alts for c in cands):
+                return w.wheel_id
+        return cands[0]
+
     def _register_wheel(self, store, wheel: dict, wid, app_version=None):
         if not wid:
             return
@@ -261,10 +306,10 @@ class IngestService:
             import services.settings as settings   # canonicalize a mislabeled brand/model on the way in
             brand, model = settings.canonicalize_name(
                 wheel.get("brand"), wheel.get("model"), app_version, settings.get_name_rules(self.db))
-            self.db.add(Wheel(
-                wheel_id=wid, rider_store_id=store, brand=brand, model=model,
-                ble_name=wheel.get("ble_name"), firmware=wheel.get("firmware"),
-            ))
+            w = Wheel(wheel_id=wid, rider_store_id=store, brand=brand, model=model,
+                      ble_name=wheel.get("ble_name"), firmware=wheel.get("firmware"),
+                      ble_mac=wheel.get("ble_mac"), serial=wheel.get("serial"))
+            self.db.add(w)
         else:
             w.last_seen = utcnow()
             # Firmware and BLE name change over the life of a wheel - riders flash new
@@ -272,9 +317,19 @@ class IngestService:
             # whatever the wheel shipped with. MackNificent's Panther still read GW2026201
             # here weeks after he had flashed GW2026202, which is worse than showing nothing:
             # it reads as a fact. An upload that simply omits a field is not a correction, so
-            # a missing value never erases what we already knew.
-            for field in ("firmware", "ble_name"):
+            # a missing value never erases what we already knew. The same holds for the
+            # serial and the MAC: an upload from a session that only managed to read one of
+            # them must not blank the other.
+            for field in ("firmware", "ble_name", "ble_mac", "serial"):
                 fresh = (wheel.get(field) or "").strip()
                 if fresh and fresh != getattr(w, field):
                     setattr(w, field, fresh)
+        if w is not None:                          # remember every id this wheel answers to
+            try:
+                alts = set(json.loads(w.alt_keys) or [])
+            except (TypeError, ValueError):
+                alts = set()
+            fresh = alts | set(self._wheel_candidates(wheel))
+            if fresh != alts:
+                w.alt_keys = json.dumps(sorted(fresh))
         self.db.commit()
