@@ -566,6 +566,27 @@ def _best_speed_g(pts, window_s: float, band: float | None = None) -> tuple[floa
     return (round(best_acc, 3) or None), (round(best_brk, 3) or None)
 
 
+def _wheel_speed_pts(samples: list[Sample]) -> list:
+    """(time, WHEEL speed) for samples where GPS is also reporting.
+
+    The pair of channels are used for the two different things each is good at. GPS decides
+    WHETHER this counts - its presence is the corroboration that the rider is genuinely out
+    and moving, which is what stops a wheel spun on a stand scoring - and the wheel decides by
+    HOW MUCH the speed changed, because it is measured directly, at a high rate, and does not
+    lag.
+
+    Taking the change from the corroborated speed instead, which is the lower of the two, made
+    a lagging GPS into acceleration: where it trailed the wheel and then caught up, the minimum
+    leapt twenty km/h in a second and that leap was published. On the trip that surfaced it,
+    GPS trailed on 49% of all samples above 10 km/h and the ride reported 0.714 g where the
+    wheel had done 0.342. The stored data carried the signature plainly - the largest values
+    sat at exactly 0.80, pinned against MAX_LON_G, which is a clamped measurement rather than
+    a measured one.
+    """
+    return [(s.t, s.speed) for s in samples
+            if s.speed is not None and s.gps_speed is not None]
+
+
 def _corrob_speed_pts(samples: list[Sample]) -> list:
     return [(t, v) for t, v in ((s.t, _corrob_speed(s)) for s in samples) if v is not None]
 
@@ -573,17 +594,18 @@ def _corrob_speed_pts(samples: list[Sample]) -> list:
 def _speed_g(samples: list[Sample], window_s: float = 1.0) -> tuple[float | None, float | None]:
     """Longitudinal g from how hard wheel speed changes: the strongest sustained push
     (acceleration) and the strongest sustained slow-down (braking), each as a g-force.
-    Speed-derived (corroborated wheel/GPS speed) so it works on every wheel without
-    trusting a noisy IMU axis. Returns (accel_g, brake_g). A ~1s window plus a persistence
-    check keeps it a real hold, not a one-sample spike."""
-    return _best_speed_g(_corrob_speed_pts(samples), window_s)
+    Speed-derived, so it works on every wheel without trusting a noisy IMU axis: the CHANGE
+    comes from the wheel and GPS has to be present to corroborate that the rider is really
+    riding (see [_wheel_speed_pts]). Returns (accel_g, brake_g). A ~1s window plus a
+    persistence check keeps it a real hold, not a one-sample spike."""
+    return _best_speed_g(_wheel_speed_pts(samples), window_s)
 
 
 def _speed_g_band(samples: list[Sample], band: float, window_s: float = 1.0) -> tuple[float | None, float | None]:
     """Same speed-derived longitudinal g as _speed_g, but only counts windows that START at or
     above `band` km/h: roll-on acceleration (pushing hard while already fast) and braking from
     real speed. Cheat-resistant — you must genuinely be going `band`+ km/h. Returns (accel_g, brake_g)."""
-    return _best_speed_g(_corrob_speed_pts(samples), window_s, band=band)
+    return _best_speed_g(_wheel_speed_pts(samples), window_s, band=band)
 
 
 def _fastest_stop(samples: list[Sample], from_kmh: float, to_kmh: float = 2.0) -> float | None:

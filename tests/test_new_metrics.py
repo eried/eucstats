@@ -670,3 +670,43 @@ def test_a_launch_cannot_start_while_the_wheel_is_already_flying():
     # 2.2 s means the clock started while the wheel was already past 25 km/h - and 2.2 s is
     # 0.51 g, which the plausibility cap lets straight through.
     assert got is None or got >= 5.0, f"clock started mid-launch: {got}s"
+
+
+def test_longitudinal_g_comes_from_the_wheel_not_from_gps_catching_up():
+    """Erwin: "why in this accelerations we dont use gps was not null + speed and calculate
+    the G forces from that?" - which is the right question.
+
+    accel_g measured how fast the CORROBORATED speed changed, and that is the lower of wheel
+    and GPS. Where GPS trails the wheel and then catches up, the minimum leaps twenty km/h in
+    a second and the leap was published as acceleration the wheel never did. The stored data
+    shows it: the largest values sit at exactly 0.80, pinned against MAX_LON_G, which is what
+    a clamped measurement looks like rather than a measured one.
+
+    GPS is still required - its presence is the proof the rider is genuinely out and moving,
+    which is what stops a wheel spun on a stand scoring - but the speed CHANGE now comes from
+    the wheel, which is measured directly, at a high rate, and does not lag.
+
+    Below: a wheel accelerating steadily at about 0.3 g while GPS trails it and then snaps up.
+    """
+    from datetime import timedelta
+
+    from ingest.summary import _speed_g
+
+    base = datetime(2026, 6, 1, 10, 0, 0)
+    log = []
+    for k in range(41):                       # wheel: 0 -> 40 km/h over 4 s, a real 0.28 g
+        dt = k * 0.1
+        wheel = min(40.0, 10.0 * dt)
+        gps = 0.5 if dt < 3.0 else min(40.0, (dt - 3.0) * 40.0)     # trails, then snaps up
+        log.append(Sample(t=base + timedelta(seconds=dt), speed=wheel, gps_speed=gps))
+    log += [Sample(t=base + timedelta(seconds=4.0 + k * 0.2), speed=40.0, gps_speed=40.0)
+            for k in range(15)]
+
+    accel_g, _brake_g = _speed_g(log, 1.0)
+    # The wheel really did about 0.28 g. The GPS catch-up is nearer 1.1 g and must not be it.
+    assert accel_g is not None and accel_g < 0.40, f"reported {accel_g} g"
+
+    # And a wheel spun with no GPS at all still scores nothing: presence is the corroboration.
+    spun = [Sample(t=base + timedelta(seconds=k * 0.1), speed=min(60.0, 15.0 * k * 0.1),
+                   gps_speed=None) for k in range(41)]
+    assert _speed_g(spun, 1.0) == (None, None)

@@ -22,6 +22,34 @@ COLS = ["fastest_0_40_s", "t_0_60_s", "t_0_100_s", "stop_30_s", "stop_50_s",
         "accel_g_30", "accel_g_50", "brake_g_30", "brake_g_50"]
 
 
+G_COLS = ["accel_g", "brake_g", "accel_g_30", "accel_g_50", "brake_g_30", "brake_g_50"]
+
+
+def _impact(db, cap: float) -> int:
+    """What a proposed longitudinal-g limit would actually cost.
+
+    The codebase already carries one such limit, MAX_LON_G = 0.8, used to throw out readings
+    that must be sensor glitches. The sprint cap added later says 0.55. Both are answering
+    "the hardest a wheel and rider can manage", so before making them one number it is worth
+    knowing how much of the real data sits between them.
+    """
+    from models import Rider, Trip
+
+    names = {r.store_id: r.display_name for r in db.query(Rider).all()}
+    trips = db.query(Trip).all()
+    print(f"limit {cap:.2f} g, against {len(trips)} trips")
+    for c in G_COLS:
+        vals = [(getattr(t, c), t) for t in trips if getattr(t, c, None) is not None]
+        if not vals:
+            continue
+        over = [v for v in vals if v[0] > cap]
+        top = sorted(vals, key=lambda x: -x[0])[:3]
+        print(f"   {c:<12} {len(vals):>5} values, {len(over):>4} over ({len(over)/len(vals)*100:4.1f}%)"
+              f"   highest: " + ", ".join(
+                  f"{v:.2f} ({names.get(t.rider_store_id) or '?'})" for v, t in top))
+    return 0
+
+
 def _clock(db) -> int:
     """How good the clock is in each log we can still read.
 
@@ -220,6 +248,8 @@ def main() -> int:
     ap.add_argument("--sprint", help="replay the 0-40 launch of one trip and print its telemetry")
     ap.add_argument("--board", help="rank one timing column, with the implied g beside it")
     ap.add_argument("--jumps", help="show the sharpest speed changes in one trip, with context")
+    ap.add_argument("--impact", type=float, metavar="G",
+                    help="how many stored g figures a given longitudinal limit would reject")
     ap.add_argument("--clock", action="store_true",
                     help="timestamp quality of every trip whose raw upload survives")
     args = ap.parse_args()
@@ -229,6 +259,8 @@ def main() -> int:
 
     db = SessionLocal()
     try:
+        if args.impact is not None:
+            return _impact(db, args.impact)
         if args.clock:
             return _clock(db)
         if args.jumps:
