@@ -28,7 +28,12 @@ def main():
     finally:
         db.close()
     try:
-        print(f"[backup] daily dataset snapshot -> {datasets.auto_backup(keep=14)}")
+        # Seven dailies, not fourteen. Every snapshot is a full copy of the database, and the
+        # database is mostly raw uploads - so each extra day of backups costs as much as the
+        # rides themselves. Keeping fourteen of them is what filled the disk, and the disk
+        # filling is what made the retention job delete raw uploads to win space back: the
+        # backups were being paid for with the data they exist to protect.
+        print(f"[backup] daily dataset snapshot -> {datasets.auto_backup(keep=7)}")
     except Exception as e:  # never let a backup failure break the rest of the cron
         print(f"[backup] failed: {e}")
 

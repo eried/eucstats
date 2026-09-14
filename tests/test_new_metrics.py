@@ -415,11 +415,17 @@ def test_fastest_stop_ignores_impossibly_fast_stops():
 
 
 def test_sprints_use_corroborated_speed():
-    # GPS says fast early (spoof attempt) but wheel speed is the real, slower curve -> uses the min
-    samples = [_s(0, speed=0, gps_speed=0), _s(1, speed=20, gps_speed=99),
-               _s(2, speed=40, gps_speed=99), _s(3, speed=60, gps_speed=99)]
+    """GPS claims 99 km/h from the off; the wheel is the real, slower curve. The sprint must
+    follow the LOWER of the two.
+
+    The timings here used to be 2.0 s to 40 and 3.0 s to 60, which are 0.57 g - above what a
+    wheel can actually deliver, and now rejected by the plausibility cap. They were arbitrary
+    round numbers standing in for "a launch"; the property under test is which speed column is
+    believed, so the launch is simply a credible one now. 0 -> 40 in 4 s is 0.28 g."""
+    samples = [_s(0, speed=0, gps_speed=0), _s(2, speed=20, gps_speed=99),
+               _s(4, speed=40, gps_speed=99), _s(6, speed=60, gps_speed=99)]
     sm = summarize(samples)
-    assert sm.fastest_0_40_s == 2.0 and sm.t_0_60_s == 3.0   # corroborated (min) speed, not the GPS spoof
+    assert sm.fastest_0_40_s == 4.0 and sm.t_0_60_s == 6.0   # corroborated (min) speed, not the spoof
 
 
 def test_distance_ignores_stationary_wheelspin():
@@ -588,3 +594,40 @@ def test_every_identifier_the_app_reports_is_kept():
         db.commit()
     finally:
         db.close()
+
+
+def test_a_sprint_no_wheel_could_manage_is_not_recorded():
+    """Wheelix, disputing his own record: "I doubt my 1.8 s". He was right to.
+
+    The guard was a stopwatch - a fixed minimum time per target - and it does not mean the
+    same thing at different targets. 1.5 s to 40 km/h allows 0.76 g and 1.0 s to 60 allows
+    1.7 g, so the top of both boards filled up with figures no wheel can produce: the 0-60
+    board was led by 1.01 s, which is 1.69 g. An EUC puts its power down through one contact
+    patch and the rider has to lean into it; a third of a g is a hard launch and half a g is
+    exceptional. What the launch implies is the thing to test.
+    """
+    from ingest.summary import _fastest_0_40
+
+    from datetime import timedelta
+
+    def launch(seconds, target):
+        """A clean, GPS-corroborated launch from a standstill to target in `seconds`."""
+        base = datetime(2026, 6, 1, 10, 0, 0)
+        at = lambda dt, v: Sample(t=base + timedelta(seconds=dt), speed=v, gps_speed=v)
+        out, steps = [at(0, 0.0)], 12
+        for k in range(1, steps + 1):
+            out.append(at(seconds * k / steps, target * k / steps))
+        out.append(at(seconds + 2, target))
+        return out
+
+    # 0 -> 40 km/h in 1.88 s is 0.60 g. Not a launch anyone rode.
+    assert _fastest_0_40(launch(1.88, 40.0), 40.0, 1.0, 20.0) is None
+    # 0 -> 60 km/h in 1.01 s is 1.69 g, which would throw the rider off the back.
+    assert _fastest_0_40(launch(1.01, 60.0), 60.0, 1.0, 60.0) is None
+
+    # A genuinely quick wheel must still count: 0 -> 40 in 2.6 s is 0.44 g.
+    got = _fastest_0_40(launch(2.6, 40.0), 40.0, 1.0, 20.0)
+    assert got is not None and 2.4 < got < 2.8, got
+    # and an ordinary one, 0 -> 60 in 6 s, is 0.28 g
+    got60 = _fastest_0_40(launch(6.0, 60.0), 60.0, 1.0, 60.0)
+    assert got60 is not None and 5.6 < got60 < 6.4, got60

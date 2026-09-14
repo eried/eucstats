@@ -86,6 +86,11 @@ EFF_MAX_WH_KM = float(os.environ.get("EUCSTATS_EFF_MAX_WH_KM", "300"))
 # straight into a number no wheel could achieve. Both the ride and the result must be plausible.
 RANGE_MIN_KM = float(os.environ.get("EUCSTATS_RANGE_MIN_KM", "1"))
 RANGE_MAX_KM = float(os.environ.get("EUCSTATS_RANGE_MAX_KM", "400"))
+# Hardest launch a wheel and rider can actually produce. An EUC puts its power down through
+# one contact patch and the rider has to lean into it, so a third of a g is a hard launch;
+# this is deliberately generous. The sprint boards used a minimum TIME instead, which permits
+# a different acceleration at every target - 1.0 s to 60 km/h is 1.69 g.
+ACCEL_MAX_G = float(os.environ.get("EUCSTATS_ACCEL_MAX_G", "0.55"))
 # Falls and free spins (ingest/anomalies.py). A fall and a free spin are the same telemetry -
 # the wheel turning with nothing loading it - so what these knobs really tune is how sure we
 # insist on being before putting either on a board with a rider's name against it.

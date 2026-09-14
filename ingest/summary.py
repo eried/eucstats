@@ -21,6 +21,7 @@ CALIBRATION_DEFAULTS = {
     "sag_window_s": 5.0,          # s — voltage-sag look-back window
     "accel_target_kmh": 40.0,     # km/h — launch metric target (0 -> target)
     "accel_min_s": 1.5,           # s — launches faster than this are sensor noise
+    "accel_max_g": 0.55,          # g — hardest launch a wheel and rider can actually produce
     "accel_max_s": 20.0,          # s — only count a launch reaching target within this
     "sustain_accel_lo_s": 2.0,    # s — sustained-acceleration min window
     "sustain_accel_hi_s": 6.0,    # s — sustained-acceleration max window
@@ -266,14 +267,24 @@ def _power(s: Sample):
 
 def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
                   min_s: float = 1.5, max_s: float = 20.0,
-                  start_kmh: float = 2.0, max_gap_s: float = 5.0, dip_frac: float = 0.8) -> float | None:
+                  start_kmh: float = 2.0, max_gap_s: float = 5.0, dip_frac: float = 0.8,
+                  max_g: float = 0.55) -> float | None:
     """Shortest time (s) for a GENUINE launch from a near-stop up to target_kmh. A launch only
     counts when it is a real, continuous run — not just "the wheel was over target_kmh":
       * starts from a near-stop (corroborated speed <= start_kmh),
       * GPS-corroborated every sample (gps_speed present) — wheel-only/freespin can't qualify,
       * continuous in time (no gap > max_gap_s — a paused/resumed log isn't one launch),
       * monotonic-ish climb (a dip below dip_frac x the run's peak ends the attempt — a coast or
-        stop-and-go isn't a launch).
+        stop-and-go isn't a launch),
+      * and physically possible: a launch implying more than max_g is thrown away.
+
+    That last test replaced a fixed minimum time, which looked like a guard and was not. A
+    stopwatch floor does not mean the same thing at two different targets: 1.5 s to 40 km/h
+    permits 0.76 g and 1.0 s to 60 km/h permits 1.69 g, so both boards filled from the top
+    with figures no wheel produces — the 0-60 board was led by 1.01 s. An EUC puts its power
+    down through one contact patch and the rider has to lean into it, so a third of a g is a
+    hard launch and half a g is exceptional. Testing what the time IMPLIES is the same
+    question asked once, in units that mean something, at every target.
     The crossing time is interpolated between the bracketing samples (so 0->40 and 0->60 differ).
     Lower is better."""
     best = None
@@ -299,7 +310,9 @@ def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
                     if prev is not None and prev[1] < target_kmh and sp > prev[1]:
                         cross = prev[0] + (s.t - prev[0]) * ((target_kmh - prev[1]) / (sp - prev[1]))
                     dt = (cross - start).total_seconds()
-                    if min_s <= dt <= max_s and (best is None or dt < best):
+                    implied_g = (target_kmh / 3.6) / dt / 9.80665 if dt > 0 else 99.0
+                    ok = min_s <= dt <= max_s and implied_g <= max_g
+                    if ok and (best is None or dt < best):
                         best = dt
                     start, runmax = None, 0.0
         prev = (s.t, sp)
@@ -792,7 +805,8 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     max_voltage_sag = _max_voltage_sag(samples, c["sag_window_s"])
     max_sustained_w = _sustained_max(samples, lambda s: _power(s) if _moving(s) else None, c["sustain_secs"])
     max_sustained_a = _sustained_max(samples, lambda s: s.current if _moving(s) else None, c["sustain_secs"])
-    fastest_0_40_s = _fastest_0_40(samples, c["accel_target_kmh"], c["accel_min_s"], c["accel_max_s"])
+    fastest_0_40_s = _fastest_0_40(samples, c["accel_target_kmh"], c["accel_min_s"],
+                                   c["accel_max_s"], max_g=c["accel_max_g"])
     sustained_accel = _max_sustained_accel(mov, c["sustain_accel_lo_s"], c["sustain_accel_hi_s"])
     ascent_m = _ascent_m(mov, c["ascent_hysteresis_m"])
     descent_m = _descent_m(mov, c["ascent_hysteresis_m"])
@@ -838,8 +852,8 @@ def summarize(samples: list[Sample], gps_tolerance: float = 0.4,
     # Speed-derived longitudinal g: how hard you launch / brake (every wheel reports speed).
     accel_g, brake_g = _speed_g(samples, 1.0)
     # Cheat-proof sprints + banded roll-on/braking g + emergency-stop times (all from real speed).
-    t_0_60_s = _fastest_0_40(samples, 60.0, 1.0, 40.0)
-    t_0_100_s = _fastest_0_40(samples, 100.0, 1.0, 60.0)
+    t_0_60_s = _fastest_0_40(samples, 60.0, 1.0, 40.0, max_g=c["accel_max_g"])
+    t_0_100_s = _fastest_0_40(samples, 100.0, 1.0, 60.0, max_g=c["accel_max_g"])
     accel_g_30, brake_g_30 = _speed_g_band(samples, 30.0, 1.0)
     accel_g_50, brake_g_50 = _speed_g_band(samples, 50.0, 1.0)
     stop_30_s = _fastest_stop(samples, 30.0)

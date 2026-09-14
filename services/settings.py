@@ -529,6 +529,7 @@ CALIBRATION = [
     ("freespin_margin", "Freespin margin over realistic (km/h)", "cal_freespin_margin", "FREESPIN_MARGIN_KMH", "float", 0, 200),
     ("accel_target_kmh", "Launch metric target (km/h)", "cal_accel_target", "ACCEL_TARGET_KMH", "float", 5, 200),
     ("accel_min_s", "Fastest believable launch (s)", "cal_accel_min", "ACCEL_MIN_S", "float", 0.1, 30),
+    ("accel_max_g", "Hardest believable launch (g)", "cal_accel_max_g", "ACCEL_MAX_G", "float", 0.1, 3),
     ("accel_max_s", "Longest counted launch (s)", "cal_accel_max", "ACCEL_MAX_S", "float", 1, 120),
     ("sustain_accel_lo_s", "Sustained-accel min window (s)", "cal_saccel_lo", "SUSTAIN_ACCEL_LO_S", "float", 0.5, 30),
     ("sustain_accel_hi_s", "Sustained-accel max window (s)", "cal_saccel_hi", "SUSTAIN_ACCEL_HI_S", "float", 1, 60),
