@@ -271,7 +271,8 @@ def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
                   max_g: float = 0.55) -> float | None:
     """Shortest time (s) for a GENUINE launch from a near-stop up to target_kmh. A launch only
     counts when it is a real, continuous run — not just "the wheel was over target_kmh":
-      * starts from a near-stop (corroborated speed <= start_kmh),
+      * starts from a genuine near-stop — BOTH the wheel and the corroborated speed under
+        start_kmh, because a lagging GPS otherwise reports a standstill the wheel is not at,
       * GPS-corroborated every sample (gps_speed present) — wheel-only/freespin can't qualify,
       * continuous in time (no gap > max_gap_s — a paused/resumed log isn't one launch),
       * monotonic-ish climb (a dip below dip_frac x the run's peak ends the attempt — a coast or
@@ -298,8 +299,21 @@ def _fastest_0_40(samples: list[Sample], target_kmh: float = 40.0,
             continue
         if prev is not None and (s.t - prev[0]).total_seconds() > max_gap_s:
             start, runmax = None, 0.0              # discontinuous log -> not one clean launch
-        if sp <= start_kmh:
-            start, runmax = s.t, sp                # (re)arm at a near-stop
+        # A standstill needs BOTH to agree, not just the lower of the two.
+        #
+        # This is what produced the disputed 1.88 s. The corroborated speed is the minimum of
+        # wheel and GPS, and on some devices GPS trails the wheel badly - on the trip that
+        # surfaced this, on half of all samples above 10 km/h - and then catches up in jumps.
+        # Arming on the minimum alone meant the clock started while the wheel was already
+        # doing 25 or 30 km/h, because GPS still said 1; GPS then snapped up to the wheel and
+        # the clock stopped. A seven second launch measured as two and a half.
+        #
+        # Nothing can be travelling at 30 km/h and starting from rest at the same time, so the
+        # wheel has to be stopped as well. The minimum still decides when the target is
+        # reached - a lagging GPS there only ever makes the time longer, which is the safe
+        # direction for a record.
+        if sp <= start_kmh and s.speed is not None and s.speed <= start_kmh:
+            start, runmax = s.t, sp                # (re)arm at a genuine near-stop
         elif start is not None:
             if sp < runmax * dip_frac:             # speed dropped back -> coast/restart, not a launch
                 start, runmax = None, 0.0

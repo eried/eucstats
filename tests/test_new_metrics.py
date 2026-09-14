@@ -631,3 +631,42 @@ def test_a_sprint_no_wheel_could_manage_is_not_recorded():
     # and an ordinary one, 0 -> 60 in 6 s, is 0.28 g
     got60 = _fastest_0_40(launch(6.0, 60.0), 60.0, 1.0, 60.0)
     assert got60 is not None and 5.6 < got60 < 6.4, got60
+
+
+def test_a_launch_cannot_start_while_the_wheel_is_already_flying():
+    """This is what actually produced Wheelix's 1.88 s.
+
+    The sprint arms at a near-stop and stops the clock at the target, and BOTH were read from
+    the corroborated speed - the lower of wheel and GPS. On his device GPS trails the wheel on
+    half of all moving samples and then catches up in jumps, so this is what the metric saw:
+    the wheel already flying while GPS still reads under 1 km/h, the minimum reporting
+    "standing still", and the clock starting there. GPS then snaps up to the wheel and the
+    clock stops.
+
+    The numbers below are chosen so the compressed reading passes the plausibility cap - that
+    guard rejects the absurd, it does not make the measurement right, and a test leaning on it
+    would prove nothing.
+
+    A standstill is not a matter of opinion between two sensors: the wheel has to be stopped
+    too. Nothing can be doing 25 km/h and starting from rest at the same time.
+    """
+    from datetime import timedelta
+
+    from ingest.summary import _fastest_0_40
+
+    base = datetime(2026, 6, 1, 10, 0, 0)
+    at = lambda dt, w, g: Sample(t=base + timedelta(seconds=dt), speed=w, gps_speed=g)
+
+    log = [at(k * 0.5, 0.0, 0.0) for k in range(6)]          # genuinely stopped for 3 s
+    for k in range(1, 33):                                   # the real launch: 0 -> 45 over 8 s
+        dt = 3.0 + k * 0.25
+        wheel = 45.0 * k / 32
+        gps = 0.6 if dt < 7.5 else min(45.0, (dt - 7.5) / 2.5 * 45.0)   # trails, then snaps up
+        log.append(at(dt, wheel, gps))
+    log += [at(11.0 + k * 0.5, 45.0, 45.0) for k in range(8)]
+
+    got = _fastest_0_40(log, 40.0, 1.0, 20.0, max_g=0.55)
+    # From the real standstill the wheel needs about seven seconds to reach 40. A reading near
+    # 2.2 s means the clock started while the wheel was already past 25 km/h - and 2.2 s is
+    # 0.51 g, which the plausibility cap lets straight through.
+    assert got is None or got >= 5.0, f"clock started mid-launch: {got}s"
