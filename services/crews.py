@@ -200,7 +200,7 @@ def leave(db, store_id: str) -> None:
         raise CrewError("not_in_crew", "You are not in a crew.")
     if m.role == "leader" and _active_members(db, m.clan_id) > 1 and not _officers(db, m.clan_id):
         raise CrewError("promote_first",
-                        "Promote an officer before leaving — the crew would have nobody.")
+                        "Make someone an officer first. Somebody has to run the place.")
     m.left_at = utcnow()
     db.commit()
 

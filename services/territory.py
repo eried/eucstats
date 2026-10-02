@@ -49,7 +49,24 @@ from services import tiles as T
 WINDOW_DAYS = 90           # the rolling window: territory is what you ride, not what you rode
 SEED = 2                   # a crew must hold a SEED x SEED block to claim anything
 MIN_TILE_KM = 0.3          # below this a tile is a passing GPS wobble, not a visit
-MIN_LEAD_KM = 1.0          # and below THIS a lead does not take the tile at all
+
+# A lead is measured against the tile's own size rather than a flat distance. A flat 1 km
+# bought four times as much ground at the equator as at Oslo, where tiles are a quarter the
+# area, and the board was being sorted by latitude as much as by riding.
+MIN_LEAD_EDGE = 0.42       # fraction of a tile's edge you must have ridden inside it
+
+# Kilometres fade with age instead of sitting in a 90-day bucket at full value. Without this
+# the rule stops rewarding riding the moment you lead: an entrenched tile holds a stock that a
+# newcomer has to out-ride in total, which freezes every city core, while on empty ground one
+# afternoon wins for three months and the 91st day deletes it all at once. With a half-life,
+# today's ride always outweighs one from six weeks ago and ground recedes visibly instead of
+# falling off a cliff.
+HALF_LIFE_DAYS = 21.0
+
+# What one rider can contribute to one tile in a week. A crew is people, not an odometer:
+# without a cap the tile beside somebody's front door is unreachable by any number of other
+# riders, and with it a tile is won by how many of you ride there.
+RIDER_TILE_WEEK_CAP_KM = 6.0
 
 
 def _out_path(zoom: int) -> Path:
@@ -100,21 +117,28 @@ def _per_tile_km(points, zoom: int) -> dict[str, float]:
 def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> dict:
     """{tile: {clan_id: [km, {riders}]}} over the window.
 
-    Per-tile distance comes from the track, then the whole trip is scaled so its tiles sum to
-    the odometer distance the ingest pipeline validated. That keeps the authority with the
-    number that was checked against the GPS trace, while the *shape* comes from where the ride
-    actually went.
+    Per-tile distance comes from the track, scaled so a trip's tiles sum to the odometer
+    distance the ingest pipeline validated: the authority stays with the number that was
+    checked against the GPS trace, while the shape comes from where the ride actually went.
+
+    Two things then shape it into a score worth competing over. Distance is weighted by age on
+    a HALF_LIFE_DAYS half-life, and each rider's contribution to each tile is capped per week.
+    Both exist because the first version stopped rewarding riding the moment you were ahead.
     """
     since = utcnow() - timedelta(days=window_days)
+    now = utcnow()
     rows = (db.query(Trip.trip_uuid, Trip.clan_id, Trip.rider_store_id, Trip.distance_km,
-                     Trip.start_lat, Trip.start_lon)
+                     Trip.start_lat, Trip.start_lon, Trip.start_utc)
             .filter(Trip.validation_status == "validated",
                     Trip.clan_id.isnot(None),
                     Trip.start_utc >= since,
                     Trip.distance_km > 0)
             .all())
+
+    # (rider, tile, iso-week) -> km already counted, so one odometer cannot hold a tile
+    spent: dict[tuple, float] = {}
     acc: dict[str, dict[str, list]] = {}
-    for trip_uuid, clan_id, store_id, km, slat, slon in rows:
+    for trip_uuid, clan_id, store_id, km, slat, slon, started in rows:
         pts = _trip_points(db, trip_uuid)
         per_tile = _per_tile_km(pts, zoom) if len(pts) > 1 else {}
         if not per_tile:                         # no usable track: the start tile alone
@@ -125,22 +149,47 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
         total = sum(per_tile.values())
         if total <= 0:
             continue
-        scale = (km or 0.0) / total              # trust the validated odometer for the total
+        scale = (km or 0.0) / total
+        age_days = max(0.0, (now - started).total_seconds() / 86400.0) if started else 0.0
+        weight = 0.5 ** (age_days / HALF_LIFE_DAYS)
+        week = started.isocalendar()[:2] if started else (0, 0)
         for tile, d in per_tile.items():
-            share = d * scale
-            if share <= 0:
+            ridden = d * scale
+            if ridden < MIN_TILE_KM:
+                continue                         # clipped the corner; not a visit
+            key = (store_id, tile, week)
+            room = RIDER_TILE_WEEK_CAP_KM - spent.get(key, 0.0)
+            if room <= 0:
                 continue
+            counted = min(ridden, room)
+            spent[key] = spent.get(key, 0.0) + counted
             e = acc.setdefault(tile, {}).setdefault(clan_id, [0.0, set()])
-            e[0] += share
+            e[0] += counted * weight
             e[1].add(store_id)
     return acc
+
+
+def min_lead_km(tile: str) -> float:
+    """How far you must have ridden inside a tile before a lead counts.
+
+    Scaled to the tile rather than fixed, so the same effort buys the same standing wherever
+    you ride. A tile at Oslo is about 2.4 km across and one at the equator 4.9 km, so a flat
+    kilometre was four times cheaper on the equator in area terms.
+    """
+    b = T.bounds(tile)
+    if b is None:
+        return 1.0
+    west, south, east, north = b
+    import math as _m
+    edge = (east - west) / 360.0 * T.EARTH_C_KM * _m.cos(_m.radians((south + north) / 2.0))
+    return max(0.35, edge * MIN_LEAD_EDGE)
 
 
 def winners(acc: dict, previous: dict | None = None,
             skip: set | None = None) -> dict[str, tuple[str, float, int]]:
     """{tile: (clan_id, km, riders)} — most kilometres takes the tile.
 
-    A lead under MIN_LEAD_KM takes nothing. Without that floor the cheapest way to hold ground
+    A lead under the tile's own floor takes nothing. Without that floor the cheapest way to hold ground
     was a fabricated 0.3 km "ride", which bought roughly thirty times more area per kilometre
     than actually riding — and the floor is what the spec said all along.
 
@@ -155,8 +204,9 @@ def winners(acc: dict, previous: dict | None = None,
     out = {}
     for tile, per in acc.items():
         best = None
+        floor = min_lead_km(tile)
         for clan_id, (km, riders) in per.items():
-            if km < MIN_LEAD_KM or (tile, clan_id) in blocked:
+            if km < floor or (tile, clan_id) in blocked:
                 continue
             incumbent = prev.get(tile) == clan_id
             key = (km, 1 if incumbent else 0)
@@ -292,9 +342,10 @@ def award(acc: dict, live: set, prev: dict, seed: int = SEED,
                 # tiles nobody else wants get withdrawn too, so the next round it holds even
                 # less, and the whole map empties out. A claim nobody can inherit is simply
                 # left standing and drawn by nobody, which costs no one anything.
+                floor = min_lead_km(tile)
                 rivals = [c for c in acc.get(tile, {})
                           if c != clan_id and (tile, c) not in blocked
-                          and acc[tile][c][0] >= MIN_LEAD_KM]
+                          and acc[tile][c][0] >= floor]
                 if rivals:
                     withdrawn.add((tile, clan_id))
         if not withdrawn:

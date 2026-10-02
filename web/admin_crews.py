@@ -1,4 +1,4 @@
-"""Admin: Crews & Territory — settings, moderation and the rebuild.
+"""Admin: Crews & Territory. settings, moderation and the rebuild.
 
 Kept in its own module rather than appended to a 2,700-line admin.py. It borrows that module's
 shell and auth so the page is indistinguishable from the rest of the console.
@@ -6,7 +6,7 @@ shell and auth so the page is indistinguishable from the rest of the console.
 What an admin can do here that nobody else can: switch the whole mode off, force a rebuild,
 rename or disband a crew that has named itself something unacceptable, hand a crew back to a
 rider who lost access, and sign every browser out of a rider's account. That last one is the
-answer to a lost phone — see the note on recovery in services/pairing.py.
+answer to a lost phone. see the note on recovery in services/pairing.py.
 """
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
     rank = {r["clan_id"]: r for r in territory.ranking(db, limit=1000)}
     all_crews = (db.query(Clan).order_by(Clan.created_at.desc()).all())
     bound = adminauth.bound_store_id()
-    bound_name = "—"
+    bound_name = "-"
     if bound:
         r = db.get(Rider, bound)
         bound_name = html.escape(r.display_name) if r else bound[:12] + "…"
@@ -76,7 +76,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
       <h1>Crews &amp; Territory</h1>
       <p class=hint>Riders group into crews and claim ground by riding it. The mode is off
       until you switch it on, and switching it off hides it everywhere without deleting a
-      single row — crews, members and held tiles all survive.</p>
+      single row. crews, members and held tiles all survive.</p>
       {_flash(msg, err)}
       <form method=post action="/admin/crews/settings">
         <table class=form>
@@ -109,7 +109,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
       <h2>Admin sign-in</h2>
       <p class=hint>This console now wants two factors: the authenticator code, and a pairing
       confirmed from a phone. The pairing proves possession; the code proves knowledge. A
-      rider id on its own is <b>never</b> enough — it travels in every upload, so it is a
+      rider id on its own is <b>never</b> enough. it travels in every upload, so it is a
       username, not a password.</p>
       <p>Bound to: <b>{bound_name}</b>
       {'<span class=mut>&nbsp;· the first phone to pair claimed it</span>' if bound else
@@ -123,7 +123,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
     <div class=card>
       <h2>Territory</h2>
       <p class=hint>Rebuilt hourly by the background loop. Force one here after changing the
-      zoom, the window or the seed block — none of those take effect on the map until the
+      zoom, the window or the seed block. none of those take effect on the map until the
       tiles are recomputed.</p>
       <form method=post action="/admin/crews/rebuild"><button>Rebuild now</button></form>
     </div>
@@ -140,7 +140,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
         leader = (db.query(ClanMember)
                   .filter(ClanMember.clan_id == c.clan_id, ClanMember.role == "leader",
                           ClanMember.left_at.is_(None)).first())
-        lname = "—"
+        lname = "-"
         if leader:
             lr = db.get(Rider, leader.store_id)
             lname = html.escape(lr.display_name) if lr else leader.store_id[:10]
@@ -171,7 +171,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
     table = f"""
     <div class=card>
       <h2>Crews <span class=mut>({len(all_crews)})</span></h2>
-      <p class=hint>Renaming keeps the crew's link working — the slug is not regenerated.
+      <p class=hint>Renaming keeps the crew's link working. the slug is not regenerated.
       Disbanding is reversible: the crew is marked, not deleted, because its rides still point
       at it and deleting it would tear months of territory out of the map. Its colour and
       pattern are freed immediately for somebody else.</p>
@@ -189,7 +189,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
       <h2>Sessions</h2>
       <p class=hint>{sessions} browser session{"s" if sessions != 1 else ""}
       {"is" if sessions == 1 else "are"} signed in through a paired phone. A crew session can create, join and leave crews and act on
-      members — it cannot upload a ride, rename a rider, or delete anything. Signing a rider
+      members. it cannot upload a ride, rename a rider, or delete anything. Signing a rider
       out is what a lost phone needs; the rider id itself comes back when they reinstall the
       app on the same store account.</p>
       <form method=post action="/admin/crews/revoke" style="display:flex;gap:6px">
@@ -232,7 +232,7 @@ def save_settings(request: Request, db: Session = Depends(get_db),
     note = "Saved."
     if (before["zoom"], before["window_days"], before["seed"]) != \
        (after["zoom"], after["window_days"], after["seed"]):
-        note += " The grid changed — rebuild territory for it to show on the map."
+        note += " The grid changed. rebuild territory for it to show on the map."
     return _redir(note)
 
 

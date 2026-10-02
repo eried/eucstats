@@ -127,9 +127,21 @@ def test_a_disbanded_crew_does_not_salt_the_ground_it_held():
 
 def test_a_lead_under_the_floor_takes_nothing():
     """Without a floor the cheapest ground was a fabricated few-hundred-metre ride."""
-    from services.territory import MIN_LEAD_KM, winners
-    assert winners({"13/1/1": {"A": [MIN_LEAD_KM - 0.01, {"r"}]}}) == {}
-    assert winners({"13/1/1": {"A": [MIN_LEAD_KM + 0.01, {"r"}]}})["13/1/1"][0] == "A"
+    from services.territory import min_lead_km, winners
+    floor = min_lead_km("13/1/1")
+    assert winners({"13/1/1": {"A": [floor - 0.01, {"r"}]}}) == {}
+    assert winners({"13/1/1": {"A": [floor + 0.01, {"r"}]}})["13/1/1"][0] == "A"
+
+
+def test_the_floor_is_the_same_effort_at_every_latitude():
+    """A flat floor made ground four times cheaper at the equator, so the board was sorted
+    by latitude as much as by riding."""
+    from services.territory import min_lead_km
+    oslo = min_lead_km("13/4339/2383")
+    equator = min_lead_km("13/4096/4096")
+    assert equator > oslo * 1.6, "an equatorial tile is far wider, so it must cost more"
+    # and each is a sensible fraction of its own tile, not an arbitrary constant
+    assert 0.3 < oslo < 1.5 and 1.5 < equator < 3.0
 
 
 def test_a_long_ride_is_not_punished_for_covering_ground():
@@ -139,11 +151,11 @@ def test_a_long_ride_is_not_punished_for_covering_ground():
     joining two areas — the whole point of a "biggest unbroken region" rule — scored a few
     hundred metres per tile and claimed none of them, while a short loop scored kilometres.
     """
-    from services.territory import MIN_LEAD_KM, _per_tile_km
+    from services.territory import _per_tile_km, min_lead_km
     trip = [(59.9, 10.75 + i * 0.012) for i in range(600)]
     per = _per_tile_km(trip, 13)
     assert len(per) > 100, "a long ride should cross many tiles"
-    clear = [v for v in per.values() if v >= MIN_LEAD_KM]
+    clear = [v for k, v in per.items() if v >= min_lead_km(k)]
     assert len(clear) > len(per) * 0.9, "almost every tile crossed should clear the floor"
 
 

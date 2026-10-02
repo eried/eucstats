@@ -153,6 +153,8 @@ def _crew_brief(db: Session, clan: Clan) -> dict:
     return {"slug": clan.slug, "name": clan.name, "description": clan.description,
             "colour": clan.colour, "pattern": clan.pattern, "members": n,
             "join_policy": clan.join_policy, "has_logo": clan.logo_png is not None,
+            # what it holds, so picking a crew is not a blind name-pick that costs a cooldown
+            "km2": clan.terr_best_km2 or 0.0, "tiles": clan.terr_tiles or 0,
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
 
 
@@ -182,6 +184,15 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
             out["status"] = m.status
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
+                out["roster"] = [
+                    {"store_id": x.store_id, "role": x.role,
+                     "name": (db.get(Rider, x.store_id).display_name
+                              if db.get(Rider, x.store_id) else "?")}
+                    for x in db.query(ClanMember).filter(
+                        ClanMember.clan_id == clan.clan_id,
+                        ClanMember.status == "active",
+                        ClanMember.left_at.is_(None))
+                    .order_by(ClanMember.joined_at.asc()).all()]
                 out["pending"] = [
                     {"store_id": p.store_id,
                      "name": (db.get(Rider, p.store_id).display_name

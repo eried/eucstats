@@ -25,6 +25,7 @@
   var ME = null;
 
   var PATTERNS = ["solid", "stripes", "dots", "hatch"];
+  var COOLDOWN_DAYS = (window.__CREWCFG__ && window.__CREWCFG__.cooldown_days) || 7;
 
   /* ---------- geometry ---------- */
 
@@ -111,7 +112,8 @@
 
   /* ---------- layers ---------- */
 
-  var LAYERS = ["crew-fill", "crew-pattern", "crew-edge", "crew-edge-glow"];
+  var LAYERS = ["crew-fill", "crew-pattern", "crew-contested", "crew-edge",
+                "crew-edge-glow"];
 
   function clearLayers() {
     LAYERS.forEach(function (l) { if (map.getLayer(l)) map.removeLayer(l); });
@@ -160,6 +162,7 @@
     map.addLayer({
       id: "crew-fill", type: "fill", source: "crew-cells",
       paint: { "fill-color": ["get", "c"], "fill-opacity": 0,
+               "fill-antialias": false,
                "fill-opacity-transition": { duration: 600 } }
     });
     map.addLayer({
@@ -169,6 +172,17 @@
                "fill-opacity-transition": { duration: 600 } }
     });
     // the glow sits under the hairline so a border reads at low zoom without being fat
+    // Pressure needs a second channel. A shade on a dark map is something you notice
+    // afterwards; a dashed edge is something you see.
+    map.addLayer({
+      id: "crew-contested", type: "line", source: "crew-cells",
+      filter: [">=", ["get", "band"], 1],
+      paint: { "line-color": "#ffffff",
+               "line-dasharray": [2, 2],
+               "line-width": ["match", ["get", "band"], 2, 1.6, 1.1],
+               "line-opacity": 0,
+               "line-opacity-transition": { duration: 600 } }
+    });
     map.addLayer({
       id: "crew-edge-glow", type: "line", source: "crew-edges",
       paint: { "line-color": ["get", "c"], "line-width": 7, "line-blur": 7,
@@ -193,6 +207,8 @@
         ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, pat]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
+      map.setPaintProperty("crew-contested", "line-opacity",
+        ["match", ["get", "band"], 2, 0.6, 0.38]);
     });
 
     buildEmblems();
@@ -314,7 +330,8 @@
     if (!H.podList) return plainRank(rows);
     return H.podList(rows, {
       iconFn: function (e) { return '<img class="crewpodemb" alt="" src="' + e.emblem + '"/>'; },
-      label: function (e) { return esc(e.name); },
+      // the swatch is the crew's identity on the map, so it belongs beside every name
+      label: function (e) { return swatch(e.colour, e.pattern, 14) + " " + esc(e.name); },
       val: function (e) { return fmtKm2(e.best_km2); },
       sub: function (e) {
         return tiles(e.tiles)
@@ -322,6 +339,16 @@
       },
       click: true
     });
+  }
+
+  // The three states exist on the map whether or not anyone taps a tile, so they get named
+  // under the board rather than hiding in a popup.
+  function legendHTML() {
+    return '<div class="crewlegend">'
+      + '<span class="b0"><i></i>' + t("crew.tile.safe") + "</span>"
+      + '<span class="b1"><i></i>' + t("crew.tile.pushed") + "</span>"
+      + '<span class="b2"><i></i>' + t("crew.tile.slipping") + "</span>"
+      + "</div>";
   }
 
   function plainRank(rows) {
@@ -338,9 +365,18 @@
     return n === 1 ? t("crew.tile1") : t("crew.tiles", { n: n });
   }
 
+  function riders(n) {
+    return n === 1 ? t("crew.rider1") : t("crew.riders", { n: n });
+  }
+
   // Area follows the same metric/imperial switch as every other number on the site. A rider
   // who reads their rides in miles should not have one board quietly answering in km.
   var MI2_PER_KM2 = 0.3861021585;
+
+  function daysUntil(iso) {
+    var d = Math.ceil((new Date(iso) - Date.now()) / 86400000);
+    return d > 0 ? d : 1;
+  }
 
   function fmtKm2(v) {
     var n = v == null ? 0 : v;
@@ -386,15 +422,15 @@
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
       + '<p class=hint id="crewcodehint">' + t("crew.signin.scan") + "</p>"
-      + '<a class="crewbtn crewopen" id="crewopen" href="#">' + t("crew.signin.open") + "</a>"
       + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"
+      + '<a class="crewbtn crewopen" id="crewopen" href="#">' + t("crew.signin.open") + "</a>"
       + "</div>";
   }
 
   function startPairing() {
     stopPairing();
     api("POST", "/api/v1/pair/start").then(function (r) {
-      if (!r.ok) { setStatus("Pairing is unavailable right now."); return; }
+      if (!r.ok) { setStatus(t("crew.err"), true); return; }
       pairToken = r.body.token;
       var qr = document.getElementById("crewqr");
       var code = document.getElementById("crewcode");
@@ -416,7 +452,13 @@
         if (left <= 0) { startPairing(); return; }          // quietly roll a fresh code
         api("GET", "/api/v1/pair/poll?token=" + encodeURIComponent(pairToken))
           .then(function (p) {
-            if (p.ok && p.body.status === "paired") { stopPairing(); show(); }
+            if (p.ok && p.body.status === "paired") {
+              stopPairing();
+              // the one step that spans two devices is the one that most needs a visible
+              // result; every other action already reveals itself
+              reveal(".crewcard:not(.crewboard)");
+              show();
+            }
             else if (!p.ok) startPairing();
           });
       }, 2000);
@@ -540,8 +582,23 @@
     }
     if (c.description) h += "<p>" + esc(c.description) + "</p>";
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
-    if (c.invite_code) {
+    if (c.invite_code && c.join_policy === "invite") {
       h += '<p class=hint>' + t("crew.mine.invite") + ': <code>' + esc(c.invite_code) + "</code></p>";
+    }
+    // Leaving is blocked for a leader with members until somebody else can run the crew, and
+    // there was no control anywhere to make that somebody. The endpoint existed; the button
+    // did not, so a two-person crew's leader was stuck for good.
+    if (me.role === "leader" && me.roster && me.roster.length > 1) {
+      h += '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
+        + me.roster.filter(function (x) { return x.role !== "leader"; }).map(function (x) {
+            return '<div class="crewpendr"><span>' + esc(x.name)
+              + (x.role === "officer" ? " " + ROLEIC.officer : "") + "</span>"
+              + '<button class="crewbtn mini ghost" data-role="'
+              + (x.role === "officer" ? "member" : "officer") + '" data-sid="'
+              + esc(x.store_id || "") + '">'
+              + t(x.role === "officer" ? "crew.roles.demote" : "crew.roles.promote")
+              + "</button></div>";
+          }).join("") + "</div>";
     }
     if (me.pending && me.pending.length) {
       h += '<div class="crewpend"><h4>' + t("crew.pending.h") + "</h4>"
@@ -590,17 +647,27 @@
             { store_id: b.dataset.no, accept: false }).then(show);
       };
     });
+    document.querySelectorAll("[data-role]").forEach(function (b) {
+      b.onclick = function () {
+        api("POST", "/api/v1/crews/" + c.slug + "/role",
+            { store_id: b.dataset.sid, role: b.dataset.role }).then(function (r) {
+          if (r.ok) { reveal(".crewmine-wrap"); show(); }
+          else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+        });
+      };
+    });
     var leave = document.getElementById("cm-leave");
     if (leave) leave.onclick = function () {
-      if (!confirm(t("crew.mine.leaveq", { name: c.name })))
+      if (!confirm(t("crew.mine.leaveq", { name: c.name, n: COOLDOWN_DAYS })))
         return;
       api("POST", "/api/v1/crews/leave", {}).then(function (r) {
         if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
-        else setStatus((r.err && r.err.detail) || "That did not work.", true);
+        else setStatus((r.err && r.err.detail) || t("crew.err"), true);
       });
     };
     var so = document.getElementById("cm-signout");
     if (so) so.onclick = function () {
+      if (!confirm(t("crew.mine.signoutq"))) return;
       api("POST", "/api/v1/crews/signout", {}).then(function () { ME = null; show(); });
     };
     var save = document.getElementById("ce-save");
@@ -613,7 +680,7 @@
       }).then(function (r) {
         save.disabled = false;
         if (r.ok) { show(); reloadTerritory(); }
-        else setStatus((r.err && r.err.detail) || "That did not work.", true);
+        else setStatus((r.err && r.err.detail) || t("crew.err"), true);
       });
     };
     var logo = document.getElementById("ce-logo");
@@ -625,7 +692,7 @@
             { method: "POST", body: fd, credentials: "same-origin" })
         .then(function (r) {
           if (r.ok) { show(); reloadTerritory(); }
-          else setStatus("That image was not accepted.", true);
+          else setStatus(t("crew.mine.emblembad"), true);
         });
     };
     var clr = document.getElementById("ce-clearlogo");
@@ -654,20 +721,26 @@
     if (me.cooldown_until) {
       return '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>"
         + '<div class="crewmsg">'
-        + t("crew.join.wait.p", { when: new Date(me.cooldown_until).toLocaleString() })
+        + t("crew.join.wait.p", { n: daysUntil(me.cooldown_until) })
         + "</div></div>";
     }
     if (!crews.length) return "";
     return '<div class="crewcard"><h3>' + t("crew.join.h") + '</h3><div class="crewlist">'
       + crews.map(function (c) {
-          var label = c.join_policy === "open" ? t("crew.join.btn")
+          var open = c.join_policy === "open";
+          var label = open ? t("crew.join.btn")
             : c.join_policy === "invite" ? t("crew.join.code") : t("crew.join.ask");
+          var policy = t("crew.policy." + c.join_policy);
+          // what the crew holds and what it says about itself, so the choice is not a
+          // blind name-pick that costs a cooldown if it is wrong
+          var sub = riders(c.members) + " · " + policy
+            + (c.km2 ? " · " + fmtKm2(c.km2) : "");
           return '<div class="crewrow">' + swatch(c.colour, c.pattern, 26)
-            + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + c.members
-            + (c.members === 1 ? " rider" : " riders") + " · " + esc(c.join_policy)
-            + "</span></div>"
-            + '<button class="crewbtn mini" data-join="' + esc(c.slug) + '" data-pol="'
-            + esc(c.join_policy) + '">' + label + "</button></div>";
+            + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"
+            + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
+            + "</div>"
+            + '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
+            + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '">' + label + "</button></div>";
         }).join("")
       + "</div></div>";
   }
@@ -683,7 +756,7 @@
         }
         api("POST", "/api/v1/crews/" + b.dataset.join + "/join", body).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-          else setStatus((r.err && r.err.detail) || "That did not work.", true);
+          else setStatus((r.err && r.err.detail) || t("crew.err"), true);
         });
       };
     });
@@ -742,10 +815,13 @@
       // Standings first and always: the mode is a competition, and a visitor who is not in a
       // crew should land on the board rather than on a sign-in form. The rider's own crew
       // sits under it, folded away once they have one — they already know what it is.
-      var h = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
-        + rankingHTML(rank) + "</div>";
+      var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
+        + rankingHTML(rank) + legendHTML() + "</div>";
+      // Signed out, the only thing you can act on goes first and the board follows. Signed
+      // in, the board leads because that is what you came back to look at.
+      var h = me.paired ? board : signInHTML() + board;
       if (!me.paired) {
-        h += signInHTML();
+        /* the sign-in card is already at the top */
       } else if (me.crew) {
         h += '<details class="crewmine-wrap" ' + (me.status === "pending" ? "open" : "")
           + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
@@ -756,7 +832,10 @@
         h += '<div class="crewcard"><h3>' + t("crew.first.h") + "</h3>"
           + '<p class=hint>' + t("crew.first.p") + "</p></div>" + joinHTML(all, me);
       } else {
-        h += (me.creation_open ? createHTML(window.__CREWIDENT__ || { colour: "#4363d8", pattern: "solid" }) : "")
+        h += (me.creation_open
+                ? createHTML(window.__CREWIDENT__ || { colour: "#4363d8", pattern: "solid" })
+                : '<div class="crewcard"><h3>' + t("crew.closed.h") + "</h3>"
+                  + '<p class=hint>' + t("crew.closed.p") + "</p></div>")
           + joinHTML(all, me);
       }
       h += explainer();

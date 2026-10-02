@@ -126,7 +126,7 @@ svg.ic{width:18px;height:18px;display:block}
 .panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:60dvh;max-height:580px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
 .panel{transform-origin:50% 100%;border-top-width:2px;border-top-color:color-mix(in srgb,var(--sec,var(--acc)) 62%,transparent);box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 70px -52px var(--sec,transparent)}
-.panel[data-sec=riders]{--sec:#2ea8ff}.panel[data-sec=countries]{--sec:#ff6b6b}.panel[data-sec=wheels]{--sec:#ffd24a}.panel[data-sec=brands]{--sec:#ff9f43}.panel[data-sec=records]{--sec:#39d98a}.panel[data-sec=tech]{--sec:#a78bfa}
+.panel[data-sec=riders]{--sec:#2ea8ff}.panel[data-sec=crews]{--sec:#ff8ad8}.panel[data-sec=countries]{--sec:#ff6b6b}.panel[data-sec=wheels]{--sec:#ffd24a}.panel[data-sec=brands]{--sec:#ff9f43}.panel[data-sec=records]{--sec:#39d98a}.panel[data-sec=tech]{--sec:#a78bfa}
 @keyframes panUp{from{opacity:0;transform:translate(-50%,46px)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes panLeft{from{opacity:0;transform:translate(calc(-50% - 70px),0)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes panRight{from{opacity:0;transform:translate(calc(-50% + 70px),0)}to{opacity:1;transform:translate(-50%,0)}}
@@ -1042,7 +1042,7 @@ def _crew_cfg(db):
     c = settings.get_crews(db)
     return {"enabled": c["enabled"], "opacity": c["opacity"], "zoom": c["zoom"],
             "window_days": c["window_days"], "seed": c["seed"],
-            "creation_open": c["creation_open"],
+            "creation_open": c["creation_open"], "cooldown_days": c["cooldown_days"],
             "palette": PALETTE, "patterns": list(PATTERNS)}
 
 

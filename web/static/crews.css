@@ -114,9 +114,11 @@
 .crewemb img {
   width: 100%; height: 100%; object-fit: contain;
   padding: 7%;
-  background: rgba(4, 8, 16, .66);
-  border: 1px solid rgba(255, 255, 255, .22);
-  box-shadow: 0 3px 14px rgba(0, 0, 0, .7);
+  /* opaque enough that a 0.55 fill cannot read through the letterforms: at .66 the crew's
+     own checkerboard showed straight through its own initials */
+  background: rgba(4, 8, 16, .9);
+  border: 1px solid rgba(255, 255, 255, .32);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, .78);
   box-sizing: border-box;
 }
 .crewemb-n {
@@ -143,8 +145,9 @@
 @media (hover: none) and (pointer: coarse) {
   .crewopen { display: block; text-align: center; text-decoration: none; }
   .crewsame { display: block; }
-  /* on a phone the code block is the same link, so a stray tap still does the right thing */
-  .crewqr img { opacity: .55; }
+  /* The QR is not dimmed. A faded code reads as a loading failure, and the honest signal is
+     simply that the button is the easier path on the device the app is installed on. */
+  .crewqr img { opacity: 1; }
 }
 a.crewqr { display: flex; text-decoration: none; }
 
@@ -223,4 +226,48 @@ a.crewqr { display: flex; text-decoration: none; }
 @media (max-width: 560px) {
   .crewpickc, .crewpickp { width: 30px; height: 30px; }   /* thumbs, not cursors */
   .crewpickp .crewsw { width: 26px; height: 26px; }
+}
+
+
+/* --- consistency with the host panel --- */
+
+/* The squares belong on the map, not in the panel. Cards sitting at radius 0 inside a 12px
+   panel next to 7px tabs read as unfinished rather than as deliberate. */
+.crewcard, .crewmine-wrap, .crewhow { border-radius: 10px; }
+.crewmsg { border-radius: 6px; }
+.crewbtn { border-radius: 7px; }
+/* kept square on purpose: these ARE the map's language */
+.crewsw, .crewpickc, .crewpickp, .crewemb img { border-radius: 0; }
+
+/* a colour and pattern on every ranked row: this is a feature about identity and rows 4+
+   carried none of it */
+.crewrank .celln .crewsw, .crewboard table .celln .crewsw { flex: 0 0 auto; }
+
+/* the colour grid was ragged; 12 to a row reads as a palette */
+.crewpick { display: grid; grid-template-columns: repeat(12, 24px); gap: 5px; }
+#cf-patterns { grid-template-columns: repeat(6, 24px); }
+
+/* patterns have to be separable at swatch size */
+.crewsw[data-p=stripes]::after { background: repeating-linear-gradient(45deg, rgba(0,0,0,.5) 0 2px, transparent 2px 5px); }
+.crewsw[data-p=dots]::after { background-size: 5px 5px; }
+
+/* the join list was nine identical filled buttons shouting over the crews themselves */
+.crewrow .crewbtn.mini { min-width: 86px; text-align: center; }
+.crewmeta2 { font-size: 11px; color: var(--mut, #7a86ad); }
+
+/* the band legend under the board */
+.crewlegend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 11px;
+  color: var(--mut, #7a86ad); }
+.crewlegend i { display: inline-block; width: 13px; height: 13px; margin-right: 5px;
+  vertical-align: -2px; background: var(--sec, #ff8ad8); border: 1px solid rgba(255,255,255,.25); }
+.crewlegend .b1 i { opacity: .62; }
+.crewlegend .b2 i { opacity: .38; border-style: dashed; }
+
+@media (max-width: 560px) {
+  /* truncating crew names is indefensible in a feature about naming your crew */
+  .crewboard .pname { white-space: normal; font-size: 11px; line-height: 1.15; }
+  .crewpick { grid-template-columns: repeat(8, 30px); }
+  #cf-patterns { grid-template-columns: repeat(4, 30px); }
+  /* the action buttons were clipping against the panel's bottom edge */
+  .crewmine .crewacts { padding-bottom: 14px; }
 }

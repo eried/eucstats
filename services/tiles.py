@@ -9,13 +9,17 @@ an emblem placeable at all.
 The two grids coexist. Nothing here touches the heatmap.
 
 Tile ground size is `40075 km * cos(latitude) / 2^zoom`, so northern riders get finer tiles
-for free — at zoom 13 that is about 2.4 km in Oslo against 4.9 km at the equator.
+for free: at zoom 14 that is about 1.2 km in Oslo against 2.4 km at the equator.
+
+Zoom 14 rather than 13 because of what a 2x2 block costs. At 13 the seed a crew must plant is
+a 5 km square, which is an afternoon set aside for it; at 14 it is 2.4 km across, which is an
+ordinary ride, and territory reads as neighbourhoods instead of thirds of a city.
 """
 from __future__ import annotations
 
 import math
 
-DEFAULT_ZOOM = 13          # ~2.4 km at Oslo, ~4.9 km at the equator
+DEFAULT_ZOOM = 14          # ~1.2 km at Oslo, ~2.4 km at the equator
 EARTH_C_KM = 40075.016686
 
 

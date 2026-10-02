@@ -773,7 +773,7 @@ def get_crews(db: Session) -> dict:
     a feature that cannot be switched off is a feature that has to be perfect on day one."""
     return {
         "enabled": (get_meta(db, "crew_enabled", "0") or "0") == "1",
-        "zoom": _clamp_int(get_meta(db, "crew_zoom", 13), 13, 8, 16),
+        "zoom": _clamp_int(get_meta(db, "crew_zoom", 14), 14, 8, 16),
         "window_days": _clamp_int(get_meta(db, "crew_window_days", 90), 90, 7, 730),
         "seed": _clamp_int(get_meta(db, "crew_seed", 2), 2, 1, 4),
         "cooldown_days": _clamp_int(get_meta(db, "crew_cooldown_days", 7), 7, 0, 90),
@@ -786,7 +786,7 @@ def get_crews(db: Session) -> dict:
 def set_crews(db: Session, enabled, zoom, window_days, seed, cooldown_days, max_members,
               opacity, creation_open) -> None:
     set_meta(db, "crew_enabled", "1" if enabled else "0")
-    set_meta(db, "crew_zoom", str(_clamp_int(zoom, 13, 8, 16)))
+    set_meta(db, "crew_zoom", str(_clamp_int(zoom, 14, 8, 16)))
     set_meta(db, "crew_window_days", str(_clamp_int(window_days, 90, 7, 730)))
     set_meta(db, "crew_seed", str(_clamp_int(seed, 2, 1, 4)))
     set_meta(db, "crew_cooldown_days", str(_clamp_int(cooldown_days, 7, 0, 90)))
