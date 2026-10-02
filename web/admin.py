@@ -79,7 +79,14 @@ def _qr_b64(secret: str) -> str:
 
 
 def _is_authenticated(request: Request) -> bool:
-    return request.session.get("admin_auth", False)
+    """Both factors. TOTP alone no longer opens the console.
+
+    The second factor is a pairing confirmed from the admin's own phone — the same QR scan
+    riders use for crews. See services/adminauth.py for why a rider id can never be the only
+    thing standing in front of this.
+    """
+    from services import adminauth
+    return adminauth.is_authenticated(request)
 
 
 def _counts(db: Session) -> dict:
@@ -93,6 +100,7 @@ def _counts(db: Session) -> dict:
 
 
 _NAV = [("/admin", "Overview"), ("/admin/explorer", "Riders & Trips"),
+        ("/admin/crews", "Crews"),
         ("/admin/wheels", "Wheels"), ("/admin/ingest", "Ingest"),
         ("/admin/metrics", "Metrics"), ("/admin/appearance", "Public site"),
         ("/admin/datasets", "Data & backups"),
@@ -285,6 +293,36 @@ def _enroll_html(qr: str, secret: str) -> str:
     return _admin_shell(inner, chrome=False)
 
 
+def _pair_html(qr: str, code: str, error: str = "") -> str:
+    """Step two: scan with the phone that owns this console."""
+    err = f'<div class="flash err">{html.escape(error)}</div>' if error else ""
+    inner = f"""
+    <div class=card>
+      <div class=brand style="font-size:19px;margin-bottom:8px">EUC<b>STATS</b></div>
+      <h1 style="margin:0 0 4px">Second factor</h1>
+      <p class=hint>The code was right. Now scan this with <b>EUC Planet</b> on the phone
+      bound to this console. The code proves what you know; the phone proves what you have.</p>
+      {err}
+      <img class=qr src="data:image/png;base64,{qr}" alt="admin pairing QR code"/>
+      <p class=hint>Or type this into the app: <code>{html.escape(code)}</code><br>
+      It expires in three minutes and this page will move on by itself.</p>
+      <form method=post action="/admin/logout"><button class="ghost mini">Start over</button></form>
+    </div>
+    <script>
+    // the browser holds the token; the phone never sees it
+    (function(){{
+      var tok = {{token: "__TOKEN__"}};
+      setInterval(function(){{
+        fetch("/admin/pair/poll?token=" + encodeURIComponent(tok.token))
+          .then(function(r){{ return r.json(); }})
+          .then(function(j){{ if (j.status === "paired") location.href = "/admin"; }})
+          .catch(function(){{}});
+      }}, 2000);
+    }})();
+    </script>"""
+    return _admin_shell(inner, chrome=False)
+
+
 def _login_html(error: str = "") -> str:
     err = f'<div class="flash err">{html.escape(error)}</div>' if error else ""
     inner = f"""
@@ -388,12 +426,31 @@ def _dash_html(db: Session) -> str:
 
 @admin_router.get("", response_class=HTMLResponse)
 def admin_page(request: Request, db: Session = Depends(get_db)):
+    from services import adminauth, pairing
     if not _is_enrolled():
         secret = _get_or_create_secret()
         return HTMLResponse(_enroll_html(_qr_b64(secret), secret))
-    if not _is_authenticated(request):
+    stage = adminauth.stage(request)
+    if stage == "totp":
         return HTMLResponse(_login_html())
+    if stage == "pair":
+        p = adminauth.start_pairing(db)
+        base = str(request.base_url).rstrip("/")
+        qr = pairing.qr_png_b64(f"{base}/p/{p['code']}")
+        return HTMLResponse(_pair_html(qr, p["code"]).replace("__TOKEN__", p["token"]))
     return HTMLResponse(_dash_html(db))
+
+
+@admin_router.get("/pair/poll")
+def admin_pair_poll(token: str, request: Request, db: Session = Depends(get_db)):
+    """Only the bound rider completes this, and only with TOTP already passed in this session."""
+    from services import adminauth
+    if not request.session.get("admin_auth", False):
+        return JSONResponse({"status": "denied"}, status_code=403)
+    res = adminauth.check_pairing(db, token)
+    if res.get("status") == "paired":
+        request.session["admin_paired"] = True
+    return JSONResponse(res)
 
 
 @admin_router.post("/verify-totp")
@@ -405,6 +462,7 @@ def verify_totp(request: Request, code: str = Form(...)):
         state["enrolled"] = True
         _save_state(state)
     request.session["admin_auth"] = True
+    request.session["admin_paired"] = False     # the phone still has to vouch for it
     return RedirectResponse("/admin", status_code=303)
 
 

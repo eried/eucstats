@@ -19,6 +19,9 @@ from services import crews, pairing, ratelimit, settings, territory
 from services import tiles as T
 
 router = APIRouter(prefix="/api/v1", tags=["crews"])
+# the pairing deep link lives at the root, because it has to be short enough to be a QR code
+# that scans from a laptop screen across a room
+pair_router = APIRouter(tags=["crews"])
 
 # Pairing is the one unauthenticated write in the feature, so it is capped tightly. The
 # confirm limit is the one that matters: it is what stops a six-character code being guessed.
@@ -534,3 +537,49 @@ def territory_at(lat: float, lon: float, db: Session = Depends(get_db)):
             "km": round(cell.km or 0.0, 1), "riders": cell.riders,
             "since": cell.first_led.isoformat() + "Z" if cell.first_led else None,
             "crew": _crew_brief(db, clan) if clan else None}
+
+
+# --- the deep link the QR actually carries ------------------------------------------------
+
+_PAIR_PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Pair with EUC Planet</title><style>
+:root{color-scheme:dark}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+ background:#070b16;color:#dce6f7;font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.w{max-width:420px;padding:28px 24px;text-align:center}
+.code{font:700 34px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:9px;margin:18px 0 6px}
+a.btn{display:block;margin:20px 0 8px;padding:13px;background:#2ea8ff;color:#061020;
+ font-weight:700;text-decoration:none}
+p{color:#8c99bb;font-size:13.5px}b{color:#dce6f7}
+</style></head><body><div class=w>
+<h1 style="font-size:19px;margin:0">Pair this browser</h1>
+<p>Approve it in <b>EUC Planet</b> to use Crews.</p>
+<div class=code>__CODE__</div>
+<a class=btn href="eucplanet://pair?code=__CODE__&amp;host=__HOST__">Open EUC Planet</a>
+<p>If the app did not open, start it yourself, go to <b>Crews &rarr; Scan</b>, and enter the
+code above.</p>
+<p style="margin-top:22px;font-size:12px">Only approve a code you asked for. Approving one
+signs that browser in as you &mdash; for crews only. It can never upload a ride, rename you or
+delete anything.</p>
+</div></body></html>"""
+
+
+@pair_router.get("/p/{code}")
+def pair_landing(code: str, request: Request, db: Session = Depends(get_db)):
+    """Where a scanned pairing QR lands.
+
+    The QR carries this URL including the host it was served from, which is the whole reason
+    one app build can pair against a laptop for testing and against production in a rider's
+    pocket. The app reads the host out of the link rather than having it compiled in, so there
+    is no debug flavour, no second APK and no special rider id — but it only ADOPTS a
+    non-production host when the rider has switched developer mode on, so a QR code taped to a
+    wall cannot redirect somebody's app at a stranger's server.
+
+    A human who scans it with a plain camera app gets this page instead of a dead link.
+    """
+    from fastapi.responses import HTMLResponse
+    _gate(db)
+    safe = "".join(ch for ch in (code or "").upper() if ch.isalnum())[:12]
+    host = str(request.base_url).rstrip("/")
+    return HTMLResponse(_PAIR_PAGE.replace("__CODE__", safe).replace("__HOST__", host))

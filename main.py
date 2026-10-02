@@ -105,8 +105,9 @@ app = FastAPI(title="eucstats", lifespan=lifespan)
 
 from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
 from web.api import router as api_router  # noqa: E402
-from web.crews_api import router as crews_router  # noqa: E402
+from web.crews_api import router as crews_router, pair_router  # noqa: E402
 from web.admin import admin_router, _get_session_secret  # noqa: E402
+from web.admin_crews import crews_admin_router  # noqa: E402
 from web.public import public_router  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
@@ -114,6 +115,8 @@ app.add_middleware(SessionMiddleware, secret_key=_get_session_secret())
 app.mount("/static", StaticFiles(directory=str(config.BASE_DIR / "web" / "static")), name="static")
 app.include_router(api_router)
 app.include_router(crews_router)
+app.include_router(pair_router)
+app.include_router(crews_admin_router)   # before admin_router: more specific prefix
 app.include_router(admin_router)
 app.include_router(public_router)
 
