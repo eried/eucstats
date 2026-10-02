@@ -27,6 +27,7 @@ __HIDECFG__
 <meta name="twitter:card" content="summary_large_image"/>
 <link rel="icon" type="image/png" href="/static/favicon.png"/>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
+<link rel="stylesheet" href="/static/crews.css"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet"/>
 <style>
@@ -121,7 +122,7 @@ svg.ic{width:18px;height:18px;display:block}
 .dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}
-.dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}
+.dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}.dock button[data-p=crews]{--sec:#ff8ad8}
 .panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:60dvh;max-height:580px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
 .panel{transform-origin:50% 100%;border-top-width:2px;border-top-color:color-mix(in srgb,var(--sec,var(--acc)) 62%,transparent);box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 70px -52px var(--sec,transparent)}
@@ -238,6 +239,7 @@ __TESTWM__
 <div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="ppeek" title="Preview as a normal visitor" style="display:none"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="prefresh" data-i18n-title="act.refresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
 <div class="dock intro">
   <button class="intro" data-p="riders" data-i18n-aria="dock.riders" aria-label="Riders"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><circle cx="17" cy="9" r="2.6"/><path d="M14.6 14.4c2.8-.7 5.6 1 6.4 4.6h-4.8z"/></svg><span class="lbl" data-i18n="dock.riders">Riders</span></button>
+  <button class="intro" data-p="crews" data-i18n-aria="dock.crews" aria-label="Crews"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><path d="M13 13h8v8h-8z" fill="currentColor" stroke="none" opacity=".75"/></svg><span class="lbl" data-i18n="dock.crews">Crews</span></button>
   <button class="intro" data-p="countries" data-i18n-aria="dock.countries" aria-label="Countries"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg><span class="lbl" data-i18n="dock.countries">Countries</span></button>
   <button class="intro" data-p="wheels" data-i18n-aria="title.wheels" aria-label="Wheel models"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg><span class="lbl" data-i18n="dock.wheels">Wheels</span></button>
   <button class="intro" data-p="brands" data-i18n-aria="title.brands" aria-label="Wheel brands"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="lbl" data-i18n="dock.brands">Brands</span></button>
@@ -604,9 +606,11 @@ function countUp(el,target,dur,dec){const t=+target||0;let from;
   const delta=t-from;let s0=null;
   function step(now){if(s0===null)s0=now;let p=Math.min(1,(now-s0)/dur);p=1-Math.pow(1-p,3);const v=from+delta*p;el.textContent=dec?v.toFixed(dec):Math.round(v).toLocaleString();if(p<1)requestAnimationFrame(step);else{el.textContent=dec?t.toFixed(dec):Math.round(t).toLocaleString();el.dataset.cur=""+t;}}
   requestAnimationFrame(step);}
-const DOCK=["riders","countries","wheels","brands","records","tech"];
+const DOCK=["riders","crews","countries","wheels","brands","records","tech"];
 function setPanel(name,title,html){
   const prev=openPanel;
+  // territory rectangles are this mode's alone — switching away puts the heatmap back
+  if(name!=="crews"&&window.EUCCrews)window.EUCCrews.hide();
   openPanel=name;ptitle.textContent=title;pbody.innerHTML=html;panel.dataset.sec=name;panel.classList.add("open");
   if(prev!==name){   // animate on open/switch only — NOT on in-place refresh (prev===name)
     let anim="panUp";
@@ -618,6 +622,8 @@ function setPanel(name,title,html){
 }
 function closePanel(){
   if(openPanel===null&&!panel.classList.contains("open"))return;
+  // the panel closes but the territory stays: you have to close it to look at the map, and a
+  // mode that erases itself the moment you try to see it is not a mode
   openPanel=null;
   document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));
   panel.style.animation="none";void panel.offsetWidth;
@@ -734,7 +740,14 @@ async function showTech(){
     sec("countries","🌍 "+t("tech.countries"),bars(d.countries,e=>`${cc(e.country)} ${cname(e.country)||e.country} · v${e.version||"?"}`));
   setPanel("tech",t("title.tech"),body||'<div class="empty">'+t("empty.noapp")+'</div>');
 }
-const HANDLERS={riders:showRiders,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
+// Crews lives in /static/crews.js: it is a static file, so the browser caches it and nginx can
+// serve it without the application being involved. The page hands it the map and setPanel.
+function showCrews(){ if(window.EUCCrews) window.EUCCrews.show(); }
+(function(){ // with the mode switched off the button is removed, not disabled
+  const on=window.__CREWCFG__&&window.__CREWCFG__.enabled;
+  if(!on){const b=document.querySelector('.dock button[data-p=crews]');if(b)b.remove();}
+})();
+const HANDLERS={riders:showRiders,crews:showCrews,countries:showCountries,wheels:showWheels,brands:showBrands,records:showRecords,tech:showTech};
 document.querySelectorAll(".dock button").forEach(b=>b.onclick=()=>{if(openPanel===b.dataset.p)closePanel();else HANDLERS[b.dataset.p]();});
 function applyDock(){const SEC=HIDE.sec||{};
   document.querySelectorAll('.dock button[data-p]').forEach(b=>{var hid=SEC[b.dataset.p];
@@ -959,11 +972,15 @@ async function init(){
   setupCfg();
   map.on("load",async ()=>{
     CELLS=await j("/map/cells?zoom="+HEAT.zoom); addHeat();
+    if(window.EUCCrews&&window.__CREWCFG__&&window.__CREWCFG__.enabled)
+      window.EUCCrews.init(map,{setPanel:setPanel,closePanel:closePanel,t:t});
     mapReady=true; doIntro();
   });
 }
 init().catch(()=>{const c=document.getElementById("chips");c.classList.add("show");c.innerHTML='<span class="chip">'+t("empty.apierror")+'</span>';});
-</script></body></html>"""
+</script>
+<script src="/static/crews.js" defer></script>
+</body></html>"""
 
 
 def _build_date():
@@ -1006,10 +1023,26 @@ def _hide_cfg(db, admin=False, accept_language=""):
             + ';window.__ADMIN__=' + ('true' if admin else 'false')
             + ';window.__CFG__=' + json.dumps(settings.get_behaviour(db))
             + ';window.__HEAT__=' + json.dumps(heat)
+            + ';window.__CREWCFG__=' + json.dumps(_crew_cfg(db))
             + ';window.__I18N__=' + json.dumps(i18n_small, ensure_ascii=False)
             + ';window.__LANGS__=' + json.dumps(i18n.LANG_NAMES, ensure_ascii=False)
             + ';window.__ORDER__=' + json.dumps(settings.get_metric_order(db))
             + ';</script>')
+
+
+def _crew_cfg(db):
+    """What the crews front-end needs to know before it draws anything.
+
+    The palette travels with the page so the create form can offer it without a round trip,
+    and `enabled` is what hides the dock button entirely: with crews off, the mode is not
+    there to be found rather than there and broken.
+    """
+    from services.crews import PALETTE, PATTERNS
+    c = settings.get_crews(db)
+    return {"enabled": c["enabled"], "opacity": c["opacity"], "zoom": c["zoom"],
+            "window_days": c["window_days"], "seed": c["seed"],
+            "creation_open": c["creation_open"],
+            "palette": PALETTE, "patterns": list(PATTERNS)}
 
 
 @public_router.get("/", response_class=HTMLResponse)

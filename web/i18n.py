@@ -18,6 +18,7 @@ from __future__ import annotations
 EN: dict[str, str] = {
     # dock (bottom bar) — short labels, keep tight
     "dock.riders": "Riders",
+    "dock.crews": "Crews",
     "dock.countries": "Countries",
     "dock.wheels": "Wheels",
     "dock.brands": "Brands",
@@ -25,6 +26,7 @@ EN: dict[str, str] = {
     "dock.app": "App",
     # panel titles (header of the sliding panel)
     "title.riders": "Riders",
+    "title.crews": "Crews & Territory",
     "title.countries": "Countries",
     "title.wheels": "Wheel models",
     "title.brands": "Wheel brands",

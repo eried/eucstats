@@ -1,0 +1,125 @@
+/* Crews & Territory — panel and map chrome.
+ *
+ * Borrows the site's existing custom properties (--glass, --line, --mut, --shadow) so a theme
+ * change reaches this without the file knowing themes exist. Squared rather than rounded: the
+ * mode is about holding rectangles, and a pill-shaped card next to a tile grid looks borrowed.
+ */
+
+.crewcard {
+  background: rgba(10, 15, 30, .5);
+  border: 1px solid var(--line, #243055);
+  border-left: 2px solid var(--sec, #2ea8ff);
+  padding: 14px 15px;
+  margin: 0 0 11px;
+}
+.crewcard h3 { margin: 0 0 6px; font-size: 14px; letter-spacing: .4px; text-transform: uppercase; }
+.crewcard h4 { margin: 12px 0 6px; font-size: 12px; color: var(--mut, #7a86ad); letter-spacing: .5px; text-transform: uppercase; }
+.crewcard p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
+.crewcard code { background: rgba(255,255,255,.07); padding: 2px 6px; font-size: 12px; letter-spacing: 1px; }
+.crewcard label { display: block; margin: 9px 0 0; font-size: 11px; color: var(--mut, #7a86ad); letter-spacing: .5px; text-transform: uppercase; }
+.crewcard input[type=text], .crewcard input:not([type]), .crewcard select {
+  display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
+  background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055); color: inherit;
+  font: inherit; font-size: 13px; border-radius: 0;
+}
+.crewcard input:focus, .crewcard select:focus { outline: none; border-color: var(--sec, #2ea8ff); }
+
+.crewbtn {
+  margin-top: 12px; padding: 9px 16px; background: var(--sec, #2ea8ff); color: #061020;
+  border: 0; font: inherit; font-weight: 700; font-size: 13px; letter-spacing: .3px;
+  cursor: pointer; border-radius: 0;
+}
+.crewbtn:hover { filter: brightness(1.12); }
+.crewbtn:disabled { opacity: .5; cursor: default; }
+.crewbtn.ghost { background: transparent; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); }
+.crewbtn.ghost:hover { color: #fff; border-color: var(--sec, #2ea8ff); }
+.crewbtn.mini { margin: 0; padding: 5px 11px; font-size: 12px; }
+.crewacts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* a crew's identity at a glance: the colour, with its pattern drawn over it, exactly as the
+   map draws it — so the swatch beside a name is the same thing you see on the ground */
+.crewsw { display: inline-block; vertical-align: middle; border: 1px solid rgba(255,255,255,.3); position: relative; }
+.crewsw::after { content: ""; position: absolute; inset: 0; }
+.crewsw[data-p=stripes]::after { background: repeating-linear-gradient(45deg, rgba(0,0,0,.45) 0 3px, transparent 3px 7px); }
+.crewsw[data-p=hatch]::after {
+  background: repeating-linear-gradient(45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px),
+              repeating-linear-gradient(-45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px);
+}
+.crewsw[data-p=dots]::after { background-image: radial-gradient(rgba(0,0,0,.5) 28%, transparent 30%); background-size: 6px 6px; }
+
+.crewhead { display: flex; gap: 12px; align-items: center; }
+.crewlogo { width: 52px; height: 52px; flex: 0 0 52px; border: 1px solid var(--line, #243055); background: rgba(0,0,0,.3); }
+.crewmeta { font-size: 12px; color: var(--mut, #7a86ad); margin-top: 3px; }
+
+.crewterr { margin: 12px 0 2px; padding: 10px 0; border-top: 1px solid var(--line, #243055); }
+.crewbig { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.crewbig span { font-size: 13px; font-weight: 400; color: var(--mut, #7a86ad); }
+.crewsub { font-size: 12px; color: var(--mut, #7a86ad); margin-top: 4px; }
+
+.crewpend { border-top: 1px solid var(--line, #243055); margin-top: 10px; }
+.crewpendr { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+.crewpendr span { flex: 1; }
+
+.crewlist { margin-top: 6px; }
+.crewrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(255,255,255,.05); }
+.crewrow:first-child { border-top: 0; }
+.crewrown { flex: 1; min-width: 0; }
+.crewrown b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crewrown span { font-size: 11px; color: var(--mut, #7a86ad); }
+
+.crewrank { width: 100%; border-collapse: collapse; font-size: 13px; }
+.crewrank td { padding: 6px 4px; border-top: 1px solid rgba(255,255,255,.05); }
+.crewrank .rk { width: 26px; color: var(--mut, #7a86ad); font-variant-numeric: tabular-nums; }
+.crewrank .val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.crewrank .val.sub { color: var(--mut, #7a86ad); font-size: 11px; }
+.crewrank tr.sel { cursor: pointer; }
+.crewrank tr.sel:hover td { background: rgba(46,168,255,.1); }
+.crewrank .celln { display: flex; align-items: center; gap: 8px; }
+
+.crewident { display: flex; gap: 12px; align-items: center; margin: 12px 0 0; }
+.crewident > div { flex: 1; }
+.crewidentl { font-size: 11px; color: var(--mut, #7a86ad); letter-spacing: .5px; text-transform: uppercase; }
+.crewident select { margin-top: 4px; }
+
+.crewsign { text-align: center; }
+.crewsign .hint { text-align: left; }
+.crewqr { min-height: 188px; display: flex; align-items: center; justify-content: center; margin: 12px 0 8px; }
+.crewqr img { width: 188px; height: 188px; image-rendering: pixelated; background: #fff; padding: 7px; }
+.crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
+
+.crewmsg { margin: 9px 0; padding: 8px 11px; background: rgba(46,168,255,.12); border-left: 2px solid #2ea8ff; font-size: 12.5px; }
+.crewmsg.bad { background: rgba(255,107,107,.13); border-left-color: #ff6b6b; }
+
+.crewhow { font-size: 12.5px; line-height: 1.55; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); padding: 0 13px; }
+.crewhow summary { cursor: pointer; padding: 11px 0; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: #cfe0ff; }
+.crewhow p { margin: 0 0 10px; }
+.crewhow b { color: #e6eeff; }
+.crewedit summary, .crewfile { cursor: pointer; }
+.crewedit { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 4px; }
+.crewedit summary { padding: 8px 0; font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: var(--mut, #7a86ad); }
+
+/* --- on the map --- */
+
+/* The emblem block. Sized in JS from the zoom so it always fills the square of tiles the
+   server picked for it — which is why territory is drawn on Mercator tiles: this image is
+   square and it has to land in something square. */
+.crewemb {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: auto; cursor: pointer; transition: opacity .25s;
+}
+.crewemb img {
+  width: 100%; height: 100%; object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.75));
+}
+.crewemb-n {
+  margin-top: 3px; font-size: 11px; font-weight: 700; letter-spacing: .3px;
+  color: #fff; text-shadow: 0 1px 3px #000, 0 0 10px #000; white-space: nowrap;
+}
+.crewemb.tiny .crewemb-n { display: none; }
+
+.crewpop .maplibregl-popup-content { background: rgba(8, 13, 26, .94); border: 1px solid var(--line, #243055); border-radius: 0; padding: 9px 12px; box-shadow: 0 8px 26px rgba(0,0,0,.6); }
+.crewpop .maplibregl-popup-tip { display: none; }
+.crewpop-in { display: flex; align-items: center; gap: 10px; }
+.crewpop-in img { width: 34px; height: 34px; }
+.crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
+.crewpop-in span { font-size: 11px; color: var(--mut, #7a86ad); }
