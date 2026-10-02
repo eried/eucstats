@@ -227,6 +227,20 @@ def scenario_territory(base: str, tag: str, leader: Rider) -> None:
         check("a point on the map says who holds it",
               code == 200 and (at.get("crew") or {}).get("slug") == leader.crew_slug,
               (at.get("crew") or {}).get("name") or "nobody")
+
+    # "where to ride next" — the only thing in the mode that answers the question a rider
+    # actually has. It is their own crew's list and nobody else's: on a rival's page the same
+    # rows would read as a list of weak spots.
+    code, body = leader.api("GET", f"/api/v1/crews/{leader.crew_slug}")
+    tg = body.get("targets") or []
+    check("the crew is told where to ride next", code == 200 and bool(tg),
+          f"{len(tg)} squares, nearest {tg[0]['need']} km" if tg else "no list")
+    check("the list never points at ground the crew already holds",
+          all(not (t.get("held_by") == _slug_to_id(db, leader.crew_slug)) for t in tg))
+    out = requests.get(f"{base}/api/v1/crews/{leader.crew_slug}", timeout=20)   # no cookie
+    leaked = out.json().get("targets") or []
+    check("a stranger is not handed the crew's target list",
+          out.status_code == 200 and not leaked, f"{len(leaked)} squares leaked")
     db.close()
 
 

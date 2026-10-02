@@ -316,6 +316,32 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
                         "regions": clan.terr_regions or 0}
     cfg = settings.get_crews(db)
     out["contributors"] = territory.contributors(db, clan.clan_id, cfg["window_days"])
+    # Where to ride next: the whole point of the mode is choosing where to go, and until now
+    # nothing told anybody where that was. Only your own crew's list, though. On somebody
+    # else's page it would read as a list of their weak spots, and that is a scouting report,
+    # not a route.
+    out["targets"] = []
+    out["zoom"] = cfg["zoom"]
+    ws = _me(request, db)
+    if ws is not None:
+        mine = (db.query(ClanMember)
+                .filter(ClanMember.store_id == ws.store_id,
+                        ClanMember.clan_id == clan.clan_id,
+                        ClanMember.status == "active",
+                        ClanMember.left_at.is_(None)).first())
+        if mine is not None:
+            try:
+                out["targets"] = json.loads(clan.targets_json) if clan.targets_json else []
+            except Exception:
+                out["targets"] = []
+            # name the crew holding each square. "Cykelslangen holds it" is somewhere to go;
+            # "someone holds it" is a fact about the database.
+            ids = {t["held_by"] for t in out["targets"] if t.get("held_by")}
+            if ids:
+                names = dict(db.query(Clan.clan_id, Clan.name)
+                             .filter(Clan.clan_id.in_(ids)).all())
+                for t in out["targets"]:
+                    t["held_name"] = names.get(t.get("held_by"))
     return out
 
 

@@ -71,6 +71,12 @@ def main() -> int:
     ap.add_argument("--riders", type=int, default=14)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--keep", action="store_true", help="add to existing crews, do not wipe")
+    ap.add_argument("--extra", action="append", default=[], metavar="SEED:RIDERS:CITY",
+                    help="fold in another fleet, e.g. 11:6:Oslo. Use it for the cities this "
+                         "file marks as contested: two crews with one rider each never meet, "
+                         "and a border nobody shares is the one thing the takeover rule "
+                         "cannot demonstrate. Upload the fleet first with sim_fleet.py "
+                         "--city Oslo --riders 6 --seed 11.")
     a = ap.parse_args()
 
     db = SessionLocal()
@@ -85,9 +91,19 @@ def main() -> int:
         print("wiping crew state:", wipe_crew_state(db))
 
     riders = fleet(a.seed, a.riders)
+    for spec in a.extra:
+        try:
+            sd, n, city = spec.split(":", 2)
+            riders += fleet(int(sd), int(n), city)
+        except ValueError:
+            print(f"  ignoring --extra {spec!r}: expected SEED:RIDERS:CITY")
     by_city: dict[str, list] = {}
     for r in riders:
         by_city.setdefault(r["city"], []).append(r)
+    # Interleave so a city's crews are split across fleets rather than one crew per fleet,
+    # which would just move the problem: two groups riding two separate parts of town.
+    for city in by_city:
+        by_city[city].sort(key=lambda r: r["store_id"].rsplit("-", 1)[1])
 
     made = 0
     for city, members in by_city.items():

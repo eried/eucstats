@@ -344,3 +344,36 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewnoapp { margin-top: 10px; }
 .crewnoapp a { color: var(--sec, #ff8ad8); text-decoration: none; }
 .crewnoapp a:hover { text-decoration: underline; }
+
+
+/* Where to ride next. The distance leads, because that is the thing a rider weighs. */
+.crewtargets { margin-top: 14px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
+.crewtargets .hint { margin: 0 0 8px; }
+.crewtrow {
+  display: flex; align-items: center; gap: 9px; padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,.05); cursor: pointer; font-size: 13px;
+}
+.crewtrow:first-of-type { border-top: 0; }
+.crewtrow:hover { background: rgba(255,138,216,.09); }
+.crewtkm {
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums;
+  font-weight: 700; flex: 0 0 78px; color: var(--sec, #ff8ad8);
+}
+.crewtwho { flex: 1; color: var(--mut, #7a86ad); font-size: 12px; }
+.crewtag {
+  font-size: 10.5px; letter-spacing: .4px; text-transform: uppercase; padding: 2px 7px;
+  border-radius: 999px; white-space: nowrap;
+}
+.crewtag.joins { background: rgba(255,210,74,.17); color: #ffd24a; }
+.crewtag.seeds { background: rgba(57,217,138,.15); color: #39d98a; }
+.crewtag.grows { background: rgba(126,169,255,.15); color: #7ea9ff; }
+
+@media (max-width: 560px) {
+  /* The badge was hidden here, which took the explanation off exactly the rows that need one:
+     a phone showed "ridden, Cykelslangen holds it" and no reason why riding it again would do
+     nothing. It wraps onto its own line instead, lined up under the text. */
+  .crewtrow { flex-wrap: wrap; row-gap: 3px; }
+  .crewtkm { flex-basis: 62px; }
+  .crewtwho { flex: 1 1 auto; }
+  .crewtag { margin-left: 71px; }
+}

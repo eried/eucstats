@@ -249,3 +249,110 @@ def test_two_crews_cannot_gain_the_same_ground():
     outer |= {(1, 1), (2, 1), (1, 2), (2, 2)}
     out = _close_holes({"inner": inner, "outer": outer})
     assert not (out["inner"] & out["outer"]), "no tile may be held by two crews"
+
+
+def test_the_list_points_at_ground_the_crew_does_not_hold():
+    """Riders could see a tile was contested only by stumbling on it, and the tiles worth
+    riding are the ones somebody else holds, which look like anywhere else from the saddle."""
+    from services.territory import targets_for
+    board = {"A": {(10, 10), (11, 10)}, "B": {(12, 10), (12, 11), (13, 10), (13, 11)}}
+    acc = {"14/12/10": {"A": [0.3, {"r"}], "B": [4.0, {"s"}]}}
+    won = {"14/12/10": ("B", 4.0, 1)}
+    out = targets_for(acc, board, "A", won, 14)
+    xy = {(t["x"], t["y"]) for t in out}
+    assert (12, 10) in xy, "the tile the crew is second in has to be on the list"
+    assert not (xy & board["A"]), "no point sending anybody where they already won"
+    row = next(t for t in out if (t["x"], t["y"]) == (12, 10))
+    assert row["need"] == 3.7, row            # 4.0 to beat, 0.3 already ridden
+    assert row["held_by"] == "B"
+
+
+def test_the_row_names_who_holds_it_not_who_leads_it():
+    """A crew with no 2x2 anywhere can lead a tile on kilometres and draw none of it: the
+    re-award loop withdraws the claim and the ground falls to somebody else. Reading the
+    leader out of `won` put a crew that holds nothing on every row as the holder."""
+    from services.territory import targets_for
+    board = {"A": {(0, 0), (1, 0), (0, 1), (1, 1)}}      # B holds nothing anywhere
+    acc = {"14/2/0": {"B": [9.0, {"s"}], "A": [1.0, {"r"}]}}
+    won = {"14/2/0": ("B", 9.0, 1)}                       # B leads it and cannot draw it
+    row = next(t for t in targets_for(acc, board, "A", won, 14)
+               if (t["x"], t["y"]) == (2, 0))
+    assert row["held_by"] is None, "nobody holds it, whatever the kilometres say"
+    assert row["need"] == 8.0, row                        # still have to out-ride the leader
+
+
+def test_a_tile_that_joins_two_patches_is_listed_first():
+    """The board ranks on the biggest single patch, so the roadtrip that welds two together is
+    worth more than any amount of widening either one, and the list has to say so."""
+    from services.territory import targets_for
+    left = {(0, 0), (1, 0), (0, 1), (1, 1)}
+    right = {(3, 0), (4, 0), (3, 1), (4, 1)}
+    out = targets_for(acc={}, kept={"A": left | right}, clan_id="A", won={}, zoom=14)
+    assert out, "adjacent unheld ground should always give the crew somewhere to go"
+    joiners = {(t["x"], t["y"]) for t in out if t["joins"]}
+    assert joiners == {(2, 0), (2, 1)}, joiners
+    assert all(t["joins"] for t in out[:len(joiners)]), "joiners come before the rest"
+
+
+def test_growing_the_ranked_patch_beats_growing_a_spare_one():
+    """Widening the little patch across town is real ground and moves nothing on the board,
+    which ranks on the biggest single area. The list has to tell those two apart."""
+    from services.territory import targets_for
+    big = {(x, y) for x in range(5) for y in range(5)}
+    spare = {(40, 40), (41, 40), (40, 41), (41, 41)}
+    out = targets_for(acc={}, kept={"A": big | spare}, clan_id="A", won={}, zoom=14)
+    grows = [t for t in out if t["grows"]]
+    assert grows, "the ranked patch has neighbours, so some row has to be marked"
+    assert all(t["x"] < 10 for t in grows), "only the big patch counts as growing it"
+    assert out[0]["grows"], "and it leads once nothing joins two patches"
+
+
+def test_a_badge_that_fires_on_every_row_says_nothing():
+    """The first cut marked every row "completes a 2x2": with 90 tiles held, almost any
+    neighbour completes one of the four blocks around it, so ten of ten rows were identical."""
+    from services.territory import targets_for
+    held = {(x, y) for x in range(12) for y in range(12)}
+    out = targets_for(acc={}, kept={"A": held}, clan_id="A", won={}, zoom=14)
+    flags = [sum((t["joins"], t["blocked"])) for t in out]
+    assert max(flags) <= 1, "a row carries at most one claim about what it would do"
+
+
+def test_ground_you_already_rode_enough_says_it_needs_a_neighbour():
+    """A square only counts as part of a 2x2, so a lone line of tiles can be ridden to death
+    and still belong to nobody. That is the rule people trip over."""
+    from services.territory import targets_for
+    acc = {"14/50/50": {"A": [40.0, {"r"}]}}
+    out = targets_for(acc, kept={}, clan_id="A", won={}, zoom=14)
+    row = next(t for t in out if (t["x"], t["y"]) == (50, 50))
+    assert row["need"] == 0.0 and row["blocked"], row
+
+
+def test_a_crew_holding_nothing_still_gets_told_where_to_go():
+    """It was the only crew not being told, which is backwards: it is the one with no idea
+    where to start."""
+    from services.territory import targets_for
+    acc = {"14/50/50": {"A": [40.0, {"r"}]}, "14/51/50": {"A": [12.0, {"r"}]}}
+    out = targets_for(acc, kept={"B": {(9, 9), (9, 10), (10, 9), (10, 10)}},
+                      clan_id="A", won={}, zoom=14)
+    assert {(t["x"], t["y"]) for t in out} == {(50, 50), (51, 50)}
+
+
+def test_your_own_ground_is_never_offered_back_to_you():
+    """Sending a crew to ride a tile it already holds is the one piece of advice that cannot
+    possibly help."""
+    from services.territory import targets_for
+    won = {"14/5/5": ("A", 9.0, 1)}
+    acc = {"14/5/5": {"A": [9.0, {"r"}]}}
+    out = targets_for(acc, {"A": {(5, 5)}}, "A", won, 14)
+    assert all((t["x"], t["y"]) != (5, 5) for t in out)
+
+
+def test_a_row_never_argues_with_its_own_number():
+    """0.04 km short prints as "0.0 km". If the flag is computed on the unrounded figure the
+    row shows no shortfall and then says you still need to ride, which reads as a bug."""
+    from services.territory import targets_for, min_lead_km
+    tile = "14/70/70"
+    acc = {tile: {"A": [min_lead_km(tile) - 0.04, {"r"}]}}   # short by less than it shows
+    out = targets_for(acc, kept={}, clan_id="A", won={}, zoom=14)
+    row = next(t for t in out if (t["x"], t["y"]) == (70, 70))
+    assert row["need"] == 0.0 and row["blocked"], row

@@ -549,6 +549,92 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
     return band, int(round(need * 10))
 
 
+def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
+                limit: int = 10) -> list[dict]:
+    """The ground this crew could take next, and what taking it would do.
+
+    This is the one question the mode has to answer and did not. A rider could see that a tile
+    was contested only by finding it, and the tiles worth riding are exactly the ones somebody
+    else holds, which look like any other street from the saddle.
+
+    The list is every square touching the crew's own ground, or that it already has kilometres
+    in, that it does not hold, with how far short it is. Three things make a square worth more
+    than its distance says:
+
+    * `joins` welds two of the crew's separate patches into one. The board ranks on the biggest
+      single patch, so the roadtrip between two towns beats widening either of them.
+    * `grows` extends the biggest patch the crew already has, which is the number it is ranked
+      on. Extending a smaller patch is real ground but moves nothing on the board.
+    * `blocked` means the crew has already ridden enough there and still does not hold it,
+      because a square only counts as part of a 2x2. That is the rule people trip over, and
+      the fix is a neighbour, not more laps.
+
+    `kept` is the whole board, crew by crew, not just this crew's share: who holds a square is
+    not the same question as who leads it on kilometres. A crew with no 2x2 anywhere can lead
+    ten tiles and hold none of them, and naming it as the holder is simply wrong.
+    """
+    held = set(kept.get(clan_id) or ())
+    holder_of = {}
+    for other, pts in kept.items():
+        for xy in pts:
+            holder_of[xy] = other
+    cand = set()
+    for (x, y) in held:                       # everything touching what we hold
+        for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if nb not in held:
+                cand.add(nb)
+    for tile, per in acc.items():             # plus anywhere we already rode
+        if clan_id not in per:
+            continue
+        pt = T.parse(tile)
+        if pt and (pt[1], pt[2]) not in held:
+            cand.add((pt[1], pt[2]))
+
+    # which patch each held tile belongs to, and which patch is the one being ranked
+    patches = regions(held)
+    patch_of = {}
+    for i, comp in enumerate(patches):
+        for xy in comp:
+            patch_of[xy] = i
+    biggest = max(range(len(patches)), key=lambda i: len(patches[i])) if patches else None
+
+    out = []
+    for (x, y) in cand:
+        tile = f"{zoom}/{x}/{y}"
+        if holder_of.get((x, y)) == clan_id:   # no point sending anybody where they already won
+            continue
+        w = won.get(tile)
+        mine = acc.get(tile, {}).get(clan_id, [0.0, set()])[0]
+        floor = min_lead_km(tile)
+        # rounded to the figure the reader is shown, so a badge can never disagree with the
+        # number next to it: 0.04 km short printed as "0.0 km" and then said to need more
+        # riding is a row that argues with itself
+        need = round(max(0.0, max(floor, w[1] if w else 0.0) - mine), 1)
+        touching = {patch_of[nb] for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
+                    if nb in patch_of}
+        out.append({"x": x, "y": y, "need": need,
+                    "held_by": holder_of.get((x, y)),
+                    "joins": len(touching) > 1,
+                    "grows": biggest is not None and biggest in touching,
+                    # enough kilometres already in it, and still not ours: it is short a
+                    # neighbour, not short a ride
+                    "blocked": need <= 0.0 and mine > 0.0})
+    # Weld two patches first. Then taking ground off somebody in a way that grows the patch
+    # being ranked, because that moves the board twice. Then growing it. Then anything that
+    # costs a rival something. Then the rest, nearest first.
+    def rank(t):
+        if t["joins"]:
+            return 0
+        if t["grows"] and t["held_by"]:
+            return 1
+        if t["grows"]:
+            return 2
+        return 3 if t["held_by"] else 4
+
+    out.sort(key=lambda t: (rank(t), t["need"], t["x"], t["y"]))
+    return out[:limit]
+
+
 def _zoom_of(won: dict) -> int:
     for tile in won:
         p = T.parse(tile)
@@ -577,6 +663,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     for c in clans.values():          # cleared first, so a crew that lost everything shows 0
         c.terr_km2 = c.terr_best_km2 = 0.0
         c.terr_tiles = c.terr_regions = 0
+        c.targets_json = None
     now = utcnow()
     order = sorted(kept.keys())
     payload_crews = []
@@ -615,6 +702,13 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             "members": member_counts.get(clan_id, 0),
             "emblem": f"/api/v1/crews/{c.slug}/emblem",
         })
+    # Where to ride next, for every crew and not only the ones already holding ground: a crew
+    # with nothing was the one being told nothing, which is backwards.
+    for clan_id, c in clans.items():
+        try:
+            c.targets_json = json.dumps(targets_for(acc, kept, clan_id, won, zoom))
+        except Exception:
+            c.targets_json = None
     db.commit()
 
     payload = {

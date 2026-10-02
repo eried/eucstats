@@ -145,7 +145,7 @@
   /* ---------- layers ---------- */
 
   var LAYERS = ["crew-fill", "crew-pattern", "crew-contested", "crew-edge",
-                "crew-edge-glow"];
+                "crew-edge-glow", "crew-target-line"];
 
   function cursorPointer() { map.getCanvas().style.cursor = "pointer"; }
   function cursorDefault() { map.getCanvas().style.cursor = ""; }
@@ -168,6 +168,7 @@
     if (map.getSource("crew-cells")) map.removeSource("crew-cells");
     if (map.getSource("crew-edges")) map.removeSource("crew-edges");
     if (map.getSource("crew-hot")) map.removeSource("crew-hot");
+    if (map.getSource("crew-targets")) map.removeSource("crew-targets");
     markers.forEach(function (m) { m.remove(); });
     markers = [];
   }
@@ -461,10 +462,19 @@
   // Area follows the same metric/imperial switch as every other number on the site. A rider
   // who reads their rides in miles should not have one board quietly answering in km.
   var MI2_PER_KM2 = 0.3861021585;
+  var MI_PER_KM = 0.6213711922;
 
   function daysUntil(iso) {
     var d = Math.ceil((new Date(iso) - Date.now()) / 86400000);
     return d > 0 ? d : 1;
+  }
+
+  // Same per-quantity unit switch as the rest of the site: somebody reading in miles gets
+  // "0.4 mi", not a kilometre figure with a mile label on it.
+  function fmtKm(v) {
+    var n = v == null ? 0 : v;
+    if (H.mph && H.mph()) return (n * MI_PER_KM).toFixed(1) + " mi";
+    return n.toFixed(1) + " km";
   }
 
   function fmtKm2(v) {
@@ -482,8 +492,36 @@
     past: '<span class="crewrole past" title="No longer in the crew">·</span>'
   };
 
-  // Who actually rode for the crew, over the same window the territory is measured on — so
-  // the list explains the shape on the map rather than ranking loyalty.
+  // The squares this crew could take next. Until this existed the mode could say a tile was
+  // contested but never where to go, which is the one thing a map mode about choosing routes
+  // has to do. A tile that joins two patches leads, because the board ranks on the biggest
+  // single patch and welding two together beats widening either.
+  var TARGETS = [];
+
+  function targetsHTML(rows) {
+    if (!rows || !rows.length) return "";
+    TARGETS = rows;
+    return '<div class="crewtargets"><h4>' + t("crew.targets.h") + "</h4>"
+      + '<p class=hint>' + t("crew.targets.p") + "</p>"
+      + rows.slice(0, 6).map(function (x, i) {
+          // `grows` stays out: it was true on every row for almost every crew, so it told
+          // nobody anything. It still sorts the list.
+          var tag = x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
+            : x.blocked ? '<span class="crewtag seeds">' + t("crew.targets.blocked") + "</span>"
+            : "";
+          var who = x.held_by
+            ? t("crew.targets.taken").replace("{name}", esc(x.held_name || ""))
+            : t("crew.targets.free");
+          return '<div class="crewtrow sel" data-t="' + i + '">'
+            + '<span class="crewtkm">'
+            + (x.need > 0 ? fmtKm(x.need) : t("crew.targets.done")) + "</span>"
+            + '<span class="crewtwho">' + who + "</span>" + tag + "</div>";
+        }).join("")
+      + "</div>";
+  }
+
+  // Who actually rode for the crew, over the same window the territory is measured on, so the
+  // list explains the shape on the map rather than ranking loyalty.
   function contributorsHTML(rows) {
     if (!rows || !rows.length) return "";
     var top = rows[0].km || 1;
@@ -900,7 +938,12 @@
         + (terr.km2 && terr.km2 !== terr.best_km2
             ? " · " + t("crew.inall", { v: fmtKm2(terr.km2) }) : "")
         + (terr.tiles ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
+        + targetsHTML(r.body.targets)
         + contributorsHTML(r.body.contributors);
+      el.querySelectorAll("[data-t]").forEach(function (row) {
+        row.onclick = function () { flyToTile(TARGETS[+row.dataset.t]); };
+      });
+      showTargets(r.body.targets || []);
     });
   }
 
@@ -1091,6 +1134,37 @@
                            maxZoom: 11.5, duration: 1800, essential: true });
       } catch (e) {}
     }
+  }
+
+  function flyToTile(x) {
+    if (!x || !TERR) return;
+    var lon = (tileLon(x.x, TERR.z) + tileLon(x.x + 1, TERR.z)) / 2;
+    var lat = (tileLat(x.y, TERR.z) + tileLat(x.y + 1, TERR.z)) / 2;
+    H.closePanel && H.closePanel();
+    // Close enough to find the street, far enough to still see it against the crew's own
+    // ground. Flying to 13.2 put one square across the whole screen, which answers "where is
+    // it" with a picture of nowhere. A reader already zoomed in keeps their zoom.
+    map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 11.8),
+                duration: 1600, essential: true });
+  }
+
+  // The same squares, marked on the ground. A list of distances is a table; a ring around the
+  // block two streets over is a route.
+  function showTargets(rows) {
+    if (!map || !TERR || !map.getSource("crew-cells")) return;
+    var data = { type: "FeatureCollection", features: (rows || []).map(function (x) {
+      return { type: "Feature",
+               properties: { joins: x.joins ? 1 : 0, seeds: x.seeds ? 1 : 0 },
+               geometry: { type: "Polygon",
+                           coordinates: tileRing(x.x, x.y, TERR.z) } };
+    }) };
+    if (map.getSource("crew-targets")) { map.getSource("crew-targets").setData(data); return; }
+    map.addSource("crew-targets", { type: "geojson", data: data });
+    map.addLayer({
+      id: "crew-target-line", type: "line", source: "crew-targets",
+      paint: { "line-color": "#ffffff", "line-width": 2, "line-dasharray": [1.5, 1.5],
+               "line-opacity": 0.85 }
+    });
   }
 
   function reloadTerritory() {

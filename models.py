@@ -283,6 +283,7 @@ class Clan(Base):
     terr_best_km2 = Column(Float, default=0.0)   # the largest single connected region
     terr_tiles = Column(Integer, default=0)
     terr_regions = Column(Integer, default=0)
+    targets_json = Column(Text)                  # ground this crew could take next
 
 
 class ClanMember(Base):
