@@ -612,7 +612,7 @@ def _rivals_near(held: set, buckets: dict, clan_id: str, reach: int = REACH) -> 
 
 
 def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
-                limit: int = 8, holder_of: dict | None = None,
+                limit: int = 8, seed: int = SEED, holder_of: dict | None = None,
                 mine: set | None = None, leads: set | None = None,
                 patches: list | None = None, buckets: dict | None = None) -> list[dict]:
     """The ground this crew could take next, and what taking it would do.
@@ -645,6 +645,9 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
       so the roadtrip beats widening either end.
     * `grows` extends the patch the crew is ranked on. It sorts the list and stays off the
       screen: it was true of ten rows out of ten for eleven of twelve crews.
+    * `kills` means the holder is standing on it: take it and their seed breaks, and whatever
+      was only connected through it goes with it. It is the biggest single move on the board
+      and the list used to print it as an ordinary row.
     * `blocked` means the crew has ridden enough there and still does not hold it, because a
       square only counts as part of a 2x2. Those go last. Their shortfall is zero, so by
       distance alone they sorted straight to the top, and a list called "Where to ride next"
@@ -740,10 +743,30 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         return 4 if t["grows"] else 5
 
     out.sort(key=lambda t: (rank(t), t["need"], t["x"], t["y"]))
+
+    # Would taking it break the holder's seed? Only asked of the rows that made the cut, so a
+    # crew pays for `limit` flood fills, not one per candidate.
+    for t in out[:limit * 2]:
+        holder = t["held_by"]
+        t["kills"] = False
+        if not holder:
+            continue
+        theirs = kept.get(holder) or set()
+        if len(theirs) < 2:
+            continue
+        left = seeded(theirs - {(t["x"], t["y"])}, seed)
+        # more than the square itself goes: the rest of it was only standing on that block
+        if len(theirs) - len(left) > 1:
+            t["kills"] = True
+    # a square that takes a crew off the map outranks everything except being on the map
+    # yourself, which is the same move from the other side
+    out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
+                            rank(t), t["need"], t["x"], t["y"]))
     # `grows` has done its job in the sort. It was true of ten rows in ten for almost every
     # crew, nothing on the client reads it, and it is bytes in the payload and in the row.
     for t in out[:limit]:
         del t["grows"]
+        t.setdefault("kills", False)
     return out[:limit]
 
 
@@ -807,7 +830,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     for clan_id in clans:
         try:
             targets_json[clan_id] = json.dumps(targets_for(
-                acc, kept, clan_id, won, zoom,
+                acc, kept, clan_id, won, zoom, seed=seed,
                 holder_of=holder_of, mine=mine_by_clan.get(clan_id, set()),
                 leads=leads_by_clan.get(clan_id, set()),
                 patches=patches_by_clan.get(clan_id, []), buckets=buckets))

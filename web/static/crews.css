@@ -408,6 +408,8 @@ a.crewqr { display: flex; text-decoration: none; }
 }
 .crewtag.first { color: #ffd24a; background: rgba(255,210,74,.12); }
 .crewtag.joins { color: #ffd24a; background: rgba(255,210,74,.12); }
+/* the biggest move on the board gets the only hot colour in the card */
+.crewtag.kills { color: #ff6b6b; background: rgba(255,107,107,.14); }
 .crewtag.done { color: var(--mut, #7a86ad); background: rgba(154,166,200,.1); }
 
 /* the other half of the game, same shape so the two read as a pair */
@@ -442,6 +444,9 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtip.b2 { border-left: 3px solid #ff8ad8; }
 .crewtip.b3 { border-left: 3px solid #7a86ad; }
 .crewtip.b4 { border-left: 3px solid #ffd24a; }
+/* a ring's own tooltip, in the ring's own colour */
+.crewtip.bt { border-left: 3px solid #ffd24a; }
+.crewtip.b0 { border-left: 3px solid rgba(255,255,255,.28); }
 .crewtip em { font-style: normal; color: #ffd24a; }
 @keyframes crewtipin { from { opacity: 0; transform: translate(10px, -50%); } }
 
@@ -463,3 +468,7 @@ a.crewqr { display: flex; text-decoration: none; }
    because the column has to line up, but it stops shouting. */
 .crewtrow .rpt { opacity: .34; }
 .crewtrow:hover .rpt { opacity: .75; }
+
+
+/* what a crew took this week, on its own row of the board */
+.crewgain { color: #39d98a; font-variant-numeric: tabular-nums; }

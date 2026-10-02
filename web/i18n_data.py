@@ -376,6 +376,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Den anmodning er allerede håndteret.",
   "crew.lose.cold": "bliver koldt af sig selv",
   "crew.how.6": "Når du går med, får crewet alle dine ture fra de sidste {d} dage, som ikke allerede kørte i nogens farver. Det sker én gang, og du tager dem ikke med dig ud igen.",
+  "crew.targets.kills": "bryder deres blok",
+  "crew.board.gained": "+{n} i denne uge",
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -751,6 +753,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Diese Anfrage ist schon erledigt.",
   "crew.lose.cold": "wird von selbst kalt",
   "crew.how.6": "Beim Beitreten bekommt die Crew jede deiner Fahrten der letzten {d} Tage, die noch nicht in fremden Farben lief. Einmalig, und beim Gehen nimmst du sie nicht mit.",
+  "crew.targets.kills": "bricht ihren Block",
+  "crew.board.gained": "+{n} diese Woche",
  },
  "es": {
   "dock.riders": "Riders",
@@ -1126,6 +1130,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Esa solicitud ya está resuelta.",
   "crew.lose.cold": "se enfría sola",
   "crew.how.6": "Al entrar, la cuadrilla se queda con todas tus rutas de los últimos {d} días que no llevaran ya los colores de alguien. Pasa una sola vez, y al irte no te las llevas.",
+  "crew.targets.kills": "les rompe el bloque",
+  "crew.board.gained": "+{n} esta semana",
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1501,6 +1507,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Esa solicitud ya está resuelta.",
   "crew.lose.cold": "se enfría sola",
   "crew.how.6": "Al entrar, la banda se queda con todas tus salidas de los últimos {d} días que no llevaran ya los colores de alguien. Pasa una sola vez, y al irte no te las llevas.",
+  "crew.targets.kills": "les rompe el bloque",
+  "crew.board.gained": "+{n} esta semana",
  },
  "fr": {
   "dock.riders": "Riders",
@@ -1876,6 +1884,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Cette demande est déjà réglée.",
   "crew.lose.cold": "refroidit toute seule",
   "crew.how.6": "En rejoignant, le crew récupère toutes tes sorties des {d} derniers jours qui ne portaient pas déjà des couleurs. C'est une fois pour toutes, et partir ne les reprend pas.",
+  "crew.targets.kills": "casse leur bloc",
+  "crew.board.gained": "+{n} cette semaine",
  },
  "it": {
   "dock.riders": "Rider",
@@ -2251,6 +2261,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Quella richiesta è già stata gestita.",
   "crew.lose.cold": "si raffredda da sola",
   "crew.how.6": "Quando entri, la squadra si prende tutti i tuoi giri degli ultimi {d} giorni che non portavano già dei colori. Succede una volta sola, e andandotene non te li riprendi.",
+  "crew.targets.kills": "gli spezza il blocco",
+  "crew.board.gained": "+{n} questa settimana",
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -2626,6 +2638,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "その申請はもう処理済み。",
   "crew.lose.cold": "放っておくと冷める",
   "crew.how.6": "参加すると、まだどこの色でもなかった直近{d}日分の走行がまとめてクランのものになる。一度きりで、抜けても戻らない。",
+  "crew.targets.kills": "相手のブロックを割る",
+  "crew.board.gained": "今週 +{n}",
  },
  "ko": {
   "dock.riders": "라이더",
@@ -3001,6 +3015,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "그 요청은 이미 처리됐다.",
   "crew.lose.cold": "그냥 두면 식는다",
   "crew.how.6": "가입하면 아직 아무 색도 달지 않은 최근 {d}일치 주행이 전부 클랜 몫이 된다. 한 번뿐이고, 나가도 돌려받지 못한다.",
+  "crew.targets.kills": "상대 블록을 깬다",
+  "crew.board.gained": "이번 주 +{n}",
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -3376,6 +3392,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Dat verzoek is al afgehandeld.",
   "crew.lose.cold": "koelt vanzelf af",
   "crew.how.6": "Als je lid wordt krijgt de crew al je ritten van de laatste {d} dagen die nog geen kleuren droegen. Eenmalig, en weggaan neemt ze niet terug.",
+  "crew.targets.kills": "breekt hun blok",
+  "crew.board.gained": "+{n} deze week",
  },
  "no": {
   "dock.riders": "Førere",
@@ -3751,6 +3769,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Den forespørselen er allerede håndtert.",
   "crew.lose.cold": "blir kaldt av seg selv",
   "crew.how.6": "Når du blir med, får crewet alle turene dine fra de siste {d} dagene som ikke allerede kjørte i noens farger. Det skjer én gang, og du tar dem ikke med deg ut igjen.",
+  "crew.targets.kills": "bryter blokka deres",
+  "crew.board.gained": "+{n} denne uka",
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -4126,6 +4146,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Ta prośba jest już załatwiona.",
   "crew.lose.cold": "samo stygnie",
   "crew.how.6": "Kiedy dołączasz, ekipa dostaje wszystkie twoje przejazdy z ostatnich {d} dni, które nie miały jeszcze niczyich barw. Raz, i wyjście ich nie zabiera.",
+  "crew.targets.kills": "rozbija ich blok",
+  "crew.board.gained": "+{n} w tym tygodniu",
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -4501,6 +4523,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Esse pedido já foi resolvido.",
   "crew.lose.cold": "esfria sozinho",
   "crew.how.6": "Ao entrar, a turma fica com todos os teus rolês dos últimos {d} dias que ainda não estavam com as cores de ninguém. É uma vez só, e sair não traz de volta.",
+  "crew.targets.kills": "quebra o bloco deles",
+  "crew.board.gained": "+{n} esta semana",
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -4876,6 +4900,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Эта заявка уже закрыта.",
   "crew.lose.cold": "стынет само",
   "crew.how.6": "Когда вступаешь, клан получает все твои поездки за последние {d} дней, которые ещё не были ничьими. Это один раз, и уход их не возвращает.",
+  "crew.targets.kills": "ломает их блок",
+  "crew.board.gained": "+{n} на этой неделе",
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -5251,6 +5277,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Den ansökan är redan hanterad.",
   "crew.lose.cold": "kallnar av sig själv",
   "crew.how.6": "När du går med får crewet alla dina turer från de senaste {d} dagarna som inte redan bar någons färger. En gång, och att gå tar dem inte tillbaka.",
+  "crew.targets.kills": "bryter deras block",
+  "crew.board.gained": "+{n} den här veckan",
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -5626,6 +5654,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "O istek zaten sonuçlandı.",
   "crew.lose.cold": "kendi kendine soğuyor",
   "crew.how.6": "Katıldığında ekip, son {d} gündeki turlarından henüz kimsenin rengini taşımayanların hepsini alır. Bir kerelik, ve ayrılmak geri getirmez.",
+  "crew.targets.kills": "bloklarını kırar",
+  "crew.board.gained": "bu hafta +{n}",
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -6001,6 +6031,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "Ця заявка вже закрита.",
   "crew.lose.cold": "холоне саме",
   "crew.how.6": "Коли вступаєш, клан отримує всі твої поїздки за останні {d} днів, які ще не були нічиїми. Це один раз, і вихід їх не повертає.",
+  "crew.targets.kills": "ламає їхній блок",
+  "crew.board.gained": "+{n} цього тижня",
  },
  "zh": {
   "dock.riders": "骑友",
@@ -6376,6 +6408,8 @@ TRANSLATIONS = {
   "crew.e.norequest": "那个申请已经处理过了。",
   "crew.lose.cold": "自己在变凉",
   "crew.how.6": "加入时，你最近 {d} 天里还没有归属的骑行会一次性全部计入这个战队。只有一次，退出也拿不回去。",
+  "crew.targets.kills": "打断他们的方块",
+  "crew.board.gained": "本周 +{n}",
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -6751,5 +6785,7 @@ TRANSLATIONS = {
   "crew.e.norequest": "那個申請已經處理過了。",
   "crew.lose.cold": "自己在變涼",
   "crew.how.6": "加入時，你最近 {d} 天裡還沒有歸屬的騎行會一次性全部計入這個戰隊。只有一次，退出也拿不回去。",
+  "crew.targets.kills": "打斷他們的方塊",
+  "crew.board.gained": "本週 +{n}",
  },
 }

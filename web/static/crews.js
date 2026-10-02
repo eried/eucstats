@@ -204,6 +204,10 @@
     map.off("mouseenter", "crew-fill", cursorPointer);
     map.off("mouseleave", "crew-fill", cursorDefault);
     map.off("mousemove", "crew-fill", onCellHover);
+    map.off("mousemove", "crew-target-line", onTargetHover);
+    map.off("mouseleave", "crew-target-line", hideTip);
+    map.off("mouseenter", "crew-target-line", cursorPointer);
+    map.off("mouseleave", "crew-target-line", cursorDefault);
     map.off("mouseleave", "crew-fill", hideTip);
     map.off("movestart", hideTip);
     hideTip();
@@ -248,10 +252,11 @@
       });
       // under strain, and just taken: the two things on this map that are happening rather
       // than merely being the case
-      var danger = cells.filter(function (t) { return t[2] === 2; });
+      // 1 as well as 2: an alarm that only rings once it is nearly too late is not an alarm.
+      var danger = cells.filter(function (t) { return t[2] === 1 || t[2] === 2; });
       if (danger.length) {
         pulse.features.push({
-          type: "Feature", properties: { kind: "danger" },
+          type: "Feature", properties: { kind: "danger", slug: crew.slug },
           geometry: { type: "MultiPolygon",
                       coordinates: danger.map(function (t) { return tileRing(t[0], t[1], z); }) }
         });
@@ -291,7 +296,12 @@
     var op = (window.__CREWCFG__ && window.__CREWCFG__.opacity) || 0.55;
     map.addLayer({
       id: "crew-pulse-danger", type: "fill", source: "crew-pulse",
-      filter: ["==", ["get", "kind"], "danger"],
+      // Your ground, when you have some. "Somebody is taking this off you" animating exactly
+      // like "a crew in Santiago is being leaned on" is ambience, not a warning. Signed out,
+      // every crew's shows, because then none of it is yours and all of it is news.
+      filter: (ME && ME.crew)
+        ? ["all", ["==", ["get", "kind"], "danger"], ["==", ["get", "slug"], ME.crew.slug]]
+        : ["==", ["get", "kind"], "danger"],
       paint: { "fill-color": "#ffffff", "fill-opacity": 0, "fill-antialias": false,
                "fill-opacity-transition": { duration: 1600 } }
     });
@@ -369,6 +379,12 @@
     map.on("mouseenter", "crew-fill", cursorPointer);
     map.on("mouseleave", "crew-fill", cursorDefault);
     map.on("mousemove", "crew-fill", onCellHover);
+    // The rings mostly sit on ground nobody holds, which has no crew-fill feature under it, so
+    // hover and click were dead on exactly the squares the card points at.
+    map.on("mousemove", "crew-target-line", onTargetHover);
+    map.on("mouseleave", "crew-target-line", hideTip);
+    map.on("mouseenter", "crew-target-line", cursorPointer);
+    map.on("mouseleave", "crew-target-line", cursorDefault);
     map.on("mouseleave", "crew-fill", hideTip);
     map.on("movestart", hideTip);              // dragging the map is not resting on a square
   }
@@ -496,6 +512,38 @@
 
   var POPUP = null;
 
+  // A ring answers for itself, out of the row that drew it.
+  function onTargetHover(e) {
+    if (!TERR || !e.features || !e.features[0]) return;
+    var xy = tileAt(e.lngLat);
+    var key = "t" + xy[0] + ":" + xy[1];
+    if (key === hoverKey) return;
+    hideTip();
+    hoverKey = key;
+    var row = null;
+    TARGETS.forEach(function (x) { if (x.x === xy[0] && x.y === xy[1]) row = x; });
+    if (!row) return;
+    var px = e.point;
+    map.once("mousemove", function (ev) { px = ev.point; });
+    hoverTimer = setTimeout(function () {
+      if (hoverKey !== key) return;
+      var el = document.createElement("div");
+      el.className = "crewtip bt";
+      el.innerHTML = "<b>" + esc(row.blocked ? t("crew.targets.blocked")
+                                             : effort(row.need, row.y)) + "</b>"
+        + "<span>" + esc(row.held_by
+            ? t("crew.targets.taken", { name: esc(row.held_name || "") })
+            : t("crew.tile.free")) + "</span>"
+        + (row.kills ? "<span><em>" + esc(t("crew.targets.kills")) + "</em></span>" : "")
+        + (row.first ? "<span><em>" + esc(t("crew.targets.first")) + "</em></span>" : "");
+      map.getCanvasContainer().appendChild(el);
+      el.style.left = px.x + "px";
+      el.style.top = px.y + "px";
+      if (px.x + el.offsetWidth + 30 > window.innerWidth) el.classList.add("left");
+      hoverTip = el;
+    }, HOVER_MS);
+  }
+
   function onCellClick(e) {
     var f = e.features && e.features[0];
     if (!f) return;
@@ -570,10 +618,27 @@
       + "</details>";
   }
 
+  // What changed, not only what is. The payload already marks ground taken inside FRESH_DAYS,
+  // so this is one pass over an array the browser has had all along, and it is the difference
+  // between a table and a race.
+  function freshByCrew() {
+    var out = {};
+    if (!TERR || !TERR.cells) return out;
+    for (var i = 0; i < TERR.cells.length; i += 5) {
+      if (!isFresh(TERR.cells[i + 3] || 0)) continue;
+      var c = TERR.crews[TERR.cells[i]];
+      if (c) out[c.slug] = (out[c.slug] || 0) + 1;
+    }
+    return out;
+  }
+
+  var FRESH = {};
+
   function rankingHTML(rows) {
     if (!rows || !rows.length) {
       return '<div class="empty">' + t("crew.empty") + "</div>";
     }
+    FRESH = freshByCrew();
     if (!H.podList) return plainRank(rows);
     return H.podList(rows, {
       iconFn: function (e) { return '<img class="crewpodemb" alt="" src="' + e.emblem + '"/>'; },
@@ -581,8 +646,11 @@
       label: function (e) { return swatch(e.colour, e.pattern, 14) + " " + esc(e.name); },
       val: function (e) { return fmtKm2(e.best_km2); },
       sub: function (e) {
+        var gained = FRESH[e.slug] || 0;
         return tiles(e.tiles)
-          + (e.regions > 1 ? " · " + t("crew.patches", { n: e.regions }) : "");
+          + (e.regions > 1 ? " · " + t("crew.patches", { n: e.regions }) : "")
+          + (gained ? ' · <span class="crewgain">'
+             + t("crew.board.gained", { n: gained }) + "</span>" : "");
       },
       click: true
     });
@@ -721,6 +789,7 @@
     var prevWho = null, prevKm = null;
     var body = TARGETS.map(function (x, i) {
           var tag = x.first ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
+            : x.kills ? '<span class="crewtag kills">' + t("crew.targets.kills") + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
             : "";
