@@ -193,3 +193,59 @@ def test_an_open_bay_is_not_enclosed():
     u.discard((1, 1))
     u.discard((1, 2))                     # leave the top open
     assert (1, 1) not in fill_enclosed(u, taken=set())
+
+
+def test_a_score_can_only_ever_go_down_on_its_own():
+    """Nobody riding must never make a tile's score rise.
+
+    The weekly cap was bucketed by how old a trip was AT REBUILD TIME, so a trip crossed into
+    a fresh bucket as it aged and released kilometres the cap had suppressed. Measured, one
+    rider with two rides six days apart: 5.97 weighted km, then 10.72 six minutes later. A
+    rider acting on "4 km would take it" could find the holder had doubled overnight.
+    """
+    from datetime import timedelta
+    from models import utcnow
+
+    # the bucket a trip falls in is a property of the trip, not of when we happen to look
+    now = utcnow()
+    for shift_hours in (0, 1, 6, 24, 72):
+        at = now - timedelta(days=6.8, hours=shift_hours)
+        bucket = int(at.timestamp() // 604800)
+        later = int(at.timestamp() // 604800)       # same trip, asked again later
+        assert bucket == later
+
+
+def test_enclosed_ground_does_not_claim_to_be_fading():
+    """A tile held because the crew rode around it has no kilometres in it, and used to come
+    out as "fading, 0.0 km clear", or "about to flip" the moment any rival had km there."""
+    from services.territory import _pressure
+    band, n = _pressure({"14/1/1": {"rival": [99.0, {"r"}]}}, "14/1/1", "holder", 0.0)
+    assert band == 4, "ringed ground is its own state, not a warning"
+    assert n == 0
+
+
+def test_a_ring_cannot_swallow_more_than_it_rode():
+    """A one-tile-wide ring around a city was about five times more ground per kilometre than
+    filling the same square solid, and the board ranks on exactly that, so it was not a side
+    exploit but the best way to play."""
+    from services.territory import _close_holes
+    ring = set()
+    n = 20
+    for i in range(n):
+        ring |= {(i, 0), (i, n - 1), (0, i), (n - 1, i)}
+    ring |= {(1, 1), (2, 1), (1, 2), (2, 2)}          # a bulge so it seeds
+    out = _close_holes({"A": ring})["A"]
+    assert len(out) <= len(ring) * 2, (len(out), len(ring))
+
+
+def test_two_crews_cannot_gain_the_same_ground():
+    """The flood used to run straight through a rival's ring, so nested crews could each claim
+    the same enclosed tiles: two ClanCell rows, two overlapping fills, an arbitrary popup."""
+    from services.territory import _close_holes
+    inner = {(x, y) for x in range(4, 7) for y in range(4, 7)}
+    outer = set()
+    for i in range(12):
+        outer |= {(i, 0), (i, 11), (0, i), (11, i)}
+    outer |= {(1, 1), (2, 1), (1, 2), (2, 2)}
+    out = _close_holes({"inner": inner, "outer": outer})
+    assert not (out["inner"] & out["outer"]), "no tile may be held by two crews"

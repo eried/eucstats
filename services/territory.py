@@ -190,7 +190,12 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
         scale = (km or 0.0) / total
         age_days = max(0.0, (now - started).total_seconds() / 86400.0) if started else 0.0
         weight = 0.5 ** (age_days / HALF_LIFE_DAYS)
-        week = int(age_days // 7)                # rolling seven days, not the calendar week
+        # Anchored to a fixed epoch, not to how old the trip is right now. Bucketing by age
+        # meant a trip crossed into a new bucket as it aged, releasing kilometres the cap had
+        # suppressed: a tile's score could rise 79% between two rebuilds with nobody riding,
+        # and a rider acting on "4 km would take it" could find the holder had doubled
+        # overnight. A score may only ever decay on its own.
+        week = int(started.timestamp() // 604800) if started else 0
         for tile, d in per_tile.items():
             ridden = d * scale
             if ridden < min_visit_km(tile):
@@ -248,8 +253,8 @@ def winners(acc: dict, previous: dict | None = None,
     was a fabricated 0.3 km "ride", which bought roughly thirty times more area per kilometre
     than actually riding — and the floor is what the spec said all along.
 
-    Ties go to whoever held it first, which is the only answer that does not hand a tile back
-    and forth every rebuild. `previous` is the last round's holders, from `ClanCell`.
+    Ties go to whoever rode it most recently, then to the incumbent. `previous` is the last
+    round's holders, from `ClanCell`.
 
     `skip` is a set of (tile, clan_id) claims that have already been ruled out this rebuild —
     see the re-award loop in rebuild().
@@ -464,50 +469,82 @@ def _close_holes(kept: dict[str, set]) -> dict[str, set]:
 
     After seeding, never before: a hole must not be able to satisfy the 2x2 rule that decides
     whether a crew draws anything at all.
+
+    Three things this has to get right, each of which it got wrong first:
+
+    * Per connected region, not per crew. The flood is bounded by the box it runs in, and one
+      crew with a rider in Oslo and a rider in Sydney is a box of thirty million cells, which
+      is tens of seconds and gigabytes every rebuild. A region is a city.
+    * It must not flood through somebody else's ground, or two crews can each claim the same
+      enclosed tiles and the map draws them twice.
+    * A crew may not gain more than it rode. Without that, a one-tile-wide ring around a city
+      is about five times more ground per kilometre than filling the same square solid, and
+      since the board ranks on the biggest unbroken region, the ring is not a side exploit but
+      the dominant way to play. Capping the gain at the size of the ring itself leaves
+      enclosure worth doing and stops it being the only thing worth doing.
     """
     everyone = set()
     for pts in kept.values():
         everyone |= pts
+    claimed = set()
     out = {}
-    for clan_id, pts in kept.items():
-        others = everyone - pts
-        out[clan_id] = pts | fill_enclosed(pts, others)
+    for clan_id in sorted(kept):
+        pts = kept[clan_id]
+        gained: set = set()
+        for comp in regions(pts):
+            blocked = (everyone - comp) | claimed
+            got = fill_enclosed(comp, blocked)
+            if len(got) > len(comp):
+                continue                      # a ring cannot swallow more than it rode
+            gained |= got
+        claimed |= gained
+        out[clan_id] = pts | gained
     return out
 
 
 def _pressure(acc: dict, tile: str, holder: str, held_km: float,
               blocked: set | None = None) -> tuple[int, int]:
-    """(band, tenths of a km) for a held tile.
+    """(band, a number) for a held tile.
 
     The band is what the map paints and the number is what a rider can act on. Saying "about
     to flip" and stopping is the shape of a warning without the content of one: nobody can
     tell whether that means two more kilometres this week or four more people.
 
-      0 nobody near it        the number is how far clear the holder is
+      0 nobody near it        the number is how far clear the holder is, in tenths of a km
       1 somebody is riding it      ... the number is what the rival still needs
       2 about to flip              ... same
-      3 fading                     the holder is near the floor and nobody else wants it;
-                                   the number is how much they can lose before it goes
+      3 fading                     near the floor with nobody else wanting it; the number is
+                                   days until it goes, which is what a rider can plan around
+      4 ringed                     held because the crew rode all the way around it
 
-    Rivals who are under the tile's own floor, or whose claim was withdrawn for failing to
+    Rivals under the tile's own floor, and rivals whose claim was withdrawn for failing to
     seed, are not counted: a warning that fires on somebody who structurally cannot take the
     tile is a warning people learn to ignore.
     """
+    if held_km <= 0:
+        # Gained by enclosure: nobody rode it, so none of the questions below apply. This used
+        # to fall through to "fading, 0.0 km clear", and to "about to flip" whenever any rival
+        # had kilometres there, both false on ground that cannot be lost until the ring breaks.
+        return 4, 0
+
     floor = min_lead_km(tile)
     out = blocked or set()
     rivals = [v[0] for c, v in acc.get(tile, {}).items()
               if c != holder and v[0] >= floor and (tile, c) not in out]
-    best = max(rivals) if rivals else 0.0
 
     if not rivals:
-        # No competition. The only way to lose this is to stop riding it, so the number worth
-        # showing is the margin above the floor, and the band says whether that margin is thin.
         slack = held_km - floor
-        band = 3 if slack <= floor * 0.35 else 0
-        return band, max(0, int(round(slack * 10)))
+        if slack > floor * 0.35:
+            return 0, max(0, int(round(slack * 10)))
+        # Days left, not slack. The slack on a fading tile is tiny by definition, so printing
+        # it could only ever say "0.0 km", which is a label rather than something to plan
+        # around. At a HALF_LIFE_DAYS half-life this is exact.
+        days = HALF_LIFE_DAYS * math.log2(held_km / floor) if held_km > floor else 0.0
+        return 3, max(0, int(round(days)))
 
+    best = max(rivals)
     need = max(0.0, held_km - best)          # what the rival still has to find
-    ratio = best / held_km if held_km > 0 else 1.0
+    ratio = best / held_km
     band = 2 if ratio >= 0.85 else 1 if ratio >= 0.5 else 0
     return band, int(round(need * 10))
 

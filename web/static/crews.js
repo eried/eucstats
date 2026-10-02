@@ -54,14 +54,22 @@
   }
 
   // cells arrive as [crewIndex, x, y, band, tenths-of-a-km]
+  // x:y -> [band, tenths of a km]. The fills are dissolved per crew per band so the map stays
+  // cheap, which means a feature cannot carry a per-tile number: it used to hand over the
+  // FIRST tile's, so every safe tile of a crew reported the same figure when the real spread
+  // was 0.2 to 9.9 km. The popup reads the tile it was actually clicked on from here.
+  var TILEINFO = {};
+
   function cellsByCrew() {
+    TILEINFO = {};
     var out = [];
     if (!TERR || !TERR.cells) return out;
     for (var i = 0; i < TERR.cells.length; i += 5) {
       var c = TERR.cells[i];
       if (!out[c]) out[c] = [];
-      out[c].push([TERR.cells[i + 1], TERR.cells[i + 2], TERR.cells[i + 3] || 0,
-                   TERR.cells[i + 4] || 0]);
+      var x = TERR.cells[i + 1], y = TERR.cells[i + 2];
+      out[c].push([x, y, TERR.cells[i + 3] || 0, TERR.cells[i + 4] || 0]);
+      TILEINFO[x + ":" + y] = [TERR.cells[i + 3] || 0, TERR.cells[i + 4] || 0];
     }
     return out;
   }
@@ -167,13 +175,12 @@
       // single feature renders as one solid shape with no antialiasing seam through it — and
       // splitting by band is what lets contested ground be drawn fainter without needing a
       // separate feature for every tile on the map.
-      [0, 1, 2, 3].forEach(function (band) {
+      [0, 1, 2, 3, 4].forEach(function (band) {
         var inBand = cells.filter(function (t) { return (t[2] || 0) === band; });
         if (!inBand.length) return;
         fills.features.push({
           type: "Feature",
           properties: { c: crew.colour, p: "crewpat-" + crew.pattern, i: idx, band: band,
-                        need: inBand[0][3] || 0,
                         name: crew.name, slug: crew.slug, km2: crew.km2 },
           geometry: { type: "MultiPolygon",
                       coordinates: inBand.map(function (t) { return tileRing(t[0], t[1], z); }) }
@@ -245,9 +252,9 @@
       // flips, and the map should say "someone is leaning on this", not "this is nearly gone".
       var pat = Math.min(1, op + 0.15);
       map.setPaintProperty("crew-fill", "fill-opacity",
-        ["match", ["get", "band"], 1, op * 0.84, 2, op * 0.66, 3, op * 0.5, op]);
+        ["match", ["get", "band"], 1, op * 0.84, 2, op * 0.66, 3, op * 0.5, 4, op, op]);
       map.setPaintProperty("crew-pattern", "fill-opacity",
-        ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, 3, pat * 0.4, pat]);
+        ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, 3, pat * 0.4, 4, pat, pat]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
@@ -323,13 +330,20 @@
     var p = f.properties;
     // The band is the answer to "am I actually taking this off them?". Without it the only
     // signal is the shade, and a shade on its own is something you notice after the fact.
-    var band = p.band || 0;
-    var km = (p.need || 0) / 10;
+    // the clicked tile, not the shape it belongs to
+    var tx = Math.floor((e.lngLat.lng + 180) / 360 * Math.pow(2, TERR.z));
+    var lat = e.lngLat.lat * Math.PI / 180;
+    var ty = Math.floor((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI)
+                        / 2 * Math.pow(2, TERR.z));
+    var info = TILEINFO[tx + ":" + ty] || [p.band || 0, 0];
+    var band = info[0];
+    var km = info[1] / 10;
     var state = [t("crew.tile.safe"), t("crew.tile.pushed"), t("crew.tile.slipping"),
-                 t("crew.tile.fading")][band];
+                 t("crew.tile.fading"), t("crew.tile.ringed")][band];
     // the number is the whole point: "about to flip" without it is a warning with no content
-    var detail = band === 1 || band === 2
-      ? t("crew.tile.need", { v: km.toFixed(1) })
+    var detail = band === 4 ? t("crew.tile.ringedp")
+      : band === 3 ? t("crew.tile.days", { n: info[1] })
+      : band === 1 || band === 2 ? t("crew.tile.need", { v: km.toFixed(1) })
       : t("crew.tile.clear", { v: km.toFixed(1) });
     new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
       .setLngLat(e.lngLat)

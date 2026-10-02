@@ -306,7 +306,7 @@ class ClanCell(Base):
     clan_id = Column(String, primary_key=True)
     km = Column(Float, default=0.0)
     riders = Column(Integer, default=0)
-    first_led = Column(DateTime)                # ties go to the earliest claim
+    first_led = Column(DateTime)                # when this crew first took it
 
 
 class PairToken(Base):
