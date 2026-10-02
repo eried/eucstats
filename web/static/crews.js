@@ -47,7 +47,7 @@
 
   function days(n) {
     if (n <= 0) return t("crew.now");
-    return n === 1 ? t("crew.day1") : t("crew.days", { n: n });
+    return plural("crew.day1", "crew.days.few", "crew.days", n);
   }
 
   /* ---------- geometry ---------- */
@@ -150,9 +150,23 @@
 
   /* ---------- layers ---------- */
 
+  // How far each pressure band is dimmed, and the single place it is written down. The legend
+  // chips read from this too: when the two were typed out separately the stylesheet ended up
+  // painting band 3 brighter than band 2, which is backwards, and nobody could see it without
+  // holding both files open.
+  var BAND_OP = { 0: 1, 1: 0.88, 2: 0.78, 3: 0.7, 4: 1 };
+
+  // A ten per cent step reads across a city block and not across a sixteen-pixel chip, so the
+  // ladder is stretched for the key while keeping the map's order exactly.
+  function chipOp(band) {
+    var v = BAND_OP[band] == null ? 1 : BAND_OP[band];
+    return Math.round((0.3 + (v - 0.7) / 0.3 * 0.7) * 100) / 100;
+  }
+
   var LAYERS = ["crew-fill", "crew-pattern", "crew-contested", "crew-edge",
                 "crew-edge-glow", "crew-target-case", "crew-target-line",
-                "crew-pulse-danger", "crew-pulse-fresh", "crew-target-hit"];
+                "crew-pulse-danger", "crew-pulse-fresh", "crew-target-hit",
+                "crew-lose-line"];
 
   function cursorPointer() { map.getCanvas().style.cursor = "pointer"; }
   function cursorDefault() { map.getCanvas().style.cursor = ""; }
@@ -365,9 +379,11 @@
       // stops bottoming out: 0.70 keeps the darkest crew on the map while it fades.
       var pat = Math.min(1, op + 0.15);
       map.setPaintProperty("crew-fill", "fill-opacity",
-        ["match", ["get", "band"], 1, op * 0.88, 2, op * 0.78, 3, op * 0.7, 4, op, op]);
+        ["match", ["get", "band"],
+         1, op * BAND_OP[1], 2, op * BAND_OP[2], 3, op * BAND_OP[3], 4, op, op]);
       map.setPaintProperty("crew-pattern", "fill-opacity",
-        ["match", ["get", "band"], 1, pat * 0.88, 2, pat * 0.78, 3, pat * 0.62, 4, pat, pat]);
+        ["match", ["get", "band"],
+         1, pat * BAND_OP[1], 2, pat * BAND_OP[2], 3, pat * BAND_OP[3] * 0.9, 4, pat, pat]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
@@ -680,9 +696,13 @@
       val: function (e) { return tiles(e.best_tiles || e.tiles); },
       sub: function (e) {
         var gained = FRESH[e.slug] || 0;
-        return '<span class="crewarea">' + fmtKm2(e.best_km2)
-          + (e.regions > 1 ? " · " + t("crew.patches", { n: e.regions }) : "") + "</span>"
-          + (gained ? ' <span class="crewgain">+' + gained + "</span>" : "");
+        // No km2 here. The board ranks on squares, and area beside it inverted the ranking
+        // two rows apart: 29 squares at 21 km2 above 20 squares at 120 km2. Area lives on the
+        // crew's own card and in the popup, where nothing is being compared.
+        return '<span class="crewarea">'
+          + (e.regions > 1 ? plural(null, "crew.patches.few", "crew.patches", e.regions) : "") + "</span>"
+          + (gained ? ' <span class="crewgain">'
+             + esc(t("crew.board.gained", { n: gained })) + "</span>" : "");
       },
       click: true
     });
@@ -693,15 +713,17 @@
   // and once because a chip described a mark the map has never drawn. The styles live in one
   // block in crews.css now rather than in a rule and a later override of that rule, which is
   // what made it so easy to add to the wrong half.
+  function band(n, key) {
+    return '<span class="b' + n + '"><i style="opacity:' + chipOp(n) + '"></i>'
+      + t(key) + "</span>";
+  }
+
   function legendHTML() {
     return '<div class="crewlegend">'
-      + '<span class="b0"><i></i>' + t("crew.tile.safe") + "</span>"
-      + '<span class="b1"><i></i>' + t("crew.tile.pushed") + "</span>"
-      + '<span class="b2"><i></i>' + t("crew.tile.slipping") + "</span>"
-      + '<span class="b3"><i></i>' + t("crew.tile.fading") + "</span>"
+      + band(0, "crew.tile.safe") + band(1, "crew.tile.pushed")
+      + band(2, "crew.tile.slipping") + band(3, "crew.tile.fading")
       + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
       + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
-      + '<span class="bd"><i></i>' + t("crew.legend.danger") + "</span>"
       + '<span class="bf"><i></i>' + t("crew.legend.fresh") + "</span>"
       + "</div>";
   }
@@ -716,13 +738,19 @@
     }).join("") + "</tbody></table>";
   }
 
-  function tiles(n) {
-    return n === 1 ? t("crew.tile1") : t("crew.tiles", { n: n });
+  // One, a few, many. English and most of the rest need only the first and last, and Russian,
+  // Ukrainian and Polish need the middle one for 2, 3 and 4, which in this feature is nearly
+  // every number anybody sees: a crew has two or three patches, not twenty-seven.
+  function plural(one, few, many, n) {
+    if (n === 1 && one) return t(one, { n: n });
+    var d = n % 10, h = n % 100;
+    if (few && d >= 2 && d <= 4 && (h < 12 || h > 14)) return t(few, { n: n });
+    return t(many, { n: n });
   }
 
-  function riders(n) {
-    return n === 1 ? t("crew.rider1") : t("crew.riders", { n: n });
-  }
+  function tiles(n) { return plural("crew.tile1", "crew.tiles.few", "crew.tiles", n); }
+
+  function riders(n) { return plural("crew.rider1", "crew.riders.few", "crew.riders", n); }
 
   // Area follows the same metric/imperial switch as every other number on the site. A rider
   // who reads their rides in miles should not have one board quietly answering in km.
@@ -733,8 +761,10 @@
   // afternoon it happened.
   function heldFor(iso) {
     var d = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
-    if (d >= 14) return t("crew.ago.weeks", { n: Math.floor(d / 7) });
-    if (d >= 2) return t("crew.ago.days", { n: d });
+    if (d >= 364) return t("crew.ago.year");
+    if (d >= 14) return plural(null, "crew.ago.weeks.few", "crew.ago.weeks",
+                               Math.floor(d / 7));
+    if (d >= 2) return plural(null, "crew.ago.days.few", "crew.ago.days", d);
     return t("crew.ago.new");
   }
 
@@ -802,6 +832,11 @@
   // contested but never where to go, which is the one thing a map mode about choosing routes
   // has to do. A tile that joins two patches leads, because the board ranks on the biggest
   // single patch and welding two together beats widening either.
+  // "same as the row above". Dimming the repeated words to the point where they read as a
+  // repeat put them under three and a half to one against this background, which is below the
+  // floor for body text, and there is no opacity that is both.
+  var DITTO = "\u3003";
+
   var TARGETS = [];
   var TARGETSEL = -1;
   var LOSING = [];
@@ -833,7 +868,8 @@
     var seenKm = {}, seenWho = {};
     var body = TARGETS.map(function (x, i) {
           var tag = x.first ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
-            : x.kills ? '<span class="crewtag kills">' + t("crew.targets.kills") + "</span>"
+            : x.kills ? '<span class="crewtag kills">'
+              + t("crew.targets.kills", { n: x.lost || 0 }) + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
             : "";
@@ -843,13 +879,17 @@
           // Nothing goes in the number column on a square whose shortfall is zero: riding it
           // again does nothing, and a word there wore the styling meant for a distance.
           var km = x.blocked ? "" : effort(x.need, x.y);
-          var rk = km && seenKm[km] ? " rpt" : "";
+          // only the holder: since the rows are deduplicated on effort, bearing and holder
+          // together, two rows can share an effort word and still be different places, and a
+          // ditto there would read as a mistake.
+          var rk = "";
           var rw = seenWho[who] ? " rpt" : "";
-          seenKm[km] = 1; seenWho[who] = 1;
+          seenWho[who] = 1;
           return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
-            + '<span class="crewtkm' + rk + '">' + km + "</span>"
+            + '<span class="crewtkm' + rk + '">' + (rk ? DITTO : km) + "</span>"
             + '<span class="crewtdir">' + bearing(x.dir) + "</span>"
-            + '<span class="crewtwho' + rw + '">' + who + "</span>" + tag + "</div>";
+            + '<span class="crewtwho' + rw + '">' + (rw ? DITTO : who) + "</span>"
+            + tag + "</div>";
         }).join("");
     return head + '<p class=hint>'
       + t(nothing ? "crew.targets.p0" : "crew.targets.p", { n: SEED }) + "</p>"
@@ -911,7 +951,8 @@
                : t("crew.lose.gap", { v: effort(x.need, x.y) })).length;
       if (w > cols) cols = w;
     });
-    return '<div style="--kmw:' + Math.min(cols + 1, 26) + 'ch" class="crewtargets crewlose'
+    var seenGap = {}, seenState = {};
+    return '<div style="--kmw:' + Math.min(cols + 1, 30) + 'ch" class="crewtargets crewlose'
       + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.lose.h") + "</h4>"
       // eight crews in fourteen have nothing but fading ground, and telling them a rival is
       // closing in on it is simply untrue
@@ -919,17 +960,18 @@
       + t(LOSING.every(function (x) { return x.band === 3; }) ? "crew.lose.p3" : "crew.lose.p")
       + "</p>"
       + LOSING.map(function (x, i) {
+          // their gap, not your effort, and the third column carries urgency rather than
+          // restating the heading. Band 3 has no rival, so its number is days left.
+          var gap = x.band === 3 ? fadesIn(Math.round(x.need * 10))
+                                 : t("crew.lose.gap", { v: effort(x.need, x.y) });
+          var state = t(x.band === 3 ? "crew.lose.cold"
+                        : x.band === 2 ? "crew.lose.now" : "crew.lose.soon");
+          var rg = seenGap[gap] ? " rpt" : "", rs = seenState[state] ? " rpt" : "";
+          seenGap[gap] = 1; seenState[state] = 1;
           return '<div class="crewtrow sel" data-l="' + i + '">'
-            // their gap, not your effort, and the third column carries urgency rather than
-            // restating the heading
-            // band 3 has no rival, so its number is days left rather than a rival's gap
-            + '<span class="crewtkm">'
-            + (x.band === 3 ? fadesIn(Math.round(x.need * 10))
-                            : t("crew.lose.gap", { v: effort(x.need, x.y) })) + "</span>"
+            + '<span class="crewtkm' + rg + '">' + (rg ? DITTO : gap) + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
-            + '<span class="crewtwho">'
-            + t(x.band === 3 ? "crew.lose.cold"
-                : x.band === 2 ? "crew.lose.now" : "crew.lose.soon") + "</span></div>";
+            + '<span class="crewtwho' + rs + '">' + (rs ? DITTO : state) + "</span></div>";
         }).join("")
       // 85 squares are losable across the world and 45 were shown, with nothing saying so
       + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { n: hidden }) + "</p>" : "")
@@ -1438,12 +1480,12 @@
         return;
       }
       var terr = r.body.territory || {};     // not `t`: that is the translator
-      el.innerHTML = '<div class="crewbig">' + fmtKm2(terr.best_km2)
+      el.innerHTML = '<div class="crewbig">' + tiles(terr.best_tiles || terr.tiles || 0)
         + " <span>" + t("crew.mine.ao") + "</span></div>"
-        + '<div class="crewsub">' + tiles(terr.tiles || 0)
-        + (terr.regions > 1 ? " · " + t("crew.patches", { n: terr.regions }) : "")
-        + (terr.km2 && terr.km2 !== terr.best_km2
-            ? " · " + t("crew.inall", { v: fmtKm2(terr.km2) }) : "")
+        + '<div class="crewsub">' + fmtKm2(terr.best_km2)
+        + (terr.regions > 1 ? " · " + plural(null, "crew.patches.few", "crew.patches", terr.regions) : "")
+        + (terr.tiles && terr.tiles !== (terr.best_tiles || terr.tiles)
+            ? " · " + t("crew.inall", { v: tiles(terr.tiles) }) : "")
         + (terr.tiles ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
         + (me.status === "pending" ? "" : targetsHTML(r.body.targets) + loseHTML(c.slug))
         + contributorsHTML(r.body.contributors);
@@ -1700,8 +1742,8 @@
     // a dark casing first, or a thin gold line disappears over the pale half of the palette
     map.addLayer({
       id: "crew-target-case", type: "line", source: "crew-targets",
-      paint: { "line-color": "rgba(0,0,0,.6)",
-               "line-width": ["interpolate", ["linear"], ["zoom"], 8, 3.5, 14, 7] }
+      paint: { "line-color": "rgba(0,0,0,.85)",
+               "line-width": ["interpolate", ["linear"], ["zoom"], 8, 4, 14, 8] }
     });
     // an invisible fill, because the line it used to be bound to is three pixels wide
     map.addLayer({
@@ -1709,17 +1751,33 @@
       paint: { "fill-color": "#000", "fill-opacity": 0.01 }
     });
     map.addLayer({
+      // Ground to take: gold and solid. Ground to defend is a separate layer because
+      // line-dasharray takes no data expression, which is just as well: solid against dashed
+      // is the real difference. Seven of the twenty-four crew colours sit close enough to one
+      // of these two hues to erase it, and a crew can pick any of them, so the colour is a
+      // nicety and the shape is the signal.
       id: "crew-target-line", type: "line", source: "crew-targets",
+      filter: ["!=", ["get", "lose"], 1],
       paint: {
-        // gold for ground to take, orange for ground to defend: the same two colours the
-        // two cards use for their first column
-        "line-color": ["case", ["==", ["get", "lose"], 1], "#ff9f6b", "#ffd24a"],
+        "line-color": "#ffd24a",
         // zoom has to be the input to the interpolate, not buried inside a case, so the
         // selected-or-not test moves into the stop values
         "line-width": ["interpolate", ["linear"], ["zoom"],
                        8, ["case", ["==", ["get", "sel"], 1], 3.2, 1.6],
                        14, ["case", ["==", ["get", "sel"], 1], 5.5, 3]],
         "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 0.95]
+      }
+    });
+    map.addLayer({
+      id: "crew-lose-line", type: "line", source: "crew-targets",
+      filter: ["==", ["get", "lose"], 1],
+      paint: {
+        "line-color": "#ff9f6b",
+        "line-dasharray": [2, 1.6],
+        "line-width": ["interpolate", ["linear"], ["zoom"],
+                       8, ["case", ["==", ["get", "sel"], 1], 3.2, 1.6],
+                       14, ["case", ["==", ["get", "sel"], 1], 5.5, 3]],
+        "line-opacity": 0.95
       }
     });
   }

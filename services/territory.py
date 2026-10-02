@@ -504,10 +504,25 @@ def _close_holes(kept: dict[str, set]) -> dict[str, set]:
                 # paying nothing, and crew.how.3 promises the opposite. Take as much as the
                 # ring is worth instead, from the middle outward, so the curve flattens at
                 # twice rather than falling off a cliff.
-                cx = sum(x for x, _ in got) / len(got)
-                cy = sum(y for _, y in got) / len(got)
-                got = set(sorted(got, key=lambda q: (q[0] - cx) ** 2 + (q[1] - cy) ** 2
-                                 )[:len(comp)])
+                # Inward from the ring, not outward from the middle of the hole. Taking the
+                # centre first left a floating disc with a gap between it and the loop that
+                # earned it: two regions instead of one, a second emblem drawn in the middle
+                # of nowhere, and the ranked number unmoved because the biggest patch was
+                # still just the ring. From 12x12 up the gain never touched the ring at all,
+                # and a ring road at this zoom is about twelve squares across.
+                edge = {q for q in got
+                        if any((q[0] + dx, q[1] + dy) in comp
+                               for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))}
+                taken, frontier = set(edge), list(edge)
+                while frontier and len(taken) < len(comp):
+                    nxt = []
+                    for (x, y) in frontier:
+                        for q in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                            if q in got and q not in taken and len(taken) < len(comp):
+                                taken.add(q)
+                                nxt.append(q)
+                    frontier = nxt
+                got = taken
             gained |= got
         claimed |= gained
         out[clan_id] = pts | gained
@@ -785,8 +800,14 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         # More than one dangling tile. At "> 1" this fired on four crews out of five to mean
         # "they lose two squares out of a hundred and twenty", in the hottest colour in the
         # card, which teaches a rider to ignore it before they ever meet a real one.
+        # A quarter of a hundred-and-twenty-square crew is thirty, and no single square has
+        # ever cost anybody thirty: measured across every held square of every crew, the best
+        # one is five. Scaling the bar with the victim's size moved this from firing four
+        # times too often to never firing at all. Three squares is a real hole whoever you
+        # are, and the row carries the number so it argues for itself.
         lost = len(theirs) - len(left)
-        t["kills"] = lost > 1 and lost >= max(3, len(theirs) // 4)
+        t["kills"] = lost >= 3
+        t["lost"] = lost if lost >= 3 else 0
     # a square that takes a crew off the map outranks everything except being on the map
     # yourself, which is the same move from the other side
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
@@ -803,11 +824,42 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
             struck.add(t["held_by"])
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
                             rank(t), t["need"], t["x"], t["y"]))
+
+    # Everything a row prints is effort, bearing and who holds it, so two rows agreeing on all
+    # three are the same row printed twice. A quarter of every card was a duplicate, and seven
+    # crews in fifteen showed five distinct rows out of eight while eleven to a hundred
+    # candidates went unmentioned. Keep the first of each face, then fill the freed slots from
+    # what is left, because a near-duplicate still beats a short card.
+    def face(t):
+        step = 1 if t["need"] <= 0.4 else 2 if t["need"] <= 1 else 3 if t["need"] <= 2.5 else 4
+        return (step, t["dir"], t["held_by"])
+
+    order = {id(t): i for i, t in enumerate(out)}
+    seen, picked = set(), []
+    for t in out:                       # best first, one of each face
+        if len(picked) >= limit:
+            break
+        if face(t) not in seen:
+            seen.add(face(t))
+            picked.append(t)
+    if len(picked) < limit:             # top up rather than show a short card
+        chosen = {id(t) for t in picked}
+        for t in out:
+            if len(picked) >= limit:
+                break
+            if id(t) not in chosen:
+                picked.append(t)
+    # back into rank order: preferring a distinct row must not promote a worse one above a
+    # better one, only decide which of two equally good ones gets the slot
+    picked.sort(key=lambda t: order[id(t)])
+    out = picked
+
     # `grows` has done its job in the sort. It was true of ten rows in ten for almost every
     # crew, nothing on the client reads it, and it is bytes in the payload and in the row.
     for t in out[:limit]:
         del t["grows"]
         t.setdefault("kills", False)
+        t.setdefault("lost", 0)
     return out[:limit]
 
 
@@ -873,20 +925,24 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             continue
         for cid in per:
             mine_by_clan.setdefault(cid, set()).add((pt[1], pt[2]))
+    # Every crew that draws nothing, not only the ones too far from a block to be a threat.
+    # `seedless` means "cannot take anything" and is narrower than "holds nothing"; handing the
+    # narrower set here meant the crews one ride from existing got an empty leads set instead
+    # of None, and `first` could never fire for the only crews it is for.
+    nothing_held = set(clans) - set(kept)
     leads_by_clan: dict[str, set] = {}
-    if seedless:                      # only a crew holding nothing ever reads this
-        for tile, w in won.items():
-            if w[0] in seedless:
-                pt = T.parse(tile)
-                if pt:
-                    leads_by_clan.setdefault(w[0], set()).add((pt[1], pt[2]))
+    for tile, w in won.items():
+        if w[0] in nothing_held:
+            pt = T.parse(tile)
+            if pt:
+                leads_by_clan.setdefault(w[0], set()).add((pt[1], pt[2]))
     targets_json = {}
     for clan_id in clans:
         try:
             targets_json[clan_id] = json.dumps(targets_for(
                 acc, kept, clan_id, won, zoom, seed=seed,
                 holder_of=holder_of, mine=mine_by_clan.get(clan_id, set()),
-                leads=leads_by_clan.get(clan_id, set()),
+                leads=leads_by_clan.get(clan_id),
                 patches=patches_by_clan.get(clan_id, []), buckets=buckets))
         except Exception:
             # A silent failure here empties every crew's list and then tells crews that hold
@@ -916,7 +972,11 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             w = won.get(tile)
             km, riders = (w[1], w[2]) if w else (0.0, 0)
             db.add(ClanCell(tile=tile, clan_id=clan_id, km=round(km, 3), riders=riders,
-                            first_led=first_led.get((tile, clan_id)) or now))
+                            # dated from the ride that won it when the row is new, so a
+                            # fresh install does not claim the whole map was taken this week
+                            # and "held for" does not read "a day or two" everywhere on it
+                            first_led=(first_led.get((tile, clan_id))
+                                       or won_at.get(tile) or now)))
             km2 += T.area_km2(tile)
             band, need = _pressure(acc, tile, clan_id, km, withdrawn_all, seedless)
             # Fresh ground rides along in the band rather than as a sixth integer per cell:
@@ -926,7 +986,9 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # meant a crew that recruited one rider's back catalogue showed "49 new this
             # week", and the first rebuild against an empty table lit the entire map up.
             got = first_led.get((tile, clan_id)) or won_at.get(tile)
-            if got and (now - got).days < FRESH_DAYS:
+            # nothing is news on the very first rebuild: there is no previous state for it to
+            # be different from, and marking all of it new says the opposite of what it means
+            if prev and got and (now - got).days < FRESH_DAYS:
                 band += 5
             cells_flat.extend((idx, x, y, band, need))
         comps = patches_by_clan[clan_id]          # worked out once, above

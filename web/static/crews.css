@@ -8,7 +8,7 @@
 .crewcard {
   background: rgba(10, 15, 30, .5);
   border: 1px solid var(--line, #243055);
-  border-left: 2px solid var(--sec, #2ea8ff);
+  border-left: 2px solid var(--sec, #ff8ad8);
   padding: 14px 15px;
   margin: 0 0 11px;
 }
@@ -22,17 +22,17 @@
   background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055); color: inherit;
   font: inherit; font-size: 13px; border-radius: 0;
 }
-.crewcard input:focus, .crewcard select:focus { outline: none; border-color: var(--sec, #2ea8ff); }
+.crewcard input:focus, .crewcard select:focus { outline: none; border-color: var(--sec, #ff8ad8); }
 
 .crewbtn {
-  margin-top: 12px; padding: 9px 16px; background: var(--sec, #2ea8ff); color: #061020;
+  margin-top: 12px; padding: 9px 16px; background: var(--sec, #ff8ad8); color: #061020;
   border: 0; font: inherit; font-weight: 700; font-size: 13px; letter-spacing: .3px;
   cursor: pointer; border-radius: 7px;
 }
 .crewbtn:hover { filter: brightness(1.12); }
 .crewbtn:disabled { opacity: .5; cursor: default; }
 .crewbtn.ghost { background: transparent; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); }
-.crewbtn.ghost:hover { color: #fff; border-color: var(--sec, #2ea8ff); }
+.crewbtn.ghost:hover { color: #fff; border-color: var(--sec, #ff8ad8); }
 .crewbtn.mini { margin: 0; padding: 5px 11px; font-size: 12px; }
 .crewacts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
@@ -44,7 +44,7 @@
   background: repeating-linear-gradient(45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px),
               repeating-linear-gradient(-45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px);
 }
-.crewsw[data-p=dots]::after { background-image: radial-gradient(rgba(0,0,0,.5) 28%, transparent 30%); background-size: 6px 6px; }
+.crewsw[data-p=dots]::after { background-image: radial-gradient(rgba(0,0,0,.5) 28%, transparent 30%); background-size: 5px 5px; }
 
 .crewhead { display: flex; gap: 12px; align-items: center; }
 .crewlogo { width: 52px; height: 52px; flex: 0 0 52px; border: 1px solid var(--line, #243055); background: rgba(0,0,0,.3); }
@@ -90,7 +90,7 @@
 .crewmsg { margin: 9px 0; padding: 8px 11px; border-radius: 7px;
   background: rgba(255,138,216,.13); border-left: 2px solid var(--sec, #ff8ad8);
   font-size: 12.5px; }
-.crewmsg.bad { background: rgba(255,107,107,.13); border-left-color: #ff6b6b; }
+.crewmsg.bad { background: rgba(255,79,163,.13); border-left-color: #ff4fa3; }
 
 .crewhow { font-size: 12.5px; line-height: 1.55; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); padding: 0 13px; }
 .crewhow summary { cursor: pointer; padding: 11px 0; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: #cfe0ff; }
@@ -145,13 +145,7 @@
    point. `hover:none` + `pointer:coarse` is the honest test for that: it asks what the input
    device can do rather than guessing from the user agent string. */
 .crewopen, .crewsame { display: none; }
-@media (hover: none) and (pointer: coarse) {
-  .crewopen { display: block; text-align: center; text-decoration: none; }
-  .crewsame { display: block; }
-  /* The QR is not dimmed. A faded code reads as a loading failure, and the honest signal is
-     simply that the button is the easier path on the device the app is installed on. */
-  .crewqr img { opacity: 1; }
-}
+
 a.crewqr { display: flex; text-decoration: none; }
 
 /* --- standings, contributors, folded personal crew --- */
@@ -183,7 +177,7 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
 .crewsumemb { width: 26px; height: 26px; flex: 0 0 26px; }
 .crewsumrole { font-size: 11px; color: var(--mut, #7a86ad); text-transform: uppercase; letter-spacing: .5px; }
-.crewmine-wrap .crewcard { border: 0; border-left: 2px solid var(--sec, #2ea8ff); margin: 0; }
+.crewmine-wrap .crewcard { border: 0; border-left: 2px solid var(--sec, #ff8ad8); margin: 0; }
 
 .crewcontrib { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
 .crewcrow { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12.5px; }
@@ -191,32 +185,15 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewcname { flex: 0 0 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a bar rather than a second number: the shape of who carries the crew reads at a glance */
 .crewcbar { flex: 1; height: 5px; background: rgba(255,255,255,.07); min-width: 24px; }
-.crewcbar i { display: block; height: 100%; background: var(--sec, #2ea8ff); }
+.crewcbar i { display: block; height: 100%; background: var(--sec, #ff8ad8); }
 .crewckm { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--mut, #7a86ad); }
 .crewrole { margin-left: 5px; font-size: 11px; }
 .crewrole.lead { color: #ffd24a; }
-.crewrole.off { color: #39d98a; }
+.crewrole.off { color: #8ef0c0; }
 .crewrole.past { color: var(--mut, #7a86ad); }
 
 /* --- phone --- */
-@media (max-width: 560px) {
-  .crewcard { padding: 12px 12px; }
-  .crewhead { gap: 9px; }
-  .crewlogo { width: 42px; height: 42px; flex: 0 0 42px; }
-  .crewbig { font-size: 22px; }
-  .crewqr img { width: 150px; height: 150px; }
-  .crewcode { font-size: 21px; letter-spacing: 5px; }
-  .crewident { flex-wrap: wrap; }
-  /* The tile count is the first thing to go when there is no room. It has to be said twice:
-     the standings use the site's own podium, which builds its own table rather than the
-     .crewrank one, and without this both numbers wrap onto two lines each. */
-  .crewrank .val.sub,
-  .crewboard table .val.sub { display: none; }
-  .crewboard table .val { white-space: nowrap; }
-  .crewboard .pname { font-size: 12px; }
-  .crewcname { max-width: 34%; }
-  .crewacts .crewbtn { flex: 1 1 auto; }
-}
+
 
 /* --- picking an identity --- */
 
@@ -235,10 +212,7 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewpickc.on, .crewpickp.on { outline: 2px solid #fff; outline-offset: 1px; }
 .crewpickc:hover, .crewpickp:hover { outline: 1px solid rgba(255,255,255,.6); outline-offset: 1px; }
 
-@media (max-width: 560px) {
-  .crewpickc, .crewpickp { width: 30px; height: 30px; }   /* thumbs, not cursors */
-  .crewpickp .crewsw { width: 26px; height: 26px; }
-}
+
 
 
 /* --- consistency with the host panel --- */
@@ -260,7 +234,6 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* patterns have to be separable at swatch size */
 .crewsw[data-p=stripes]::after { background: repeating-linear-gradient(45deg, rgba(0,0,0,.5) 0 2px, transparent 2px 5px); }
-.crewsw[data-p=dots]::after { background-size: 5px 5px; }
 
 /* the join list was nine identical filled buttons shouting over the crews themselves */
 .crewrow .crewbtn.mini { min-width: 86px; text-align: center; }
@@ -277,33 +250,29 @@ a.crewqr { display: flex; text-decoration: none; }
    are told apart by the dashed edge, which is what the map really adds, and the steps are
    exaggerated enough to read at this size. Band 4 has no chip because the map draws no
    distinct mark for it; the tooltip says "Ringed off" in words instead. */
-.crewlegend .b0 i { opacity: 1; }
-.crewlegend .b1 i { opacity: .9; border-style: dashed; border-color: #fff; }
-.crewlegend .b2 i { opacity: .62; border-style: dashed; border-color: #fff; }
-.crewlegend .b3 i { opacity: .7; border-color: rgba(255,255,255,.18); }
+/* the opacity comes from crews.js, off the same array the map paints from. Only the edges
+   live here, because an edge is the thing the map adds on top of the shade. */
+/* The white wash, not the shade. `opacity` is written inline from the same array the map
+   paints from, and a running animation outranks inline style, so animating opacity here threw
+   that ladder away and made bands 1 and 2 identical. */
+.crewlegend .b1 i, .crewlegend .b2 i { border-style: dashed; border-color: #fff;
+  animation: crewwash 5.2s ease-in-out infinite; }
+@keyframes crewwash {
+  0%, 100% { box-shadow: inset 0 0 0 16px rgba(255,255,255,0); }
+  50% { box-shadow: inset 0 0 0 16px rgba(255,255,255,.26); }
+}
+.crewlegend .b3 i { border-color: rgba(255,255,255,.18); }
 /* solid, because the line on the map is solid */
 .crewlegend .bt i { background: transparent; border: 2px solid #ffd24a;
   box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
-.crewlegend .bl i { background: transparent; border: 2px solid #ff9f6b; }
+/* dashed, because the ring it stands for is dashed: the crews own the whole
+   colour spectrum, so shape is the only channel a mark can keep to itself */
+.crewlegend .bl i { background: transparent; border: 2px dashed #ff9f6b; }
 /* 5.2s and half a cycle apart, which is what the map actually does */
-.crewlegend .bd i { background: #fff; opacity: .55;
-  animation: crewbreathe 5.2s ease-in-out infinite; }
 .crewlegend .bf i { background: var(--sec, #ff8ad8); opacity: .55;
   animation: crewbreathe 5.2s ease-in-out infinite; animation-delay: -2.6s; }
 
-@media (max-width: 560px) {
-  /* truncating crew names is indefensible in a feature about naming your crew */
-  /* wrapping was not enough on its own: the ellipsis is inherited, so the name wrapped AND
-     truncated. Truncating a crew name in a feature about naming your crew is indefensible. */
-  .crewboard .pname {
-    white-space: normal; overflow: visible; text-overflow: clip;
-    font-size: 11px; line-height: 1.15;
-  }
-  .crewpick { grid-template-columns: repeat(8, 30px); }
-  #cf-patterns { grid-template-columns: repeat(4, 30px); }
-  /* the action buttons were clipping against the panel's bottom edge */
-  .crewmine .crewacts { padding-bottom: 14px; }
-}
+
 
 
 /* The mode's colour has to reach the numbers, not just the frame. These three come from the
@@ -316,13 +285,12 @@ a.crewqr { display: flex; text-decoration: none; }
 
 @keyframes crewbreathe { 0%, 100% { opacity: .15; } 50% { opacity: .85; } }
 @media (prefers-reduced-motion: reduce) {
-  .crewlegend .bd i, .crewlegend .bf i { animation: none; opacity: .55; }
+  /* the map stops for these readers, so the key has to stop with it */
+  .crewlegend .b1 i, .crewlegend .b2 i, .crewlegend .bf i { animation: none; }
+  .crewlegend .bf i { opacity: .55; }
 }
 
-@media (max-width: 560px) {
-  /* a 150px image was sitting in a 188px box */
-  .crewqr { min-height: 0; }
-}
+
 
 
 /* The revealed card says so for a moment. Scrolling to it is not the same as noticing it,
@@ -334,18 +302,24 @@ a.crewqr { display: flex; text-decoration: none; }
 }
 .crewflash { animation: crewflash 1.4s ease-out; }
 
+/* touch, in one block and in cascade order */
 @media (hover: none) and (pointer: coarse) {
+  .crewopen { display: block; text-align: center; text-decoration: none;
+    order: 2; margin-top: 4px; }
+  .crewsame { display: block; order: 1; }
+  /* The QR is not dimmed. A faded code reads as a loading failure, and the honest signal is
+     simply that the button is the easier path on the device the app is installed on. */
+  .crewqr img { opacity: 1; }
   /* On the device the app is installed on, the button is the thing that works and the QR is
      the thing that physically cannot. Put them in that order. */
   .crewsign { display: flex; flex-direction: column; }
-  .crewsame { order: 1; }
-  .crewopen { order: 2; margin-top: 4px; }
   .crewqr { order: 3; margin-top: 18px; }
   .crewcode { order: 4; }
   #crewcodehint { order: 5; }
   .crewsign h3 { order: -2; }
   .crewsign > .hint:first-of-type { order: -1; }
 }
+
 
 
 /* Asking inside the panel rather than through the browser. */
@@ -407,8 +381,9 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtrow.done { opacity: .72; }
 .crewtrow.done .crewtkm { color: var(--mut, #7a86ad); font-weight: 400; }
 .crewtag {
-  flex: 0 0 auto; margin-left: auto; font-size: 10px; letter-spacing: .3px;
-  text-transform: uppercase; padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+  flex: 0 1 auto; margin-left: auto; max-width: 38%; font-size: 10px; letter-spacing: .3px;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 4px;
+  white-space: normal; text-align: right; line-height: 1.25;
   opacity: .95;
 }
 /* Two different claims had one identical gold chip; and the hottest label in the panel was
@@ -422,15 +397,7 @@ a.crewqr { display: flex; text-decoration: none; }
 /* the other half of the game, same shape so the two read as a pair */
 .crewlose .crewtkm { color: #ff9f6b; }
 
-@media (max-width: 560px) {
-  /* The badge was hidden here, which took the explanation off exactly the rows that need one:
-     a phone showed "ridden, Cykelslangen has it" and no reason why riding it again would do
-     nothing. It wraps onto its own line instead, lined up under the text. */
-  .crewtargets { --kmc: min(var(--kmw, 88px), 46%); }
-  .crewtargets.nums { --kmc: 52px; }
-  .crewtrow { flex-wrap: wrap; row-gap: 3px; }
-  .crewtag { margin-left: calc(var(--kmc) + 35px); }
-}
+
 
 
 /* Resting on a square. Small, out of the way, and it never appears while the map is moving. */
@@ -447,8 +414,7 @@ a.crewqr { display: flex; text-decoration: none; }
 /* near the top of the map there is nothing above the pointer to hang it from */
 .crewtip.below { transform: translate(14px, 14px); }
 .crewtip.left.below { transform: translate(calc(-100% - 14px), 14px); }
-.crewtip b { display: block; font-size: 12px; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; }
+.crewtip b { display: block; font-size: 12px; overflow-wrap: anywhere; }
 .crewtip span { display: block; color: var(--mut, #7a86ad); }
 /* the band is the left edge, so the shades are learned where they are used */
 .crewtip.b1 { border-left: 3px solid rgba(255, 255, 255, .75); }
@@ -461,7 +427,9 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtip.b0 { border-left: 3px solid rgba(255,255,255,.28); }
 .crewtip em { font-style: normal; color: #ffd24a; }
 .crewtip.bt em { color: #ff4fa3; }
-@keyframes crewtipin { from { opacity: 0; transform: translate(10px, -50%); } }
+/* opacity only: a `transform` here animates a flipped tip across the cursor,
+   because the implicit `to` is whichever transform the flip class set. */
+@keyframes crewtipin { from { opacity: 0; } }
 
 
 /* An in-panel question opens beside the control that raised it. Those controls live in flex
@@ -471,10 +439,7 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewrow > .crewask, .crewacts > .crewask { flex: 1 0 100%; margin-top: 8px; }
 
 /* the badge is longer than the room left for it once the number column is subtracted */
-@media (max-width: 560px) {
-  .crewtag { white-space: normal; }
-  .crewcname { max-width: none; }
-}
+
 
 
 /* Eight rows naming the same crew eight times reads as a rendering fault. The repeat stays,
@@ -493,10 +458,51 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* The scoreline was inside the cell the phone hides, so the one piece of news in the mode
    vanished on the device most people use. The tile count goes instead. */
+/* Everything the phone changes, in one place and in cascade order. Seven separate
+   blocks is how a rule ends up silently cancelling an earlier one instead of
+   deliberately overriding it, which had happened three times in here. */
 @media (max-width: 560px) {
+  .crewcard { padding: 12px 12px; }
+  .crewhead { gap: 9px; }
+  .crewlogo { width: 42px; height: 42px; flex: 0 0 42px; }
+  .crewbig { font-size: 22px; }
+  .crewqr img { width: 150px; height: 150px; }
+  .crewcode { font-size: 21px; letter-spacing: 5px; }
+  .crewident { flex-wrap: wrap; }
+  /* The tile count is the first thing to go when there is no room. It has to be said twice:
+     the standings use the site's own podium, which builds its own table rather than the
+     .crewrank one, and without this both numbers wrap onto two lines each. */
+  .crewrank .val.sub,
+  .crewboard table .val.sub { display: none; }
+  .crewboard table .val { white-space: nowrap; }
+  .crewacts .crewbtn { flex: 1 1 auto; }
+  .crewpickc, .crewpickp { width: 30px; height: 30px; }   /* thumbs, not cursors */
+  .crewpickp .crewsw { width: 26px; height: 26px; }
+  /* truncating crew names is indefensible in a feature about naming your crew */
+  /* wrapping was not enough on its own: the ellipsis is inherited, so the name wrapped AND
+     truncated. Truncating a crew name in a feature about naming your crew is indefensible. */
+  .crewboard .pname {
+    white-space: normal; overflow: visible; text-overflow: clip;
+    font-size: 11px; line-height: 1.15;
+  }
+  .crewpick { grid-template-columns: repeat(8, 30px); }
+  #cf-patterns { grid-template-columns: repeat(4, 30px); }
+  /* the action buttons were clipping against the panel's bottom edge */
+  .crewmine .crewacts { padding-bottom: 14px; }
+  /* a 150px image was sitting in a 188px box */
+  .crewqr { min-height: 0; }
+  /* The badge was hidden here, which took the explanation off exactly the rows that need one:
+     a phone showed "ridden, Cykelslangen has it" and no reason why riding it again would do
+     nothing. It wraps onto its own line instead, lined up under the text. */
+  .crewtargets { --kmc: min(var(--kmw, 88px), 46%); }
+  .crewtargets.nums { --kmc: 52px; }
+  .crewtrow { flex-wrap: wrap; row-gap: 3px; }
+  .crewtag { margin-left: calc(var(--kmc) + 44px); }
+  .crewcname { max-width: none; }
   .crewboard table .val.sub { display: table-cell; font-size: 10.5px; text-align: right; }
   .crewboard table .val.sub .crewarea { display: none; }
 }
+
 
 
 /* how long a crew has held a square, filled in after the popup opens */

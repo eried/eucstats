@@ -304,6 +304,16 @@ def _stamp_recent(db: Session, store_id: str, clan_id: str) -> None:
     not only gain you their backlog, it denies it to everybody else for good. Two weeks is
     "what you have been riding lately", which is what this was for.
     """
+    # The window was never what bound this. Measured on the demo world, every un-credited
+    # ride in it was already inside a fortnight, so ninety days to fourteen bought nothing at
+    # all: one joiner still took a crew from 4 squares to 67, and it is repeatable with a
+    # different rider every time. What the mechanic is for is the stated purpose, that a crew
+    # founded today is not looking at an empty map. So it is the crew's fortnight, not the
+    # rider's. After that a crew grows by riding.
+    clan = db.get(Clan, clan_id)
+    if clan is not None and clan.created_at and (
+            utcnow() - clan.created_at).days > JOIN_BACKFILL_DAYS:
+        return
     since = utcnow() - timedelta(days=JOIN_BACKFILL_DAYS)
     (db.query(Trip)
      .filter(Trip.rider_store_id == store_id, Trip.clan_id.is_(None),

@@ -484,7 +484,7 @@ def test_a_bigger_loop_never_pays_less_than_a_smaller_one():
     """The guard that stops a thin ring swallowing a city used to drop the whole gain, so a
     loop one block wider went from paying double to paying nothing. A rule that punishes
     riding further is the one kind this file is not allowed to have."""
-    from services.territory import _close_holes
+    from services.territory import _close_holes, regions
     last = 0.0
     for n in (5, 6, 7, 8, 10, 14, 20):
         ring = set()
@@ -495,6 +495,12 @@ def test_a_bigger_loop_never_pays_less_than_a_smaller_one():
         ratio = len(held) / len(ring)
         assert ratio >= last - 1e-9, f"{n}x{n} pays {ratio:.2f}, down from {last:.2f}"
         assert ratio <= 2.0 + 1e-9, f"{n}x{n} pays {ratio:.2f}, a ring must not swallow a city"
+        # and it has to stay one piece. Taking the middle of the hole first left a floating
+        # disc with a gap between it and the loop that earned it: two regions, a second
+        # emblem in the middle of nowhere, and the ranked number unmoved.
+        comps = regions(held)
+        assert len(comps) == 1, f"{n}x{n} came out as {len(comps)} patches"
+        assert max(len(c) for c in comps) == len(held)
         last = ratio
 
 
