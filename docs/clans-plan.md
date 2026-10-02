@@ -16,13 +16,14 @@ and the order to build it in.
 | | |
 |---|---|
 | Names | **Crews** holding **Territory**. Internal identifier stays `clan`. |
+| Privacy floor | **None.** Unlike the heatmap, which sweeps every rider in automatically, a crew is joined deliberately — so colouring the map is a choice the rider made. |
 | Grid | **Web Mercator tiles, zoom 13** — square on screen at every latitude. ~2.4 km at Oslo, ~4.9 km at the equator. Admin-tunable. |
 | Claiming | Most kilometres in the tile over a **rolling 90 days**. |
 | Which rides | **Validated AND real rides only** — ≥10 min moving, ≥1 km. |
 | Seeding | A crew's territory starts only at a **2×2 block** of led tiles, then **grows through connected tiles**. |
 | Loose tiles | A led tile not reachable from a seed is **not drawn at all**. |
 | Outline | Each **connected region** gets one border in a darker shade of the crew colour. |
-| Colours | **Fixed palette of 24, globally unique**, first come. |
+| Identity | **24 colours × 4 patterns = 96 combinations**, each used once. On creation the server offers a random pick from the **least-used** combinations. |
 | Emblems | Small square PNG, server re-encoded; admin can remove. No logo → **generated pixel block with initials**. |
 | History | A trip is **stamped with the rider's crew at ingest** and keeps it forever. |
 | Membership | **One crew at a time, 7-day cooldown** after leaving. |
@@ -183,6 +184,39 @@ dataset is tens of thousands of rows — nothing.
 
 ---
 
+## 4a. Keeping the server out of it
+
+Territory must not cost anything per visitor. The whole mode is built so that a page view is a
+cache hit and nothing else.
+
+**Once a night, one pass.** A job recomputes `ClanCell` from the trips inside the 90-day window
+and writes the winner per tile. Ninety days is a few hundred trips, each crossing roughly twenty
+tiles at zoom 13, so this is seconds of work over tens of thousands of rows. Nothing is
+recomputed on read, and the rolling window needs no expiry bookkeeping — the window is simply
+the query.
+
+**The server sends tiles, not shapes.** The API returns a compact `tile → crew` map, not GeoJSON
+polygons: `"13/4312/2187": 3`. A few thousand unique tiles is around 100 KB before compression
+and far less after. Building five coordinates per polygon is the client's job, and the client is
+already building geometry for the emblem blocks.
+
+**The client does the thinking.** Seeding, the flood fill, the connected regions, the boundary
+outlines and the maximal-rectangle search for emblems all happen in the browser, from that one
+payload. This is not a performance compromise — it has to be client-side anyway, because block
+sizes depend on the current zoom, and a server cannot answer that without a round trip per pan.
+
+**Every response is cacheable.** The payload changes once a night, so it carries a strong ETag
+and a long max-age. A returning visitor gets a 304. Nothing about serving territory touches the
+database.
+
+**At ingest the cost is one lookup** — the rider's current crew, stamped onto the trip. No
+aggregation happens on the upload path.
+
+If the payload ever outgrows a single blob, the next step is splitting it by coarse tile rather
+than filtering per request, so it stays a static file. Not needed at this size.
+
+---
+
 ## 5. Rendering
 
 Only in this mode. The heatmap and every existing layer are untouched.
@@ -197,6 +231,22 @@ Only in this mode. The heatmap and every existing layer are untouched.
   - 1×1 never carries an emblem
   - `icon-allow-overlap: false` so emblems thin out as you zoom away
 - Blocks are computed client-side from the tile set, so they adapt to zoom without a round trip.
+
+### Colour and pattern
+
+A crew's identity is a **(colour, pattern) pair**, unique across the site: 24 colours chosen to
+stay distinguishable on a map and to survive colour-blindness, times 4 fills — solid, stripes,
+dots, hatch.
+
+On creation the server does not ask the founder to choose from a grid of 96 swatches. It counts
+how many crews hold each combination and **offers a random one of the least-used**, which the
+founder can accept or change. That keeps the map spread across the palette without anyone
+having to think about it, and it is a single `GROUP BY` over a table with as many rows as there
+are crews.
+
+**Patterns cost four sprites, not ninety-six.** The fill layer paints the solid colour; a second
+layer paints the pattern over it in white at low opacity, keyed by `fill-pattern`. So adding a
+fifth pattern adds one image, not twenty-four.
 
 ### Emblems
 
@@ -237,8 +287,8 @@ Each phase ends somewhere runnable. Nothing leaves the laptop.
 | 1 | Tables, migrations, Mercator tiling helper | tests pass |
 | 2 | Pairing endpoints + sessions, no UI | a pair completes with curl; rate limits hold |
 | 3 | Crew CRUD behind a paired session | create/join/approve/leave work in a local browser |
-| 4 | `ClanCell` aggregation: rolling window, lead, seed, flood fill | a seeded local DB gives sane territory |
-| 5 | Map mode: fills, outlines, emblem blocks, ranking | looks right at several zooms |
+| 4 | Nightly `ClanCell` job: rolling window, winner per tile, cached payload | a seeded local DB gives sane territory; the endpoint is a cache hit |
+| 5 | Map mode: fills, patterns, outlines, emblem blocks, ranking — all client-side | looks right at several zooms |
 | 6 | Placeholder emblem generator + upload pipeline | both paths render on the map |
 | 7 | App branch off `next-experimental`: QR scanner + approval screen | pairs against the laptop |
 | 8 | Admin: QR+TOTP, crew moderation, kill switch, EN strings | the mode can be switched off whole |
@@ -254,12 +304,7 @@ Each phase ends somewhere runnable. Nothing leaves the laptop.
 
 ## 8. Things that will need deciding later, but not yet
 
-- **The 24-colour palette caps crews at 24.** Fine for a test phase, and it keeps the map
-  readable. When it binds, the answer is probably colour × pattern (24 × 4 = 96), which the
-  renderer should be built to allow even if only solid fills ship.
-- **No privacy floor** is a deliberate departure from the heatmap's 2-rider rule. It is
-  defensible because joining a crew is a choice, where appearing in the heatmap is not — but a
-  one-member crew's territory is a public map of one person's riding, under a name they chose.
-  Worth revisiting once real crews exist.
+- **96 combinations is the cap.** When it binds, more patterns are the cheap answer — the
+  renderer costs one sprite per pattern, not one per crew.
 - **Imperial units**: the ranking is km², and the site already has unit profiles. mi² needs to
   come from the same place, not a second conversion.
