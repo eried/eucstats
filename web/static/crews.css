@@ -27,7 +27,7 @@
 .crewbtn {
   margin-top: 12px; padding: 9px 16px; background: var(--sec, #2ea8ff); color: #061020;
   border: 0; font: inherit; font-weight: 700; font-size: 13px; letter-spacing: .3px;
-  cursor: pointer; border-radius: 0;
+  cursor: pointer; border-radius: 7px;
 }
 .crewbtn:hover { filter: brightness(1.12); }
 .crewbtn:disabled { opacity: .5; cursor: default; }
@@ -40,7 +40,6 @@
    map draws it — so the swatch beside a name is the same thing you see on the ground */
 .crewsw { display: inline-block; vertical-align: middle; border: 1px solid rgba(255,255,255,.55); position: relative; }
 .crewsw::after { content: ""; position: absolute; inset: 0; }
-.crewsw[data-p=stripes]::after { background: repeating-linear-gradient(45deg, rgba(0,0,0,.45) 0 3px, transparent 3px 7px); }
 .crewsw[data-p=hatch]::after {
   background: repeating-linear-gradient(45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px),
               repeating-linear-gradient(-45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px);
@@ -88,7 +87,9 @@
 .crewqr img { width: 188px; height: 188px; image-rendering: pixelated; background: #fff; padding: 7px; }
 .crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
 
-.crewmsg { margin: 9px 0; padding: 8px 11px; background: rgba(255,138,216,.13); border-left: 2px solid var(--sec, #ff8ad8); font-size: 12.5px; }
+.crewmsg { margin: 9px 0; padding: 8px 11px; border-radius: 7px;
+  background: rgba(255,138,216,.13); border-left: 2px solid var(--sec, #ff8ad8);
+  font-size: 12.5px; }
 .crewmsg.bad { background: rgba(255,107,107,.13); border-left-color: #ff6b6b; }
 
 .crewhow { font-size: 12.5px; line-height: 1.55; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); padding: 0 13px; }
@@ -225,10 +226,9 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewpreview { flex: 0 0 auto; }
 .crewpreview .crewsw { border-width: 2px; }
 .crewpickwrap { flex: 1; min-width: 0; }
-.crewpick { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0 9px; }
 .crewpickc, .crewpickp {
   width: 24px; height: 24px; padding: 0; border: 1px solid rgba(255,255,255,.22);
-  cursor: pointer; border-radius: 0; background-clip: padding-box;
+  cursor: pointer; border-radius: 7px; background-clip: padding-box;
 }
 .crewpickp { background: transparent; display: flex; align-items: center; justify-content: center; }
 .crewpickp .crewsw { width: 20px; height: 20px; border: 0; }
@@ -246,8 +246,6 @@ a.crewqr { display: flex; text-decoration: none; }
 /* The squares belong on the map, not in the panel. Cards sitting at radius 0 inside a 12px
    panel next to 7px tabs read as unfinished rather than as deliberate. */
 .crewcard, .crewmine-wrap, .crewhow { border-radius: 10px; }
-.crewmsg { border-radius: 6px; }
-.crewbtn { border-radius: 7px; }
 /* kept square on purpose: these ARE the map's language */
 .crewsw, .crewpickc, .crewpickp, .crewemb img { border-radius: 0; }
 
@@ -256,7 +254,8 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewrank .celln .crewsw, .crewboard table .celln .crewsw { flex: 0 0 auto; }
 
 /* the colour grid was ragged; 12 to a row reads as a palette */
-.crewpick { display: grid; grid-template-columns: repeat(12, 24px); gap: 5px; }
+.crewpick { display: grid; grid-template-columns: repeat(12, 24px); gap: 5px;
+  margin: 5px 0 9px; }
 #cf-patterns { grid-template-columns: repeat(6, 24px); }
 
 /* patterns have to be separable at swatch size */
@@ -270,10 +269,27 @@ a.crewqr { display: flex; text-decoration: none; }
 /* the band legend under the board */
 .crewlegend { display: flex; gap: 12px 14px; flex-wrap: wrap; margin: 10px 0 2px;
   font-size: 11px; color: var(--mut, #7a86ad); }
-.crewlegend i { display: inline-block; width: 13px; height: 13px; margin-right: 5px;
-  vertical-align: -2px; background: var(--sec, #ff8ad8); border: 1px solid rgba(255,255,255,.25); }
-.crewlegend .b1 i { opacity: .62; }
-.crewlegend .b2 i { opacity: .38; border-style: dashed; }
+.crewlegend i { display: inline-block; width: 16px; height: 16px; margin-right: 5px;
+  vertical-align: -3px; background: var(--sec, #ff8ad8);
+  border: 1px solid rgba(255,255,255,.25); }
+/* The chips describe what the map paints and nothing else. A ten per cent opacity step is
+   visible across a city block and invisible across sixteen pixels, so the two contested bands
+   are told apart by the dashed edge, which is what the map really adds, and the steps are
+   exaggerated enough to read at this size. Band 4 has no chip because the map draws no
+   distinct mark for it; the tooltip says "Ringed off" in words instead. */
+.crewlegend .b0 i { opacity: 1; }
+.crewlegend .b1 i { opacity: .9; border-style: dashed; border-color: #fff; }
+.crewlegend .b2 i { opacity: .62; border-style: dashed; border-color: #fff; }
+.crewlegend .b3 i { opacity: .7; border-color: rgba(255,255,255,.18); }
+/* solid, because the line on the map is solid */
+.crewlegend .bt i { background: transparent; border: 2px solid #ffd24a;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
+.crewlegend .bl i { background: transparent; border: 2px solid #ff9f6b; }
+/* 5.2s and half a cycle apart, which is what the map actually does */
+.crewlegend .bd i { background: #fff; opacity: .55;
+  animation: crewbreathe 5.2s ease-in-out infinite; }
+.crewlegend .bf i { background: var(--sec, #ff8ad8); opacity: .55;
+  animation: crewbreathe 5.2s ease-in-out infinite; animation-delay: -2.6s; }
 
 @media (max-width: 560px) {
   /* truncating crew names is indefensible in a feature about naming your crew */
@@ -298,26 +314,6 @@ a.crewqr { display: flex; text-decoration: none; }
 .panel[data-sec=crews] .hint { border-left-color: var(--sec, #ff8ad8); }
 .panel[data-sec=crews] .sel:hover { background: rgba(255,138,216,.1); }
 
-/* The legend has to agree with the map it explains: the fills step 1 / .84 / .66 and the
-   dashed edge is on both contested bands, not just the worst one. */
-/* The chips have to be separable at a glance, which .84 against .66 on a dark panel is not,
-   and every state the map paints needs one. The legend has drifted twice; it is generated
-   from the same list the map uses now in spirit, and sized so the steps are visible. */
-.crewlegend i { width: 16px; height: 16px; }
-.crewlegend .b1 i { opacity: .88; border-style: dashed; border-color: #fff; }
-.crewlegend .b2 i { opacity: .78; border-style: dashed; border-color: #fff; }
-.crewlegend .b3 i { opacity: .7; border-style: dotted;
-  border-color: rgba(255,255,255,.7); }
-.crewlegend .b4 i { opacity: 1; box-shadow: inset 0 0 0 2px rgba(0,0,0,.45); }
-/* solid, because the line on the map is solid. This chip has now drifted out
-   of step with it three times. */
-.crewlegend .bt i { background: transparent; border: 2px solid #ffd24a;
-  box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
-/* 5.2s and half a cycle apart, which is what the map actually does */
-.crewlegend .bd i { background: #fff; opacity: .55;
-  animation: crewbreathe 5.2s ease-in-out infinite; }
-.crewlegend .bf i { background: var(--sec, #ff8ad8); opacity: .55;
-  animation: crewbreathe 5.2s ease-in-out infinite; animation-delay: -2.6s; }
 @keyframes crewbreathe { 0%, 100% { opacity: .15; } 50% { opacity: .85; } }
 @media (prefers-reduced-motion: reduce) {
   .crewlegend .bd i, .crewlegend .bf i { animation: none; opacity: .55; }
@@ -354,7 +350,7 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* Asking inside the panel rather than through the browser. */
 .crewask {
-  margin: 9px 0; padding: 11px 13px; border-radius: 6px;
+  margin: 9px 0; padding: 11px 13px; border-radius: 7px;
   background: rgba(255,138,216,.1); border-left: 2px solid var(--sec, #ff8ad8);
 }
 .crewask p { margin: 0 0 9px; font-size: 13px; }
@@ -375,9 +371,13 @@ a.crewqr { display: flex; text-decoration: none; }
 /* Where to ride next. The distance leads, because that is the thing a rider weighs. One
    variable sets the number column so the phone rule cannot drift out of step with it. */
 .crewtargets {
+  /* --kmw is set inline per list from that list's own longest phrase; --kmc is what the
+     column uses, so the phone rule can cap it without being outranked by the inline. */
   --kmw: 96px;
+  --kmc: min(var(--kmw, 96px), 46%);
   margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px;
 }
+.crewtargets.nums { --kmc: 58px; }
 .crewtargets .hint { margin: 0 0 8px; }
 .crewtrow {
   display: flex; align-items: center; gap: 9px; padding: 6px 8px; margin: 0 -8px;
@@ -387,14 +387,9 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtrow:hover { background: rgba(255,138,216,.09); }
 /* A phrase, not a figure: "a short ride" in a 58px tabular-nums column wrapped onto two
    lines. The monospace column comes back only when the admin asks for exact kilometres. */
-/* One variable for the width so the phone rule cannot be defeated by the inline --kmw the
-   list sets from its own longest phrase. */
-.crewtargets { --kmc: min(var(--kmw, 96px), 46%); }
-.crewtargets.nums { --kmc: 58px; }
 /* gold, because the ring this column points at is gold. The lose card is orange for the same
    reason. That pairing is the only thing telling the two cards apart at a glance. */
 .crewtkm { flex: 0 0 auto; width: var(--kmc); font-weight: 600; color: #ffd24a; }
-.crewtargets.nums { --kmw: 58px; }
 .crewtargets.nums .crewtkm {
   font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums;
   font-weight: 700; text-align: right;
@@ -413,7 +408,7 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtrow.done .crewtkm { color: var(--mut, #7a86ad); font-weight: 400; }
 .crewtag {
   flex: 0 0 auto; margin-left: auto; font-size: 10px; letter-spacing: .3px;
-  text-transform: uppercase; padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 4px; white-space: nowrap;
   opacity: .95;
 }
 /* Two different claims had one identical gold chip; and the hottest label in the panel was
@@ -442,7 +437,7 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtip {
   position: absolute; z-index: 5; pointer-events: none;
   transform: translate(14px, -50%);
-  padding: 6px 9px; border-radius: 4px; max-width: 210px;
+  padding: 6px 9px; border-radius: 4px; max-width: 230px;
   background: rgba(6, 10, 20, .94); border: 1px solid rgba(255, 255, 255, .16);
   box-shadow: 0 4px 18px rgba(0, 0, 0, .55);
   font-size: 11.5px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere;
@@ -495,8 +490,6 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; }
 
 
-/* the orange ring had no chip, the third time this legend has drifted from the map */
-.crewlegend .bl i { background: transparent; border: 2px solid #ff9f6b; }
 
 /* The scoreline was inside the cell the phone hides, so the one piece of news in the mode
    vanished on the device most people use. The tile count goes instead. */

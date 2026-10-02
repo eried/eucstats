@@ -386,6 +386,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} uger",
   "crew.lose.more": "og {n} mere på vej væk",
   "crew.e.image2": "For rodet til at skrumpe. Prøv noget fladere, med færre farver.",
+  "crew.first.building": "Kortet er stadig ved at blive tegnet. Terræn dukker op inden for en time.",
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -771,6 +772,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} Wochen",
   "crew.lose.more": "und {n} weitere rutschen weg",
   "crew.e.image2": "Zu unruhig zum Verkleinern. Nimm was Flacheres, mit weniger Farben.",
+  "crew.first.building": "Die Karte wird noch gezeichnet. Gebiete tauchen innerhalb einer Stunde auf.",
  },
  "es": {
   "dock.riders": "Riders",
@@ -1156,6 +1158,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} semanas",
   "crew.lose.more": "y {n} más escapándose",
   "crew.e.image2": "Demasiado cargada para encogerla. Prueba algo más plano, con menos colores.",
+  "crew.first.building": "El mapa todavía se está dibujando. El terreno aparece dentro de una hora.",
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1541,6 +1544,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} semanas",
   "crew.lose.more": "y {n} más escapándose",
   "crew.e.image2": "Demasiado cargada para achicarla. Prueba algo más plano, con menos colores.",
+  "crew.first.building": "El mapa todavía se está dibujando. El terreno aparece dentro de una hora.",
  },
  "fr": {
   "dock.riders": "Riders",
@@ -1926,6 +1930,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} semaines",
   "crew.lose.more": "et {n} autres qui filent",
   "crew.e.image2": "Trop chargée pour être réduite. Essaie plus plat, avec moins de couleurs.",
+  "crew.first.building": "La carte est encore en train de se dessiner. Le terrain arrive dans l'heure.",
  },
  "it": {
   "dock.riders": "Rider",
@@ -2311,6 +2316,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} settimane",
   "crew.lose.more": "e altre {n} che scappano",
   "crew.e.image2": "Troppo carica per rimpicciolirla. Prova qualcosa di più piatto, con meno colori.",
+  "crew.first.building": "La mappa si sta ancora disegnando. Il terreno compare entro un'ora.",
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -2696,6 +2702,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n}週間",
   "crew.lose.more": "ほかに{n}マスも逃げかけている",
   "crew.e.image2": "情報量が多すぎて縮まない。色数の少ない、平たい絵で。",
+  "crew.first.building": "地図はまだ描いている途中。土地は一時間以内に出てくる。",
  },
  "ko": {
   "dock.riders": "라이더",
@@ -3081,6 +3088,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n}주",
   "crew.lose.more": "{n}칸이 더 빠져나가는 중",
   "crew.e.image2": "너무 복잡해서 못 줄인다. 색 적고 단순한 걸로.",
+  "crew.first.building": "지도를 아직 그리는 중이다. 땅은 한 시간 안에 뜬다.",
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -3466,6 +3474,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} weken",
   "crew.lose.more": "en nog {n} die wegglijden",
   "crew.e.image2": "Te druk om te verkleinen. Probeer iets vlakkers, met minder kleuren.",
+  "crew.first.building": "De kaart wordt nog getekend. Terrein verschijnt binnen een uur.",
  },
  "no": {
   "dock.riders": "Førere",
@@ -3851,6 +3860,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} uker",
   "crew.lose.more": "og {n} til som glipper",
   "crew.e.image2": "For rotete til å krympe. Prøv noe flatere, med færre farger.",
+  "crew.first.building": "Kartet tegnes fortsatt. Terreng dukker opp innen en time.",
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -4236,6 +4246,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} tygodni",
   "crew.lose.more": "i jeszcze {n} ucieka",
   "crew.e.image2": "Za bogaty, żeby go zmniejszyć. Spróbuj czegoś płaskiego, z mniejszą liczbą kolorów.",
+  "crew.first.building": "Mapa jeszcze się rysuje. Teren pojawi się w ciągu godziny.",
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -4621,6 +4632,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} semanas",
   "crew.lose.more": "e mais {n} escorregando",
   "crew.e.image2": "Carregada demais pra encolher. Tenta algo mais chapado, com menos cor.",
+  "crew.first.building": "O mapa ainda está sendo desenhado. O terreno aparece dentro de uma hora.",
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -5006,6 +5018,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} недель",
   "crew.lose.more": "и ещё {n} ускользают",
   "crew.e.image2": "Слишком пёстрая, не ужимается. Возьми что-нибудь плоское, с меньшим числом цветов.",
+  "crew.first.building": "Карта ещё рисуется. Территория появится в течение часа.",
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -5391,6 +5404,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} veckor",
   "crew.lose.more": "och {n} till som glider iväg",
   "crew.e.image2": "För rörig för att krympas. Testa något plattare, med färre färger.",
+  "crew.first.building": "Kartan ritas fortfarande. Mark dyker upp inom en timme.",
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -5776,6 +5790,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} hafta",
   "crew.lose.more": "ve {n} tane daha kayıyor",
   "crew.e.image2": "Küçültmek için fazla kalabalık. Daha düz, az renkli bir şey dene.",
+  "crew.first.building": "Harita hâlâ çiziliyor. Topraklar bir saat içinde görünür.",
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -6161,6 +6176,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} тижнів",
   "crew.lose.more": "і ще {n} вислизають",
   "crew.e.image2": "Надто строката, не стискається. Візьми щось пласке, з меншою кількістю кольорів.",
+  "crew.first.building": "Карта ще малюється. Територія зʼявиться протягом години.",
  },
  "zh": {
   "dock.riders": "骑友",
@@ -6546,6 +6562,7 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} 周",
   "crew.lose.more": "还有 {n} 格在往外溜",
   "crew.e.image2": "太花了，压不下来。换个平一点、颜色少一点的。",
+  "crew.first.building": "地图还在画。地盘一小时内就会出来。",
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -6931,5 +6948,6 @@ TRANSLATIONS = {
   "crew.ago.weeks": "{n} 週",
   "crew.lose.more": "還有 {n} 格在往外溜",
   "crew.e.image2": "太花了，壓不下來。換個平一點、顏色少一點的。",
+  "crew.first.building": "地圖還在畫。地盤一小時內就會出來。",
  },
 }

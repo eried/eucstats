@@ -508,3 +508,20 @@ def test_joining_brings_a_fortnight_not_a_season():
     assert JOIN_BACKFILL_DAYS <= 21, "a joiner must not hand over a whole season"
     assert JOIN_BACKFILL_DAYS < WINDOW_DAYS / 3, (JOIN_BACKFILL_DAYS, WINDOW_DAYS)
     assert JOIN_BACKFILL_DAYS >= 7, "and a crew founded today should still see something"
+
+
+def test_the_first_crews_each_get_their_own_colour(db):
+    """Counting (colour, pattern) pairs alone let two crews share a colour while twenty others
+    went unused, and the demo world produced it twice. At the fourteen-pixel swatch the board
+    draws, two crews on one colour are the same square whatever pattern is on them."""
+    from models import Clan
+    from services.crews import PALETTE, suggest_identity
+    seen = []
+    for i in range(len(PALETTE)):
+        got = suggest_identity(db)
+        seen.append(got["colour"])
+        db.add(Clan(clan_id=f"t-ident-{i}", name=f"Crew {i}", slug=f"crew-{i}",
+                    colour=got["colour"], pattern=got["pattern"],
+                    join_policy="open", invite_code=f"I{i}"))
+        db.commit()
+    assert len(set(seen)) == len(PALETTE), f"{len(set(seen))} colours across {len(PALETTE)} crews"

@@ -55,9 +55,16 @@ def suggest_identity(db) -> dict:
     row per crew.
     """
     taken: dict[tuple[str, str], int] = {}
+    by_colour: dict[str, int] = {}
     for c, p in db.query(Clan.colour, Clan.pattern).filter(Clan.disbanded_at.is_(None)).all():
         taken[(c, p)] = taken.get((c, p), 0) + 1
+        by_colour[c] = by_colour.get(c, 0) + 1
     combos = [(c, p) for c in PALETTE for p in PATTERNS]
+    # Colour first, pattern second. Counting pairs alone let two crews share a colour while
+    # twenty others went unused, and at the fourteen-pixel swatch the board draws, two crews
+    # on one colour are the same square whatever pattern is printed on them.
+    fewest_c = min(by_colour.get(c, 0) for c in PALETTE)
+    combos = [k for k in combos if by_colour.get(k[0], 0) == fewest_c]
     fewest = min(taken.get(k, 0) for k in combos)
     pool = [k for k in combos if taken.get(k, 0) == fewest]
     colour, pattern = random.choice(pool)

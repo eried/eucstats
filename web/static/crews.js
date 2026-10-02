@@ -688,15 +688,17 @@
     });
   }
 
-  // Every state the map can paint gets a chip. The legend has fallen out of step twice now,
-  // both times because a state was added to the map and not to the list that explains it.
+  // Every mark the map draws gets a chip, and nothing else does. This list fell out of step
+  // with the map four times, every time because a state was added to one and not the other,
+  // and once because a chip described a mark the map has never drawn. The styles live in one
+  // block in crews.css now rather than in a rule and a later override of that rule, which is
+  // what made it so easy to add to the wrong half.
   function legendHTML() {
     return '<div class="crewlegend">'
       + '<span class="b0"><i></i>' + t("crew.tile.safe") + "</span>"
       + '<span class="b1"><i></i>' + t("crew.tile.pushed") + "</span>"
       + '<span class="b2"><i></i>' + t("crew.tile.slipping") + "</span>"
       + '<span class="b3"><i></i>' + t("crew.tile.fading") + "</span>"
-      + '<span class="b4"><i></i>' + t("crew.tile.ringed") + "</span>"
       + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
       + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
       + '<span class="bd"><i></i>' + t("crew.legend.danger") + "</span>"
@@ -1580,7 +1582,7 @@
       // sits under it, folded away once they have one — they already know what it is.
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
         + '<p class="hint crewboardsub">' + t("crew.board.sub") + "</p>"
-        + rankingHTML(rank) + "</div>";
+        + firstRunNote() + rankingHTML(rank) + "</div>";
       // Signed out, the only thing you can act on goes first and the board follows. Signed
       // in, the board leads because that is what you came back to look at.
       var h = me.paired ? board : signInHTML() + board;
@@ -1720,6 +1722,14 @@
         "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 0.95]
       }
     });
+  }
+
+  // A fresh install has no territory file until the first rebuild runs. The payload says so
+  // and nothing read it, so the map was blank and the board said "nobody holds anything yet",
+  // which is exactly what a broken feature looks like.
+  function firstRunNote() {
+    if (!TERR || !TERR.pending) return "";
+    return '<div class="crewmsg">' + esc(t("crew.first.building")) + "</div>";
   }
 
   function reloadTerritory() {

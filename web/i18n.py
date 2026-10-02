@@ -57,6 +57,7 @@ EN: dict[str, str] = {
     "crew.join.pending": "Waiting on a leader to let you in.",
     "crew.join.wait.h": "Cooling off",
     "crew.join.wait.p": "You just walked out of one. Next crew in {n}. Keeps people from hopping around farming ground.",
+    "crew.first.building": "The map is still being drawn. Ground shows up within the hour.",
     "crew.first.h": "Ride something first",
     "crew.first.p": "Crews are for riders. Send up one ride and you can start your own. Joining one works right now.",
     # your crew
