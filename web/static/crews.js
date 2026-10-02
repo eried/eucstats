@@ -216,6 +216,7 @@
     stopPulse();
     markers.forEach(function (m) { m.remove(); });
     markers = [];
+    if (POPUP) { POPUP.remove(); POPUP = null; }
   }
 
   function buildLayers() {
@@ -352,6 +353,10 @@
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
       startPulse(pulse.features.length);
+      // The basemap picker calls setStyle, style.load fires, and this runs again from
+      // scratch. Without this the gold rings were torn down and never came back, and a crew
+      // write did the same thing racily through reloadTerritory.
+      showTargets(TARGETS);
     });
 
     buildEmblems();
@@ -482,6 +487,8 @@
     }, HOVER_MS);
   }
 
+  var POPUP = null;
+
   function onCellClick(e) {
     var f = e.features && e.features[0];
     if (!f) return;
@@ -495,7 +502,8 @@
     var words = tileWords(info[0], info[1], ty);
     var state = words[0], detail = words[1];
     hideTip();
-    new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
+    if (POPUP) POPUP.remove();
+    POPUP = new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)
@@ -669,6 +677,7 @@
   // single patch and welding two together beats widening either.
   var TARGETS = [];
   var TARGETSEL = -1;
+  var LOSING = [];
 
   function bearing(d) { return d ? t("crew.targets." + d) : ""; }
 
@@ -729,6 +738,7 @@
       rows.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2], band: band,
                   need: TERR.cells[i + 4] / 10 });
     }
+    LOSING = [];
     if (!rows.length || !all.length) return "";
     rows.sort(function (a, b) { return (b.band - a.band) || (a.need - b.need); });
     LOSING = rows.slice(0, 5);
@@ -751,8 +761,6 @@
         }).join("")
       + "</div>";
   }
-
-  var LOSING = [];
 
   // Who actually rode for the crew, over the same window the territory is measured on, so the
   // list explains the shape on the map rather than ranking loyalty.
@@ -1258,7 +1266,9 @@
         row.onclick = function () { flyToTile(TARGETS[+row.dataset.t], +row.dataset.t); };
       });
       el.querySelectorAll("[data-l]").forEach(function (row) {
-        row.onclick = function () { flyToTile(LOSING[+row.dataset.l], -1); };
+        // no second argument: ground you are losing is already breathing on the map, and
+        // redrawing the target rings here only cleared whichever one was marked
+        row.onclick = function () { flyToTile(LOSING[+row.dataset.l]); };
       });
       showTargets(TARGETS);
     });
@@ -1467,8 +1477,7 @@
     var lat = (tileLat(x.y, TERR.z) + tileLat(x.y + 1, TERR.z)) / 2;
     // Closing the panel threw the list away to show eight identical outlines, so comparing two
     // squares cost two full round trips. On a phone the panel covers the map and has to go.
-    TARGETSEL = i == null ? -1 : i;
-    showTargets(TARGETS);
+    if (i != null) { TARGETSEL = i; showTargets(TARGETS); }
     if (window.innerWidth <= 560) H.closePanel && H.closePanel();
     // Close enough to find the street, far enough to still see it against the crew's own
     // ground. Flying to 13.2 put one square across the whole screen, which answers "where is
@@ -1481,7 +1490,9 @@
   // block two streets over is a route. Not in the white dashed line the contested ring already
   // uses: that one means somebody is taking ground off you, which is the opposite thing.
   function showTargets(rows) {
-    if (!map || !TERR || !map.getSource("crew-cells")) return;
+    // not on crew-cells: buildLayers returns early when no crew holds anything, so on a fresh
+    // install the "puts you on the map" squares were listed and never drawn for anybody
+    if (!map || !TERR || !map.isStyleLoaded()) return;
     var data = { type: "FeatureCollection", features: (rows || []).map(function (x, i) {
       return { type: "Feature",
                properties: { sel: i === TARGETSEL ? 1 : 0, dim: x.blocked ? 1 : 0 },

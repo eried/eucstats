@@ -27,9 +27,10 @@ async def _retention_loop():
         await asyncio.sleep(interval)
         try:
             # On a thread, not on the event loop. All three of these are synchronous and the
-            # territory rebuild grows with the number of trips: measured, it blocked the loop
-            # for 1,487 ms at today's size and 17 seconds at a hundred times the trips, which
-            # on one worker is the whole site down, once an hour, for as long as it takes.
+            # territory rebuild grows with the number of trips: measured, 182 ms at today's
+            # size and about half a minute at a hundred times the trips, which on one worker
+            # would be the whole site down, once an hour, for as long as it takes. The 1,487 ms
+            # this comment used to claim was a profiler's own overhead, not the rebuild.
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, _retention_once)
         except Exception:

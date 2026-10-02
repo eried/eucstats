@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Clan, ClanMember, Rider, Trip, utcnow
+from models import Clan, ClanMember, Rider, Trip, WebSession, utcnow
 from services import crews, pairing, ratelimit, settings, territory
 from services import tiles as T
 
@@ -43,7 +43,7 @@ def _gate(db: Session) -> dict:
     return cfg
 
 
-def _me(request: Request, db: Session) -> ClanMember | None:
+def _me(request: Request, db: Session) -> WebSession | None:
     ws = pairing.session(db, request.cookies.get(pairing.COOKIE), scope="crew")
     return ws
 
@@ -315,9 +315,13 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
                                         ClanMember.status == "active",
                                         ClanMember.left_at.is_(None))
             .order_by(ClanMember.joined_at.asc()).all())
+    # one query, not one per member: there is no cap on crew size by default, and a 200-rider
+    # crew was 215 statements for a page that needs a dozen
+    who = {r.store_id: r for r in db.query(Rider).filter(
+        Rider.store_id.in_([m.store_id for m in rows]))} if rows else {}
     out["roster"] = []
     for m in rows:
-        r = db.get(Rider, m.store_id)
+        r = who.get(m.store_id)
         out["roster"].append({"name": r.display_name if r else "?",
                               "flag": r.flag if r else None, "role": m.role,
                               "joined": m.joined_at.isoformat() + "Z" if m.joined_at else None})
@@ -331,7 +335,6 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
     # else's page it would read as a list of their weak spots, and that is a scouting report,
     # not a route.
     out["targets"] = []
-    out["zoom"] = cfg["zoom"]
     ws = _me(request, db)
     if ws is not None:
         mine = (db.query(ClanMember)
@@ -352,6 +355,8 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
                              .filter(Clan.clan_id.in_(ids)).all())
                 for t in out["targets"]:
                     t["held_name"] = names.get(t.get("held_by"))
+            for t in out["targets"]:
+                t["held_by"] = bool(t.get("held_by"))
     return out
 
 

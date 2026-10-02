@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import logging
 import math
 from datetime import timedelta
 from pathlib import Path
@@ -46,8 +47,10 @@ import config
 from models import Clan, ClanCell, ClanMember, Trip, TripTrack, utcnow
 from services import tiles as T
 
-WINDOW_DAYS = 90
-FRESH_DAYS = 7                 # how long newly taken ground still counts as news           # the rolling window: territory is what you ride, not what you rode
+_log = logging.getLogger(__name__)
+
+WINDOW_DAYS = 90           # the rolling window: territory is what you ride, not what you rode
+FRESH_DAYS = 7             # how long newly taken ground still counts as news
 SEED = 2                   # a crew must hold a SEED x SEED block to claim anything
 # A visit is a fraction of a crossing, not a fixed distance. As a flat 0.3 km it was 12% of
 # a crossing at the equator and 60% at Longyearbyen, which is the same latitude bias the lead
@@ -568,26 +571,6 @@ def _bearing(dx: int, dy: int) -> str:
     return _COMPASS[round(math.atan2(dx, -dy) / (math.pi / 4)) % 8]
 
 
-def _line(a: tuple[int, int], b: tuple[int, int]) -> set:
-    """The squares a rider would cross going from one patch to the other."""
-    (x0, y0), (x1, y1) = a, b
-    dx, dy = abs(x1 - x0), abs(y1 - y0)
-    sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
-    err, out = dx - dy, set()
-    for _ in range(dx + dy + 2):
-        out.add((x0, y0))
-        if (x0, y0) == (x1, y1):
-            break
-        e2 = err * 2
-        if e2 > -dy:
-            err -= dy
-            x0 += sx
-        if e2 < dx:
-            err += dx
-            y0 += sy
-    return out
-
-
 def _grown(pts: set, steps: int) -> set:
     """Everything within `steps` squares of a set, including diagonals."""
     out = set(pts)
@@ -606,7 +589,9 @@ def _grown(pts: set, steps: int) -> set:
 
 
 def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
-                limit: int = 8) -> list[dict]:
+                limit: int = 8, holder_of: dict | None = None,
+                mine: set | None = None, leads: set | None = None,
+                patches: list | None = None) -> list[dict]:
     """The ground this crew could take next, and what taking it would do.
 
     This is the one question the mode has to answer and did not. A rider could see that a tile
@@ -620,8 +605,13 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     * somebody else holds it and it is within REACH squares of the crew's own ground. This is
       the one that makes the list worth opening: without it the furthest the card could ever
       point was one square down a street you are already on.
-    * it lies on the line between the crew's two biggest patches, which is the only way a
-      square that welds them together can ever be a candidate at all
+
+    There was a fourth: the squares along the road between the crew's two biggest patches, on
+    the theory that a welding square could not otherwise reach the list. It could. `joins`
+    needs one square orthogonally touching two patches at once, which only happens across a
+    one-tile gap, and a square in a one-tile gap is a neighbour of held ground already. The
+    road produced nothing at any distance and cost up to 35ms per crew, so it is gone. A
+    genuine roadtrip is several rides long and is not a thing one row can ask for.
 
     And four things can make a square worth more than its distance:
 
@@ -641,15 +631,20 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     leads it on kilometres, and a crew with no 2x2 anywhere can lead ten squares and hold none.
     """
     held = set(kept.get(clan_id) or ())
-    holder_of = {}
-    for other, pts in kept.items():
-        for xy in pts:
-            holder_of[xy] = other
-
-    # squares the crew wins on kilometres, which is not the same as squares it draws
-    leads = {(p[1], p[2]) for p in (T.parse(t) for t, w in won.items() if w[0] == clan_id) if p}
-    mine = {(p[1], p[2]) for p in
-            (T.parse(t) for t, per in acc.items() if clan_id in per) if p}
+    # The caller normally hands these in, built once for the whole board: on their own they
+    # are three passes over every tile there is, and done per crew they were the entire cost
+    # of this function. Computed here when absent so the function still stands alone.
+    if holder_of is None:
+        holder_of = {xy: other for other, pts in kept.items() for xy in pts}
+    if mine is None:
+        mine = {(p[1], p[2]) for p in
+                (T.parse(t) for t, per in acc.items() if clan_id in per) if p}
+    if leads is None and not held:
+        # squares the crew wins on kilometres, which is not the same as squares it draws.
+        # Only a crew holding nothing ever reads this.
+        leads = {(p[1], p[2]) for p in
+                 (T.parse(t) for t, w in won.items() if w[0] == clan_id) if p}
+    leads = leads or set()
 
     cand = set()
     for (x, y) in held:                       # everything touching what we hold
@@ -658,7 +653,7 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                 cand.add(nb)
     cand |= mine - held                       # anywhere we already ride
 
-    patches = regions(held)
+    patches = list(patches if patches is not None else regions(held))
     patches.sort(key=len, reverse=True)
     if patches:
         # rivals within riding distance. Not the whole board: a list that points at another
@@ -666,13 +661,6 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         near = _grown(held, REACH)
         cand |= {xy for xy in near
                  if holder_of.get(xy) not in (None, clan_id)}
-        if len(patches) > 1:
-            # the road between the two biggest patches, which is the only route by which a
-            # square that welds them can reach this list
-            a = min(patches[0], key=lambda q: (q[0] - _mid(patches[1])[0]) ** 2
-                    + (q[1] - _mid(patches[1])[1]) ** 2)
-            b = min(patches[1], key=lambda q: (q[0] - a[0]) ** 2 + (q[1] - a[1]) ** 2)
-            cand |= _line(a, b) - held
     cand -= held
 
     patch_of = {}
@@ -729,11 +717,12 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         return 4 if t["grows"] else 5
 
     out.sort(key=lambda t: (rank(t), t["need"], t["x"], t["y"]))
+    # `grows` has done its job in the sort. It was true of ten rows in ten for almost every
+    # crew, nothing on the client reads it, and it is bytes in the payload and in the row.
+    for t in out[:limit]:
+        del t["grows"]
     return out[:limit]
 
-
-def _mid(pts: set) -> tuple[float, float]:
-    return (sum(x for x, _ in pts) / len(pts), sum(y for _, y in pts) / len(pts))
 
 
 def _zoom_of(won: dict) -> int:
@@ -748,8 +737,10 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             seed: int = SEED) -> dict:
     """Recompute every crew's territory and write both outputs. Returns a short report."""
     acc, recency = accumulate(db, window_days, zoom)
-    prev = {c.tile: c.clan_id for c in db.query(ClanCell).all()}
-    first_led = {(c.tile, c.clan_id): c.first_led for c in db.query(ClanCell).all()}
+    prev, first_led = {}, {}
+    for cell in db.query(ClanCell).all():      # one scan for both dicts, not two
+        prev[cell.tile] = cell.clan_id
+        first_led[(cell.tile, cell.clan_id)] = cell.first_led
 
     clans = {c.clan_id: c for c in db.query(Clan).filter(Clan.disbanded_at.is_(None)).all()}
     member_counts = dict(
@@ -759,16 +750,56 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
 
     kept, won, withdrawn_all = award(acc, set(clans), prev, seed, last_seen=recency)
 
+    # crews that draw nothing anywhere: they cannot take a square off anyone, so they must not
+    # set warnings off on one
+    seedless = set(clans) - set(kept)
+    patches_by_clan = {cid: regions(pts) for cid, pts in kept.items()}
+
+    # --- where to ride next, worked out BEFORE the write transaction opens.
+    #
+    # Two things were wrong with doing it further down. It sat between the ClanCell delete and
+    # the commit, so SQLite's single writer was held for the whole of it: 36 seconds once an
+    # hour at a hundred times today's data, during which every join, leave, upload and emblem
+    # write waits, and so does the session touch that serving a crew page performs. And the
+    # three dictionaries below were rebuilt inside the per-crew loop, which is the same answer
+    # recomputed once per crew: 50M, 81M and 53M iterations at that size, 21 seconds of the
+    # 36. Built once out here it is 1.2 seconds and nothing holds the lock.
+    holder_of = {xy: cid for cid, pts in kept.items() for xy in pts}
+    mine_by_clan: dict[str, set] = {}
+    for tile, per in acc.items():
+        pt = T.parse(tile)
+        if pt is None:
+            continue
+        for cid in per:
+            mine_by_clan.setdefault(cid, set()).add((pt[1], pt[2]))
+    leads_by_clan: dict[str, set] = {}
+    if seedless:                      # only a crew holding nothing ever reads this
+        for tile, w in won.items():
+            if w[0] in seedless:
+                pt = T.parse(tile)
+                if pt:
+                    leads_by_clan.setdefault(w[0], set()).add((pt[1], pt[2]))
+    targets_json = {}
+    for clan_id in clans:
+        try:
+            targets_json[clan_id] = json.dumps(targets_for(
+                acc, kept, clan_id, won, zoom,
+                holder_of=holder_of, mine=mine_by_clan.get(clan_id, set()),
+                leads=leads_by_clan.get(clan_id, set()),
+                patches=patches_by_clan.get(clan_id, [])))
+        except Exception:
+            # A silent failure here empties every crew's list and then tells crews that hold
+            # ground that they hold none, which is the opposite of the truth.
+            _log.exception("targets_for failed for %s", clan_id)
+            targets_json[clan_id] = None
+
     # --- ClanCell rows: the admin view and the ranking read these
     db.query(ClanCell).delete()
     for c in clans.values():          # cleared first, so a crew that lost everything shows 0
         c.terr_km2 = c.terr_best_km2 = 0.0
         c.terr_tiles = c.terr_regions = 0
-        c.targets_json = None
+        c.targets_json = targets_json.get(c.clan_id)
     now = utcnow()
-    # crews that draw nothing anywhere: they cannot take a square off anyone, so they must not
-    # set warnings off on one
-    seedless = set(clans) - set(kept)
     order = sorted(kept.keys())
     payload_crews = []
     cells_flat: list[int] = []
@@ -794,7 +825,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             if got and (now - got).days < FRESH_DAYS:
                 band += 5
             cells_flat.extend((idx, x, y, band, need))
-        comps = regions(pts)
+        comps = patches_by_clan[clan_id]          # worked out once, above
         best_km2 = 0.0
         for comp in comps:
             ex, ey, es = emblem_slot(comp)
@@ -812,13 +843,6 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             "members": member_counts.get(clan_id, 0),
             "emblem": f"/api/v1/crews/{c.slug}/emblem",
         })
-    # Where to ride next, for every crew and not only the ones already holding ground: a crew
-    # with nothing was the one being told nothing, which is backwards.
-    for clan_id, c in clans.items():
-        try:
-            c.targets_json = json.dumps(targets_for(acc, kept, clan_id, won, zoom))
-        except Exception:
-            c.targets_json = None
     db.commit()
 
     payload = {

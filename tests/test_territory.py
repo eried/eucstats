@@ -296,15 +296,18 @@ def test_a_tile_that_joins_two_patches_is_listed_first():
 
 def test_growing_the_ranked_patch_beats_growing_a_spare_one():
     """Widening the little patch across town is real ground and moves nothing on the board,
-    which ranks on the biggest single area. The list has to tell those two apart."""
+    which ranks on the biggest single area. The list has to put those in the right order.
+
+    The flag itself never reaches the client: it was true of ten rows in ten for almost every
+    crew, so it sorts the list and stays off the screen and out of the payload."""
     from services.territory import targets_for
     big = {(x, y) for x in range(5) for y in range(5)}
     spare = {(40, 40), (41, 40), (40, 41), (41, 41)}
-    out = targets_for(acc={}, kept={"A": big | spare}, clan_id="A", won={}, zoom=14)
-    grows = [t for t in out if t["grows"]]
-    assert grows, "the ranked patch has neighbours, so some row has to be marked"
-    assert all(t["x"] < 10 for t in grows), "only the big patch counts as growing it"
-    assert out[0]["grows"], "and it leads once nothing joins two patches"
+    out = targets_for(acc={}, kept={"A": big | spare}, clan_id="A", won={}, zoom=14, limit=40)
+    assert "grows" not in out[0], "sort key, not payload"
+    first_spare = next(i for i, t in enumerate(out) if t["x"] > 10)
+    assert all(t["x"] < 10 for t in out[:first_spare]), out[:first_spare]
+    assert first_spare >= 8, "the ranked patch has twenty neighbours; they all come first"
 
 
 def test_a_badge_that_fires_on_every_row_says_nothing():
@@ -371,16 +374,22 @@ def test_the_list_can_point_past_the_end_of_your_own_street():
     assert max(t["x"] for t in out) > 2, "and the list has to point past our own edge"
 
 
-def test_the_roadtrip_between_two_patches_can_reach_the_list():
-    """`joins` fired on 0 rows out of 130 and could not fire by construction: a square halfway
-    between two towns is more than one step from anything the crew holds, so it was never a
-    candidate. The mechanic the whole design leads with was unreachable."""
+def test_a_welding_square_is_always_a_neighbour_already():
+    """A road between two patches was added as a candidate source on the theory that a square
+    welding them could not otherwise reach the list. It always could. `joins` needs one square
+    orthogonally touching two patches, which only happens across a one-tile gap, and that
+    square is a neighbour of held ground by definition. The road produced nothing at any
+    distance and cost up to 35ms a crew, so it went."""
     from services.territory import targets_for
-    west = {(0, 0), (1, 0), (0, 1), (1, 1)}
-    east = {(9, 0), (10, 0), (9, 1), (10, 1)}
-    out = targets_for(acc={}, kept={"A": west | east}, clan_id="A", won={}, zoom=14, limit=40)
-    xs = {t["x"] for t in out}
-    assert xs & {4, 5, 6}, f"nothing in the middle of the road: {sorted(xs)}"
+    for gap, want in ((1, True), (2, False), (3, False), (6, False)):
+        left = {(0, 0), (1, 0), (0, 1), (1, 1)}
+        right = {(2 + gap, 0), (3 + gap, 0), (2 + gap, 1), (3 + gap, 1)}
+        out = targets_for(acc={}, kept={"A": left | right}, clan_id="A", won={}, zoom=14,
+                          limit=200)
+        joins = [(t["x"], t["y"]) for t in out if t["joins"]]
+        assert bool(joins) is want, (gap, joins)
+        if want:
+            assert joins == [(2, 0), (2, 1)], joins
 
 
 def test_a_crew_one_square_from_existing_is_told_which_square():
