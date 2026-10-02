@@ -123,6 +123,8 @@ EN: dict[str, str] = {
     "crew.drawn.in": "Rode one of these already? The map redraws in about {n} min.",
     "crew.drawn.soon": "Rode one of these already? The map is redrawing any minute.",
     "crew.targets.takenby": "somebody holds it",
+    "crew.declined.h": "They said no",
+    "crew.declined.p": "{name} turned your request down. No waiting, pick another one.",
     "crew.join.away": "{v} from here",
     "crew.join.full": "Full",
     "crew.off.h": "Crews are off",

@@ -16,10 +16,10 @@
   margin: 0 0 11px;
 }
 .crewcard h3 { margin: 0 0 6px; font-size: 14px; letter-spacing: .4px; text-transform: uppercase; }
-.crewcard h4 { margin: 12px 0 6px; font-size: 12px; color: var(--mut, #7a86ad); letter-spacing: .5px; text-transform: uppercase; }
+.crewcard h4 { margin: 12px 0 6px; font-size: 12px; color: var(--mut, #9aa6c8); letter-spacing: .5px; text-transform: uppercase; }
 .crewcard p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
 .crewcard code { background: rgba(255,255,255,.07); padding: 2px 6px; font-size: 12px; letter-spacing: 1px; }
-.crewcard label { display: block; margin: 9px 0 0; font-size: 11px; color: var(--mut, #7a86ad); letter-spacing: .5px; text-transform: uppercase; }
+.crewcard label { display: block; margin: 9px 0 0; font-size: 11px; color: var(--mut, #9aa6c8); letter-spacing: .5px; text-transform: uppercase; }
 .crewcard input[type=text], .crewcard input:not([type]), .crewcard select {
   display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
   background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055); color: inherit;
@@ -34,7 +34,7 @@
 }
 .crewbtn:hover { filter: brightness(1.12); }
 .crewbtn:disabled { opacity: .5; cursor: default; }
-.crewbtn.ghost { background: transparent; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); }
+.crewbtn.ghost { background: transparent; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); }
 .crewbtn.ghost:hover { color: #fff; border-color: var(--sec, #ff8ad8); }
 .crewbtn.mini { margin: 0; padding: 5px 11px; font-size: 12px; }
 .crewacts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
@@ -51,13 +51,13 @@
 
 .crewhead { display: flex; gap: 12px; align-items: center; }
 .crewlogo { width: 52px; height: 52px; flex: 0 0 52px; border: 1px solid var(--line, #243055); background: rgba(0,0,0,.3); }
-.crewmeta { font-size: 12px; color: var(--mut, #7a86ad); margin-top: 3px; }
+.crewmeta { font-size: 12px; color: var(--mut, #9aa6c8); margin-top: 3px; }
 
 .crewterr { margin: 12px 0 2px; padding: 10px 0; border-top: 1px solid var(--line, #243055); }
 .crewbig { font-family: "Orbitron", ui-sans-serif, sans-serif; letter-spacing: .5px;
    font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
-.crewbig span { font-size: 13px; font-weight: 400; color: var(--mut, #7a86ad); }
-.crewsub { font-size: 12px; color: var(--mut, #7a86ad); margin-top: 4px; }
+.crewbig span { font-size: 13px; font-weight: 400; color: var(--mut, #9aa6c8); }
+.crewsub { font-size: 12px; color: var(--mut, #9aa6c8); margin-top: 4px; }
 
 .crewpend { border-top: 1px solid var(--line, #243055); margin-top: 10px; }
 .crewpendr { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
@@ -68,20 +68,20 @@
 .crewrow:first-child { border-top: 0; }
 .crewrown { flex: 1; min-width: 0; }
 .crewrown b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.crewrown span { font-size: 11px; color: var(--mut, #7a86ad); }
+.crewrown span { font-size: 11px; color: var(--mut, #9aa6c8); }
 
 .crewrank { width: 100%; border-collapse: collapse; font-size: 13px; }
 .crewrank td { padding: 6px 4px; border-top: 1px solid rgba(255,255,255,.05); }
-.crewrank .rk { width: 26px; color: var(--mut, #7a86ad); font-variant-numeric: tabular-nums; }
+.crewrank .rk { width: 26px; color: var(--mut, #9aa6c8); font-variant-numeric: tabular-nums; }
 .crewrank .val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.crewrank .val.sub { color: var(--mut, #7a86ad); font-size: 11px; }
+.crewrank .val.sub { color: var(--mut, #9aa6c8); font-size: 11px; }
 .crewrank tr.sel { cursor: pointer; }
-.crewrank tr.sel:hover td { background: rgba(255,138,216,.11); }
+.crewrank tr.sel:hover td { background: rgba(255,138,216,.1); }
 .crewrank .celln { display: flex; align-items: center; gap: 8px; }
 
 .crewident { display: flex; gap: 12px; align-items: center; margin: 12px 0 0; }
 .crewident > div { flex: 1; }
-.crewidentl { font-size: 11px; color: var(--mut, #7a86ad); letter-spacing: .5px; text-transform: uppercase; }
+.crewidentl { font-size: 11px; color: var(--mut, #9aa6c8); letter-spacing: .5px; text-transform: uppercase; }
 .crewident select { margin-top: 4px; }
 
 .crewsign { text-align: center; }
@@ -91,17 +91,17 @@
 .crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
 
 .crewmsg { margin: 9px 0; padding: 8px 11px; border-radius: 7px;
-  background: rgba(255,138,216,.13); border-left: 2px solid var(--sec, #ff8ad8);
-  font-size: 12.5px; }
+  background: rgba(255,138,216,.14); border-left: 2px solid var(--sec, #ff8ad8);
+  font-size: 12px; }
 .crewmsg.bad { background: rgba(255,79,163,.13); border-left-color: #ff4fa3; }
 
-.crewhow { font-size: 12.5px; line-height: 1.55; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); padding: 0 13px; }
+.crewhow { font-size: 12px; line-height: 1.55; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); padding: 0 13px; }
 .crewhow summary { cursor: pointer; padding: 11px 0; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: #cfe0ff; }
 .crewhow p { margin: 0 0 10px; }
 .crewhow b { color: #e6eeff; }
 .crewedit summary, .crewfile { cursor: pointer; }
 .crewedit { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 4px; }
-.crewedit summary { padding: 8px 0; font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: var(--mut, #7a86ad); }
+.crewedit summary { padding: 8px 0; font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: var(--mut, #9aa6c8); }
 
 /* --- on the map --- */
 
@@ -133,11 +133,13 @@
 .crewemb.tiny .crewemb-n { display: none; }
 
 .crewpop .maplibregl-popup-content { background: rgba(8, 13, 26, .94); border: 1px solid var(--line, #243055); border-radius: 0; padding: 9px 12px; box-shadow: 0 8px 26px rgba(0,0,0,.6); }
-.crewpop .maplibregl-popup-tip { display: none; }
+/* The tip was hidden for tidiness, which on a map where every square looks like every other
+   square left the box ambiguous about which one it was describing. */
+.crewpop .maplibregl-popup-tip { display: block; }
 .crewpop-in { display: flex; align-items: center; gap: 10px; }
 .crewpop-in img { width: 34px; height: 34px; }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
-.crewpop-in span { display: block; font-size: 11px; color: var(--mut, #7a86ad); }
+.crewpop-in span { display: block; font-size: 11px; color: var(--mut, #9aa6c8); }
 .crewpop-in span + span { color: #cfe0ff; font-variant-numeric: tabular-nums; }
 
 /* --- Crew Pass --- */
@@ -181,21 +183,21 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
 .crewsumemb { width: 26px; height: 26px; flex: 0 0 26px; }
-.crewsumrole { font-size: 11px; color: var(--mut, #7a86ad); text-transform: uppercase; letter-spacing: .5px; }
+.crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-transform: uppercase; letter-spacing: .5px; }
 .crewmine-wrap .crewcard { border: 0; border-left: 2px solid var(--sec, #ff8ad8); margin: 0; }
 
 .crewcontrib { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
-.crewcrow { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12.5px; }
+.crewcrow { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12px; }
 .crewcrow .av { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%; }
 .crewcname { flex: 0 0 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a bar rather than a second number: the shape of who carries the crew reads at a glance */
 .crewcbar { flex: 1; height: 5px; background: rgba(255,255,255,.07); min-width: 24px; }
 .crewcbar i { display: block; height: 100%; background: var(--sec, #ff8ad8); }
-.crewckm { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--mut, #7a86ad); }
+.crewckm { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--mut, #9aa6c8); }
 .crewrole { margin-left: 5px; font-size: 11px; }
 .crewrole.lead { color: #ffd24a; }
 .crewrole.off { color: #8ef0c0; }
-.crewrole.past { color: var(--mut, #7a86ad); }
+.crewrole.past { color: var(--mut, #9aa6c8); }
 
 /* --- phone --- */
 
@@ -249,17 +251,17 @@ a.crewqr { display: flex; text-decoration: none; }
 /* the join list was nine identical filled buttons shouting over the crews themselves */
 .crewrow .crewbtn.mini { min-width: 86px; text-align: center; }
 /* the crew's own words, on their own line under the stats, not welded onto the end of them */
-.crewmeta2 { display: block; margin-top: 1px; font-size: 11px; color: var(--mut, #7a86ad);
+.crewmeta2 { display: block; margin-top: 1px; font-size: 11px; color: var(--mut, #9aa6c8);
   opacity: .85; }
 
 /* the band legend under the board */
 /* a grid, so the chips line up in columns instead of wrapping 4 / 3 / 1, and a
    wrapped label sits beside its swatch rather than under it */
-.crewlegend { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
-  gap: 6px 14px; margin: 10px 0 0; font-size: 11px; color: var(--mut, #7a86ad); }
+.crewlegend { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px 14px; margin: 10px 0 0; font-size: 11px; color: var(--mut, #9aa6c8); }
 .crewlegend span { display: flex; align-items: flex-start; gap: 5px; }
 .crewlegnote { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px;
-  color: var(--mut, #7a86ad); opacity: .85; }
+  color: var(--mut, #9aa6c8); opacity: .85; }
 .crewlegend i { display: inline-block; width: 22px; height: 22px;
   flex: 0 0 22px; margin-top: 0; position: relative; background: var(--sec, #ff8ad8);
   border: 1px solid rgba(255,255,255,.25); }
@@ -396,7 +398,7 @@ a.crewqr { display: flex; text-decoration: none; }
   border-top: 1px solid rgba(255,255,255,.05); cursor: pointer; font-size: 13px;
 }
 .crewtrow:first-of-type { border-top: 0; }
-.crewtrow:hover { background: rgba(255,138,216,.09); }
+.crewtrow:hover { background: rgba(255,138,216,.1); }
 /* A phrase, not a figure: "a short ride" in a 58px tabular-nums column wrapped onto two
    lines. The monospace column comes back only when the admin asks for exact kilometres. */
 /* gold, because the ring this column points at is gold. The lose card is orange for the same
@@ -408,19 +410,21 @@ a.crewqr { display: flex; text-decoration: none; }
 }
 .crewtdir {
   flex: 0 0 auto; min-width: 26px; font-size: 11px; font-weight: 700; letter-spacing: .4px;
-  color: var(--mut, #7a86ad);
+  color: var(--mut, #9aa6c8);
 }
 /* min-width:0 or a long crew name in a long locale pushes the badge off a 390px screen */
+/* 1 rather than 0 on the grow, so a long neighbourhood takes the slack the phrase column
+   leaves instead of pushing itself onto a second line. */
 .crewtwho {
-  flex: 0 1 auto; min-width: 0; color: var(--mut, #7a86ad); font-size: 12px;
+  flex: 1 1 auto; min-width: 0; color: var(--mut, #9aa6c8); font-size: 12px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* nothing to ride here today: present, legible, and plainly not the thing to do next */
 .crewtrow.done { opacity: .72; }
-.crewtrow.done .crewtkm { color: var(--mut, #7a86ad); font-weight: 400; }
+.crewtrow.done .crewtkm { color: var(--mut, #9aa6c8); font-weight: 400; }
 .crewtag {
-  flex: 0 1 auto; margin-left: auto; max-width: 38%; font-size: 10px; letter-spacing: .3px;
-  text-transform: uppercase; padding: 2px 6px; border-radius: 4px;
+  flex: 0 1 auto; margin-left: auto; max-width: 38%; font-size: 11px; letter-spacing: .3px;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 7px;
   white-space: normal; text-align: right; line-height: 1.25;
   opacity: .95;
 }
@@ -430,7 +434,7 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtag.first { color: #ffd24a; background: rgba(255,210,74,.12); }
 .crewtag.joins { color: #9fe8ff; background: rgba(159,232,255,.12); }
 .crewtag.kills { color: #ff4fa3; background: rgba(255,79,163,.16); }
-.crewtag.done { color: var(--mut, #7a86ad); background: rgba(154,166,200,.1); }
+.crewtag.done { color: var(--mut, #9aa6c8); background: rgba(154,166,200,.1); }
 
 /* the other half of the game, same shape so the two read as a pair */
 .crewlose .crewtkm { color: #ff9f6b; }
@@ -442,10 +446,10 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtip {
   position: absolute; z-index: 5; pointer-events: none;
   transform: translate(14px, -50%);
-  padding: 6px 9px; border-radius: 4px; max-width: 230px;
+  padding: 6px 9px; border-radius: 7px; max-width: 230px;
   background: rgba(6, 10, 20, .94); border: 1px solid rgba(255, 255, 255, .16);
   box-shadow: 0 4px 18px rgba(0, 0, 0, .55);
-  font-size: 11.5px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere;
+  font-size: 11px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere;
   animation: crewtipin .18s ease both;
 }
 .crewtip.left { transform: translate(calc(-100% - 14px), -50%); }
@@ -453,11 +457,11 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtip.below { transform: translate(14px, 14px); }
 .crewtip.left.below { transform: translate(calc(-100% - 14px), 14px); }
 .crewtip b { display: block; font-size: 12px; overflow-wrap: anywhere; }
-.crewtip span { display: block; color: var(--mut, #7a86ad); }
+.crewtip span { display: block; color: var(--mut, #9aa6c8); }
 /* the band is the left edge, so the shades are learned where they are used */
 .crewtip.b1 { border-left: 3px solid rgba(255, 255, 255, .75); }
 .crewtip.b2 { border-left: 3px solid #ff8ad8; }
-.crewtip.b3 { border-left: 3px solid #7a86ad; }
+.crewtip.b3 { border-left: 3px solid var(--mut, #9aa6c8); }
 .crewtip.b4 { border-left: 3px solid #ffd24a; }
 /* a ring's own tooltip, in the ring's own colour */
 .crewtip.bt { border-left: 3px solid #ffd24a; }
@@ -486,7 +490,7 @@ a.crewqr { display: flex; text-decoration: none; }
    phone there is no hover to bring it back. */
 /* An explicit colour rather than a second opacity: on a `done` row the two multiplied down
    to 2.5:1 against the card, which is below any threshold worth naming. */
-.crewtrow .rpt { color: #6f7b9e; }
+.crewtrow .rpt { color: color-mix(in srgb, var(--mut, #9aa6c8) 78%, transparent); }
 .crewtrow:hover .rpt { color: var(--mut, #9aa6c8); }
 
 
@@ -501,24 +505,39 @@ a.crewqr { display: flex; text-decoration: none; }
 /* Everything the phone changes, in one place and in cascade order. Seven separate
    blocks is how a rule ends up silently cancelling an earlier one instead of
    deliberately overriding it, which had happened three times in here. */
-@media (max-width: 560px) {
-  /* Hit areas. This block changed padding, type size, wrapping and grid columns and never
-     once said how big a thing you tap should be, on the screen where everything is tapped.
-     Measured before this rule: a mini button 28px, a target row 31px, a ranked row 31px, the
-     settings summary 32px, a pattern chip a hard 30px. */
+/* Hit areas, on their own trigger. These used to sit inside the width block while the pass
+   reorder sat in the coarse-pointer block a hundred and sixty lines away, so a phone turned
+   to landscape -- 844x390, which matches one and not the other -- quietly gave every one of
+   them back: mini buttons to 28px, target rows to 31px, summaries to 32px. A thumb is a
+   thumb in both orientations. Measured before these rules: mini button 28px, target row
+   31px, ranked row 31px, settings summary 32px, pattern chip a hard 30px. */
+@media (max-width: 560px), (hover: none) and (pointer: coarse) {
   .crewbtn, .crewbtn.mini { min-height: 44px; padding-top: 0; padding-bottom: 0;
     display: inline-flex; align-items: center; justify-content: center; }
   .crewtrow { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
-  .crewrank td, .crewboard table td { padding-top: 11px; padding-bottom: 11px; }
-  .crewedit summary, .crewhow summary { min-height: 44px; display: flex; align-items: center; }
-  .crewcrow { min-height: 44px; }
+  .crewrank td, .crewboard table td { padding-top: 13px; padding-bottom: 13px; }
+  .crewedit summary, .crewhow summary, .crewmine-wrap > summary {
+    min-height: 44px; display: flex; align-items: center; }
+  .crewpickc, .crewpickp { min-height: 44px; }
+  .crewpickp .crewsw { width: 32px; height: 32px; }
+}
+
+@media (max-width: 560px) {
+  /* A contributor row is read, not tapped: six riders at 44px is 264px of panel spent on a
+     bar chart nobody can press. */
   #cf-patterns { grid-template-columns: repeat(4, 1fr); max-width: 220px; }
   .crewcard { padding: 12px 12px; }
   .crewhead { gap: 9px; }
   .crewlogo { width: 42px; height: 42px; flex: 0 0 42px; }
+  /* 342px of a 455px panel went on the podium before the first ranked row, to show three
+     facts that barely move from week to week. This hands back about ninety pixels and two
+     more crews. */
+  .crewboard .podic { width: 30px; height: 30px; }
+  .crewboard .pod { padding: 8px 6px; }
+  .crewboard .podium { padding: 4px 0 8px; }
   .crewbig { font-size: 22px; }
   .crewqr img { width: 150px; height: 150px; }
-  .crewcode { font-size: 21px; letter-spacing: 5px; }
+  .crewcode { font-size: 22px; letter-spacing: 5px; }
   .crewident { flex-wrap: wrap; }
   /* Four columns in 317px. The site's own podium builds this table, so its cells arrive
      nowrap and sized for a desktop: rank + name + "44 squares" + "8 new this week" came to
@@ -549,13 +568,24 @@ a.crewqr { display: flex; text-decoration: none; }
   /* The badge was hidden here, which took the explanation off exactly the rows that need one:
      a phone showed "ridden, Cykelslangen has it" and no reason why riding it again would do
      nothing. It wraps onto its own line instead, lined up under the text. */
-  .crewtargets { --kmc: min(var(--kmw, 88px), 46%); }
+  /* The phrase takes what it needs; the second line takes the rest. */
+  .crewtargets { --kmc: auto; }
+  .crewtkm { flex: 1 1 auto; }
+  .crewtwho { flex: 1 0 100%; order: 3; font-size: 11px; margin-top: 1px; }
+  .crewtat { display: inline; }
+  .crewtwho i { display: inline; }
+  /* the two facts on that line are different kinds of fact, so they are separated rather
+     than run together */
+  .crewtat + i::before { content: " · "; opacity: .85; }
   .crewtargets.nums { --kmc: 52px; }
   .crewtrow { flex-wrap: wrap; row-gap: 3px; }
-  /* Its own line, at the full width of the row. Indented to clear the columns above it and
-     capped at 38% besides, the badge had about 110px to say "breaks their block, 9 squares
-     go" in, and said it over three lines in a box pinned to the right margin. */
-  .crewtag { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }
+  /* Its own line and no box. `flex-basis: 100%` sizes the chip, not just its position, so
+     a two-word badge became a 294px tinted bar with the text in its left fifteenth, two of
+     them stacked above a row separator at 5% white: four rows read as seven bands. The
+     three families are already told apart by hue, so on a phone they are simply coloured
+     text under the row they belong to. */
+  .crewtag { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left;
+    background: none; padding: 0; font-size: 11px; }
   .crewcname { max-width: none; }
   .crewboard table .val.sub { font-size: 11px; text-align: right; width: 1%; }
   .crewboard table .val.sub .crewarea { display: none; }
@@ -570,7 +600,11 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* The phrase says how hard, the figure says how far. "the long way round" covers 1.6 km to
    5.0 km, and the client has the number already. */
-.crewtkm i { font-style: normal; font-size: 10.5px; font-weight: 400; opacity: .62;
+/* The phrase says how hard and the figure says how far, and the figure is the one that
+   tells two rows apart: four in a row can read "a few streets" and mean 0.8, 0.8, 0.9 and
+   1.9 km. It used to be the smallest, faintest text on the screen while the word that did
+   not distinguish them was the loudest. */
+.crewtkm i { font-style: normal; font-size: 12px; font-weight: 700; opacity: .9;
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .crewtargets.nums .crewtkm i { display: none; }
 
@@ -586,12 +620,23 @@ a.crewqr { display: flex; text-decoration: none; }
               repeating-linear-gradient(-45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px); }
 
 /* the figure behind the phrase, on the square itself: same weight as in the two cards */
-.crewtip span i, .crewpop-in span i { font-style: normal; font-size: 10.5px; opacity: .62;
+.crewtip span i, .crewpop-in span i { font-style: normal; font-size: 11px; opacity: .62;
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Tapped rather than hovered: it has to survive the finger coming off, so it gets a shadow
    deep enough to sit above the fill and room enough to read at arm's length. */
 .crewtip.tap { font-size: 13px; padding: 9px 11px; box-shadow: 0 6px 22px rgba(0,0,0,.6); }
+
+/* The neighbourhood, under the bearing. Small and quiet: it answers "where" for somebody who
+   knows the city, and costs nothing to skip for somebody who does not. */
+/* The neighbourhood leads the last column and the holder sits under it, so a long name
+   cannot widen the two-letter bearing beside it. */
+.crewtat { display: block; font-weight: 600; letter-spacing: 0; color: var(--ink, #eef1fb);
+  text-transform: none; line-height: 1.25; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.crewtwho i { display: block; font-style: normal; font-size: 11px; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crewtdir { line-height: 1.25; }
 
 /* the answer to "I rode it, where is it", under the rows that prompted the question */
 .crewdrawn { margin-top: 10px; opacity: .75; }

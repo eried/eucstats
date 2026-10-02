@@ -424,6 +424,15 @@
     // hover and click were dead on exactly the squares the card points at.
     map.on("mousemove", "crew-target-hit", onTargetHover);
     map.on("click", "crew-target-hit", onTargetTap);
+    // a tap anywhere else puts it away; without this the sticky tip only left on a drag
+    map.on("click", function (e) {
+      if (!hoverTip || hoverKey.indexOf("tap") !== 0) return;
+      if (map.getLayer("crew-target-hit")
+          && map.queryRenderedFeatures(e.point, { layers: ["crew-target-hit"] }).length) {
+        return;
+      }
+      hideTip();
+    });
     map.on("mouseleave", "crew-target-hit", hideTip);
     map.on("mouseenter", "crew-target-hit", cursorPointer);
     map.on("mouseleave", "crew-target-hit", cursorDefault);
@@ -463,7 +472,13 @@
   // A ceiling as well as a floor. Zoomed in, a big crew's emblem reached about 250px and
   // covered six squares of the territory it was labelling, including the pressure shades
   // underneath it, which is the one thing the reader came to look at.
+  // A ceiling in pixels is not a ceiling on a phone: 96px is a quarter of a 390px screen,
+  // and with a border and a drop shadow it reads as a dialog rather than a badge.
   var EMBLEM_MAX = 96;
+
+  function emblemCap() {
+    return Math.min(EMBLEM_MAX, Math.round(window.innerWidth * 0.16));
+  }
 
   function sizeEmblems() {
     if (!TERR) return;
@@ -480,7 +495,7 @@
       // with the size of the region, so a sprawling crew stays identifiable over a country
       // while a four-tile crew still disappears when it should.
       var floor = tiles >= 40 ? 34 : tiles >= 15 ? 28 : tiles >= 6 ? 22 : 0;
-      px = Math.min(Math.max(px, floor), EMBLEM_MAX);
+      px = Math.min(Math.max(px, floor), emblemCap());
       el.style.width = el.style.height = px + "px";
       el.style.opacity = px < 16 ? 0 : 1;
       // the name goes when the badge is too small to carry it, not when the crew is big: the
@@ -625,6 +640,13 @@
   }
 
   function onCellClick(e) {
+    // A target ring over a rival's ground is both a crew-fill feature and a crew-target-hit
+    // feature, and both layers had a click handler, so the one tap the card is shouting
+    // about opened two overlapping boxes. The ring is the more specific answer.
+    if (map.getLayer("crew-target-hit")
+        && map.queryRenderedFeatures(e.point, { layers: ["crew-target-hit"] }).length) {
+      return;
+    }
     var f = e.features && e.features[0];
     if (!f) return;
     var p = f.properties;
@@ -992,7 +1014,11 @@
             + '<span class="crewtkm">' + km
             + (x.blocked ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
             + '<span class="crewtdir">' + bearing(x.dir) + "</span>"
-            + '<span class="crewtwho' + rw + '">' + who + "</span>"
+            // Where, not only which way. A compass bearing from the middle of your own
+            // ground is not how anyone reads a map of the city they live in.
+            + '<span class="crewtwho">'
+            + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
+            + '<i class="' + (rw ? "rpt" : "") + '">' + who + "</i></span>"
             + tag + "</div>";
         }).join("");
     return head + '<p class=hint>'
@@ -1041,7 +1067,11 @@
       // show up, and skipping it left ten crews out of twelve with an empty card while thirty
       // of their squares were quietly going cold.
       if (band !== 1 && band !== 2 && band !== 3) continue;   // 4 cannot be lost
-      rows.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2], band: band,
+      var tx = TERR.cells[i + 1], ty = TERR.cells[i + 2], at = null;
+      for (var k = 0; k < TARGETS.length; k++) {
+        if (TARGETS[k].x === tx && TARGETS[k].y === ty) { at = TARGETS[k].at; break; }
+      }
+      rows.push({ x: tx, y: ty, band: band, at: at,
                   need: TERR.cells[i + 4] / 10, rival: RIVALS[i / 5] });
     }
     LOSING = [];
@@ -1094,7 +1124,9 @@
             + '<span class="crewtkm">' + gap
             + (x.band === 3 ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
-            + '<span class="crewtwho' + rs + '">' + state + "</span></div>";
+            + '<span class="crewtwho">'
+            + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
+            + '<i class="' + (rs ? "rpt" : "") + '">' + state + "</i></span></div>";
         }).join("")
       // 85 squares are losable across the world and 45 were shown, with nothing saying so
       + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { n: hidden }) + "</p>" : "")
@@ -1819,7 +1851,17 @@
           + "<span>" + esc(me.crew.name) + "</span>"
           + '<span class="crewsumrole">' + t("crew.role." + me.role) + "</span></summary>"
           + myCrewHTML(me) + "</details>";
-      } else if (!me.can_found) {
+      } else if (me.declined_by) {
+        h += '<div class="crewcard"><h3>' + t("crew.declined.h") + "</h3>"
+          + '<p class=hint>' + t("crew.declined.p", { name: esc(me.declined_by) })
+          + "</p></div>"
+          + (me.can_found && me.creation_open && !me.cooldown_until
+             ? createHTML(window.__CREWIDENT__ || null) : "")
+          + joinHTML(all, me);
+      } else if (!me.can_found && !me.cooldown_until) {
+        // Both gates can be shut at once -- no validated ride AND just left a crew -- and
+        // the panel printed "Joining one works right now" directly above "Next crew in 5
+        // days". The cooldown is the nearer answer, so joinHTML's own card carries it.
         h += '<div class="crewcard"><h3>' + t("crew.first.h") + "</h3>"
           + '<p class=hint>' + t("crew.first.p") + "</p></div>" + joinHTML(all, me);
       } else {

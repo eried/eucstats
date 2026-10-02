@@ -44,6 +44,9 @@ def slugify(name: str) -> str:
     return s or uuid.uuid4().hex[:8]
 
 
+RESERVED_SLUGS = {"drawn", "identity", "me", "signout", "ranking", "all", "new", "search"}
+
+
 def free_slug(db, name: str) -> str:
     """A slug nothing else has ever used.
 
@@ -53,6 +56,10 @@ def free_slug(db, name: str) -> str:
     500 that read `That did not work.` with nothing to act on.
     """
     base = slugify(name)
+    # `/api/v1/crews/{slug}` sits under the same prefix as the fixed routes, so a crew
+    # called "Drawn" or "Identity" would shadow one and lose its own page.
+    if base in RESERVED_SLUGS:
+        base = base + "-crew"
     taken = {r[0] for r in db.query(Clan.slug).filter(Clan.slug.like(base + "%")).all()}
     if base not in taken:
         return base
@@ -146,8 +153,11 @@ def cooldown_until(db, store_id: str):
     # withdrawn used to start the clock, so pulling a request cost a week in a crew you had
     # never ridden a metre for.
     last = (db.query(ClanMember)
+            # 'active' only: 'disbanded' rows are exempt (see disband) and so are 'declined'
+            # and 'pending' ones, because a request that was never accepted is not a crew you
+            # walked out of.
             .filter(ClanMember.store_id == store_id, ClanMember.status == "active",
-                    ClanMember.left_at.isnot(None))   # 'disbanded' rows are exempt, see disband
+                    ClanMember.left_at.isnot(None))
             .order_by(ClanMember.left_at.desc()).first())
     if not last or membership(db, store_id):
         return None
@@ -281,8 +291,28 @@ def decide(db, actor: str, clan_id: str, store_id: str, accept: bool) -> None:
     if accept:
         m.status = "active"
     else:
+        # "declined", not a bare left_at: a withdrawn request and a refused one looked
+        # identical afterwards, so the rider could not be told which had happened.
+        m.status = "declined"
         m.left_at = utcnow()
     db.commit()
+
+
+def last_answer(db, store_id: str) -> dict | None:
+    """A decision this rider has not been shown yet, if there is one.
+
+    Read once and cleared, because a crew saying no is news briefly and clutter after that.
+    """
+    m = (db.query(ClanMember)
+         .filter(ClanMember.store_id == store_id, ClanMember.status == "declined",
+                 ClanMember.left_at.isnot(None))
+         .order_by(ClanMember.left_at.desc()).first())
+    if m is None:
+        return None
+    clan = db.get(Clan, m.clan_id)
+    m.status = "declined_seen"
+    db.commit()
+    return {"crew": clan.name if clan and clan.disbanded_at is None else None}
 
 
 def set_role(db, actor: str, clan_id: str, store_id: str, role: str) -> None:

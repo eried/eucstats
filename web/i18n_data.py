@@ -405,6 +405,8 @@ TRANSLATIONS = {
   "crew.join.full": "Fuldt",
   "crew.targets.takenby": "nogen har den",
   "crew.mine.claimq.none": "Ingen styrer det her crew. Overtager I det?",
+  "crew.declined.h": "De sagde nej",
+  "crew.declined.p": "{name} afviste jeres anmodning. Ingen ventetid, vælg et andet.",
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -809,6 +811,8 @@ TRANSLATIONS = {
   "crew.join.full": "Voll",
   "crew.targets.takenby": "jemand hält es",
   "crew.mine.claimq.none": "Diese Crew führt niemand. Übernehmen?",
+  "crew.declined.h": "Sie haben abgelehnt",
+  "crew.declined.p": "{name} hat eure Anfrage abgelehnt. Keine Wartezeit, nimm eine andere.",
  },
  "es": {
   "dock.riders": "Riders",
@@ -1213,6 +1217,8 @@ TRANSLATIONS = {
   "crew.join.full": "Llena",
   "crew.targets.takenby": "alguien la tiene",
   "crew.mine.claimq.none": "Nadie dirige esta cuadrilla. ¿La tomáis?",
+  "crew.declined.h": "Han dicho que no",
+  "crew.declined.p": "{name} rechazó vuestra solicitud. Sin esperas, elegid otra.",
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1617,6 +1623,8 @@ TRANSLATIONS = {
   "crew.join.full": "Llena",
   "crew.targets.takenby": "alguien la tiene",
   "crew.mine.claimq.none": "Nadie dirige esta banda. ¿La toman?",
+  "crew.declined.h": "Dijeron que no",
+  "crew.declined.p": "{name} rechazó su solicitud. Sin esperas, elijan otra.",
  },
  "fr": {
   "dock.riders": "Riders",
@@ -2021,6 +2029,8 @@ TRANSLATIONS = {
   "crew.join.full": "Complet",
   "crew.targets.takenby": "quelqu'un la tient",
   "crew.mine.claimq.none": "Personne ne dirige ce crew. Le reprendre ?",
+  "crew.declined.h": "Ils ont dit non",
+  "crew.declined.p": "{name} a refusé votre demande. Pas d'attente, choisis-en un autre.",
  },
  "it": {
   "dock.riders": "Rider",
@@ -2425,6 +2435,8 @@ TRANSLATIONS = {
   "crew.join.full": "Piena",
   "crew.targets.takenby": "qualcuno ce l'ha",
   "crew.mine.claimq.none": "Nessuno guida questa squadra. La prendete?",
+  "crew.declined.h": "Hanno detto di no",
+  "crew.declined.p": "{name} ha rifiutato la vostra richiesta. Nessuna attesa, sceglietene un'altra.",
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -2829,6 +2841,8 @@ TRANSLATIONS = {
   "crew.join.full": "満員",
   "crew.targets.takenby": "だれかが持っている",
   "crew.mine.claimq.none": "このクランには誰もいない。引き継ぐ？",
+  "crew.declined.h": "断られた",
+  "crew.declined.p": "{name}に申請を断られた。待ち時間はなし、別のところへ。",
  },
  "ko": {
   "dock.riders": "라이더",
@@ -3233,6 +3247,8 @@ TRANSLATIONS = {
   "crew.join.full": "꽉 참",
   "crew.targets.takenby": "누군가 갖고 있다",
   "crew.mine.claimq.none": "이 클랜은 아무도 안 맡고 있다. 넘겨받을까?",
+  "crew.declined.h": "거절당했다",
+  "crew.declined.p": "{name}이(가) 가입 신청을 거절했다. 기다릴 필요 없이 다른 데를 골라라.",
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -3637,6 +3653,8 @@ TRANSLATIONS = {
   "crew.join.full": "Vol",
   "crew.targets.takenby": "iemand heeft hem",
   "crew.mine.claimq.none": "Niemand leidt deze crew. Overnemen?",
+  "crew.declined.h": "Ze zeiden nee",
+  "crew.declined.p": "{name} heeft je verzoek afgewezen. Geen wachttijd, kies een andere.",
  },
  "no": {
   "dock.riders": "Førere",
@@ -4041,6 +4059,8 @@ TRANSLATIONS = {
   "crew.join.full": "Fullt",
   "crew.targets.takenby": "noen har den",
   "crew.mine.claimq.none": "Ingen styrer dette crewet. Tar dere over?",
+  "crew.declined.h": "De sa nei",
+  "crew.declined.p": "{name} avslo forespørselen deres. Ingen ventetid, velg et annet.",
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -4445,6 +4465,8 @@ TRANSLATIONS = {
   "crew.join.full": "Pełna",
   "crew.targets.takenby": "ktoś je trzyma",
   "crew.mine.claimq.none": "Nikt nie prowadzi tej ekipy. Przejmujecie?",
+  "crew.declined.h": "Odmówili",
+  "crew.declined.p": "{name} odrzuciła wasze zgłoszenie. Bez czekania, wybierzcie inną.",
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -4849,6 +4871,8 @@ TRANSLATIONS = {
   "crew.join.full": "Lotada",
   "crew.targets.takenby": "alguém tem",
   "crew.mine.claimq.none": "Ninguém toca essa turma. Assume?",
+  "crew.declined.h": "Disseram não",
+  "crew.declined.p": "{name} recusou seu pedido. Sem espera, escolhe outra.",
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -5253,6 +5277,8 @@ TRANSLATIONS = {
   "crew.join.full": "Полный",
   "crew.targets.takenby": "её кто-то держит",
   "crew.mine.claimq.none": "Этим кланом никто не управляет. Возьмёте?",
+  "crew.declined.h": "Отказали",
+  "crew.declined.p": "{name} отклонил вашу заявку. Ждать не надо, выбирайте другой.",
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -5657,6 +5683,8 @@ TRANSLATIONS = {
   "crew.join.full": "Fullt",
   "crew.targets.takenby": "någon har den",
   "crew.mine.claimq.none": "Ingen styr det här crewet. Tar ni över?",
+  "crew.declined.h": "De sa nej",
+  "crew.declined.p": "{name} avslog er förfrågan. Ingen väntetid, välj ett annat.",
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -6061,6 +6089,8 @@ TRANSLATIONS = {
   "crew.join.full": "Dolu",
   "crew.targets.takenby": "birinde",
   "crew.mine.claimq.none": "Bu ekibi kimse yönetmiyor. Devralır mısınız?",
+  "crew.declined.h": "Hayır dediler",
+  "crew.declined.p": "{name} isteğinizi geri çevirdi. Bekleme yok, başka birini seçin.",
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -6465,6 +6495,8 @@ TRANSLATIONS = {
   "crew.join.full": "Повний",
   "crew.targets.takenby": "її хтось тримає",
   "crew.mine.claimq.none": "Цим кланом ніхто не керує. Візьмете?",
+  "crew.declined.h": "Відмовили",
+  "crew.declined.p": "{name} відхилив вашу заявку. Чекати не треба, оберіть інший.",
  },
  "zh": {
   "dock.riders": "骑友",
@@ -6869,6 +6901,8 @@ TRANSLATIONS = {
   "crew.join.full": "已满",
   "crew.targets.takenby": "有人占着",
   "crew.mine.claimq.none": "这个战队没人管。接手吗？",
+  "crew.declined.h": "他们拒绝了",
+  "crew.declined.p": "{name} 拒绝了你们的申请。不用等，换一个吧。",
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -7273,5 +7307,7 @@ TRANSLATIONS = {
   "crew.join.full": "已滿",
   "crew.targets.takenby": "有人占著",
   "crew.mine.claimq.none": "這個戰隊沒人管。接手嗎？",
+  "crew.declined.h": "他們拒絕了",
+  "crew.declined.p": "{name} 拒絕了你們的申請。不用等，換一個吧。",
  },
 }

@@ -46,8 +46,9 @@ def _gate(db: Session) -> dict:
 # How much of a joining rider's own back catalogue comes with them. See _stamp_recent.
 JOIN_BACKFILL_DAYS = 14
 
-# How often the whole-world rebuild runs. Mirrors main._territory_if_due, and is served to
-# the panel so it can say when a ride will show up rather than looking broken.
+# The floor on how often the whole-world rebuild runs; main._territory_if_due will not run
+# one more than this often. It rides the retention loop, though, so if the admin has set that
+# slower then that is the real cadence -- see _rebuild_every.
 REBUILD_EVERY_S = 3600
 
 
@@ -190,14 +191,27 @@ def territory_drawn(db: Session = Depends(get_db)):
     Everything a rider sees is baked at rebuild time, so the gap between finishing a ride and
     seeing it is up to a full interval. It is not a bug to hide; it is a number to print.
     """
-    import time
     cfg = _gate(db)
     at = territory.cached_mtime(cfg["zoom"])
     # one frame, server side: st_mtime is a true epoch second and utcnow() is a naive UTC
     # datetime whose .timestamp() is read as local time, which put the last redraw in the
     # future by the box's own UTC offset
     return {"drawn_s_ago": max(0, int(time.time() - at)) if at else None,
-            "every": REBUILD_EVERY_S}
+            "every": _rebuild_every(db)}
+
+
+def _rebuild_every(db) -> int:
+    """How long between redraws, honestly.
+
+    The rebuild runs at most hourly AND only when the retention loop comes round, so with
+    retention set to daily the true gap is a day. Printing the constant promised forty
+    minutes for ever.
+    """
+    try:
+        from services.settings import get_retention
+        return max(REBUILD_EVERY_S, int(get_retention(db)["interval_s"]))
+    except Exception:
+        return REBUILD_EVERY_S
 
 
 @router.get("/crews/me")
@@ -264,6 +278,12 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                         ClanMember.status == "pending",
                         ClanMember.left_at.is_(None)).all()]
         crews.touch(db, ws.store_id)
+    else:
+        # Nobody told a rider their request had been turned down; the panel simply went back
+        # to the join list, which is also what cancelling your own request looks like.
+        answer = crews.last_answer(db, ws.store_id)
+        if answer:
+            out["declined_by"] = answer["crew"]
     return out
 
 
