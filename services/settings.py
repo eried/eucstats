@@ -598,6 +598,10 @@ RATE_LIMITS = [
     ("rider_create_per_ip", "New riders / hour / IP", "rl_rider_ip", "RATE_RIDER_CREATE_PER_IP", "int", 0, 100000),
     ("trip_per_rider", "Trip uploads / hour / rider", "rl_trip_rider", "RATE_TRIP_PER_RIDER", "int", 0, 100000),
     ("trip_per_ip", "Trip uploads / hour / IP", "rl_trip_ip", "RATE_TRIP_PER_IP", "int", 0, 100000),
+    ("pair_start_per_ip", "Crew pairings opened / hour / IP", "rl_pair_start", "RATE_PAIR_START_PER_IP", "int", 0, 100000),
+    ("pair_confirm_per_ip", "Pairings confirmed / hour / IP", "rl_pair_conf_ip", "RATE_PAIR_CONFIRM_PER_IP", "int", 0, 100000),
+    ("pair_confirm_per_rider", "Pairings confirmed / hour / rider", "rl_pair_conf_r", "RATE_PAIR_CONFIRM_PER_RIDER", "int", 0, 100000),
+    ("crew_write_per_session", "Crew actions / hour / session", "rl_crew_write", "RATE_CREW_WRITE_PER_SESSION", "int", 0, 100000),
 ]
 
 
@@ -761,6 +765,38 @@ def set_heatmap(db: Session, cell_size, route_mode, floor, radius, intensity, op
     set_meta(db, "hm_intensity", str(_clamp_float(intensity, 1.0, 0.1, 10.0)))
     set_meta(db, "hm_glow_floor", str(_clamp_float(glow_floor, 0.45, 0.0, 1.0)))
     set_meta(db, "hm_opacity", str(_clamp_float(opacity, 0.62, 0.0, 1.0)))
+
+
+def get_crews(db: Session) -> dict:
+    """Crews & Territory settings. `enabled` is the kill switch: off hides the mode entirely,
+    stops the nightly rebuild and refuses every crew endpoint, without dropping a single row —
+    a feature that cannot be switched off is a feature that has to be perfect on day one."""
+    return {
+        "enabled": (get_meta(db, "crew_enabled", "0") or "0") == "1",
+        "zoom": _clamp_int(get_meta(db, "crew_zoom", 13), 13, 8, 16),
+        "window_days": _clamp_int(get_meta(db, "crew_window_days", 90), 90, 7, 730),
+        "seed": _clamp_int(get_meta(db, "crew_seed", 2), 2, 1, 4),
+        "cooldown_days": _clamp_int(get_meta(db, "crew_cooldown_days", 7), 7, 0, 90),
+        "max_members": _clamp_int(get_meta(db, "crew_max_members", 0), 0, 0, 10000),
+        "opacity": _clamp_float(get_meta(db, "crew_opacity", 0.55), 0.55, 0.0, 1.0),
+        "creation_open": (get_meta(db, "crew_creation_open", "1") or "1") == "1",
+    }
+
+
+def set_crews(db: Session, enabled, zoom, window_days, seed, cooldown_days, max_members,
+              opacity, creation_open) -> None:
+    set_meta(db, "crew_enabled", "1" if enabled else "0")
+    set_meta(db, "crew_zoom", str(_clamp_int(zoom, 13, 8, 16)))
+    set_meta(db, "crew_window_days", str(_clamp_int(window_days, 90, 7, 730)))
+    set_meta(db, "crew_seed", str(_clamp_int(seed, 2, 1, 4)))
+    set_meta(db, "crew_cooldown_days", str(_clamp_int(cooldown_days, 7, 0, 90)))
+    set_meta(db, "crew_max_members", str(_clamp_int(max_members, 0, 0, 10000)))
+    set_meta(db, "crew_opacity", str(_clamp_float(opacity, 0.55, 0.0, 1.0)))
+    set_meta(db, "crew_creation_open", "1" if creation_open else "0")
+
+
+def crews_enabled(db: Session) -> bool:
+    return get_crews(db)["enabled"]
 
 
 def heatmap_zooms(db: Session) -> list[float]:

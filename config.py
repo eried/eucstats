@@ -106,3 +106,10 @@ MISMATCH_MIN_KM = float(os.environ.get("EUCSTATS_MISMATCH_MIN_KM", "0.5"))    # 
 RATE_RIDER_CREATE_PER_IP = int(os.environ.get("EUCSTATS_RATE_RIDER_CREATE_PER_IP", "20"))  # new accounts / hour / IP
 RATE_TRIP_PER_RIDER = int(os.environ.get("EUCSTATS_RATE_TRIP_PER_RIDER", "60"))            # uploads / hour / rider
 RATE_TRIP_PER_IP = int(os.environ.get("EUCSTATS_RATE_TRIP_PER_IP", "200"))                 # uploads / hour / IP
+# Crew pairing. The confirm limit is the one that matters: it is what stops a six-character
+# pairing code being guessed. Tunable rather than hard-coded, because a limit that cannot be
+# adjusted while something is happening is a limit that gets commented out instead.
+RATE_PAIR_START_PER_IP = int(os.environ.get("EUCSTATS_RATE_PAIR_START_PER_IP", "30"))      # pairings opened / hour / IP
+RATE_PAIR_CONFIRM_PER_IP = int(os.environ.get("EUCSTATS_RATE_PAIR_CONFIRM_PER_IP", "20"))  # confirmations / hour / IP
+RATE_PAIR_CONFIRM_PER_RIDER = int(os.environ.get("EUCSTATS_RATE_PAIR_CONFIRM_PER_RIDER", "20"))
+RATE_CREW_WRITE_PER_SESSION = int(os.environ.get("EUCSTATS_RATE_CREW_WRITE_PER_SESSION", "60"))

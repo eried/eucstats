@@ -188,6 +188,19 @@ class IngestService:
         wid = self.wheel_key(wheel)
         self._register_wheel(store, wheel, wid, meta.get("app_version"))
 
+        # The crew this ride was done for, decided once, here, and never rewritten. Territory
+        # is a record of what was ridden rather than a query over who is in which crew today:
+        # if it were the latter, one rider switching crews would redraw months of map, and
+        # leaving a crew would erase ground its other members had earned. Costs one indexed
+        # lookup per upload, and nothing at all while crews are switched off.
+        clan_id = None
+        try:
+            if settings.crews_enabled(self.db):
+                from services.crews import current_clan_id
+                clan_id = current_clan_id(self.db, store)
+        except Exception:
+            clan_id = None
+
         try:
             trip = self.trips.insert_trip(
                 trip_uuid=trip_uuid, rider_store_id=store, wheel_id=wid,
@@ -218,6 +231,7 @@ class IngestService:
                 stop_30_s=sm.stop_30_s, stop_50_s=sm.stop_50_s,
                 battery_used_pct=sm.battery_used_pct, est_range_km=sm.est_range_km,
                 country=country, start_cell=start_cell, start_lat=start_lat, start_lon=start_lon,
+                clan_id=clan_id,
                 validation_status=status, flag_reasons=reasons or None,
                 schema_version=meta.get("schema_version"), source_app=meta.get("source_app"),
                 is_mock_location=is_mock, sample_count=sm.sample_count,

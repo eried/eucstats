@@ -116,6 +116,9 @@ class Trip(Base):
     stop_50_s = Column(Float)
     cutout_count = Column(Integer, default=0)   # unloaded spin while travelling: a fall
     spin_count = Column(Integer, default=0)     # free spin: the wheel spun up off the ground
+    clan_id = Column(String)                    # the crew this was ridden for, stamped at
+                                                # ingest and kept: switching crews must not
+                                                # redraw months of map
     battery_used_pct = Column(Float)
     est_range_km = Column(Float)
     country = Column(String, index=True)
@@ -230,3 +233,69 @@ class LeaderboardSnapshot(Base):
     board = Column(String, primary_key=True)         # 'distance'
     payload = Column(JSON)
     generated_at = Column(DateTime, default=utcnow)
+
+
+# --- crews & territory ------------------------------------------------------------------
+# A crew is a group of riders; territory is the ground their riding covers. See
+# docs/clans-plan.md. Internally everything is `clan` because renaming a column later is
+# expensive and renaming a label is not.
+
+class Clan(Base):
+    __tablename__ = "clans"
+    clan_id = Column(String, primary_key=True)
+    name = Column(String, unique=True)
+    slug = Column(String, unique=True)
+    description = Column(String)
+    colour = Column(String)            # hex, from the fixed palette
+    pattern = Column(String)           # solid|stripes|dots|hatch — (colour,pattern) is unique
+    logo_png = Column(LargeBinary)     # null -> the generated placeholder is used
+    join_policy = Column(String, default="approval")   # open|approval|invite
+    invite_code = Column(String)
+    created_at = Column(DateTime, default=utcnow)
+    created_by = Column(String, ForeignKey("riders.store_id"))
+    disbanded_at = Column(DateTime)    # set rather than deleted: trips still point here
+
+
+class ClanMember(Base):
+    __tablename__ = "clan_members"
+    clan_id = Column(String, ForeignKey("clans.clan_id"), primary_key=True)
+    store_id = Column(String, ForeignKey("riders.store_id"), primary_key=True)
+    role = Column(String, default="member")     # leader|officer|member
+    status = Column(String, default="active")   # active|pending
+    joined_at = Column(DateTime, default=utcnow)
+    left_at = Column(DateTime)                  # drives the 7-day cooldown
+    last_seen = Column(DateTime)                # drives the idle-leader handover
+
+
+class ClanCell(Base):
+    """Kilometres a crew has ridden in one Mercator tile, over the rolling window.
+
+    Rebuilt wholesale by the nightly job rather than maintained incrementally: the window is
+    the query, so nothing has to remember what to expire."""
+    __tablename__ = "clan_cells"
+    tile = Column(String, primary_key=True)     # "z/x/y"
+    clan_id = Column(String, primary_key=True)
+    km = Column(Float, default=0.0)
+    riders = Column(Integer, default=0)
+    first_led = Column(DateTime)                # ties go to the earliest claim
+
+
+class PairToken(Base):
+    """One-use, short-lived token behind the scan-to-sign-in flow."""
+    __tablename__ = "pair_tokens"
+    token = Column(String, primary_key=True)
+    code = Column(String, index=True)           # the typeable 6-character form
+    store_id = Column(String)                   # null until the app confirms
+    purpose = Column(String, default="rider")   # rider|admin
+    created_at = Column(DateTime, default=utcnow)
+    used_at = Column(DateTime)
+
+
+class WebSession(Base):
+    """What the browser cookie points at. The browser never holds a store_id."""
+    __tablename__ = "web_sessions"
+    session_id = Column(String, primary_key=True)
+    store_id = Column(String)
+    scope = Column(String, default="crew")      # crew|admin
+    created_at = Column(DateTime, default=utcnow)
+    last_used = Column(DateTime, default=utcnow)

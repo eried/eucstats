@@ -32,11 +32,39 @@ async def _retention_loop():
                 n = run_retention(db)
                 if n:
                     logger.info("retention evicted %d raw uploads", n)
+                _territory_if_due(db)
                 health.heartbeat(db)             # periodic health snapshot -> data/health.log
             finally:
                 db.close()
         except Exception:
             logger.exception("retention run failed")
+
+
+_last_territory = [0.0]
+
+
+def _territory_if_due(db) -> None:
+    """Rebuild crew territory at most once an hour, and only while crews are switched on.
+
+    Shares the retention loop instead of adding a scheduler. Territory is derived data: a
+    rebuild that fails or is skipped costs a slightly stale map and nothing else, so it is
+    deliberately the lowest-priority job on the box.
+    """
+    import time as _time
+    from services import settings as _settings
+    try:
+        cfg = _settings.get_crews(db)
+        if not cfg["enabled"]:
+            return
+        if _time.time() - _last_territory[0] < 3600:
+            return
+        from services import pairing, territory
+        rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"])
+        pairing.sweep(db)
+        _last_territory[0] = _time.time()
+        logger.info("territory rebuilt: %s", rep)
+    except Exception:
+        logger.exception("territory rebuild failed")
 
 
 async def _telegram_daily_loop():
@@ -77,6 +105,7 @@ app = FastAPI(title="eucstats", lifespan=lifespan)
 
 from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
 from web.api import router as api_router  # noqa: E402
+from web.crews_api import router as crews_router  # noqa: E402
 from web.admin import admin_router, _get_session_secret  # noqa: E402
 from web.public import public_router  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
@@ -84,6 +113,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 app.add_middleware(SessionMiddleware, secret_key=_get_session_secret())
 app.mount("/static", StaticFiles(directory=str(config.BASE_DIR / "web" / "static")), name="static")
 app.include_router(api_router)
+app.include_router(crews_router)
 app.include_router(admin_router)
 app.include_router(public_router)
 
