@@ -168,6 +168,12 @@ def scenario_found_a_crew(base: str, tag: str) -> Rider:
     return r
 
 
+def _slug_to_id(db, slug):
+    from models import Clan
+    c = db.query(Clan).filter(Clan.slug == slug).first()
+    return c.clan_id if c else None
+
+
 def _trips_in_crew(store_id: str) -> int:
     from database import SessionLocal
     from models import Trip
@@ -205,11 +211,22 @@ def scenario_territory(base: str, tag: str, leader: Rider) -> None:
     check("the map payload is served from cache", code == 200 and body.get("cells") is not None,
           f"{len(body.get('cells', [])) // 3} cells, {len(body.get('crews', []))} crews")
 
-    code, at = leader.api("GET", "/api/v1/territory/at",
-                          params={"lat": leader.lat, "lon": leader.lon})
-    check("a point on the map says who holds it",
-          code == 200 and (at.get("crew") or {}).get("slug") == leader.crew_slug,
-          (at.get("crew") or {}).get("name") or "nobody")
+    # Probe a tile the crew actually holds, not the middle of the loop. The rides are rings
+    # around a home point, and once tiles are small enough a ring does not cover its own
+    # centre, so asking about the centre asks about ground nobody rode.
+    from models import ClanCell
+    from services import tiles as T
+    held = (db.query(ClanCell)
+            .filter(ClanCell.clan_id == _slug_to_id(db, leader.crew_slug)).first())
+    if held is None:
+        check("a point on the map says who holds it", False, "the crew holds no tiles")
+    else:
+        w, s_, e, n = T.bounds(held.tile)
+        code, at = leader.api("GET", "/api/v1/territory/at",
+                              params={"lat": (s_ + n) / 2, "lon": (w + e) / 2})
+        check("a point on the map says who holds it",
+              code == 200 and (at.get("crew") or {}).get("slug") == leader.crew_slug,
+              (at.get("crew") or {}).get("name") or "nobody")
     db.close()
 
 
