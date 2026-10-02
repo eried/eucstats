@@ -266,7 +266,12 @@ a.crewqr { display: flex; text-decoration: none; }
 
 @media (max-width: 560px) {
   /* truncating crew names is indefensible in a feature about naming your crew */
-  .crewboard .pname { white-space: normal; font-size: 11px; line-height: 1.15; }
+  /* wrapping was not enough on its own: the ellipsis is inherited, so the name wrapped AND
+     truncated. Truncating a crew name in a feature about naming your crew is indefensible. */
+  .crewboard .pname {
+    white-space: normal; overflow: visible; text-overflow: clip;
+    font-size: 11px; line-height: 1.15;
+  }
   .crewpick { grid-template-columns: repeat(8, 30px); }
   #cf-patterns { grid-template-columns: repeat(4, 30px); }
   /* the action buttons were clipping against the panel's bottom edge */
