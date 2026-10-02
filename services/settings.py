@@ -794,7 +794,7 @@ def get_crews(db: Session) -> dict:
         # answer different questions and fight each other at full strength, but a ghost of
         # "where people actually ride" under "who holds what" is useful context. 0 turns it
         # off, which is what it was before.
-        "heat_ghost": _clamp_float(get_meta(db, "crew_heat_ghost", 0.2), 0.2, 0.0, 1.0),
+        "heat_ghost": _clamp_float(get_meta(db, "crew_heat_ghost", 0.14), 0.14, 0.0, 1.0),
     }
     # Eight app_meta SELECTs per call, and _gate() calls this on every crews endpoint, for
     # settings that change when somebody clicks save on the admin page. One process, one
@@ -804,9 +804,9 @@ def get_crews(db: Session) -> dict:
 
 
 def set_crews(db: Session, enabled, zoom, window_days, seed, cooldown_days, max_members,
-              opacity, creation_open, heat_ghost=0.2) -> None:
+              opacity, creation_open, heat_ghost=0.14) -> None:
     _invalidate_crews_cache()
-    set_meta(db, "crew_heat_ghost", str(_clamp_float(heat_ghost, 0.2, 0.0, 1.0)))
+    set_meta(db, "crew_heat_ghost", str(_clamp_float(heat_ghost, 0.14, 0.0, 1.0)))
     set_meta(db, "crew_enabled", "1" if enabled else "0")
     set_meta(db, "crew_zoom", str(_clamp_int(zoom, 14, 8, 16)))
     set_meta(db, "crew_window_days", str(_clamp_int(window_days, 90, 7, 730)))

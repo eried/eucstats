@@ -132,7 +132,8 @@
 .crewpop-in { display: flex; align-items: center; gap: 10px; }
 .crewpop-in img { width: 34px; height: 34px; }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
-.crewpop-in span { font-size: 11px; color: var(--mut, #7a86ad); }
+.crewpop-in span { display: block; font-size: 11px; color: var(--mut, #7a86ad); }
+.crewpop-in span + span { color: #cfe0ff; font-variant-numeric: tabular-nums; }
 
 /* --- Crew Pass --- */
 

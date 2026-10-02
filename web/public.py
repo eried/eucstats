@@ -27,7 +27,7 @@ __HIDECFG__
 <meta name="twitter:card" content="summary_large_image"/>
 <link rel="icon" type="image/png" href="/static/favicon.png"/>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
-<link rel="stylesheet" href="/static/crews.css"/>
+<link rel="stylesheet" href="/static/crews.css?v=__ASSETV__"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet"/>
 <style>
@@ -982,8 +982,23 @@ async function init(){
 }
 init().catch(()=>{const c=document.getElementById("chips");c.classList.add("show");c.innerHTML='<span class="chip">'+t("empty.apierror")+'</span>';});
 </script>
-<script src="/static/crews.js" defer></script>
+<script src="/static/crews.js?v=__ASSETV__" defer></script>
 </body></html>"""
+
+
+def _asset_version() -> str:
+    """A stamp from the crews assets' own timestamps.
+
+    They are cached for a week, which is right for files whose names never change and wrong
+    without this: a deploy would leave browsers on the old stylesheet for seven days. The
+    stamp changes when the file does, so the cache is long AND correct.
+    """
+    v = 0
+    for name in ("crews.css", "crews.js"):
+        f = config.BASE_DIR / "web" / "static" / name
+        if f.exists():
+            v = max(v, int(f.stat().st_mtime))
+    return str(v)
 
 
 def _build_date():
@@ -1056,7 +1071,8 @@ def home(request: Request, db: Session = Depends(get_db)):
     accept = request.headers.get("accept-language", "")
     tm = settings.get_test_mode()
     testwm = f'<div id="testwm">{_html.escape(tm["text"])}</div>' if tm["enabled"] else ''
-    return HTMLResponse(_PAGE.replace("__BUILD__", _build_date())
+    return HTMLResponse(_PAGE.replace("__ASSETV__", _asset_version())
+                        .replace("__BUILD__", _build_date())
                         .replace("__CLARITY__", _clarity_tag())
                         .replace("__HIDECFG__", _hide_cfg(db, admin, accept))
                         .replace("__TESTWM__", testwm))
