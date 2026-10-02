@@ -719,29 +719,35 @@
     var idx = -1;
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
     if (idx < 0) return "";
-    var rows = [];
+    var rows = [], all = [];
     for (var i = 0; i < TERR.cells.length; i += 5) {
       if (TERR.cells[i] !== idx) continue;
+      all.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2] });
       var band = TERR.cells[i + 3];
       band = bandOf(band);
       if (band !== 1 && band !== 2) continue;      // 3 is decay, 4 cannot be lost
       rows.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2], band: band,
                   need: TERR.cells[i + 4] / 10 });
     }
-    if (!rows.length) return "";
+    if (!rows.length || !all.length) return "";
     rows.sort(function (a, b) { return (b.band - a.band) || (a.need - b.need); });
     LOSING = rows.slice(0, 5);
+    // bearings from the middle of everything the crew holds, not from the middle of the five
+    // rows: with one row those are the same point and the direction comes out empty
     var cx = 0, cy = 0;
-    LOSING.forEach(function (x) { cx += x.x; cy += x.y; });
-    cx /= LOSING.length; cy /= LOSING.length;
-    return '<div class="crewtargets crewlose"><h4>' + t("crew.lose.h") + "</h4>"
+    all.forEach(function (x) { cx += x.x; cy += x.y; });
+    cx /= all.length; cy /= all.length;
+    // Same three columns as "where to ride next", so the two cards read as a pair: how hard,
+    // which way, what about it.
+    return '<div class="crewtargets crewlose' + (SHOW_NUMBERS ? " nums" : "") + '"><h4>'
+      + t("crew.lose.h") + "</h4>"
       + '<p class=hint>' + t("crew.lose.p") + "</p>"
       + LOSING.map(function (x, i) {
           return '<div class="crewtrow sel" data-l="' + i + '">'
-            + '<span class="crewtkm">'
-            + t(x.band === 2 ? "crew.tile.slipping" : "crew.tile.pushed") + "</span>"
+            + '<span class="crewtkm">' + effort(x.need, x.y) + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
-            + '<span class="crewtwho">' + effort(x.need, x.y) + "</span></div>";
+            + '<span class="crewtwho">'
+            + t(x.band === 2 ? "crew.tile.slipping" : "crew.tile.pushed") + "</span></div>";
         }).join("")
       + "</div>";
   }

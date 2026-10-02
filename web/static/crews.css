@@ -400,7 +400,6 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtag.done { color: var(--mut, #7a86ad); background: rgba(154,166,200,.1); }
 
 /* the other half of the game, same shape so the two read as a pair */
-.crewlose { --kmw: 118px; }
 .crewlose .crewtkm { color: #ff9f6b; }
 
 @media (max-width: 560px) {

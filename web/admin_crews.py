@@ -100,8 +100,10 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
               <td class=mut>0 = no cap.</td></tr>
           <tr><td>Fill opacity <input name=opacity value="{cfg['opacity']}" size=5></td>
               <td class=mut>How strongly the rectangles paint over the map.</td></tr>
-          <tr><td>Exact kilometres <input type=checkbox name=numbers {"checked" if cfg["numbers"] else ""}>
-              <span class=hint>off: "a short ride" instead of "0.2 km"</span></td></tr>
+          <tr><td>Exact kilometres <input type=checkbox name=numbers {"checked" if cfg["numbers"] else ""}></td>
+              <td class=mut>Off, a row reads "a short ride" rather than "0.2 km", measured
+              against that square's own size so the words mean the same at every latitude.
+              On, riders get the figures the model actually uses.</td></tr>
           <tr><td>Ghost heatmap <input name=heat_ghost value="{cfg['heat_ghost']}" size=5></td>
               <td class=mut>How much of the Riders heatmap stays visible underneath, 0 to 1.
               The two answer different questions and fight at full strength, but a ghost of
