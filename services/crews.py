@@ -282,10 +282,17 @@ def disband(db, actor: str, clan_id: str) -> None:
 
 
 def touch(db, store_id: str) -> None:
-    """Mark a member as seen — what the idle-leader handover measures against."""
+    """Mark a member as seen, which is what the idle-leader handover measures against.
+
+    Hourly at most. The rule it feeds is "has this leader been quiet for ninety days", so a
+    timestamp to the hour is ample and it saves a write and a commit on every panel load.
+    """
     m = membership(db, store_id)
-    if m is not None:
-        m.last_seen = utcnow()
+    if m is None:
+        return
+    now = utcnow()
+    if m.last_seen is None or (now - m.last_seen) > timedelta(hours=1):
+        m.last_seen = now
         db.commit()
 
 

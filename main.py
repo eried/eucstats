@@ -120,6 +120,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="eucstats", lifespan=lifespan)
 
+from starlette.middleware.gzip import GZipMiddleware  # noqa: E402
 from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
 from web.api import router as api_router  # noqa: E402
 from web.crews_api import router as crews_router, pair_router  # noqa: E402
@@ -128,8 +129,28 @@ from web.admin_crews import crews_admin_router  # noqa: E402
 from web.public import public_router  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
+# The page is one 132 KB inline HTML string and was going out uncompressed whenever nginx
+# was not in front of it; crews adds 56 KB of static on top. minimum_size keeps it off the
+# small JSON responses, where the CPU is not worth the few bytes. The territory payload is
+# already gzipped on disk and sets its own Content-Encoding, so this leaves it alone.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(SessionMiddleware, secret_key=_get_session_secret())
-app.mount("/static", StaticFiles(directory=str(config.BASE_DIR / "web" / "static")), name="static")
+class _CachedStatic(StaticFiles):
+    """Static files with a cache lifetime.
+
+    They shipped an ETag and a Last-Modified but no Cache-Control, so every navigation paid a
+    conditional request for every asset. A week, and the filenames are stable, so a changed
+    file is picked up by the ETag revalidation after it.
+    """
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers.setdefault("Cache-Control", "public, max-age=604800")
+        return resp
+
+
+app.mount("/static", _CachedStatic(directory=str(config.BASE_DIR / "web" / "static")),
+          name="static")
 app.include_router(api_router)
 app.include_router(crews_router)
 app.include_router(pair_router)

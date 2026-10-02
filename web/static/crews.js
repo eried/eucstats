@@ -53,14 +53,15 @@
     return [[[w, n], [e, n], [e, s], [w, s], [w, n]]];
   }
 
-  // cells arrive as [crewIndex, x, y, pressure] quads
+  // cells arrive as [crewIndex, x, y, band, tenths-of-a-km]
   function cellsByCrew() {
     var out = [];
     if (!TERR || !TERR.cells) return out;
-    for (var i = 0; i < TERR.cells.length; i += 4) {
+    for (var i = 0; i < TERR.cells.length; i += 5) {
       var c = TERR.cells[i];
       if (!out[c]) out[c] = [];
-      out[c].push([TERR.cells[i + 1], TERR.cells[i + 2], TERR.cells[i + 3] || 0]);
+      out[c].push([TERR.cells[i + 1], TERR.cells[i + 2], TERR.cells[i + 3] || 0,
+                   TERR.cells[i + 4] || 0]);
     }
     return out;
   }
@@ -166,12 +167,13 @@
       // single feature renders as one solid shape with no antialiasing seam through it — and
       // splitting by band is what lets contested ground be drawn fainter without needing a
       // separate feature for every tile on the map.
-      [0, 1, 2].forEach(function (band) {
+      [0, 1, 2, 3].forEach(function (band) {
         var inBand = cells.filter(function (t) { return (t[2] || 0) === band; });
         if (!inBand.length) return;
         fills.features.push({
           type: "Feature",
           properties: { c: crew.colour, p: "crewpat-" + crew.pattern, i: idx, band: band,
+                        need: inBand[0][3] || 0,
                         name: crew.name, slug: crew.slug, km2: crew.km2 },
           geometry: { type: "MultiPolygon",
                       coordinates: inBand.map(function (t) { return tileRing(t[0], t[1], z); }) }
@@ -183,7 +185,10 @@
         geometry: { type: "MultiLineString", coordinates: outline(cells, z) }
       });
       // one dashed ring around the ground under pressure, not a box per tile
-      var pressed = cells.filter(function (t) { return (t[2] || 0) >= 1; });
+      var pressed = cells.filter(function (t) {
+        var b = t[2] || 0;
+        return b === 1 || b === 2;        // a rival; fading ground is not under attack
+      });
       if (pressed.length) {
         hot.features.push({
           type: "Feature",
@@ -240,9 +245,9 @@
       // flips, and the map should say "someone is leaning on this", not "this is nearly gone".
       var pat = Math.min(1, op + 0.15);
       map.setPaintProperty("crew-fill", "fill-opacity",
-        ["match", ["get", "band"], 1, op * 0.84, 2, op * 0.66, op]);
+        ["match", ["get", "band"], 1, op * 0.84, 2, op * 0.66, 3, op * 0.5, op]);
       map.setPaintProperty("crew-pattern", "fill-opacity",
-        ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, pat]);
+        ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, 3, pat * 0.4, pat]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
@@ -318,12 +323,19 @@
     var p = f.properties;
     // The band is the answer to "am I actually taking this off them?". Without it the only
     // signal is the shade, and a shade on its own is something you notice after the fact.
-    var state = [t("crew.tile.safe"), t("crew.tile.pushed"), t("crew.tile.slipping")][p.band || 0];
+    var band = p.band || 0;
+    var km = (p.need || 0) / 10;
+    var state = [t("crew.tile.safe"), t("crew.tile.pushed"), t("crew.tile.slipping"),
+                 t("crew.tile.fading")][band];
+    // the number is the whole point: "about to flip" without it is a warning with no content
+    var detail = band === 1 || band === 2
+      ? t("crew.tile.need", { v: km.toFixed(1) })
+      : t("crew.tile.clear", { v: km.toFixed(1) });
     new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
-        + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + fmtKm2(p.km2)
-        + " · " + esc(state) + "</span></div></div>")
+        + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)
+        + "</span><span>" + esc(detail) + "</span></div></div>")
       .addTo(map);
   }
 
@@ -397,6 +409,7 @@
       + '<span class="b0"><i></i>' + t("crew.tile.safe") + "</span>"
       + '<span class="b1"><i></i>' + t("crew.tile.pushed") + "</span>"
       + '<span class="b2"><i></i>' + t("crew.tile.slipping") + "</span>"
+      + '<span class="b3"><i></i>' + t("crew.tile.fading") + "</span>"
       + "</div>";
   }
 
@@ -541,6 +554,46 @@
   function stopPairing() {
     if (pairTimer) clearInterval(pairTimer);
     pairTimer = null;
+  }
+
+  // Asks inside the panel instead of through the browser. `ok` runs on yes and nothing runs
+  // on no. The native confirm() was the one moment this stopped looking like itself, and on a
+  // phone it is a system sheet thrown over a custom surface.
+  function ask(message, confirmLabel, ok) {
+    var host = document.getElementById("crewstatus");
+    if (!host) { if (window.confirm(message)) ok(); return; }
+    host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
+      + '<button class="crewbtn mini" id="crewask-y">' + esc(confirmLabel) + "</button>"
+      + '<button class="crewbtn mini ghost" id="crewask-n">' + t("crew.cancel") + "</button>"
+      + "</div>";
+    host.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    document.getElementById("crewask-n").onclick = function () { host.innerHTML = ""; };
+    document.getElementById("crewask-y").onclick = function () {
+      host.innerHTML = "";
+      ok();
+    };
+  }
+
+  // An in-panel prompt, same reasoning.
+  function askFor(message, placeholder, ok) {
+    var host = document.getElementById("crewstatus");
+    if (!host) { var v = window.prompt(message); if (v) ok(v); return; }
+    host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
+      + '<input id="crewask-in" placeholder="' + esc(placeholder) + '" maxlength="16">'
+      + '<button class="crewbtn mini" id="crewask-y">' + t("crew.join.btn") + "</button>"
+      + '<button class="crewbtn mini ghost" id="crewask-n">' + t("crew.cancel") + "</button>"
+      + "</div>";
+    host.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    var input = document.getElementById("crewask-in");
+    input.focus();
+    document.getElementById("crewask-n").onclick = function () { host.innerHTML = ""; };
+    function go() {
+      var v = input.value.trim();
+      host.innerHTML = "";
+      if (v) ok(v);
+    }
+    document.getElementById("crewask-y").onclick = go;
+    input.onkeydown = function (e) { if (e.key === "Enter") go(); };
   }
 
   function setStatus(msg, bad) {
@@ -743,17 +796,19 @@
     });
     var leave = document.getElementById("cm-leave");
     if (leave) leave.onclick = function () {
-      if (!confirm(t("crew.mine.leaveq", { name: c.name, n: days(COOLDOWN_DAYS) })))
-        return;
-      api("POST", "/api/v1/crews/leave", {}).then(function (r) {
-        if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
-        else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+      ask(t("crew.mine.leaveq", { name: c.name, n: days(COOLDOWN_DAYS) }),
+          t("crew.mine.leave"), function () {
+        api("POST", "/api/v1/crews/leave", {}).then(function (r) {
+          if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
+          else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+        });
       });
     };
     var so = document.getElementById("cm-signout");
     if (so) so.onclick = function () {
-      if (!confirm(t("crew.mine.signoutq"))) return;
-      api("POST", "/api/v1/crews/signout", {}).then(function () { ME = null; show(); });
+      ask(t("crew.mine.signoutq"), t("crew.mine.signout"), function () {
+        api("POST", "/api/v1/crews/signout", {}).then(function () { ME = null; show(); });
+      });
     };
     var save = document.getElementById("ce-save");
     if (save) save.onclick = function () {
@@ -833,16 +888,19 @@
   function bindJoin() {
     document.querySelectorAll("[data-join]").forEach(function (b) {
       b.onclick = function () {
-        var body = {};
-        if (b.dataset.pol === "invite") {
-          var code = prompt(t("crew.join.code"));
-          if (!code) return;
-          body.invite_code = code;
+        function send(body) {
+          api("POST", "/api/v1/crews/" + b.dataset.join + "/join", body).then(function (r) {
+            if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
+            else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+          });
         }
-        api("POST", "/api/v1/crews/" + b.dataset.join + "/join", body).then(function (r) {
-          if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-          else setStatus((r.err && r.err.detail) || t("crew.err"), true);
-        });
+        if (b.dataset.pol === "invite") {
+          askFor(t("crew.join.codeask"), "ABC12345", function (code) {
+            send({ invite_code: code });
+          });
+        } else {
+          send({});
+        }
       };
     });
   }
@@ -970,7 +1028,7 @@
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
     if (idx < 0) return;
     var b = new maplibregl.LngLatBounds(), any = false;
-    for (var i = 0; i < TERR.cells.length; i += 4) {
+    for (var i = 0; i < TERR.cells.length; i += 5) {
       if (TERR.cells[i] !== idx) continue;
       var x = TERR.cells[i + 1], y = TERR.cells[i + 2];
       b.extend([tileLon(x, TERR.z), tileLat(y, TERR.z)]);

@@ -109,7 +109,7 @@ def test_a_crew_that_cannot_draw_a_tile_does_not_take_it_from_everyone():
             acc[f"13/{x}/{y}"] = {"live": [10.0, {"r1"}]}
     acc["13/1/0"]["ghost"] = [10.1, {"r2"}]          # outrides them in one interior tile
 
-    kept, _ = award(acc, {"live", "ghost"}, {})
+    kept, _, _blocked = award(acc, {"live", "ghost"}, {})
     assert len(kept.get("live", ())) == 6, "the crew that can draw the block keeps it"
     assert not kept.get("ghost"), "a crew with no 2x2 anywhere still draws nothing"
 
@@ -121,7 +121,7 @@ def test_a_disbanded_crew_does_not_salt_the_ground_it_held():
         for y in range(2):
             acc[f"13/{x}/{y}"] = {"live": [10.0, {"r1"}]}
     acc["13/1/0"]["dead"] = [10.1, {"r2"}]
-    kept, _ = award(acc, {"live"}, {})               # "dead" is no longer a live crew
+    kept, _, _blocked = award(acc, {"live"}, {})               # "dead" is no longer a live crew
     assert len(kept.get("live", ())) == 6
 
 

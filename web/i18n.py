@@ -52,6 +52,8 @@ EN: dict[str, str] = {
     "crew.join.btn": "Join",
     "crew.join.ask": "Ask",
     "crew.join.code": "Enter code",
+    "crew.join.codeask": "What is their invite code?",
+    "crew.cancel": "Cancel",
     "crew.join.pending": "Waiting on a leader to let you in.",
     "crew.join.wait.h": "Cooling off",
     "crew.join.wait.p": "You just walked out of one. Next crew in {n}. Keeps people from hopping around farming ground.",
@@ -111,6 +113,9 @@ EN: dict[str, str] = {
     "crew.tile.pushed": "Someone else is riding it",
     "crew.tile.slipping": "About to flip",
     "crew.tile.free": "Up for grabs",
+    "crew.tile.fading": "Fading, nobody has ridden it",
+    "crew.tile.need": "{v} km would take it",
+    "crew.tile.clear": "{v} km clear",
     "crew.held": "{v} held",
     # panel titles (header of the sliding panel)
     "title.riders": "Riders",

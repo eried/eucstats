@@ -409,8 +409,8 @@ def emblem_slot(comp: set[tuple[int, int]]) -> tuple[int, int, int]:
 
 # --- the rebuild --------------------------------------------------------------------------
 
-def award(acc: dict, live: set, prev: dict, seed: int = SEED,
-          rounds: int = 8, last_seen: dict | None = None) -> tuple[dict[str, set], dict]:
+def award(acc: dict, live: set, prev: dict, seed: int = SEED, rounds: int = 8,
+          last_seen: dict | None = None) -> tuple[dict[str, set], dict, set]:
     """Decide who draws what, re-awarding tiles their winner cannot actually hold.
 
     The naive version — pick the km leader per tile, then drop whatever fails to seed — made
@@ -454,9 +454,9 @@ def award(acc: dict, live: set, prev: dict, seed: int = SEED,
                 if rivals:
                     withdrawn.add((tile, clan_id))
         if not withdrawn:
-            return _close_holes(kept), won
+            return _close_holes(kept), won, blocked
         blocked |= withdrawn
-    return _close_holes(kept), won
+    return _close_holes(kept), won, blocked
 
 
 def _close_holes(kept: dict[str, set]) -> dict[str, set]:
@@ -475,25 +475,41 @@ def _close_holes(kept: dict[str, set]) -> dict[str, set]:
     return out
 
 
-def _pressure(acc: dict, tile: str, holder: str, held_km: float) -> int:
-    """How hard the nearest rival is pushing on this tile, 0 (safe) to 2 (slipping).
+def _pressure(acc: dict, tile: str, holder: str, held_km: float,
+              blocked: set | None = None) -> tuple[int, int]:
+    """(band, tenths of a km) for a held tile.
 
-    Territory was binary — held or not — which hides the only thing that makes it a game: that
-    somebody is riding your ground right now. A tile at 95% of your kilometres looks identical
-    to one nobody has touched in three months, right up until the night it flips.
+    The band is what the map paints and the number is what a rider can act on. Saying "about
+    to flip" and stopping is the shape of a warning without the content of one: nobody can
+    tell whether that means two more kilometres this week or four more people.
 
-    Three buckets rather than a continuous value, because the client draws one shape per crew
-    per bucket. A finer scale would mean a shape per tile.
+      0 nobody near it        the number is how far clear the holder is
+      1 somebody is riding it      ... the number is what the rival still needs
+      2 about to flip              ... same
+      3 fading                     the holder is near the floor and nobody else wants it;
+                                   the number is how much they can lose before it goes
+
+    Rivals who are under the tile's own floor, or whose claim was withdrawn for failing to
+    seed, are not counted: a warning that fires on somebody who structurally cannot take the
+    tile is a warning people learn to ignore.
     """
-    rivals = [v[0] for c, v in acc.get(tile, {}).items() if c != holder]
-    if not rivals or held_km <= 0:
-        return 0
-    ratio = max(rivals) / held_km
-    if ratio >= 0.85:
-        return 2          # about to go
-    if ratio >= 0.5:
-        return 1          # being pushed
-    return 0
+    floor = min_lead_km(tile)
+    out = blocked or set()
+    rivals = [v[0] for c, v in acc.get(tile, {}).items()
+              if c != holder and v[0] >= floor and (tile, c) not in out]
+    best = max(rivals) if rivals else 0.0
+
+    if not rivals:
+        # No competition. The only way to lose this is to stop riding it, so the number worth
+        # showing is the margin above the floor, and the band says whether that margin is thin.
+        slack = held_km - floor
+        band = 3 if slack <= floor * 0.35 else 0
+        return band, max(0, int(round(slack * 10)))
+
+    need = max(0.0, held_km - best)          # what the rival still has to find
+    ratio = best / held_km if held_km > 0 else 1.0
+    band = 2 if ratio >= 0.85 else 1 if ratio >= 0.5 else 0
+    return band, int(round(need * 10))
 
 
 def _zoom_of(won: dict) -> int:
@@ -517,7 +533,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         .filter(ClanMember.status == "active", ClanMember.left_at.is_(None))
         .group_by(ClanMember.clan_id).all())
 
-    kept, won = award(acc, set(clans), prev, seed, last_seen=recency)
+    kept, won, withdrawn_all = award(acc, set(clans), prev, seed, last_seen=recency)
 
     # --- ClanCell rows: the admin view and the ranking read these
     db.query(ClanCell).delete()
@@ -542,7 +558,8 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             db.add(ClanCell(tile=tile, clan_id=clan_id, km=round(km, 3), riders=riders,
                             first_led=first_led.get((tile, clan_id)) or now))
             km2 += T.area_km2(tile)
-            cells_flat.extend((idx, x, y, _pressure(acc, tile, clan_id, km)))
+            band, need = _pressure(acc, tile, clan_id, km, withdrawn_all)
+            cells_flat.extend((idx, x, y, band, need))
         comps = regions(pts)
         best_km2 = 0.0
         for comp in comps:
@@ -569,7 +586,9 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         # ranked by the biggest unbroken stretch a crew holds, not the total: one solid
         # block is a harder thing to own than the same area scattered across a country
         "crews": sorted(payload_crews, key=lambda c: (-c["best_km2"], -c["km2"])),
-        # [crewIndex, x, y, pressure, ...] — pressure is 0 safe / 1 pushed / 2 slipping
+        # [crewIndex, x, y, band, tenths-of-a-km, ...]
+        # band: 0 safe, 1 somebody is riding it, 2 about to flip, 3 fading for lack of riding
+        # the number: what a rival still needs, or for 0 and 3 how much slack the holder has
         "cells": cells_flat,
         "regions": regions_out,
     }
@@ -577,7 +596,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     # remapped rather than leaving the client to join on two different orderings
     remap = {c["id"]: i for i, c in enumerate(payload["crews"])}
     old_to_new = {i: remap[clan_id] for i, clan_id in enumerate(order)}
-    payload["cells"] = [old_to_new[v] if k % 4 == 0 else v
+    payload["cells"] = [old_to_new[v] if k % 5 == 0 else v
                         for k, v in enumerate(cells_flat)]
     for r in payload["regions"]:
         r["c"] = old_to_new[r["c"]]
@@ -589,7 +608,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         fh.write(body)
     tmp.replace(p)                              # atomic: a reader never sees half a file
 
-    return {"crews": len(payload["crews"]), "tiles": len(won), "held": len(cells_flat) // 4,
+    return {"crews": len(payload["crews"]), "tiles": len(won), "held": len(cells_flat) // 5,
             "regions": len(regions_out), "bytes": p.stat().st_size,
             "window_days": window_days, "zoom": zoom}
 

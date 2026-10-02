@@ -183,8 +183,13 @@ def session(db, sid: str | None, scope: str = "crew") -> WebSession | None:
         db.delete(ws)                    # the account went away; so does the session
         db.commit()
         return None
-    ws.last_used = utcnow()
-    db.commit()
+    # Written at most hourly rather than on every call. This feeds a 90-day expiry, so a
+    # timestamp good to the hour is good enough, and the alternative was a write plus a commit
+    # on the one hot authenticated endpoint.
+    now = utcnow()
+    if ws.last_used is None or (now - ws.last_used) > timedelta(hours=1):
+        ws.last_used = now
+        db.commit()
     return ws
 
 

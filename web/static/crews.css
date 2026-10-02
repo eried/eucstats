@@ -312,3 +312,17 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewsign h3 { order: -2; }
   .crewsign > .hint:first-of-type { order: -1; }
 }
+
+
+/* Asking inside the panel rather than through the browser. */
+.crewask {
+  margin: 9px 0; padding: 11px 13px; border-radius: 6px;
+  background: rgba(255,138,216,.1); border-left: 2px solid var(--sec, #ff8ad8);
+}
+.crewask p { margin: 0 0 9px; font-size: 13px; }
+.crewask input {
+  display: block; width: 100%; margin: 0 0 9px; padding: 8px 10px;
+  background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055); color: inherit;
+  font: inherit; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+}
+.crewask .crewbtn { margin-right: 7px; }
