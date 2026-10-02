@@ -117,8 +117,12 @@ def cooldown_until(db, store_id: str):
     The cooldown stops crew-hopping to game territory. It is short enough not to feel punitive
     and long enough that it is not worth doing.
     """
+    # Only crews you were actually in. A join request that was never accepted and then
+    # withdrawn used to start the clock, so pulling a request cost a week in a crew you had
+    # never ridden a metre for.
     last = (db.query(ClanMember)
-            .filter(ClanMember.store_id == store_id, ClanMember.left_at.isnot(None))
+            .filter(ClanMember.store_id == store_id, ClanMember.status == "active",
+                    ClanMember.left_at.isnot(None))
             .order_by(ClanMember.left_at.desc()).first())
     if not last or membership(db, store_id):
         return None

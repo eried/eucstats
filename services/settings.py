@@ -812,6 +812,9 @@ def get_crews(db: Session) -> dict:
         # "where people actually ride" under "who holds what" is useful context. 0 turns it
         # off, which is what it was before.
         "heat_ghost": _clamp_float(get_meta(db, "crew_heat_ghost", 0.14), 0.14, 0.0, 1.0),
+        # Exact kilometres instead of "a short ride". Off by default: a decimal tells a rider
+        # the answer before they have played, and reads like a model rather than a contest.
+        "numbers": (get_meta(db, "crew_numbers", "0") or "0") == "1",
     }
     # Eight app_meta SELECTs per call, and _gate() calls this on every crews endpoint, for
     # settings that change when somebody clicks save on the admin page. One process, one
@@ -822,8 +825,9 @@ def get_crews(db: Session) -> dict:
 
 
 def set_crews(db: Session, enabled, zoom, window_days, seed, cooldown_days, max_members,
-              opacity, creation_open, heat_ghost=0.14) -> None:
+              opacity, creation_open, heat_ghost=0.14, numbers=False) -> None:
     _invalidate_crews_cache()
+    set_meta(db, "crew_numbers", "1" if numbers else "0")
     set_meta(db, "crew_heat_ghost", str(_clamp_float(heat_ghost, 0.14, 0.0, 1.0)))
     set_meta(db, "crew_enabled", "1" if enabled else "0")
     set_meta(db, "crew_zoom", str(_clamp_int(zoom, 14, 8, 16)))

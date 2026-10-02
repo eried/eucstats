@@ -100,6 +100,8 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
               <td class=mut>0 = no cap.</td></tr>
           <tr><td>Fill opacity <input name=opacity value="{cfg['opacity']}" size=5></td>
               <td class=mut>How strongly the rectangles paint over the map.</td></tr>
+          <tr><td>Exact kilometres <input type=checkbox name=numbers {"checked" if cfg["numbers"] else ""}>
+              <span class=hint>off: "a short ride" instead of "0.2 km"</span></td></tr>
           <tr><td>Ghost heatmap <input name=heat_ghost value="{cfg['heat_ghost']}" size=5></td>
               <td class=mut>How much of the Riders heatmap stays visible underneath, 0 to 1.
               The two answer different questions and fight at full strength, but a ghost of
@@ -225,13 +227,14 @@ def save_settings(request: Request, db: Session = Depends(get_db),
                   enabled: str = Form(None), creation_open: str = Form(None),
                   zoom: int = Form(14), window_days: int = Form(90), seed: int = Form(2),
                   cooldown_days: int = Form(7), max_members: int = Form(0),
-                  opacity: float = Form(0.55), heat_ghost: float = Form(0.14)):
+                  opacity: float = Form(0.55), heat_ghost: float = Form(0.14),
+                  numbers: str = Form("")):
     g = _guard(request)
     if g:
         return g
     before = settings.get_crews(db)
     settings.set_crews(db, bool(enabled), zoom, window_days, seed, cooldown_days,
-                       max_members, opacity, bool(creation_open), heat_ghost)
+                       max_members, opacity, bool(creation_open), heat_ghost, bool(numbers))
     after = settings.get_crews(db)
     crews.COOLDOWN_DAYS = after["cooldown_days"]
     note = "Saved."

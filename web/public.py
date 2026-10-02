@@ -1060,7 +1060,7 @@ def _crew_cfg(db):
     return {"enabled": c["enabled"], "opacity": c["opacity"], "zoom": c["zoom"],
             "window_days": c["window_days"], "seed": c["seed"],
             "creation_open": c["creation_open"], "cooldown_days": c["cooldown_days"],
-            "heat_ghost": c["heat_ghost"],
+            "heat_ghost": c["heat_ghost"], "numbers": c["numbers"],
             "palette": PALETTE, "patterns": list(PATTERNS)}
 
 

@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from database import SessionLocal                                        # noqa: E402
+from datetime import timedelta
 from models import Clan, ClanCell, ClanMember, PairToken, Trip, WebSession, utcnow  # noqa: E402
 from services import crews, settings, territory                         # noqa: E402
 from sim_fleet import fleet                                             # noqa: E402
@@ -147,6 +148,19 @@ def main() -> int:
 
     rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
                            seed=cfg["seed"])
+    # Spread out when each square was first taken. A wipe-and-rebuild stamps every tile with
+    # the same instant, so the whole map would read as "taken this week" and the thing that
+    # marks new ground would mark all of it.
+    import random as _rnd
+    rng = _rnd.Random(a.seed)
+    now = utcnow()
+    for cell in db.query(ClanCell).all():
+        cell.first_led = now - timedelta(days=rng.uniform(0.2, cfg["window_days"] * 0.8))
+    db.commit()
+    # and again, because the cached payload was baked from the dates we just rewrote. The
+    # rebuild carries first_led forward, so the second pass only re-reads it.
+    rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
+                            seed=cfg["seed"])
     print(f"\n{made} crews · territory: {rep}")
     print("\ntop crews by ground held:")
     for r in territory.ranking(db, limit=12):

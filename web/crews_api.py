@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Clan, ClanMember, Rider, Trip
+from models import Clan, ClanMember, Rider, Trip, utcnow
 from services import crews, pairing, ratelimit, settings, territory
 from services import tiles as T
 
@@ -198,6 +199,17 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
             out["crew"] = _crew_brief(db, clan)
             out["role"] = m.role
             out["status"] = m.status
+            # Whether the take-over button exists at all. claim_leadership is the designed way
+            # out of a crew whose leader stopped riding, and with nothing on screen saying so
+            # it protected nobody.
+            if m.role != "leader":
+                lead = (db.query(ClanMember)
+                        .filter(ClanMember.clan_id == clan.clan_id,
+                                ClanMember.role == "leader",
+                                ClanMember.left_at.is_(None)).first())
+                idle = lead and (lead.last_seen or lead.joined_at)
+                out["leader_stale"] = bool(
+                    idle and (utcnow() - idle) >= timedelta(days=crews.IDLE_LEADER_DAYS))
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
                 out["roster"] = [
@@ -278,8 +290,6 @@ def _stamp_recent(db: Session, store_id: str, clan_id: str) -> None:
     are stamped, and only rides that carry no crew already — nothing is taken from another
     crew's history.
     """
-    from datetime import timedelta
-    from models import utcnow
     cfg = settings.get_crews(db)
     since = utcnow() - timedelta(days=cfg["window_days"])
     (db.query(Trip)
@@ -648,7 +658,7 @@ p{color:#8c99bb;font-size:13.5px}b{color:#dce6f7}
 <a class=btn href="eucplanet://pair?code=__CODE__&amp;host=__HOST__">Open EUC Planet</a>
 <p>App did not open? Start it yourself, go to <b>Crews</b>, and punch in the code above.</p>
 <p style="margin-top:22px;font-size:12px">Only say yes to a code you asked for. A pass lets a
-browser act for you in crews &mdash; start one, join one, leave one. It can't send up rides,
+browser act for you in crews: start one, join one, leave one. It can't send up rides,
 rename you, or delete anything.</p>
 </div></body></html>"""
 

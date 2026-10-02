@@ -65,12 +65,17 @@
     return [[[w, n], [e, n], [e, s], [w, s], [w, n]]];
   }
 
-  // cells arrive as [crewIndex, x, y, band, tenths-of-a-km]
+  // cells arrive as [crewIndex, x, y, band, tenths-of-a-km], and the band carries one extra
+  // bit: +5 means the crew took this square within the last week. Folded in rather than sent
+  // as a sixth integer, because this is the one payload every visitor downloads.
   // x:y -> [band, tenths of a km]. The fills are dissolved per crew per band so the map stays
   // cheap, which means a feature cannot carry a per-tile number: it used to hand over the
   // FIRST tile's, so every safe tile of a crew reported the same figure when the real spread
   // was 0.2 to 9.9 km. The popup reads the tile it was actually clicked on from here.
   var TILEINFO = {};
+
+  function bandOf(v) { return v % 5; }
+  function isFresh(v) { return v >= 5; }
 
   function cellsByCrew() {
     TILEINFO = {};
@@ -80,8 +85,9 @@
       var c = TERR.cells[i];
       if (!out[c]) out[c] = [];
       var x = TERR.cells[i + 1], y = TERR.cells[i + 2];
-      out[c].push([x, y, TERR.cells[i + 3] || 0, TERR.cells[i + 4] || 0]);
-      TILEINFO[x + ":" + y] = [TERR.cells[i + 3] || 0, TERR.cells[i + 4] || 0];
+      var raw = TERR.cells[i + 3] || 0;
+      out[c].push([x, y, bandOf(raw), TERR.cells[i + 4] || 0, isFresh(raw) ? 1 : 0]);
+      TILEINFO[x + ":" + y] = [bandOf(raw), TERR.cells[i + 4] || 0, isFresh(raw) ? 1 : 0];
     }
     return out;
   }
@@ -145,7 +151,8 @@
   /* ---------- layers ---------- */
 
   var LAYERS = ["crew-fill", "crew-pattern", "crew-contested", "crew-edge",
-                "crew-edge-glow", "crew-target-line"];
+                "crew-edge-glow", "crew-target-case", "crew-target-line",
+                "crew-pulse-danger", "crew-pulse-fresh"];
 
   function cursorPointer() { map.getCanvas().style.cursor = "pointer"; }
   function cursorDefault() { map.getCanvas().style.cursor = ""; }
@@ -159,16 +166,54 @@
     requestAnimationFrame(function () { sizePending = false; sizeEmblems(); });
   }
 
+  /* ---------- the slow breath ----------
+     One property write every 1.6s; MapLibre eases between the two values on the GPU. A
+     requestAnimationFrame loop would repaint the whole map sixty times a second to animate two
+     numbers. The two layers run in opposite phase, so ground under strain dims as ground just
+     taken brightens, and a glance tells the two apart without reading anything. */
+  var pulseTimer = null, pulseUp = false;
+  var CALM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function beat() {
+    if (!map.getLayer("crew-pulse-danger")) return;
+    pulseUp = !pulseUp;
+    // all the way down to nothing and back, so it reads as breathing rather than a tint
+    map.setPaintProperty("crew-pulse-danger", "fill-opacity", pulseUp ? 0.26 : 0);
+    map.setPaintProperty("crew-pulse-fresh", "fill-opacity", pulseUp ? 0 : 0.26);
+  }
+
+  function startPulse(any) {
+    stopPulse();
+    if (CALM || !any) return;         // nothing happening, or a reader who asked for stillness
+    beat();
+    pulseTimer = setInterval(function () {
+      if (document.hidden) return;    // a hidden tab does not need a heartbeat
+      beat();
+    }, 2600);
+  }
+
+  function stopPulse() {
+    if (pulseTimer) clearInterval(pulseTimer);
+    pulseTimer = null;
+    pulseUp = false;
+  }
+
   function clearLayers() {
     map.off("zoom", onZoom);
     map.off("click", "crew-fill", onCellClick);
     map.off("mouseenter", "crew-fill", cursorPointer);
     map.off("mouseleave", "crew-fill", cursorDefault);
+    map.off("mousemove", "crew-fill", onCellHover);
+    map.off("mouseleave", "crew-fill", hideTip);
+    map.off("movestart", hideTip);
+    hideTip();
     LAYERS.forEach(function (l) { if (map.getLayer(l)) map.removeLayer(l); });
     if (map.getSource("crew-cells")) map.removeSource("crew-cells");
     if (map.getSource("crew-edges")) map.removeSource("crew-edges");
     if (map.getSource("crew-hot")) map.removeSource("crew-hot");
     if (map.getSource("crew-targets")) map.removeSource("crew-targets");
+    if (map.getSource("crew-pulse")) map.removeSource("crew-pulse");
+    stopPulse();
     markers.forEach(function (m) { m.remove(); });
     markers = [];
   }
@@ -178,6 +223,7 @@
     ensurePatterns();
     var z = TERR.z, groups = cellsByCrew();
     var fills = { type: "FeatureCollection", features: [] };
+    var pulse = { type: "FeatureCollection", features: [] };
     var edges = { type: "FeatureCollection", features: [] };
     var hot = { type: "FeatureCollection", features: [] };
 
@@ -199,6 +245,24 @@
                       coordinates: inBand.map(function (t) { return tileRing(t[0], t[1], z); }) }
         });
       });
+      // under strain, and just taken: the two things on this map that are happening rather
+      // than merely being the case
+      var danger = cells.filter(function (t) { return t[2] === 2; });
+      if (danger.length) {
+        pulse.features.push({
+          type: "Feature", properties: { kind: "danger" },
+          geometry: { type: "MultiPolygon",
+                      coordinates: danger.map(function (t) { return tileRing(t[0], t[1], z); }) }
+        });
+      }
+      var fresh = cells.filter(function (t) { return t[4]; });
+      if (fresh.length) {
+        pulse.features.push({
+          type: "Feature", properties: { kind: "fresh", c: crew.colour },
+          geometry: { type: "MultiPolygon",
+                      coordinates: fresh.map(function (t) { return tileRing(t[0], t[1], z); }) }
+        });
+      }
       edges.features.push({
         type: "Feature",
         properties: { c: crew.colour, i: idx },
@@ -221,8 +285,21 @@
     map.addSource("crew-cells", { type: "geojson", data: fills });
     map.addSource("crew-edges", { type: "geojson", data: edges });
     map.addSource("crew-hot", { type: "geojson", data: hot });
+    map.addSource("crew-pulse", { type: "geojson", data: pulse });
 
     var op = (window.__CREWCFG__ && window.__CREWCFG__.opacity) || 0.55;
+    map.addLayer({
+      id: "crew-pulse-danger", type: "fill", source: "crew-pulse",
+      filter: ["==", ["get", "kind"], "danger"],
+      paint: { "fill-color": "#ffffff", "fill-opacity": 0, "fill-antialias": false,
+               "fill-opacity-transition": { duration: 1600 } }
+    });
+    map.addLayer({
+      id: "crew-pulse-fresh", type: "fill", source: "crew-pulse",
+      filter: ["==", ["get", "kind"], "fresh"],
+      paint: { "fill-color": ["get", "c"], "fill-opacity": 0, "fill-antialias": false,
+               "fill-opacity-transition": { duration: 1600 } }
+    });
     map.addLayer({
       id: "crew-fill", type: "fill", source: "crew-cells",
       paint: { "fill-color": ["get", "c"], "fill-opacity": 0,
@@ -263,14 +340,18 @@
       // The dip is a warning, not a disappearance. At 38% a contested tile read as almost
       // unowned, which is the wrong story: it is still theirs right up until the moment it
       // flips, and the map should say "someone is leaning on this", not "this is nearly gone".
+      // The floor was 0.55 x 0.5 = 0.275 composite, which is readable for cyan and gone for
+      // navy, maroon and olive. Half the palette is dark. The ladder still descends, it just
+      // stops bottoming out: 0.70 keeps the darkest crew on the map while it fades.
       var pat = Math.min(1, op + 0.15);
       map.setPaintProperty("crew-fill", "fill-opacity",
-        ["match", ["get", "band"], 1, op * 0.84, 2, op * 0.66, 3, op * 0.5, 4, op, op]);
+        ["match", ["get", "band"], 1, op * 0.88, 2, op * 0.78, 3, op * 0.7, 4, op, op]);
       map.setPaintProperty("crew-pattern", "fill-opacity",
-        ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, 3, pat * 0.4, 4, pat, pat]);
+        ["match", ["get", "band"], 1, pat * 0.88, 2, pat * 0.78, 3, pat * 0.62, 4, pat, pat]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
+      startPulse(pulse.features.length);
     });
 
     buildEmblems();
@@ -282,6 +363,9 @@
     map.on("click", "crew-fill", onCellClick);
     map.on("mouseenter", "crew-fill", cursorPointer);
     map.on("mouseleave", "crew-fill", cursorDefault);
+    map.on("mousemove", "crew-fill", onCellHover);
+    map.on("mouseleave", "crew-fill", hideTip);
+    map.on("movestart", hideTip);              // dragging the map is not resting on a square
   }
 
   /* ---------- emblems ---------- */
@@ -302,7 +386,7 @@
       el.className = "crewemb";
       el.innerHTML = '<img alt="" src="' + crew.emblem + '"/>'
                    + '<span class="crewemb-n">' + esc(crew.name) + "</span>";
-      el.title = crew.name + " · " + crew.km2 + " km²";
+      el.title = crew.name + " · " + fmtKm2(crew.km2);
       el.dataset.s = s;
       el.dataset.n = r.n || 1;              // region size, which decides how long it survives
       el.onclick = function (ev) { ev.stopPropagation(); openCrew(crew.slug); };
@@ -337,6 +421,67 @@
 
   /* ---------- interaction ---------- */
 
+  // What a square is, in words. Shared so the thing that appears under the pointer and the
+  // thing that appears when you click can never drift apart.
+  function tileAt(lngLat) {
+    var tx = Math.floor((lngLat.lng + 180) / 360 * Math.pow(2, TERR.z));
+    var lat = lngLat.lat * Math.PI / 180;
+    var ty = Math.floor((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI)
+                        / 2 * Math.pow(2, TERR.z));
+    return [tx, ty];
+  }
+
+  function tileWords(band, tenths, y) {
+    var km = tenths / 10;
+    return [
+      [t("crew.tile.safe"), t("crew.tile.pushed"), t("crew.tile.slipping"),
+       t("crew.tile.fading"), t("crew.tile.ringed")][band],
+      band === 4 ? t("crew.tile.ringedp")
+        : band === 3 ? fadesIn(tenths)
+        : band === 1 || band === 2 ? t("crew.tile.needw", { v: effort(km, y) })
+        : t("crew.tile.clear", { v: margin(km, y) })
+    ];
+  }
+
+  /* ---------- resting on a square ----------
+     Slow on purpose. The delay is the whole design: anything quicker turns into a label that
+     chases the pointer across the map while you are trying to look at the shapes. */
+  var HOVER_MS = 650;
+  var hoverTimer = null, hoverTip = null, hoverKey = "";
+
+  function hideTip() {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+    hoverKey = "";
+    if (hoverTip) { hoverTip.remove(); hoverTip = null; }
+  }
+
+  function onCellHover(e) {
+    if (!TERR || !e.features || !e.features[0]) return;
+    var xy = tileAt(e.lngLat);
+    var key = xy[0] + ":" + xy[1];
+    if (key === hoverKey) return;               // same square, leave the timer alone
+    hideTip();
+    hoverKey = key;
+    var p = e.features[0].properties;
+    var info = TILEINFO[key];
+    if (!info) return;
+    var px = e.point;
+    hoverTimer = setTimeout(function () {
+      if (hoverKey !== key || !map.getLayer("crew-fill")) return;
+      var w = tileWords(info[0], info[1], xy[1]);
+      var el = document.createElement("div");
+      el.className = "crewtip b" + info[0];
+      el.innerHTML = "<b>" + esc(p.name) + "</b><span>" + esc(w[0]) + "</span><span>"
+        + esc(w[1]) + "</span>"
+        + (info[2] ? "<span><em>" + esc(t("crew.tile.fresh")) + "</em></span>" : "");
+      map.getCanvasContainer().appendChild(el);
+      el.style.left = px.x + "px";
+      el.style.top = px.y + "px";
+      hoverTip = el;
+    }, HOVER_MS);
+  }
+
   function onCellClick(e) {
     var f = e.features && e.features[0];
     if (!f) return;
@@ -344,20 +489,12 @@
     // The band is the answer to "am I actually taking this off them?". Without it the only
     // signal is the shade, and a shade on its own is something you notice after the fact.
     // the clicked tile, not the shape it belongs to
-    var tx = Math.floor((e.lngLat.lng + 180) / 360 * Math.pow(2, TERR.z));
-    var lat = e.lngLat.lat * Math.PI / 180;
-    var ty = Math.floor((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI)
-                        / 2 * Math.pow(2, TERR.z));
+    var xy = tileAt(e.lngLat), tx = xy[0], ty = xy[1];
     var info = TILEINFO[tx + ":" + ty] || [p.band || 0, 0];
-    var band = info[0];
-    var km = info[1] / 10;
-    var state = [t("crew.tile.safe"), t("crew.tile.pushed"), t("crew.tile.slipping"),
-                 t("crew.tile.fading"), t("crew.tile.ringed")][band];
     // the number is the whole point: "about to flip" without it is a warning with no content
-    var detail = band === 4 ? t("crew.tile.ringedp")
-      : band === 3 ? fadesIn(info[1])
-      : band === 1 || band === 2 ? t("crew.tile.need", { v: km.toFixed(1) })
-      : t("crew.tile.clear", { v: km.toFixed(1) });
+    var words = tileWords(info[0], info[1], ty);
+    var state = words[0], detail = words[1];
+    hideTip();
     new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
@@ -408,6 +545,9 @@
     return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
       + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.4", "crew.how.5"]
         .map(function (k) { return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS }) + "</p>"; }).join("")
+      // The five shades belong here rather than under the board. It is a key, and a key is
+      // something you look up once, not a row of swatches on screen every time you visit.
+      + legendHTML()
       + "</details>";
   }
 
@@ -438,6 +578,7 @@
       + '<span class="b2"><i></i>' + t("crew.tile.slipping") + "</span>"
       + '<span class="b3"><i></i>' + t("crew.tile.fading") + "</span>"
       + '<span class="b4"><i></i>' + t("crew.tile.ringed") + "</span>"
+      + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
       + "</div>";
   }
 
@@ -472,9 +613,39 @@
   // Same per-quantity unit switch as the rest of the site: somebody reading in miles gets
   // "0.4 mi", not a kilometre figure with a mile label on it.
   function fmtKm(v) {
-    var n = v == null ? 0 : v;
-    if (H.mph && H.mph()) return (n * MI_PER_KM).toFixed(1) + " mi";
-    return n.toFixed(1) + " km";
+    var n = (v == null ? 0 : v) * (H.mph && H.mph() ? MI_PER_KM : 1);
+    var u = H.mph && H.mph() ? " mi" : " km";
+    // one decimal while it matters, none once it does not: "0.4 mi" and "137 km"
+    return (n < 10 ? n.toFixed(1) : Math.round(n).toLocaleString()) + u;
+  }
+
+  // How hard, not how far. A decimal is the model's answer handed over before anybody rides;
+  // "a short ride" is the thing a rider is actually weighing up. The figures come back if the
+  // admin switches them on.
+  var SHOW_NUMBERS = !!(window.__CREWCFG__ && window.__CREWCFG__.numbers);
+
+  // The same floor the server scores against: 0.42 of a square's own width, so one "lap" means
+  // the same amount of riding in Tromso as in Singapore even though the squares differ
+  // fourfold in area.
+  var MIN_LEAD_EDGE = 0.42, EARTH_C_KM = 40075.016686;
+
+  function floorKm(y) {
+    if (!TERR) return 0.5;
+    var n = Math.pow(2, TERR.z);
+    var mid = (tileLat(y, TERR.z) + tileLat(y + 1, TERR.z)) / 2;
+    return 360 / n / 360 * EARTH_C_KM * Math.cos(mid * Math.PI / 180) * MIN_LEAD_EDGE;
+  }
+
+  function effort(km, y) {
+    if (SHOW_NUMBERS) return fmtKm(km);
+    var r = km / (floorKm(y) || 0.5);
+    return t("crew.take." + (r <= 0.4 ? 1 : r <= 1 ? 2 : r <= 2.5 ? 3 : 4));
+  }
+
+  function margin(km, y) {
+    if (SHOW_NUMBERS) return fmtKm(km);
+    var r = km / (floorKm(y) || 0.5);
+    return t("crew.hold." + (r <= 0.5 ? 1 : r <= 2 ? 2 : 3));
   }
 
   function fmtKm2(v) {
@@ -497,28 +668,85 @@
   // has to do. A tile that joins two patches leads, because the board ranks on the biggest
   // single patch and welding two together beats widening either.
   var TARGETS = [];
+  var TARGETSEL = -1;
 
+  function bearing(d) { return d ? t("crew.targets." + d) : ""; }
+
+  var COMPASS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
+
+  function compass(dx, dy) {
+    if (!dx && !dy) return "";
+    return COMPASS[Math.round(Math.atan2(dx, -dy) / (Math.PI / 4)) & 7];
+  }
+
+  // The squares this crew could take next. Until this existed the mode could say a tile was
+  // contested but never where to go, which is the one thing a map mode about choosing routes
+  // has to do.
   function targetsHTML(rows) {
-    if (!rows || !rows.length) return "";
-    TARGETS = rows;
-    return '<div class="crewtargets"><h4>' + t("crew.targets.h") + "</h4>"
-      + '<p class=hint>' + t("crew.targets.p") + "</p>"
-      + rows.slice(0, 6).map(function (x, i) {
-          // `grows` stays out: it was true on every row for almost every crew, so it told
-          // nobody anything. It still sorts the list.
-          var tag = x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
-            : x.blocked ? '<span class="crewtag seeds">' + t("crew.targets.blocked") + "</span>"
+    TARGETS = rows || [];
+    TARGETSEL = -1;
+    var head = '<div class="crewtargets' + (SHOW_NUMBERS ? " nums" : "") + '"><h4>'
+      + t("crew.targets.h") + "</h4>";
+    if (!TARGETS.length) {
+      // The crew with nothing was the one being told nothing, which is backwards.
+      return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p></div>";
+    }
+    return head + '<p class=hint>' + t("crew.targets.p") + "</p>"
+      + TARGETS.map(function (x, i) {
+          var tag = x.first ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
+            : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
+            : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
             : "";
           var who = x.held_by
-            ? t("crew.targets.taken").replace("{name}", esc(x.held_name || ""))
-            : t("crew.targets.free");
-          return '<div class="crewtrow sel" data-t="' + i + '">'
-            + '<span class="crewtkm">'
-            + (x.need > 0 ? fmtKm(x.need) : t("crew.targets.done")) + "</span>"
+            ? t("crew.targets.taken", { name: esc(x.held_name || "") })
+            : t("crew.tile.free");
+          // Nothing goes in the number column on a square whose shortfall is zero: riding it
+          // again does nothing, and a word there wore the styling meant for a distance.
+          return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
+            + '<span class="crewtkm">' + (x.blocked ? "" : effort(x.need, x.y)) + "</span>"
+            + '<span class="crewtdir">' + bearing(x.dir) + "</span>"
             + '<span class="crewtwho">' + who + "</span>" + tag + "</div>";
         }).join("")
       + "</div>";
   }
+
+  // The other half of the game. Every band and every shortfall is already in TERR.cells, so
+  // this costs one pass over an array the browser has had the whole time. Without it the mode
+  // is offence only: the crew at the top of the board was being out-ridden in ten squares and
+  // the panel was telling them to go paint empty fields.
+  function loseHTML(slug) {
+    if (!TERR || !TERR.crews) return "";
+    var idx = -1;
+    TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
+    if (idx < 0) return "";
+    var rows = [];
+    for (var i = 0; i < TERR.cells.length; i += 5) {
+      if (TERR.cells[i] !== idx) continue;
+      var band = TERR.cells[i + 3];
+      band = bandOf(band);
+      if (band !== 1 && band !== 2) continue;      // 3 is decay, 4 cannot be lost
+      rows.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2], band: band,
+                  need: TERR.cells[i + 4] / 10 });
+    }
+    if (!rows.length) return "";
+    rows.sort(function (a, b) { return (b.band - a.band) || (a.need - b.need); });
+    LOSING = rows.slice(0, 5);
+    var cx = 0, cy = 0;
+    LOSING.forEach(function (x) { cx += x.x; cy += x.y; });
+    cx /= LOSING.length; cy /= LOSING.length;
+    return '<div class="crewtargets crewlose"><h4>' + t("crew.lose.h") + "</h4>"
+      + '<p class=hint>' + t("crew.lose.p") + "</p>"
+      + LOSING.map(function (x, i) {
+          return '<div class="crewtrow sel" data-l="' + i + '">'
+            + '<span class="crewtkm">'
+            + t(x.band === 2 ? "crew.tile.slipping" : "crew.tile.pushed") + "</span>"
+            + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
+            + '<span class="crewtwho">' + effort(x.need, x.y) + "</span></div>";
+        }).join("")
+      + "</div>";
+  }
+
+  var LOSING = [];
 
   // Who actually rode for the crew, over the same window the territory is measured on, so the
   // list explains the shape on the map rather than ranking loyalty.
@@ -532,7 +760,7 @@
         + (H.cc && c.flag ? H.cc(c.flag) : "")
         + '<span class="crewcname">' + esc(c.name) + (ROLEIC[c.role] || "") + "</span>"
         + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
-        + '<span class="crewckm">' + Math.round(c.km) + " km</span></div>";
+        + '<span class="crewckm">' + fmtKm(c.km) + "</span></div>";
     }).join("") + "</div>";
   }
 
@@ -559,6 +787,24 @@
   var pairRolls = 0;
   var PAIR_MAX_ROLLS = 5;        // about fifteen minutes of waiting, then it asks
 
+  // Both ways a code can die end up here. The error path used to stop the timer and return
+  // without rendering anything, so a dead six-character code sat on screen looking live with
+  // nothing polling, no message and no link, and the only way out was closing the panel.
+  function offerRetry() {
+    stopPairing();
+    var code = document.getElementById("crewcode");
+    if (code) code.textContent = "······";
+    var el = document.getElementById("crewcodehint");
+    if (!el) return;
+    el.innerHTML = '<a href="#" id="crewagain">' + t("crew.signin.again") + "</a>";
+    var again = document.getElementById("crewagain");
+    if (again) again.onclick = function (ev) {
+      ev.preventDefault();
+      pairRolls = 0;
+      startPairing();
+    };
+  }
+
   function startPairing() {
     stopPairing();
     api("POST", "/api/v1/pair/start").then(function (r) {
@@ -572,7 +818,7 @@
       var deep = "eucplanet://pair?code=" + encodeURIComponent(r.body.code)
         + "&host=" + encodeURIComponent(location.origin);
       if (qr) {
-        qr.innerHTML = '<img alt="Crew Pass code" src="data:image/png;base64,'
+        qr.innerHTML = '<img alt="Crew pass code" src="data:image/png;base64,'
           + r.body.qr + '"/>';
         qr.href = deep;
       }
@@ -592,19 +838,7 @@
         if (document.hidden) return;
         left -= 2;
         if (left <= 0) {
-          if (pairRolls++ >= PAIR_MAX_ROLLS) {
-            stopPairing();
-            var el = document.getElementById("crewcodehint");
-            if (el) el.innerHTML = '<a href="#" id="crewagain">' + t("crew.signin.again")
-              + "</a>";
-            var again = document.getElementById("crewagain");
-            if (again) again.onclick = function (ev) {
-              ev.preventDefault();
-              pairRolls = 0;
-              startPairing();
-            };
-            return;
-          }
+          if (pairRolls++ >= PAIR_MAX_ROLLS) { offerRetry(); return; }
           startPairing();
           return;
         }
@@ -625,7 +859,7 @@
               // counted like any other roll. This path used to restart pairing without
               // touching the counter, so the "stops after five codes" promise did not cover
               // the one case that can repeat on its own.
-              if (pairRolls++ >= PAIR_MAX_ROLLS) { stopPairing(); return; }
+              if (pairRolls++ >= PAIR_MAX_ROLLS) { offerRetry(); return; }
               startPairing();
             }
           });
@@ -641,9 +875,20 @@
   // Asks inside the panel instead of through the browser. `ok` runs on yes and nothing runs
   // on no. The native confirm() was the one moment this stopped looking like itself, and on a
   // phone it is a system sheet thrown over a custom surface.
-  function ask(message, confirmLabel, ok) {
-    var host = document.getElementById("crewstatus");
+  // `near` is the button that was pressed. The dialog opens beside it rather than at the top
+  // of the panel, because a question about the thing under your thumb belongs under your thumb.
+  function askHost(near) {
+    var top = document.getElementById("crewstatus");
+    if (!near || !near.parentNode) return top;
+    var slot = document.createElement("div");
+    near.parentNode.insertBefore(slot, near.nextSibling);
+    return slot;
+  }
+
+  function ask(message, confirmLabel, ok, near) {
+    var host = askHost(near);
     if (!host) { if (window.confirm(message)) ok(); return; }
+    function done() { if (host.id === "crewstatus") host.innerHTML = ""; else host.remove(); }
     // The quiet button is the one that acts and the bright one is the way out. Leaving costs
     // a crew and a cooldown, and a stray tap should not be the easy path.
     host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
@@ -651,34 +896,56 @@
       + '<button class="crewbtn mini" id="crewask-n">' + t("crew.cancel") + "</button>"
       + "</div>";
     host.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    document.getElementById("crewask-n").onclick = function () { host.innerHTML = ""; };
-    document.getElementById("crewask-y").onclick = function () {
-      host.innerHTML = "";
-      ok();
-    };
+    host.querySelector("#crewask-n").onclick = done;
+    host.querySelector("#crewask-y").onclick = function () { done(); ok(); };
   }
 
   // An in-panel prompt, same reasoning.
-  function askFor(message, placeholder, ok) {
-    var host = document.getElementById("crewstatus");
+  function askFor(message, placeholder, ok, near) {
+    var host = askHost(near);
     if (!host) { var v = window.prompt(message); if (v) ok(v); return; }
+    function done() { if (host.id === "crewstatus") host.innerHTML = ""; else host.remove(); }
     host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
       + '<input id="crewask-in" placeholder="' + esc(placeholder) + '" maxlength="16">'
       + '<button class="crewbtn mini" id="crewask-y">' + t("crew.join.btn") + "</button>"
       + '<button class="crewbtn mini ghost" id="crewask-n">' + t("crew.cancel") + "</button>"
       + "</div>";
     host.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    var input = document.getElementById("crewask-in");
+    var input = host.querySelector("#crewask-in");
     input.focus();
-    document.getElementById("crewask-n").onclick = function () { host.innerHTML = ""; };
+    host.querySelector("#crewask-n").onclick = done;
     function go() {
       var v = input.value.trim();
-      host.innerHTML = "";
+      done();
       if (v) ok(v);
     }
-    document.getElementById("crewask-y").onclick = go;
+    host.querySelector("#crewask-y").onclick = go;
     input.onkeydown = function (e) { if (e.key === "Enter") go(); };
   }
+
+  // Every failure used to arrive as the server's own string: a rider who tried to join a full
+  // crew read "crew_full" in a pink box, and the fourteen locales all answered in English.
+  var ERRS = {
+    crew_full: "crew.e.full", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
+    not_leader: "crew.e.forbidden", not_paired: "crew.e.pass", crews_disabled: "crew.e.pass",
+    bad_invite: "crew.e.invite", bad_name: "crew.e.name", name_taken: "crew.e.taken",
+    already_in_crew: "crew.e.increw", no_trips: "crew.e.notrips", cooldown: "crew.e.cooldown",
+    bad_identity: "crew.e.identity", identity_taken: "crew.e.identity",
+    no_crew: "crew.e.gone", not_member: "crew.e.gone", not_in_crew: "crew.e.gone",
+    promote_first: "crew.e.promote", leader_active: "crew.e.forbidden",
+    not_eligible: "crew.e.forbidden", no_leader: "crew.e.gone", no_request: "crew.e.gone",
+    too_large: "crew.e.image", too_large_after_encode: "crew.e.image",
+    not_an_image: "crew.e.image"
+  };
+
+  function errMsg(err) {
+    var code = (err && (err.code || err.detail)) || "";
+    if (code.indexOf("rate_limited") === 0) return t("crew.e.rate");
+    var k = ERRS[code];
+    return k ? t(k) : t("crew.err");
+  }
+
+  var statusTimer;
 
   function setStatus(msg, bad) {
     var el = document.getElementById("crewstatus");
@@ -687,7 +954,12 @@
       + esc(msg) + "</div>" : "";
     // The success path got scrolled into view and the failure path did not, so an error from
     // deep inside the crew card painted at the top of a scrolled panel where nobody saw it.
-    if (msg) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    clearTimeout(statusTimer);
+    if (!msg) return;
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // A success banner is a toast, not furniture. "You're in" was still the loudest thing on
+    // the panel long after it stopped being news.
+    if (!bad) statusTimer = setTimeout(function () { setStatus(""); }, 5000);
   }
 
   /* ---------- create / manage ---------- */
@@ -777,7 +1049,7 @@
       }).then(function (r) {
         go.disabled = false;
         if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-        else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+        else setStatus(errMsg(r.err), true);
       });
     };
   }
@@ -851,7 +1123,18 @@
         + "</details>";
     }
     h += '<div class="crewacts">'
-      + '<button class="crewbtn ghost" id="cm-leave">' + t("crew.mine.leave") + "</button>"
+      + '<button class="crewbtn ghost" id="cm-leave">'
+      // pulling a request you never got an answer to is not leaving a crew, and it does not
+      // cost a cooldown any more either
+      + t(me.status === "pending" ? "crew.mine.cancel" : "crew.mine.leave") + "</button>"
+      // disband and claim-leadership were endpoints with no buttons. A solo leader who walks
+      // out used to leave a crew with no riders on the board that nobody could clear up.
+      + (me.role === "leader"
+         ? '<button class="crewbtn ghost" id="cm-disband">' + t("crew.mine.disband") + "</button>"
+         : "")
+      + (me.role !== "leader" && me.leader_stale
+         ? '<button class="crewbtn ghost" id="cm-claim">' + t("crew.mine.claim") + "</button>"
+         : "")
       + '<button class="crewbtn ghost" id="cm-signout">' + t("crew.mine.signout") + "</button>"
       + "</div></div>";
     return h;
@@ -876,24 +1159,44 @@
         api("POST", "/api/v1/crews/" + c.slug + "/role",
             { store_id: b.dataset.sid, role: b.dataset.role }).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+          else setStatus(errMsg(r.err), true);
         });
       };
     });
     var leave = document.getElementById("cm-leave");
     if (leave) leave.onclick = function () {
-      ask(leaveQuestion(c.name), t("crew.mine.leave"), function () {
+      var pending = me.status === "pending";
+      ask(pending ? t("crew.mine.cancelq", { name: c.name }) : leaveQuestion(c.name),
+          t(pending ? "crew.mine.cancel" : "crew.mine.leave"), function () {
         api("POST", "/api/v1/crews/leave", {}).then(function (r) {
           if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
-          else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+          else setStatus(errMsg(r.err), true);
         });
-      });
+      }, leave);
+    };
+    var dis = document.getElementById("cm-disband");
+    if (dis) dis.onclick = function () {
+      ask(t("crew.mine.disbandq", { name: c.name }), t("crew.mine.disband"), function () {
+        api("POST", "/api/v1/crews/" + c.slug + "/disband", {}).then(function (r) {
+          if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
+          else setStatus(errMsg(r.err), true);
+        });
+      }, dis);
+    };
+    var claim = document.getElementById("cm-claim");
+    if (claim) claim.onclick = function () {
+      ask(t("crew.mine.claimq"), t("crew.mine.claim"), function () {
+        api("POST", "/api/v1/crews/" + c.slug + "/claim", {}).then(function (r) {
+          if (r.ok) { reveal(".crewmine-wrap"); show(); }
+          else setStatus(errMsg(r.err), true);
+        });
+      }, claim);
     };
     var so = document.getElementById("cm-signout");
     if (so) so.onclick = function () {
       ask(t("crew.mine.signoutq"), t("crew.mine.signout"), function () {
         api("POST", "/api/v1/crews/signout", {}).then(function () { ME = null; show(); });
-      });
+      }, so);
     };
     var save = document.getElementById("ce-save");
     if (save) save.onclick = function () {
@@ -905,7 +1208,7 @@
       }).then(function (r) {
         save.disabled = false;
         if (r.ok) { show(); reloadTerritory(); }
-        else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+        else setStatus(errMsg(r.err), true);
       });
     };
     var logo = document.getElementById("ce-logo");
@@ -929,7 +1232,11 @@
     // the crew's own ground, from the ranking it is already in
     api("GET", "/api/v1/crews/" + c.slug).then(function (r) {
       var el = document.getElementById("crewterr");
-      if (!el || !r.ok) return;
+      if (!el) return;
+      if (!r.ok) {            // the card shipped with a spinner in it and nothing replaced it
+        el.innerHTML = '<div class="crewmsg bad">' + esc(errMsg(r.err)) + "</div>";
+        return;
+      }
       var terr = r.body.territory || {};     // not `t`: that is the translator
       el.innerHTML = '<div class="crewbig">' + fmtKm2(terr.best_km2)
         + " <span>" + t("crew.mine.ao") + "</span></div>"
@@ -939,11 +1246,15 @@
             ? " · " + t("crew.inall", { v: fmtKm2(terr.km2) }) : "")
         + (terr.tiles ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
         + targetsHTML(r.body.targets)
+        + loseHTML(c.slug)
         + contributorsHTML(r.body.contributors);
       el.querySelectorAll("[data-t]").forEach(function (row) {
-        row.onclick = function () { flyToTile(TARGETS[+row.dataset.t]); };
+        row.onclick = function () { flyToTile(TARGETS[+row.dataset.t], +row.dataset.t); };
       });
-      showTargets(r.body.targets || []);
+      el.querySelectorAll("[data-l]").forEach(function (row) {
+        row.onclick = function () { flyToTile(LOSING[+row.dataset.l], -1); };
+      });
+      showTargets(TARGETS);
     });
   }
 
@@ -970,7 +1281,8 @@
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + "</div>"
             + '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
-            + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '">' + label + "</button></div>";
+            + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
+            + esc(c.name) + '">' + label + "</button></div>";
         }).join("")
       + "</div></div>";
   }
@@ -981,13 +1293,14 @@
         function send(body) {
           api("POST", "/api/v1/crews/" + b.dataset.join + "/join", body).then(function (r) {
             if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-            else setStatus((r.err && r.err.detail) || t("crew.err"), true);
+            else setStatus(errMsg(r.err), true);
           });
         }
         if (b.dataset.pol === "invite") {
-          askFor(t("crew.join.codeask"), "ABC12345", function (code) {
-            send({ invite_code: code });
-          });
+          // beside the row, and naming the crew: the prompt used to open at the top of the
+          // panel, so by the time you read it you could no longer see which crew you tapped
+          askFor(t("crew.join.codeask", { name: b.dataset.name || "" }), "ABC12345",
+                 function (code) { send({ invite_code: code }); }, b);
         } else {
           send({});
         }
@@ -1065,14 +1378,16 @@
       // sits under it, folded away once they have one — they already know what it is.
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
         + '<p class="hint crewboardsub">' + t("crew.board.sub") + "</p>"
-        + rankingHTML(rank) + legendHTML() + "</div>";
+        + rankingHTML(rank) + "</div>";
       // Signed out, the only thing you can act on goes first and the board follows. Signed
       // in, the board leads because that is what you came back to look at.
       var h = me.paired ? board : signInHTML() + board;
       if (!me.paired) {
         /* the sign-in card is already at the top */
       } else if (me.crew) {
-        h += '<details class="crewmine-wrap" ' + (me.status === "pending" ? "open" : "")
+        // Folded by default put the only actionable thing in the feature behind a
+        // disclosure triangle, under a 25-row board.
+        h += '<details class="crewmine-wrap" open'
           + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
           + "<span>" + esc(me.crew.name) + "</span>"
           + '<span class="crewsumrole">' + t("crew.role." + me.role) + "</span></summary>"
@@ -1081,7 +1396,11 @@
         h += '<div class="crewcard"><h3>' + t("crew.first.h") + "</h3>"
           + '<p class=hint>' + t("crew.first.p") + "</p></div>" + joinHTML(all, me);
       } else {
-        h += (me.creation_open
+        // Cooling off: joinHTML already swaps the list for the countdown, but the create form
+        // was rendered regardless, so the panel offered a full form whose only possible
+        // outcome is the error in the card directly below it.
+        h += (me.cooldown_until ? ""
+              : me.creation_open
                 ? createHTML(window.__CREWIDENT__ || { colour: "#4363d8", pattern: "solid" })
                 : '<div class="crewcard"><h3>' + t("crew.closed.h") + "</h3>"
                   + '<p class=hint>' + t("crew.closed.p") + "</p></div>")
@@ -1136,11 +1455,15 @@
     }
   }
 
-  function flyToTile(x) {
+  function flyToTile(x, i) {
     if (!x || !TERR) return;
     var lon = (tileLon(x.x, TERR.z) + tileLon(x.x + 1, TERR.z)) / 2;
     var lat = (tileLat(x.y, TERR.z) + tileLat(x.y + 1, TERR.z)) / 2;
-    H.closePanel && H.closePanel();
+    // Closing the panel threw the list away to show eight identical outlines, so comparing two
+    // squares cost two full round trips. On a phone the panel covers the map and has to go.
+    TARGETSEL = i == null ? -1 : i;
+    showTargets(TARGETS);
+    if (window.innerWidth <= 560) H.closePanel && H.closePanel();
     // Close enough to find the street, far enough to still see it against the crew's own
     // ground. Flying to 13.2 put one square across the whole screen, which answers "where is
     // it" with a picture of nowhere. A reader already zoomed in keeps their zoom.
@@ -1149,21 +1472,34 @@
   }
 
   // The same squares, marked on the ground. A list of distances is a table; a ring around the
-  // block two streets over is a route.
+  // block two streets over is a route. Not in the white dashed line the contested ring already
+  // uses: that one means somebody is taking ground off you, which is the opposite thing.
   function showTargets(rows) {
     if (!map || !TERR || !map.getSource("crew-cells")) return;
-    var data = { type: "FeatureCollection", features: (rows || []).map(function (x) {
+    var data = { type: "FeatureCollection", features: (rows || []).map(function (x, i) {
       return { type: "Feature",
-               properties: { joins: x.joins ? 1 : 0, seeds: x.seeds ? 1 : 0 },
-               geometry: { type: "Polygon",
-                           coordinates: tileRing(x.x, x.y, TERR.z) } };
+               properties: { sel: i === TARGETSEL ? 1 : 0, dim: x.blocked ? 1 : 0 },
+               geometry: { type: "Polygon", coordinates: tileRing(x.x, x.y, TERR.z) } };
     }) };
     if (map.getSource("crew-targets")) { map.getSource("crew-targets").setData(data); return; }
     map.addSource("crew-targets", { type: "geojson", data: data });
+    // a dark casing first, or a thin gold line disappears over the pale half of the palette
+    map.addLayer({
+      id: "crew-target-case", type: "line", source: "crew-targets",
+      paint: { "line-color": "rgba(0,0,0,.6)",
+               "line-width": ["interpolate", ["linear"], ["zoom"], 8, 3.5, 14, 7] }
+    });
     map.addLayer({
       id: "crew-target-line", type: "line", source: "crew-targets",
-      paint: { "line-color": "#ffffff", "line-width": 2, "line-dasharray": [1.5, 1.5],
-               "line-opacity": 0.85 }
+      paint: {
+        "line-color": "#ffd24a",
+        // zoom has to be the input to the interpolate, not buried inside a case, so the
+        // selected-or-not test moves into the stop values
+        "line-width": ["interpolate", ["linear"], ["zoom"],
+                       8, ["case", ["==", ["get", "sel"], 1], 3.2, 1.6],
+                       14, ["case", ["==", ["get", "sel"], 1], 5.5, 3]],
+        "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 0.95]
+      }
     });
   }
 

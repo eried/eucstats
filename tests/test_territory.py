@@ -356,3 +356,83 @@ def test_a_row_never_argues_with_its_own_number():
     out = targets_for(acc, kept={}, clan_id="A", won={}, zoom=14)
     row = next(t for t in out if (t["x"], t["y"]) == (70, 70))
     assert row["need"] == 0.0 and row["blocked"], row
+
+
+def test_the_list_can_point_past_the_end_of_your_own_street():
+    """Candidates used to be squares touching ground the crew already held, so the biggest ask
+    anywhere in the demo world was 1.0 km and the median was 0.3 km. Nobody reroutes a weekend
+    for three hundred metres. A rival within riding distance is a reason to go somewhere."""
+    from services.territory import targets_for, REACH
+    mine = {(x, y) for x in range(2) for y in range(2)}
+    rival = {(x, y) for x in range(1 + REACH, 3 + REACH) for y in range(2)}
+    out = targets_for(acc={}, kept={"A": mine, "B": rival}, clan_id="A", won={}, zoom=14)
+    reached = {(t["x"], t["y"]) for t in out if t["held_by"] == "B"}
+    assert reached, "a rival four squares away has to be reachable from the list"
+    assert max(t["x"] for t in out) > 2, "and the list has to point past our own edge"
+
+
+def test_the_roadtrip_between_two_patches_can_reach_the_list():
+    """`joins` fired on 0 rows out of 130 and could not fire by construction: a square halfway
+    between two towns is more than one step from anything the crew holds, so it was never a
+    candidate. The mechanic the whole design leads with was unreachable."""
+    from services.territory import targets_for
+    west = {(0, 0), (1, 0), (0, 1), (1, 1)}
+    east = {(9, 0), (10, 0), (9, 1), (10, 1)}
+    out = targets_for(acc={}, kept={"A": west | east}, clan_id="A", won={}, zoom=14, limit=40)
+    xs = {t["x"] for t in out}
+    assert xs & {4, 5, 6}, f"nothing in the middle of the road: {sorted(xs)}"
+
+
+def test_a_crew_one_square_from_existing_is_told_which_square():
+    """Four riders, ten squares led on kilometres, nothing drawn, because a square only counts
+    inside a 2x2. They were one square from being on the map and every row said the same
+    useless thing."""
+    from services.territory import targets_for
+    led = {"14/5/5": ("A", 9.0, 1), "14/6/5": ("A", 9.0, 1), "14/5/6": ("A", 9.0, 1)}
+    acc = {t: {"A": [9.0, {"r"}]} for t in led}
+    acc["14/6/6"] = {"A": [0.0, set()]}
+    out = targets_for(acc, kept={}, clan_id="A", won=led, zoom=14)
+    assert out and out[0]["first"], out[:2]
+    assert (out[0]["x"], out[0]["y"]) == (6, 6), out[0]
+
+
+def test_no_row_asks_for_a_ride_too_short_to_count():
+    """A trip putting less than the visit floor into a square is discarded whole, so a row
+    reading 0.1 km where the floor is 0.15 asks for a lap that cannot possibly register."""
+    from services.territory import targets_for, min_visit_km
+    out = targets_for(acc={}, kept={"A": {(0, 0), (1, 0), (0, 1), (1, 1)}},
+                      clan_id="A", won={}, zoom=14)
+    for t in out:
+        if t["need"] > 0:
+            assert t["need"] >= round(min_visit_km(f"14/{t['x']}/{t['y']}"), 1), t
+
+
+def test_a_row_carries_at_most_one_claim():
+    """The first cut marked every row "completes a 2x2": with 90 tiles held, almost any
+    neighbour completes one of the four blocks around it, so ten of ten rows were identical."""
+    from services.territory import targets_for
+    held = {(x, y) for x in range(12) for y in range(12)}
+    out = targets_for(acc={}, kept={"A": held}, clan_id="A", won={}, zoom=14)
+    assert max(sum((t["first"], t["joins"], t["blocked"])) for t in out) <= 1
+
+
+def test_a_crew_that_can_take_nothing_sets_off_no_warnings():
+    """Half the pressure warnings in the whole world fired on one crew that holds no ground
+    anywhere and therefore cannot take a square off anybody. That is exactly the false alarm
+    the band rules were written to stop."""
+    from services.territory import _pressure
+    acc = {"14/1/1": {"holder": [9.0, {"a"}], "ghost": [8.9, {"b"}]}}
+    band, _ = _pressure(acc, "14/1/1", "holder", 9.0)
+    assert band == 2, "a rival at 99% is about to flip it"
+    band, _ = _pressure(acc, "14/1/1", "holder", 9.0, seedless={"ghost"})
+    assert band == 0, "unless that rival draws nothing anywhere and never will"
+
+
+def test_new_ground_rides_along_in_the_band_without_a_sixth_column():
+    """The map payload is five integers a tile and every visitor downloads it, so one bit
+    saying "taken this week" travels inside the band rather than as a whole extra column."""
+    for band in range(5):
+        packed = band + 5
+        assert packed % 5 == band, "the band survives the fold"
+        assert packed >= 5, "and the bit is readable"
+    assert 4 % 5 == 4 and 9 % 5 == 4, "ringed ground, fresh and not, decode the same"

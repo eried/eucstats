@@ -38,7 +38,7 @@
 
 /* a crew's identity at a glance: the colour, with its pattern drawn over it, exactly as the
    map draws it — so the swatch beside a name is the same thing you see on the ground */
-.crewsw { display: inline-block; vertical-align: middle; border: 1px solid rgba(255,255,255,.3); position: relative; }
+.crewsw { display: inline-block; vertical-align: middle; border: 1px solid rgba(255,255,255,.55); position: relative; }
 .crewsw::after { content: ""; position: absolute; inset: 0; }
 .crewsw[data-p=stripes]::after { background: repeating-linear-gradient(45deg, rgba(0,0,0,.45) 0 3px, transparent 3px 7px); }
 .crewsw[data-p=hatch]::after {
@@ -52,7 +52,8 @@
 .crewmeta { font-size: 12px; color: var(--mut, #7a86ad); margin-top: 3px; }
 
 .crewterr { margin: 12px 0 2px; padding: 10px 0; border-top: 1px solid var(--line, #243055); }
-.crewbig { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.crewbig { font-family: "Orbitron", ui-sans-serif, sans-serif; letter-spacing: .5px;
+   font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .crewbig span { font-size: 13px; font-weight: 400; color: var(--mut, #7a86ad); }
 .crewsub { font-size: 12px; color: var(--mut, #7a86ad); margin-top: 4px; }
 
@@ -157,7 +158,17 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewboard { padding-bottom: 8px; }
 /* the emblem sits in the site's own podium slot, so crews read like every other board */
 .crewpodemb { width: 100%; height: 100%; object-fit: contain; }
-.crewboard .podic { width: 46px; height: 46px; }
+/* The map gives every emblem a dark plate so a crew's own colour cannot read through it. The
+   podium did not, so a cream emblem sat straight on the gold first-place gradient. */
+.crewboard .podic {
+  width: 46px; height: 46px; padding: 3px; box-sizing: border-box; border-radius: 0;
+  background: rgba(4, 8, 16, .9); border: 1px solid rgba(255, 255, 255, .32);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .6);
+}
+/* and the three cards were centred inside a full-width table, so nothing lined up with the
+   ranked rows underneath them */
+.crewboard .podium { gap: 10px; padding: 8px 0 12px; }
+.crewboard .pod { max-width: none; flex: 1 1 0; }
 
 /* Your own crew is folded away once you have one: you know what crew you are in, and the
    board is what you came to look at. It springs open while a join is still pending, which is
@@ -257,8 +268,8 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewmeta2 { font-size: 11px; color: var(--mut, #7a86ad); }
 
 /* the band legend under the board */
-.crewlegend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 11px;
-  color: var(--mut, #7a86ad); }
+.crewlegend { display: flex; gap: 12px 14px; flex-wrap: wrap; margin: 10px 0 2px;
+  font-size: 11px; color: var(--mut, #7a86ad); }
 .crewlegend i { display: inline-block; width: 13px; height: 13px; margin-right: 5px;
   vertical-align: -2px; background: var(--sec, #ff8ad8); border: 1px solid rgba(255,255,255,.25); }
 .crewlegend .b1 i { opacity: .62; }
@@ -282,6 +293,7 @@ a.crewqr { display: flex; text-decoration: none; }
 /* The mode's colour has to reach the numbers, not just the frame. These three come from the
    page's own stylesheet with a hardcoded --acc, which is the Riders blue, so the three
    largest figures on the board were rendering blue inside a pink panel. */
+.panel[data-sec=crews] .rk,
 .panel[data-sec=crews] .pod .km { color: var(--sec, #ff8ad8); }
 .panel[data-sec=crews] .hint { border-left-color: var(--sec, #ff8ad8); }
 .panel[data-sec=crews] .sel:hover { background: rgba(255,138,216,.1); }
@@ -292,10 +304,12 @@ a.crewqr { display: flex; text-decoration: none; }
    and every state the map paints needs one. The legend has drifted twice; it is generated
    from the same list the map uses now in spirit, and sized so the steps are visible. */
 .crewlegend i { width: 16px; height: 16px; }
-.crewlegend .b1 i { opacity: .7; border-style: dashed; border-color: #fff; }
-.crewlegend .b2 i { opacity: .42; border-style: dashed; border-color: #fff; }
-.crewlegend .b3 i { opacity: .28; }
+.crewlegend .b1 i { opacity: .88; border-style: dashed; border-color: #fff; }
+.crewlegend .b2 i { opacity: .78; border-style: dashed; border-color: #fff; }
+.crewlegend .b3 i { opacity: .7; border-style: dotted;
+  border-color: rgba(255,255,255,.7); }
 .crewlegend .b4 i { opacity: 1; box-shadow: inset 0 0 0 2px rgba(0,0,0,.45); }
+.crewlegend .bt i { background: transparent; border: 2px dashed #ffd24a; }
 
 @media (max-width: 560px) {
   /* a 150px image was sitting in a 188px box */
@@ -346,34 +360,76 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewnoapp a:hover { text-decoration: underline; }
 
 
-/* Where to ride next. The distance leads, because that is the thing a rider weighs. */
-.crewtargets { margin-top: 14px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
+/* Where to ride next. The distance leads, because that is the thing a rider weighs. One
+   variable sets the number column so the phone rule cannot drift out of step with it. */
+.crewtargets {
+  --kmw: 96px;
+  margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px;
+}
 .crewtargets .hint { margin: 0 0 8px; }
 .crewtrow {
-  display: flex; align-items: center; gap: 9px; padding: 6px 0;
+  display: flex; align-items: center; gap: 9px; padding: 6px 8px; margin: 0 -8px;
   border-top: 1px solid rgba(255,255,255,.05); cursor: pointer; font-size: 13px;
 }
 .crewtrow:first-of-type { border-top: 0; }
 .crewtrow:hover { background: rgba(255,138,216,.09); }
-.crewtkm {
+/* A phrase, not a figure: "a short ride" in a 58px tabular-nums column wrapped onto two
+   lines. The monospace column comes back only when the admin asks for exact kilometres. */
+.crewtkm { flex: 0 0 var(--kmw); font-weight: 600; color: var(--sec, #ff8ad8); }
+.crewtargets.nums { --kmw: 58px; }
+.crewtargets.nums .crewtkm {
   font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums;
-  font-weight: 700; flex: 0 0 78px; color: var(--sec, #ff8ad8);
+  font-weight: 700; text-align: right;
 }
-.crewtwho { flex: 1; color: var(--mut, #7a86ad); font-size: 12px; }
+.crewtdir {
+  flex: 0 0 26px; font-size: 11px; font-weight: 700; letter-spacing: .4px;
+  color: var(--mut, #7a86ad);
+}
+/* min-width:0 or a long crew name in a long locale pushes the badge off a 390px screen */
+.crewtwho { flex: 1 1 auto; min-width: 0; color: var(--mut, #7a86ad); font-size: 12px; }
+/* nothing to ride here today: present, legible, and plainly not the thing to do next */
+.crewtrow.done { opacity: .72; }
+.crewtrow.done .crewtkm { color: var(--mut, #7a86ad); font-weight: 400; }
 .crewtag {
-  font-size: 10.5px; letter-spacing: .4px; text-transform: uppercase; padding: 2px 7px;
-  border-radius: 999px; white-space: nowrap;
+  flex: 0 0 auto; font-size: 10px; letter-spacing: .3px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+  border: 1px solid currentColor; opacity: .9;
 }
-.crewtag.joins { background: rgba(255,210,74,.17); color: #ffd24a; }
-.crewtag.seeds { background: rgba(57,217,138,.15); color: #39d98a; }
-.crewtag.grows { background: rgba(126,169,255,.15); color: #7ea9ff; }
+.crewtag.first { color: #ffd24a; background: rgba(255,210,74,.12); }
+.crewtag.joins { color: #ffd24a; background: rgba(255,210,74,.12); }
+.crewtag.done { color: var(--mut, #7a86ad); background: rgba(154,166,200,.1); }
+
+/* the other half of the game, same shape so the two read as a pair */
+.crewlose { --kmw: 118px; }
+.crewlose .crewtkm { color: #ff9f6b; }
 
 @media (max-width: 560px) {
   /* The badge was hidden here, which took the explanation off exactly the rows that need one:
-     a phone showed "ridden, Cykelslangen holds it" and no reason why riding it again would do
+     a phone showed "ridden, Cykelslangen has it" and no reason why riding it again would do
      nothing. It wraps onto its own line instead, lined up under the text. */
+  .crewtargets { --kmw: 88px; }
+  .crewtargets.nums { --kmw: 52px; }
   .crewtrow { flex-wrap: wrap; row-gap: 3px; }
-  .crewtkm { flex-basis: 62px; }
-  .crewtwho { flex: 1 1 auto; }
-  .crewtag { margin-left: 71px; }
+  .crewtag { margin-left: calc(var(--kmw) + 35px); }
 }
+
+
+/* Resting on a square. Small, out of the way, and it never appears while the map is moving. */
+.crewtip {
+  position: absolute; z-index: 5; pointer-events: none;
+  transform: translate(14px, -50%);
+  padding: 6px 9px; border-radius: 4px; max-width: 210px;
+  background: rgba(6, 10, 20, .94); border: 1px solid rgba(255, 255, 255, .16);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .55);
+  font-size: 11.5px; line-height: 1.45; white-space: nowrap;
+  animation: crewtipin .18s ease both;
+}
+.crewtip b { display: block; font-size: 12px; }
+.crewtip span { display: block; color: var(--mut, #7a86ad); }
+/* the band is the left edge, so the shades are learned where they are used */
+.crewtip.b1 { border-left: 3px solid rgba(255, 255, 255, .75); }
+.crewtip.b2 { border-left: 3px solid #ff8ad8; }
+.crewtip.b3 { border-left: 3px solid #7a86ad; }
+.crewtip.b4 { border-left: 3px solid #ffd24a; }
+.crewtip em { font-style: normal; color: #ffd24a; }
+@keyframes crewtipin { from { opacity: 0; transform: translate(10px, -50%); } }
