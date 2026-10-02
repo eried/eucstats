@@ -554,7 +554,13 @@ def territory_payload(request: Request, db: Session = Depends(get_db)):
         return Response(status_code=304)
     return Response(body, media_type="application/json",
                     headers={"Content-Encoding": "gzip", "ETag": etag,
-                             "Cache-Control": "public, max-age=300",
+                             # A minute, and revalidate after it. At five minutes a rebuild
+                             # took that long to reach anybody, and a browser holding the old
+                             # map while the server has a new one is indistinguishable from a
+                             # rendering bug: I spent a while chasing two tiles that were
+                             # already fixed. The revalidation is an ETag round trip against
+                             # an endpoint that costs 1.6 ms.
+                             "Cache-Control": "public, max-age=60, must-revalidate",
                              "Vary": "Accept-Encoding"})
 
 

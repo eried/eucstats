@@ -279,6 +279,7 @@
                    + '<span class="crewemb-n">' + esc(crew.name) + "</span>";
       el.title = crew.name + " · " + crew.km2 + " km²";
       el.dataset.s = s;
+      el.dataset.n = r.n || 1;              // region size, which decides how long it survives
       el.onclick = function (ev) { ev.stopPropagation(); openCrew(crew.slug); };
       var m = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([lon, lat]).addTo(map);
@@ -294,10 +295,17 @@
     var tilePx = 256 * Math.pow(2, z - TERR.z);
     markers.forEach(function (m) {
       var el = m.getElement(), s = +el.dataset.s || 1;
+      var tiles = +el.dataset.n || 1;
       var px = Math.round(s * tilePx * 0.76);        // inset, so the emblem sits inside its edge
+      // A big crew keeps its badge legible as you zoom out. Scaling purely with the tiles
+      // meant the largest territories on the map went anonymous first, which is backwards:
+      // the ones worth recognising from a distance are exactly the big ones. The floor grows
+      // with the size of the region, so a sprawling crew stays identifiable over a country
+      // while a four-tile crew still disappears when it should.
+      var floor = tiles >= 40 ? 34 : tiles >= 15 ? 28 : tiles >= 6 ? 22 : 0;
+      px = Math.max(px, floor);
       el.style.width = el.style.height = px + "px";
-      // below about 22px an emblem is a smudge, and the name under it is unreadable
-      el.style.opacity = px < 22 ? 0 : 1;
+      el.style.opacity = px < 16 ? 0 : 1;
       el.classList.toggle("tiny", px < 64);
     });
   }
@@ -846,7 +854,12 @@
   // are exclusive — entering crews fades the heat out, leaving brings it back.
   function setHeat(on) {
     if (!map.getLayer("heat")) return;
-    var want = on ? ((window.__HEAT__ && window.__HEAT__.opacity) || 0.62) : 0;
+    var full = (window.__HEAT__ && window.__HEAT__.opacity) || 0.62;
+    // Not off, just faint. Territory answers "who holds this" and the heatmap answers "does
+    // anybody actually ride here", and the second is useful context under the first as long
+    // as it is quiet enough not to blur the edges that are the whole point.
+    var ghost = CFG.heat_ghost != null ? CFG.heat_ghost : 0.2;
+    var want = on ? full : full * ghost;
     try { map.setPaintProperty("heat", "heatmap-opacity", want); } catch (e) {}
   }
 

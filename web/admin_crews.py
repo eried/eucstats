@@ -100,6 +100,11 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
               <td class=mut>0 = no cap.</td></tr>
           <tr><td>Fill opacity <input name=opacity value="{cfg['opacity']}" size=5></td>
               <td class=mut>How strongly the rectangles paint over the map.</td></tr>
+          <tr><td>Ghost heatmap <input name=heat_ghost value="{cfg['heat_ghost']}" size=5></td>
+              <td class=mut>How much of the Riders heatmap stays visible underneath, 0 to 1.
+              The two answer different questions and fight at full strength, but a ghost of
+              where people actually ride is useful context behind who holds what.
+              0 switches it off.</td></tr>
         </table>
         <button>Save</button>
       </form>
@@ -218,15 +223,15 @@ def _redir(msg: str = "", err: str = ""):
 @crews_admin_router.post("/settings")
 def save_settings(request: Request, db: Session = Depends(get_db),
                   enabled: str = Form(None), creation_open: str = Form(None),
-                  zoom: int = Form(13), window_days: int = Form(90), seed: int = Form(2),
+                  zoom: int = Form(14), window_days: int = Form(90), seed: int = Form(2),
                   cooldown_days: int = Form(7), max_members: int = Form(0),
-                  opacity: float = Form(0.55)):
+                  opacity: float = Form(0.55), heat_ghost: float = Form(0.2)):
     g = _guard(request)
     if g:
         return g
     before = settings.get_crews(db)
     settings.set_crews(db, bool(enabled), zoom, window_days, seed, cooldown_days,
-                       max_members, opacity, bool(creation_open))
+                       max_members, opacity, bool(creation_open), heat_ghost)
     after = settings.get_crews(db)
     crews.COOLDOWN_DAYS = after["cooldown_days"]
     note = "Saved."
