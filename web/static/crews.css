@@ -518,6 +518,14 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewrank td, .crewboard table td { padding-top: 13px; padding-bottom: 13px; }
   .crewedit summary, .crewhow summary, .crewmine-wrap > summary {
     min-height: 44px; display: flex; align-items: center; }
+  /* flex on a summary drops the browser's own marker, so it is drawn here */
+  .crewedit summary::-webkit-details-marker, .crewhow summary::-webkit-details-marker {
+    display: none; }
+  .crewedit summary::before, .crewhow summary::before {
+    content: ""; flex: 0 0 auto; width: 0; height: 0; margin-right: 7px;
+    border: 4px solid transparent; border-left-color: currentColor;
+    transition: transform .15s ease; }
+  details[open] > summary::before { transform: rotate(90deg); }
   .crewpickc, .crewpickp { min-height: 44px; }
   .crewpickp .crewsw { width: 32px; height: 32px; }
 }

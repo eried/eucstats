@@ -731,9 +731,11 @@
 
   function explainer() {
     return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
-      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.7", "crew.how.4", "crew.how.5",
-         "crew.how.6"]
-        .map(function (k) { return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS }) + "</p>"; }).join("")
+      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.7", "crew.how.8", "crew.how.4",
+         "crew.how.5", "crew.how.6"]
+        .map(function (k) {
+          return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS, c: RIDER_WEEK_CAP }) + "</p>";
+        }).join("")
       // The five shades belong here rather than under the board. It is a key, and a key is
       // something you look up once, not a row of swatches on screen every time you visit.
       + legendHTML()
@@ -919,6 +921,19 @@
   // 5.0 km out of reach were both "the long way round": half the rows on a card said the same
   // thing about a Tuesday evening and a Saturday morning. The ratios are to the square's own
   // floor, so a word means the same amount of work in Tromso as in Singapore.
+  // What one rider can put into one square in a week, and where that settles under decay.
+  // Mirrors RIDER_TILE_WEEK_CAP_KM and HALF_LIFE_DAYS in services/territory.py; the panel
+  // needs it to tell a crew which rows are arithmetic rather than a plan.
+  var RIDER_WEEK_CAP = 6;
+  var RIDER_CEILING_KM = 29;
+
+  // A square needing more than the crew can physically bank is not somewhere to ride, it is
+  // a sum. Saying so is kinder than letting somebody grind at it for a month.
+  function outOfReach(need) {
+    var n = ME && ME.crew ? (ME.crew.members || 1) : 1;
+    return need > n * RIDER_CEILING_KM;
+  }
+
   function effort(km, y) {
     if (SHOW_NUMBERS) return fmtKm(km);
     var r = km / (floorKm(y) || 0.5);
@@ -995,6 +1010,8 @@
               + t("crew.targets.links", { n: x.links }) + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
+            : outOfReach(x.need)
+              ? '<span class="crewtag done">' + t("crew.targets.far") + "</span>"
             : "";
           // A crew that folded between the rebuild and this view has no name to print, and
           // the row came out as " has it" with a leading space and nobody in it.
