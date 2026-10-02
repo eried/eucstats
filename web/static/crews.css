@@ -294,7 +294,7 @@ a.crewqr { display: flex; text-decoration: none; }
   box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
 /* dashed, because the ring it stands for is dashed: the crews own the whole
    colour spectrum, so shape is the only channel a mark can keep to itself */
-.crewlegend .bl i { background: transparent; border: 2px dashed #ff9f6b; }
+.crewlegend .bl i { background: transparent; border: 2px dotted #ff9f6b; }
 /* 5.2s and half a cycle apart, which is what the map actually does */
 .crewlegend .bf i { background: var(--sec, #ff8ad8); opacity: .55;
   animation: crewbreathe 5.2s ease-in-out infinite; animation-delay: -2.6s; }

@@ -234,6 +234,7 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                                 ClanMember.left_at.is_(None)).first())
                 if lead is None:
                     out["leader_stale"] = True        # nobody is in charge at all
+                    out["leader_gone"] = True         # and there was never anyone to go quiet
                 else:
                     idle = lead.last_seen or lead.joined_at
                     out["leader_stale"] = bool(
@@ -283,7 +284,10 @@ def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
             .order_by(Clan.terr_best_tiles.desc().nullslast(),
                       Clan.terr_best_km2.desc().nullslast()).limit(min(limit, 100)).all())
     counts = _member_counts(db)
-    return {"crews": [_crew_brief(db, c, counts) for c in rows]}
+    # The cap, so a full crew's row can say so rather than letting somebody tap Join and be
+    # told afterwards. 0 means no cap.
+    return {"crews": [_crew_brief(db, c, counts) for c in rows],
+            "max_members": _gate(db)["max_members"]}
 
 
 @router.get("/crews/identity")

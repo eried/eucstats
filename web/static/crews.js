@@ -214,6 +214,25 @@
 
   // Your ground, when you have some. Applied here as well as at build time, because the layer
   // is created before the request that says who you are has come back.
+  // Everyone else steps back so your own ground reads first and the unheld gaps come back.
+  // 0.68 was picked by eye at street zoom: enough that two crews meeting at a border are two
+  // things, little enough that a rival's block is still a block and not a suggestion.
+  var THEIRS = 0.68;
+
+  function bandOp(op, b3) {
+    var ladder = ["match", ["get", "band"],
+                  1, op * BAND_OP[1], 2, op * BAND_OP[2], 3, op * BAND_OP[3] * b3,
+                  4, op, op];
+    if (!ME || !ME.crew) return ladder;
+    var mine = ["match", ["get", "band"],
+                1, op * BAND_OP[1], 2, op * BAND_OP[2], 3, op * BAND_OP[3] * b3,
+                4, op, op];
+    var theirs = ["match", ["get", "band"],
+                  1, op * BAND_OP[1] * THEIRS, 2, op * BAND_OP[2] * THEIRS,
+                  3, op * BAND_OP[3] * b3 * THEIRS, 4, op * THEIRS, op * THEIRS];
+    return ["case", ["==", ["get", "slug"], ME.crew.slug], mine, theirs];
+  }
+
   function scopePulse() {
     if (!map || !map.getLayer("crew-pulse-danger")) return;
     map.setFilter("crew-pulse-danger", (ME && ME.crew)
@@ -378,12 +397,8 @@
       // navy, maroon and olive. Half the palette is dark. The ladder still descends, it just
       // stops bottoming out: 0.70 keeps the darkest crew on the map while it fades.
       var pat = Math.min(1, op + 0.15);
-      map.setPaintProperty("crew-fill", "fill-opacity",
-        ["match", ["get", "band"],
-         1, op * BAND_OP[1], 2, op * BAND_OP[2], 3, op * BAND_OP[3], 4, op, op]);
-      map.setPaintProperty("crew-pattern", "fill-opacity",
-        ["match", ["get", "band"],
-         1, pat * BAND_OP[1], 2, pat * BAND_OP[2], 3, pat * BAND_OP[3] * 0.9, 4, pat, pat]);
+      map.setPaintProperty("crew-fill", "fill-opacity", bandOp(op, 1));
+      map.setPaintProperty("crew-pattern", "fill-opacity", bandOp(pat, 0.9));
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
@@ -959,8 +974,11 @@
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
             : "";
-          var who = x.held_by
-            ? t("crew.targets.taken", { name: esc(x.held_name || "") })
+          // A crew that folded between the rebuild and this view has no name to print, and
+          // the row came out as " has it" with a leading space and nobody in it.
+          var who = x.held_by && x.held_name
+            ? t("crew.targets.taken", { name: esc(x.held_name) })
+            : x.held_by ? t("crew.targets.takenby")
             : t("crew.tile.free");
           // Nothing goes in the number column on a square whose shortfall is zero: riding it
           // again does nothing, and a word there wore the styling meant for a distance.
@@ -1529,7 +1547,8 @@
     };
     var claim = document.getElementById("cm-claim");
     if (claim) claim.onclick = function () {
-      ask(t("crew.mine.claimq"), t("crew.mine.claim"), function () {
+      ask(t(ME && ME.leader_gone ? "crew.mine.claimq.none" : "crew.mine.claimq"),
+          t("crew.mine.claim"), function () {
         api("POST", "/api/v1/crews/" + c.slug + "/claim", {}).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); }
           else setStatus(errMsg(r.err), true);
@@ -1608,6 +1627,29 @@
     });
   }
 
+  // Kilometres from the middle of the view to the nearest square a crew holds, or null when
+  // the crew holds nothing yet. Straight-line, which is all this has to be: the question is
+  // "is this my city" and the answer is off by a factor of ten thousand when it is not.
+  function groundAway(slug) {
+    if (!TERR || !map) return null;
+    var idx = -1;
+    TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
+    if (idx < 0) return null;
+    var c = map.getCenter(), best = null;
+    for (var i = 0; i < TERR.cells.length; i += 5) {
+      if (TERR.cells[i] !== idx) continue;
+      var lon = (tileLon(TERR.cells[i + 1], TERR.z) + tileLon(TERR.cells[i + 1] + 1, TERR.z)) / 2;
+      var lat = (tileLat(TERR.cells[i + 2], TERR.z) + tileLat(TERR.cells[i + 2] + 1, TERR.z)) / 2;
+      var dy = (lat - c.lat) * 111.32;
+      var dx = (lon - c.lng) * 111.32 * Math.cos(c.lat * Math.PI / 180);
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (best == null || d < best) best = d;
+    }
+    return best;
+  }
+
+  var MAXMEM = 0;
+
   function joinHTML(crews, me) {
     if (me.cooldown_until) {
       return '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>"
@@ -1616,23 +1658,37 @@
         + "</div></div>";
     }
     if (!crews.length) return "";
+    var rows = crews.slice();
+    rows.forEach(function (c) { c._km = groundAway(c.slug); });
+    // Nearest first. Rider count is a fine tiebreak and a terrible sort: it put a crew
+    // fifteen hundred kilometres away at the top of the list of crews you might join.
+    rows.sort(function (a, b) {
+      if (a._km == null) return b._km == null ? 0 : 1;
+      if (b._km == null) return -1;
+      return a._km - b._km;
+    });
     return '<div class="crewcard"><h3>' + t("crew.join.h") + '</h3><div class="crewlist">'
-      + crews.map(function (c) {
+      + rows.map(function (c) {
           var open = c.join_policy === "open";
           var label = open ? t("crew.join.btn")
             : c.join_policy === "invite" ? t("crew.join.code") : t("crew.join.ask");
           var policy = t("crew.policy." + c.join_policy);
           // what the crew holds and what it says about itself, so the choice is not a
           // blind name-pick that costs a cooldown if it is wrong
+          var away = c._km == null ? "" : " · " + t("crew.join.away", { v: fmtKm(c._km) });
+          var full = MAXMEM && c.members >= MAXMEM;
           var sub = riders(c.members) + " · " + policy
-            + (c.km2 ? " · " + fmtKm2(c.km2) : "");
+            + (c.km2 ? " · " + fmtKm2(c.km2) : "") + away;
           return '<div class="crewrow">' + emb(c.slug, 26)
             + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + "</div>"
-            + '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
-            + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
-            + esc(c.name) + '">' + label + "</button></div>";
+            + (full
+               ? '<button class="crewbtn mini ghost" disabled>' + t("crew.join.full")
+                 + "</button></div>"
+               : '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
+                 + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
+                 + esc(c.name) + '">' + label + "</button>") + "</div>";
         }).join("")
       + "</div></div>";
   }
@@ -1739,6 +1795,7 @@
       scopePulse();
       var rank = res[1].ok ? res[1].body.crews || [] : [];
       var all = res[2].ok ? res[2].body.crews || [] : [];
+      MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
       // Standings first and always: the mode is a competition, and a visitor who is not in a
       // crew should land on the board rather than on a sign-in form. The rider's own crew
       // sits under it, folded away once they have one — they already know what it is.
@@ -1752,6 +1809,9 @@
       if (!me.paired) {
         /* the sign-in card is already at the top */
       } else if (me.crew) {
+        // Above the crew card, not below the Leave / Disband / Hand-the-pass-back row at the
+        // bottom of it, which is what a new member had to scroll past to find the rules.
+        h += explainer();
         // Folded by default put the only actionable thing in the feature behind a
         // disclosure triangle, under a 25-row board.
         h += '<details class="crewmine-wrap" open'
@@ -1773,7 +1833,7 @@
                   + '<p class=hint>' + t("crew.closed.p") + "</p></div>")
           + joinHTML(all, me);
       }
-      h += explainer();
+      if (!me.crew) h += explainer();     // in a crew it is already above the crew card
       panel.innerHTML = h;
 
       if (!me.paired) startPairing();
@@ -1898,7 +1958,8 @@
       filter: ["==", ["get", "lose"], 1],
       paint: {
         "line-color": "#ff9f6b",
-        "line-dasharray": [2, 1.6],
+        // dotted, not dashed: crew-contested is already dashed at the same rhythm
+        "line-dasharray": [1, 1.6],
         "line-width": ["interpolate", ["linear"], ["zoom"],
                        8, ["case", ["==", ["get", "sel"], 1], 3.2, 1.6],
                        14, ["case", ["==", ["get", "sel"], 1], 5.5, 3]],
