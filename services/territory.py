@@ -312,6 +312,49 @@ def seeded(held: set[tuple[int, int]], seed: int = SEED) -> set[tuple[int, int]]
     return out
 
 
+def fill_enclosed(held: set[tuple[int, int]], taken: set[tuple[int, int]]) -> set:
+    """Add tiles this crew has completely surrounded and nobody else holds.
+
+    A tile ringed on all four sides by one crew's ground, with nobody holding it, was being
+    left blank, which on the map reads as a rendering fault rather than as a fact. It is also
+    the wrong answer: riding all the way around something is a clearer claim to it than riding
+    across it once.
+
+    Found by flooding inward from outside the bounding box rather than by checking neighbours,
+    so a hole several tiles wide fills as readily as a single one. `taken` is every tile held
+    by any other crew, which is never swallowed: you can surround a rival, and they keep what
+    they hold.
+    """
+    if not held:
+        return set()
+    xs = [p[0] for p in held]
+    ys = [p[1] for p in held]
+    x0, x1 = min(xs) - 1, max(xs) + 1
+    y0, y1 = min(ys) - 1, max(ys) + 1
+    outside = set()
+    stack = [(x, y0) for x in range(x0, x1 + 1)] + [(x, y1) for x in range(x0, x1 + 1)] \
+        + [(x0, y) for y in range(y0, y1 + 1)] + [(x1, y) for y in range(y0, y1 + 1)]
+    stack = [p for p in stack if p not in held]
+    outside.update(stack)
+    while stack:
+        x, y = stack.pop()
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if not (x0 <= nx <= x1 and y0 <= ny <= y1):
+                continue
+            if (nx, ny) in held or (nx, ny) in outside:
+                continue
+            outside.add((nx, ny))
+            stack.append((nx, ny))
+    gained = set()
+    for x in range(x0 + 1, x1):
+        for y in range(y0 + 1, y1):
+            p = (x, y)
+            if p in held or p in outside or p in taken:
+                continue
+            gained.add(p)
+    return gained
+
+
 def regions(held: set[tuple[int, int]]) -> list[set[tuple[int, int]]]:
     """Connected components, so each one can be outlined and given its own emblem."""
     seen, out = set(), []
@@ -411,9 +454,25 @@ def award(acc: dict, live: set, prev: dict, seed: int = SEED,
                 if rivals:
                     withdrawn.add((tile, clan_id))
         if not withdrawn:
-            return kept, won
+            return _close_holes(kept), won
         blocked |= withdrawn
-    return kept, won
+    return _close_holes(kept), won
+
+
+def _close_holes(kept: dict[str, set]) -> dict[str, set]:
+    """Give each crew the gaps it has ridden all the way around.
+
+    After seeding, never before: a hole must not be able to satisfy the 2x2 rule that decides
+    whether a crew draws anything at all.
+    """
+    everyone = set()
+    for pts in kept.values():
+        everyone |= pts
+    out = {}
+    for clan_id, pts in kept.items():
+        others = everyone - pts
+        out[clan_id] = pts | fill_enclosed(pts, others)
+    return out
 
 
 def _pressure(acc: dict, tile: str, holder: str, held_km: float) -> int:
@@ -476,7 +535,10 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         pts = kept[clan_id]
         for (x, y) in sorted(pts):
             tile = f"{zoom}/{x}/{y}"
-            km, riders = won[tile][1], won[tile][2]
+            # a tile gained by enclosure has no winner entry: nobody rode it, it is held
+            # because the crew rode all the way around it
+            w = won.get(tile)
+            km, riders = (w[1], w[2]) if w else (0.0, 0)
             db.add(ClanCell(tile=tile, clan_id=clan_id, km=round(km, 3), riders=riders,
                             first_led=first_led.get((tile, clan_id)) or now))
             km2 += T.area_km2(tile)

@@ -165,3 +165,31 @@ def test_the_seed_size_is_actually_used():
     block = {(x, y) for x in range(2) for y in range(2)}
     assert seeded(block, seed=2) == block
     assert seeded(block, seed=3) == set(), "a 2x2 cannot satisfy a 3x3 seed"
+
+
+def test_ground_you_rode_all_the_way_around_is_yours():
+    """An enclosed gap nobody holds looks like a rendering fault, and riding right around
+    something is a clearer claim than riding across it once."""
+    from services.territory import fill_enclosed
+    ring = {(x, y) for x in range(5) for y in range(5)} - {(2, 2)}
+    assert fill_enclosed(ring, taken=set()) == {(2, 2)}
+
+    # a hole several tiles wide fills too
+    wide = {(x, y) for x in range(6) for y in range(6)} - {(2, 2), (3, 2), (2, 3), (3, 3)}
+    assert fill_enclosed(wide, taken=set()) == {(2, 2), (3, 2), (2, 3), (3, 3)}
+
+
+def test_surrounding_a_rival_does_not_swallow_them():
+    """You can ride right around somebody. They keep what they hold."""
+    from services.territory import fill_enclosed
+    ring = {(x, y) for x in range(5) for y in range(5)} - {(2, 2)}
+    assert fill_enclosed(ring, taken={(2, 2)}) == set()
+
+
+def test_an_open_bay_is_not_enclosed():
+    """Three sides is not all the way around."""
+    from services.territory import fill_enclosed
+    u = {(0, 0), (1, 0), (2, 0), (0, 1), (2, 1), (0, 2), (1, 2), (2, 2)}
+    u.discard((1, 1))
+    u.discard((1, 2))                     # leave the top open
+    assert (1, 1) not in fill_enclosed(u, taken=set())
