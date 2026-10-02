@@ -407,8 +407,12 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
             # "someone holds it" is a fact about the database.
             ids = {t["held_by"] for t in out["targets"] if t.get("held_by")}
             if ids:
+                # Living crews only. A folded crew keeps its row and carries a retirement
+                # tag in its name, which was being printed at riders as
+                # "Spree Shift (folded a1b2c3) has it".
                 names = dict(db.query(Clan.clan_id, Clan.name)
-                             .filter(Clan.clan_id.in_(ids)).all())
+                             .filter(Clan.clan_id.in_(ids),
+                                     Clan.disbanded_at.is_(None)).all())
                 for t in out["targets"]:
                     t["held_name"] = names.get(t.get("held_by"))
             for t in out["targets"]:
@@ -507,8 +511,11 @@ def edit_crew(slug: str, payload: dict, request: Request, db: Session = Depends(
         if not crews.NAME_RE.match(name):
             raise HTTPException(400, json.dumps({"code": "bad_name",
                                                  "detail": "3-28 characters."}))
-        clash = db.query(Clan).filter(Clan.name == name, Clan.clan_id != clan.clan_id,
-                                      Clan.disbanded_at.is_(None)).first()
+        # Every crew, not only the living ones: the column is UNIQUE for the life of the
+        # table, so clashing against live crews alone passed here and raised an
+        # IntegrityError nobody caught. Same reasoning as crews.create.
+        clash = db.query(Clan).filter(Clan.name == name,
+                                      Clan.clan_id != clan.clan_id).first()
         if clash:
             raise HTTPException(400, json.dumps({"code": "name_taken",
                                                  "detail": "That name is taken."}))

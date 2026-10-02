@@ -539,9 +539,49 @@ def _close_holes(kept: dict[str, set]) -> dict[str, set]:
     return out
 
 
+def _name_targets(targets_json: dict, zoom: int) -> None:
+    """Put a place name on every target row, in one batched offline lookup.
+
+    Mutates the json strings in place because that is where they are already serialised; the
+    alternative is threading a name through targets_for, which has eight parameters already
+    and no business knowing what a city is.
+    """
+    rows, coords = [], []
+    for clan_id, blob in targets_json.items():
+        if not blob:
+            continue
+        try:
+            parsed = json.loads(blob)
+        except ValueError:
+            continue
+        for r in parsed:
+            b = T.bounds(f"{zoom}/{r['x']}/{r['y']}")
+            if not b:
+                continue
+            rows.append((clan_id, parsed, r))
+            coords.append(((b[1] + b[3]) / 2, (b[0] + b[2]) / 2))
+    if not coords:
+        return
+    try:
+        from ingest.geo import places_for
+        names = places_for(coords)
+    except Exception:
+        # A map with no place names is the map we had; a rebuild that dies here is not.
+        _log.exception("place lookup failed")
+        return
+    touched = {}
+    for (clan_id, parsed, r), name in zip(rows, names):
+        if name:
+            r["at"] = name
+        touched[clan_id] = parsed
+    for clan_id, parsed in touched.items():
+        targets_json[clan_id] = json.dumps(parsed)
+
+
 def _pressure(acc: dict, tile: str, holder: str, held_km: float,
-              blocked: set | None = None, seedless: set | None = None) -> tuple[int, int]:
-    """(band, a number) for a held tile.
+              blocked: set | None = None,
+              seedless: set | None = None) -> tuple[int, int, str | None]:
+    """(band, a number, who is pushing) for a held tile.
 
     The band is what the map paints and the number is what a rider can act on. Saying "about
     to flip" and stopping is the shape of a warning without the content of one: nobody can
@@ -565,7 +605,7 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
         # Gained by enclosure: nobody rode it, so none of the questions below apply. This used
         # to fall through to "fading, 0.0 km clear", and to "about to flip" whenever any rival
         # had kilometres there, both false on ground that cannot be lost until the ring breaks.
-        return 4, 0
+        return 4, 0, None
 
     floor = min_lead_km(tile)
     out = blocked or set()
@@ -573,24 +613,24 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
     near = [(v[0], c) for c, v in acc.get(tile, {}).items()
             if c != holder and c not in dead and v[0] >= floor and (tile, c) not in out]
     rivals = [v for v, _c in near]
-    # who is pushing, for the card that is about to lose the square
-    _pressure.last_rival = max(near)[1] if near else None
+    # who is pushing hardest, for the card that is about to lose the square
+    pushing = max(near)[1] if near else None
 
     if not rivals:
         slack = held_km - floor
         if slack > floor * 0.35:
-            return 0, max(0, int(round(slack * 10)))
+            return 0, max(0, int(round(slack * 10))), None
         # Days left, not slack. The slack on a fading tile is tiny by definition, so printing
         # it could only ever say "0.0 km", which is a label rather than something to plan
         # around. At a HALF_LIFE_DAYS half-life this is exact.
         days = HALF_LIFE_DAYS * math.log2(held_km / floor) if held_km > floor else 0.0
-        return 3, max(0, int(round(days)))
+        return 3, max(0, int(round(days))), None
 
     best = max(rivals)
     need = max(0.0, held_km - best)          # what the rival still has to find
     ratio = best / held_km
     band = 2 if ratio >= 0.85 else 1 if ratio >= 0.5 else 0
-    return band, int(round(need * 10))
+    return band, int(round(need * 10)), pushing
 
 
 _COMPASS = ("n", "ne", "e", "se", "s", "sw", "w", "nw")
@@ -984,6 +1024,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # ground that they hold none, which is the opposite of the truth.
             _log.exception("targets_for failed for %s", clan_id)
             targets_json[clan_id] = None
+    _name_targets(targets_json, zoom)
 
     # --- ClanCell rows: the admin view and the ranking read these
     db.query(ClanCell).delete()
@@ -997,6 +1038,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     cells_flat: list[int] = []
     # [cell ordinal, crew index, ...] for the squares somebody else is riding
     rivals_flat: list[int] = []
+    idx_of = {cid: i for i, cid in enumerate(order)}
     regions_out = []
     for idx, clan_id in enumerate(order):
         c = clans[clan_id]
@@ -1015,7 +1057,12 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                             first_led=(first_led.get((tile, clan_id))
                                        or won_at.get(tile) or now)))
             km2 += T.area_km2(tile)
-            band, need = _pressure(acc, tile, clan_id, km, withdrawn_all, seedless)
+            band, need, pushing = _pressure(acc, tile, clan_id, km, withdrawn_all, seedless)
+            # Before the fresh bump below: a square that is contested AND taken this week
+            # comes out as band 6 or 7, matched neither 1 nor 2, and lost its rival's name on
+            # precisely the squares that just changed hands.
+            if pushing is not None and band in (1, 2):
+                rivals_flat.extend((len(cells_flat) // 5, idx_of[pushing]))
             # Fresh ground rides along in the band rather than as a sixth integer per cell:
             # the payload is five ints a tile and a whole extra column to carry one bit would
             # be 20% more bytes on the one response every visitor downloads.
@@ -1027,9 +1074,6 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # be different from, and marking all of it new says the opposite of what it means
             if prev and got and (now - got).days < FRESH_DAYS:
                 band += 5
-            rival = getattr(_pressure, "last_rival", None)
-            if rival is not None and band in (1, 2):
-                rivals_flat.extend((len(cells_flat) // 5, order.index(rival)))
             cells_flat.extend((idx, x, y, band, need))
         comps = patches_by_clan[clan_id]          # worked out once, above
         best_km2 = 0.0

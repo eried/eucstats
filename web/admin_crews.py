@@ -238,7 +238,6 @@ def save_settings(request: Request, db: Session = Depends(get_db),
     settings.set_crews(db, bool(enabled), zoom, window_days, seed, cooldown_days,
                        max_members, opacity, bool(creation_open), heat_ghost, bool(numbers))
     after = settings.get_crews(db)
-    crews.COOLDOWN_DAYS = after["cooldown_days"]
     note = "Saved."
     if (before["zoom"], before["window_days"], before["seed"]) != \
        (after["zoom"], after["window_days"], after["seed"]):
@@ -271,9 +270,8 @@ def rename(request: Request, db: Session = Depends(get_db),
     name = (name or "").strip()
     if not crews.NAME_RE.match(name):
         return _redir(err="A name is 3-28 characters.")
-    if db.query(Clan).filter(Clan.name == name, Clan.clan_id != clan_id,
-                             Clan.disbanded_at.is_(None)).first():
-        return _redir(err="That name is taken.")
+    if db.query(Clan).filter(Clan.name == name, Clan.clan_id != clan_id).first():
+        return _redir(err="That name is taken.")   # UNIQUE covers folded crews too
     old = c.name
     c.name = name
     db.commit()                 # the slug is deliberately left alone: links should not rot
@@ -291,13 +289,16 @@ def disband(request: Request, db: Session = Depends(get_db),
         return _redir(err="No such crew.")
     if (confirm or "").strip() != c.name:
         return _redir(err="Type the crew's name exactly to disband it.")
-    c.disbanded_at = utcnow()
+    was = c.name
     for m in db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
                                          ClanMember.left_at.is_(None)).all():
         m.left_at = utcnow()
+        m.status = "disbanded"        # nobody here chose to leave; no cooldown
     db.query(ClanCell).filter(ClanCell.clan_id == clan_id).delete()
+    # the same retirement a leader's own disband does, so the name comes free here too
+    crews._retire(c)
     db.commit()
-    return _redir(f"{c.name} disbanded. Its rides keep pointing at it; its colour is free.")
+    return _redir(f"{was} disbanded. Its rides keep pointing at it; its name and colour are free.")
 
 
 @crews_admin_router.post("/restore")

@@ -219,7 +219,7 @@ def test_enclosed_ground_does_not_claim_to_be_fading():
     """A tile held because the crew rode around it has no kilometres in it, and used to come
     out as "fading, 0.0 km clear", or "about to flip" the moment any rival had km there."""
     from services.territory import _pressure
-    band, n = _pressure({"14/1/1": {"rival": [99.0, {"r"}]}}, "14/1/1", "holder", 0.0)
+    band, n, _who = _pressure({"14/1/1": {"rival": [99.0, {"r"}]}}, "14/1/1", "holder", 0.0)
     assert band == 4, "ringed ground is its own state, not a warning"
     assert n == 0
 
@@ -440,9 +440,9 @@ def test_a_crew_that_can_take_nothing_sets_off_no_warnings():
     the band rules were written to stop."""
     from services.territory import _pressure
     acc = {"14/1/1": {"holder": [9.0, {"a"}], "ghost": [8.9, {"b"}]}}
-    band, _ = _pressure(acc, "14/1/1", "holder", 9.0)
+    band, _, _who = _pressure(acc, "14/1/1", "holder", 9.0)
     assert band == 2, "a rival at 99% is about to flip it"
-    band, _ = _pressure(acc, "14/1/1", "holder", 9.0, seedless={"ghost"})
+    band, _, _who = _pressure(acc, "14/1/1", "holder", 9.0, seedless={"ghost"})
     assert band == 0, "unless that rival draws nothing anywhere and never will"
 
 
@@ -533,34 +533,108 @@ def test_the_first_crews_each_get_their_own_colour(db):
         db.commit()
     assert len(set(seen)) == len(PALETTE), f"{len(set(seen))} colours across {len(PALETTE)} crews"
 
-def test_the_weekly_cap_cannot_be_doubled_by_riding_at_midnight():
+
+def _track(start, pts):
+    """A track blob in the shape the ingest pipeline writes: gzip-JSON of
+    [iso_t, lat, lon, speed, g]. Writing raw zlib pairs here produced an empty decode and a
+    silent zero, which is the failure mode territory.py's own `except: return []` is for."""
+    from datetime import timedelta
+    from ingest.downsample import encode_track
+
+    class S:
+        __slots__ = ("t", "lat", "lon", "speed", "g")
+
+        def __init__(self, t, lat, lon):
+            self.t, self.lat, self.lon, self.speed, self.g = t, lat, lon, 20.0, 0.0
+
+    return encode_track([S(start + timedelta(seconds=i * 5), a, b)
+                         for i, (a, b) in enumerate(pts)])
+
+
+def test_the_weekly_cap_cannot_be_doubled_by_riding_at_midnight(db):
     """The cap is what makes a square won by how many of you ride there rather than by one
     person's odometer, and a calendar week handed it straight back: epoch second 604800*n is
-    a Thursday midnight UTC, so a rider who knew that put the full cap in on Wednesday
-    evening and the full cap in again on Thursday morning. Fourteen hours, double the stated
-    limit. Nothing about honest riding may change."""
-    from services.territory import CAP_WINDOW_S, RIDER_TILE_WEEK_CAP_KM as CAP
+    a Thursday midnight UTC, so a rider who knew where the boundary was put the full cap in
+    on one side of it and the full cap in again on the other. Fourteen hours, double the
+    stated limit. Honest riding must not change.
 
-    def counted(hours_ago):
-        """What accumulate's cap allows one rider in one square, newest ride first."""
-        seen, total = [], 0.0
-        for h in sorted(hours_ago):
-            when = -h * 3600.0
-            used = 0.0
-            for i in range(len(seen) - 1, -1, -1):
-                if seen[i][0] - when >= CAP_WINDOW_S:
-                    break
-                used += seen[i][1]
-            room = CAP - used
-            if room <= 0:
-                continue
-            take = min(CAP, room)
-            seen.append((when, take))
-            total += take
-        return total
+    This drives accumulate() against real rows rather than re-walking the loop here, because
+    a test that carries its own copy of the rule passes whichever rule the code is using."""
+    from datetime import timedelta
+    from ingest.downsample import encode_track
+    from models import Clan, ClanMember, Rider, Trip, TripTrack, utcnow
+    from services.territory import accumulate, RIDER_TILE_WEEK_CAP_KM as CAP
 
-    assert counted([0, 14]) == CAP            # the midnight trick, fourteen hours apart
-    assert counted([0, 6]) == CAP             # one session, two rides
-    assert counted([0, 24 * 6]) == CAP        # six days apart is still one window
-    assert counted([0, 24 * 8]) == CAP * 2    # eight days apart is two
-    assert counted([0, 24 * 7, 24 * 14, 24 * 21]) == CAP * 4   # a month of honest riding
+    db.add(Clan(clan_id="cap-c", name="Midnight Oil", slug="midnight-oil",
+                colour="#e6194b", pattern="solid", join_policy="open", invite_code="C"))
+    db.add(Rider(store_id="cap-r", display_name="Boundary", flag="NO"))
+    db.commit()
+    db.add(ClanMember(clan_id="cap-c", store_id="cap-r", role="leader", status="active"))
+    db.commit()
+
+    # The boundary, found rather than assumed, and recent rather than historic. accumulate
+    # reads `started.timestamp()` on a naive datetime, which Python takes as local time, so
+    # where a 604800-second bucket starts depends on the box's UTC offset: guessing it put
+    # both rides in one bucket. And a decayed pair cannot discriminate -- at a 21-day
+    # half-life, rides nine months back are worth a ten-thousandth either way, so the
+    # assertion passed on both rules. The most recent boundary at least a day old is both.
+    probe = utcnow() - timedelta(days=1)
+    anchor = probe - timedelta(seconds=probe.timestamp() % 604800)
+    assert anchor.timestamp() % 604800 == 0
+    # inside one z14 square near Oslo, a line long enough to be a visit at any latitude
+    lat, lon = 59.9139, 10.7522
+    pts = [(lat + i * 0.0004, lon + i * 0.0006) for i in range(40)]
+
+    def ride(uuid, when, km):
+        db.add(Trip(trip_uuid=uuid, rider_store_id="cap-r", clan_id="cap-c",
+                    distance_km=km, validation_status="validated",
+                    start_utc=when, end_utc=when + timedelta(minutes=30),
+                    start_lat=lat, start_lon=lon))
+        db.add(TripTrack(trip_uuid=uuid, points=_track(when, pts)))
+
+    ride("cap-a", anchor + timedelta(hours=2), CAP * 2)      # after the boundary
+    ride("cap-b", anchor - timedelta(hours=12), CAP * 2)     # before it, 14 h earlier
+    db.commit()
+
+    acc, _recency = accumulate(db, window_days=3650)
+    # the busiest single square: the cap is per rider per square, so summing across the
+    # squares a ride crosses adds up several independent caps and proves nothing
+    got = max((v["cap-c"][0] for v in acc.values() if "cap-c" in v), default=0.0)
+    assert got > 0, "the fixture has to produce a visit at all"
+    assert got <= CAP * 1.02, (
+        f"two rides fourteen hours apart banked {got:.2f} km against a {CAP} km cap: "
+        "the midnight boundary is being paid twice")
+
+
+def test_the_weekly_cap_still_pays_for_honest_riding(db):
+    """The other half. Eight days apart is two windows by any measure, and must count twice,
+    or closing the boundary hole would have quietly halved what regular riding is worth."""
+    from datetime import timedelta
+    from models import Clan, ClanMember, Rider, Trip, TripTrack, utcnow
+    from services.territory import accumulate, RIDER_TILE_WEEK_CAP_KM as CAP
+
+    db.add(Clan(clan_id="cap-h", name="Every Week", slug="every-week",
+                colour="#3cb44b", pattern="solid", join_policy="open", invite_code="H"))
+    db.add(Rider(store_id="cap-h-r", display_name="Regular", flag="NO"))
+    db.commit()
+    db.add(ClanMember(clan_id="cap-h", store_id="cap-h-r", role="leader", status="active"))
+    db.commit()
+
+    lat, lon = 59.9139, 10.7522
+    pts = [(lat + i * 0.0004, lon + i * 0.0006) for i in range(40)]
+    now = utcnow()
+    for n, days in enumerate((0, 8)):
+        uuid = f"cap-h-{n}"
+        when = now - timedelta(days=days, hours=1)
+        db.add(Trip(trip_uuid=uuid, rider_store_id="cap-h-r", clan_id="cap-h",
+                    distance_km=CAP * 2, validation_status="validated",
+                    start_utc=when, end_utc=when + timedelta(minutes=30),
+                    start_lat=lat, start_lon=lon))
+        db.add(TripTrack(trip_uuid=uuid, points=_track(when, pts)))
+    db.commit()
+
+    acc, _recency = accumulate(db, window_days=3650)
+    got = max((v["cap-h"][0] for v in acc.values() if "cap-h" in v), default=0.0)
+    # decay bites the older ride, so this is a floor rather than an equality
+    assert got > CAP * 1.5, (
+        f"two rides eight days apart banked only {got:.2f} km: the window is too wide")

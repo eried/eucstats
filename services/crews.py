@@ -258,6 +258,14 @@ def leave(db, store_id: str) -> None:
     if last_one:
         clan = db.get(Clan, m.clan_id)
         if clan and clan.disbanded_at is None:
+            # Pending rows too. Retiring the crew and leaving a request open left that rider
+            # looking at a card for a crew that does not exist, waiting on a leader who is
+            # gone, with no exit anything pointed at.
+            for other in db.query(ClanMember).filter(
+                    ClanMember.clan_id == m.clan_id,
+                    ClanMember.left_at.is_(None)).all():
+                other.left_at = utcnow()
+                other.status = "disbanded"
             _retire(clan)
     db.commit()
 
@@ -374,12 +382,10 @@ def disband(db, actor: str, clan_id: str) -> None:
     for mm in db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
                                           ClanMember.left_at.is_(None)).all():
         mm.left_at = utcnow()
-        # Folding your own crew is not walking out on one. The leader's row is `active`, so
-        # stamping it here started the same week-long cooldown that leaving does, silently,
-        # one button away from Leave and with the same styling. Founding a crew by mistake
-        # and undoing it cost a week.
-        if mm.store_id == actor:
-            mm.status = "disbanded"
+        # Nobody here walked out. The cooldown exists to stop crew-hopping, and having your
+        # crew folded underneath you is not hopping: the members took no action at all, and
+        # were being benched a week and shown "You just walked out of one".
+        mm.status = "disbanded"
     _retire(clan)
     db.commit()
 
