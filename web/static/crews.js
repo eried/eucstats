@@ -247,6 +247,8 @@
     map.off("mouseleave", "crew-fill", cursorDefault);
     map.off("mousemove", "crew-fill", onCellHover);
     map.off("mousemove", "crew-target-hit", onTargetHover);
+    map.off("click", "crew-target-hit", onTargetTap);
+    map.off("click", dismissTip);
     map.off("mouseleave", "crew-target-hit", hideTip);
     map.off("mouseenter", "crew-target-hit", cursorPointer);
     map.off("mouseleave", "crew-target-hit", cursorDefault);
@@ -425,14 +427,7 @@
     map.on("mousemove", "crew-target-hit", onTargetHover);
     map.on("click", "crew-target-hit", onTargetTap);
     // a tap anywhere else puts it away; without this the sticky tip only left on a drag
-    map.on("click", function (e) {
-      if (!hoverTip || hoverKey.indexOf("tap") !== 0) return;
-      if (map.getLayer("crew-target-hit")
-          && map.queryRenderedFeatures(e.point, { layers: ["crew-target-hit"] }).length) {
-        return;
-      }
-      hideTip();
-    });
+    map.on("click", dismissTip);
     map.on("mouseleave", "crew-target-hit", hideTip);
     map.on("mouseenter", "crew-target-hit", cursorPointer);
     map.on("mouseleave", "crew-target-hit", cursorDefault);
@@ -602,6 +597,16 @@
   }
 
   // A tap is not a hover: no delay, and it stays put until the next tap or a drag.
+  // Named, so clearLayers can take it off again. See the note there.
+  function dismissTip(e) {
+    if (!hoverTip || hoverKey.indexOf("tap") !== 0) return;
+    if (map.getLayer("crew-target-hit")
+        && map.queryRenderedFeatures(e.point, { layers: ["crew-target-hit"] }).length) {
+      return;
+    }
+    hideTip();
+  }
+
   function onTargetTap(e) {
     if (!TERR) return;
     var xy = tileAt(e.lngLat);
@@ -619,15 +624,17 @@
       var el = document.createElement("div");
       var losing = row.band !== undefined;
       el.className = "crewtip " + (losing ? "bl" : "bt") + (sticky ? " tap" : "");
-      el.innerHTML = "<b>" + esc(losing
+      el.innerHTML = (row.at ? '<b class="crewtipat">' + esc(row.at) + "</b>" : "")
+        + "<b>" + esc(losing
             ? (row.band === 3 ? fadesIn(Math.round(row.need * 10))
                : t("crew.lose.gap", { v: effort(row.need, row.y) }))
             : row.blocked ? t("crew.targets.blocked") : effort(row.need, row.y)) + "</b>"
         + "<span>" + esc(losing
             ? t(row.band === 3 ? "crew.lose.cold"
                 : row.band === 2 ? "crew.lose.now" : "crew.lose.soon")
-            : row.held_by
-            ? t("crew.targets.taken", { name: row.held_name || "" })
+            : row.held_by && row.held_name
+            ? t("crew.targets.taken", { name: row.held_name })
+            : row.held_by ? t("crew.targets.takenby")
             : t("crew.tile.free")) + "</span>"
         + (row.kills ? "<span><em>" + esc(t("crew.targets.kills")) + "</em></span>" : "")
         + (row.first ? "<span><em>" + esc(t("crew.targets.first")) + "</em></span>" : "");
@@ -1010,9 +1017,13 @@
               + t("crew.targets.links", { n: x.links }) + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
-            : outOfReach(x.need)
-              ? '<span class="crewtag done">' + t("crew.targets.far") + "</span>"
             : "";
+          // Not part of the chain above: a square can be the best move in the game AND more
+          // than the crew can physically bank, and being told only the first is how somebody
+          // spends a month on arithmetic.
+          if (!x.blocked && outOfReach(x.need)) {
+            tag += '<span class="crewtag done">' + t("crew.targets.far") + "</span>";
+          }
           // A crew that folded between the rebuild and this view has no name to print, and
           // the row came out as " has it" with a leading space and nobody in it.
           var who = x.held_by && x.held_name
@@ -1868,6 +1879,12 @@
           + "<span>" + esc(me.crew.name) + "</span>"
           + '<span class="crewsumrole">' + t("crew.role." + me.role) + "</span></summary>"
           + myCrewHTML(me) + "</details>";
+      } else if (me.folded) {
+        h += '<div class="crewcard"><h3>' + t("crew.folded.h") + "</h3>"
+          + '<p class=hint>' + t("crew.folded.p", { name: esc(me.folded) }) + "</p></div>"
+          + (me.can_found && me.creation_open && !me.cooldown_until
+             ? createHTML(window.__CREWIDENT__ || null) : "")
+          + joinHTML(all, me);
       } else if (me.declined_by) {
         h += '<div class="crewcard"><h3>' + t("crew.declined.h") + "</h3>"
           + '<p class=hint>' + t("crew.declined.p", { name: esc(me.declined_by) })

@@ -313,9 +313,12 @@ def restore(request: Request, db: Session = Depends(get_db), clan_id: str = Form
     if crews.identity_taken(db, c.colour, c.pattern, exclude=c.clan_id):
         return _redir(err=f"Another crew took {c.colour}/{c.pattern} while it was disbanded. "
                           "Give that crew different colours first.")
-    c.disbanded_at = None
+    err = crews.unretire(db, c)
+    if err:
+        return _redir(err=err)
     db.commit()
-    return _redir(f"{c.name} restored. Rebuild territory to bring its ground back.")
+    return _redir(f"{c.name} restored with its riders. "
+                  "Rebuild territory to bring its ground back.")
 
 
 @crews_admin_router.post("/revoke")

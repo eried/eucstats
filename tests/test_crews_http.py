@@ -258,3 +258,71 @@ def test_the_redraw_promise_follows_the_retention_cadence(client, db):
     settings.set_retention(db, days=ret["days"], disk_floor_gb=ret["disk_floor_gb"],
                            interval_s=86400)
     assert client.get("/api/v1/crews/drawn").json()["every"] == 86400
+
+
+# --- the lifecycle over the wire ---------------------------------------------------------
+
+def test_rejoining_a_crew_over_http_is_not_a_500(client, db):
+    """Reviewer-found, probed against the real endpoints: join, leave, join again used to be
+    a permanent 500 that the client rendered as "That didn't work"."""
+    _set_crews(db, cooldown_days=0)
+    _rider(db, "w1")
+    _signed_in(client, db, "w1")
+    client.post("/api/v1/crews", json={"name": "In And Out", "join_policy": "open"})
+    slug = db.query(Clan).filter(Clan.name == "In And Out").one().slug
+
+    _rider(db, "w2")
+    _signed_in(client, db, "w2")
+    assert client.post(f"/api/v1/crews/{slug}/join", json={}).status_code == 200
+    assert client.post("/api/v1/crews/leave", json={}).status_code == 200
+    r = client.post(f"/api/v1/crews/{slug}/join", json={})
+    assert r.status_code == 200, f"rejoining must work: {r.status_code} {r.text[:200]}"
+
+
+def test_no_response_ever_shows_a_crews_retirement_tag(client, db):
+    """`_retire` frees a folded crew's name by moving it out of the way, which means the tag
+    must never reach a rider. It did, on the targets lookup and on /territory/at."""
+    _rider(db, "lk1")
+    _signed_in(client, db, "lk1")
+    client.post("/api/v1/crews", json={"name": "Leaky", "join_policy": "open"})
+    slug = db.query(Clan).filter(Clan.name == "Leaky").one().slug
+    client.post(f"/api/v1/crews/{slug}/disband")
+
+    for path in ("/api/v1/crews", "/api/v1/crews/me",
+                 "/api/v1/territory/at?lat=59.9&lon=10.75"):
+        r = client.get(path)
+        assert "(folded" not in r.text, f"{path} leaks the retirement tag: {r.text[:200]}"
+
+
+def test_the_emblem_route_is_shut_when_crews_are_off(client, db):
+    """It was the one crew route that answered with the mode switched off, against an admin
+    screen that says every one of them 404s."""
+    _rider(db, "em1")
+    _signed_in(client, db, "em1")
+    client.post("/api/v1/crews", json={"name": "Badge", "join_policy": "open"})
+    slug = db.query(Clan).filter(Clan.name == "Badge").one().slug
+    assert client.get(f"/api/v1/crews/{slug}/emblem").status_code == 200
+    _set_crews(db, enabled=False)
+    assert client.get(f"/api/v1/crews/{slug}/emblem").status_code == 404
+
+
+def test_a_rider_is_told_their_crew_folded(client, db):
+    _rider(db, "fd1")
+    _signed_in(client, db, "fd1")
+    client.post("/api/v1/crews", json={"name": "Here Today", "join_policy": "open"})
+    clan = db.query(Clan).filter(Clan.name == "Here Today").one()
+    leader = client.cookies.get(pairing.COOKIE)
+
+    _rider(db, "fd2")
+    member = _signed_in(client, db, "fd2")
+    client.post(f"/api/v1/crews/{clan.slug}/join", json={})
+
+    client.cookies.clear()
+    client.cookies.set(pairing.COOKIE, leader)
+    assert client.post(f"/api/v1/crews/{clan.slug}/disband").status_code == 200
+
+    client.cookies.clear()
+    client.cookies.set(pairing.COOKIE, member)
+    me = client.get("/api/v1/crews/me").json()
+    assert me.get("folded") == "Here Today"
+    assert client.get("/api/v1/crews/me").json().get("folded") is None

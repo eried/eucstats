@@ -578,6 +578,43 @@ def _name_targets(targets_json: dict, zoom: int) -> None:
         targets_json[clan_id] = json.dumps(parsed)
 
 
+def _first_block(acc: dict, clan_id: str, won: dict, zoom: int, mine: set,
+                 seed: int = SEED) -> set:
+    """The cheapest SEED x SEED block a crew with no ground can complete.
+
+    Scored on the total extra distance across its squares, so a block with three squares
+    already led beats one on empty ground, and a block over somebody else's territory loses
+    to one on nobody's. Anchored on squares the crew already rides, because a block somewhere
+    it has never been is a suggestion rather than a plan.
+    """
+    if not mine:
+        return set()
+
+    def cost(x, y):
+        tile = f"{zoom}/{x}/{y}"
+        w = won.get(tile)
+        if w and w[0] == clan_id:
+            return 0.0
+        km = acc.get(tile, {}).get(clan_id, [0.0, set()])[0]
+        return max(0.0, max(min_lead_km(tile), w[1] if w else 0.0) - km)
+
+    best, best_cost = None, None
+    seen = {}
+    for (ax, ay) in mine:
+        # every block this ridden square could be a corner of
+        for dx in range(-(seed - 1), 1):
+            for dy in range(-(seed - 1), 1):
+                key = (ax + dx, ay + dy)
+                if key in seen:
+                    continue
+                sq = [(key[0] + a, key[1] + b) for a in range(seed) for b in range(seed)]
+                total = sum(cost(x, y) for x, y in sq)
+                seen[key] = total
+                if best_cost is None or total < best_cost:
+                    best, best_cost = sq, total
+    return set(best or ())
+
+
 def _pressure(acc: dict, tile: str, holder: str, held_km: float,
               blocked: set | None = None,
               seedless: set | None = None) -> tuple[int, int, str | None]:
@@ -780,6 +817,10 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                 cand.add(nb)
     cand |= mine - held                       # anywhere we already ride
 
+    # A crew holding nothing needs one block, not eight singles: see _first_block.
+    block = _first_block(acc, clan_id, won, zoom, mine, seed) if not held else set()
+    cand |= block
+
     patches = list(patches if patches is not None else regions(held))
     patches.sort(key=len, reverse=True)
     # The road between the two biggest patches, when they are close enough that closing it is
@@ -828,11 +869,10 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
             need = math.ceil(max(need, min_visit_km(tile)) * 10) / 10
         touching = {patch_of[nb] for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
                     if nb in patch_of}
-        first = False
-        if not held:
-            with_it = leads | {(x, y)}
-            first = any({(x + dx + a, y + dy + b) for a in (0, 1) for b in (0, 1)} <= with_it
-                        for dx in (0, -1) for dy in (0, -1))
+        # The four squares of the one block this crew should go and take. The old test asked
+        # whether this square completed a block the crew already led three corners of, which
+        # across sixteen crews fired on nothing, ever.
+        first = (x, y) in block
         out.append({"x": x, "y": y, "need": need,
                     "held_by": holder_of.get((x, y)),
                     "dir": _bearing(round(x - cx), round(y - cy)),
@@ -904,15 +944,32 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     # crews in fifteen showed five distinct rows out of eight while eleven to a hundred
     # candidates went unmentioned. Keep the first of each face, then fill the freed slots from
     # what is left, because a near-duplicate still beats a short card.
+    # Mirrors the six rungs the client prints (crews.js effort()). The two used to disagree:
+    # this bucketed on absolute kilometres at four steps while the card bucketed on six rungs
+    # relative to the square's own floor, so the list could hide a row that would have read
+    # differently and keep two that read the same.
     def face(t):
-        step = 1 if t["need"] <= 0.4 else 2 if t["need"] <= 1 else 3 if t["need"] <= 2.5 else 4
-        return (step, t["dir"], t["held_by"])
+        f = min_lead_km(f"{zoom}/{t['x']}/{t['y']}") or 0.5
+        r = t["need"] / f
+        step = (1 if r <= 0.4 else 2 if r <= 1 else 3 if r <= 2.5
+                else 4 if r <= 5 else 5 if r <= 10 else 6)
+        # the place, where there is one, because two squares in different neighbourhoods are
+        # two different rides however alike the numbers look
+        return (step, t["dir"], t["held_by"], t.get("at"))
 
     order = {id(t): i for i, t in enumerate(out)}
     seen, picked = set(), []
+    # A block is one move and only works whole; halving it tells a new crew to ride half a
+    # block, which puts them on no map at all.
+    for t in out:
+        if t.get("first"):
+            seen.add(face(t))
+            picked.append(t)
     for t in out:                       # best first, one of each face
         if len(picked) >= limit:
             break
+        if t.get("first"):
+            continue
         if face(t) not in seen:
             seen.add(face(t))
             picked.append(t)

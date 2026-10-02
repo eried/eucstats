@@ -74,7 +74,8 @@ def _territory_if_due(db) -> None:
         cfg = _settings.get_crews(db)
         if not cfg["enabled"]:
             return
-        if _time.time() - _last_territory[0] < 3600:
+        from web.crews_api import REBUILD_EVERY_S
+        if _time.time() - _last_territory[0] < REBUILD_EVERY_S:
             return
         from services import territory
         rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],

@@ -330,14 +330,28 @@ def test_ground_you_already_rode_enough_says_it_needs_a_neighbour():
     assert row["need"] == 0.0 and row["blocked"], row
 
 
-def test_a_crew_holding_nothing_still_gets_told_where_to_go():
-    """It was the only crew not being told, which is backwards: it is the one with no idea
-    where to start."""
+def test_a_crew_holding_nothing_is_sent_to_one_block_it_can_finish():
+    """It was the only crew not being told anything, which is backwards: it is the one with
+    no idea where to start. Then it was told the wrong thing -- every square it had ever
+    ridden, under the words "any 2x2 of these and you are on the map", when on the demo world
+    neither crew in that state had a single adjacent pair among them, let alone a block.
+
+    A 2x2 is one move. The card names one: the cheapest block the crew can finish, anchored
+    where it already rides, with all four squares marked as parts of the same move."""
     from services.territory import targets_for
     acc = {"14/50/50": {"A": [40.0, {"r"}]}, "14/51/50": {"A": [12.0, {"r"}]}}
     out = targets_for(acc, kept={"B": {(9, 9), (9, 10), (10, 9), (10, 10)}},
                       clan_id="A", won={}, zoom=14)
-    assert {(t["x"], t["y"]) for t in out} == {(50, 50), (51, 50)}
+    marked = {(t["x"], t["y"]) for t in out if t["first"]}
+    assert len(marked) == 4, f"a block is four squares, got {sorted(marked)}"
+    xs = {p[0] for p in marked}
+    ys = {p[1] for p in marked}
+    assert len(xs) == 2 and len(ys) == 2 and max(xs) - min(xs) == 1 and max(ys) - min(ys) == 1, (
+        f"the four have to be a 2x2, got {sorted(marked)}")
+    assert {(50, 50), (51, 50)} <= marked, (
+        "it has to be built on ground the crew already rides, not somewhere it has never been")
+    # and the squares it already rides are still offered
+    assert {(50, 50), (51, 50)} <= {(t["x"], t["y"]) for t in out}
 
 
 def test_your_own_ground_is_never_offered_back_to_you():

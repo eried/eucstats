@@ -12,7 +12,7 @@ import re
 import uuid
 from datetime import timedelta
 
-from models import Clan, ClanMember, Trip, utcnow
+from models import Clan, ClanMember, ClanCell, Trip, utcnow
 
 # 24 colours chosen to stay apart from each other on a map and to survive the common forms of
 # colour blindness — no red/green pair carries meaning on its own, which is why every crew also
@@ -245,9 +245,19 @@ def join(db, store_id: str, clan_id: str, invite_code: str | None = None) -> Cla
     else:
         status = "pending"
 
-    m = ClanMember(clan_id=clan_id, store_id=store_id, role="member", status=status,
-                   last_seen=utcnow())
-    db.add(m)
+    # (clan_id, store_id) is the primary key, so a rider who has ever been in this crew
+    # already has a row. Reviving it is the whole fix: inserting raised an IntegrityError
+    # that reached the browser as "That did not work" and never stopped doing so.
+    m = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == clan_id, ClanMember.store_id == store_id).first())
+    if m is None:
+        m = ClanMember(clan_id=clan_id, store_id=store_id)
+        db.add(m)
+    m.role = "member"          # coming back is not coming back in charge
+    m.status = status
+    m.left_at = None
+    m.joined_at = utcnow()     # seniority counts the membership you are in
+    m.last_seen = utcnow()
     db.commit()
     return m
 
@@ -288,6 +298,10 @@ def decide(db, actor: str, clan_id: str, store_id: str, accept: bool) -> None:
                  ClanMember.status == "pending", ClanMember.left_at.is_(None)).first())
     if m is None:
         raise CrewError("no_request", "No pending request from that rider.")
+    if accept and _full(db, clan_id):
+        # The cap is enforced when a rider walks in and was not when a leader waved one in,
+        # so a crew could sit over the line while its own row said "Full".
+        raise CrewError("crew_full", "That crew is full.")
     if accept:
         m.status = "active"
     else:
@@ -298,6 +312,37 @@ def decide(db, actor: str, clan_id: str, store_id: str, accept: bool) -> None:
     db.commit()
 
 
+def last_fold(db, store_id: str) -> dict | None:
+    """A crew that folded under this rider and has not been mentioned to them yet.
+
+    Same channel as last_answer and the same rule: said once, and only while it is news.
+    """
+    m = (db.query(ClanMember)
+         .filter(ClanMember.store_id == store_id, ClanMember.status == "disbanded",
+                 ClanMember.left_at.isnot(None),
+                 ClanMember.left_at >= utcnow() - timedelta(days=7))
+         .order_by(ClanMember.left_at.desc()).first())
+    if m is None:
+        return None
+    clan = db.get(Clan, m.clan_id)
+    m.status = "disbanded_seen"
+    db.commit()
+    if clan is None:
+        return None
+    tag = f" (folded {clan.clan_id[:6]})"
+    name = clan.name[:-len(tag)] if clan.name.endswith(tag) else clan.name
+    return {"crew": name}
+
+
+def _full(db, clan_id: str) -> bool:
+    from services import settings
+    try:
+        cap = int(settings.get_crews(db)["max_members"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return bool(cap) and _active_members(db, clan_id) >= cap
+
+
 def last_answer(db, store_id: str) -> dict | None:
     """A decision this rider has not been shown yet, if there is one.
 
@@ -305,14 +350,19 @@ def last_answer(db, store_id: str) -> dict | None:
     """
     m = (db.query(ClanMember)
          .filter(ClanMember.store_id == store_id, ClanMember.status == "declined",
-                 ClanMember.left_at.isnot(None))
+                 ClanMember.left_at.isnot(None),
+                 # A week. Without a bound, a decline nobody read in January turned up in
+                 # March beside a cooldown from a different crew, and one of the two cards
+                 # on screen was then false.
+                 ClanMember.left_at >= utcnow() - timedelta(days=7))
          .order_by(ClanMember.left_at.desc()).first())
     if m is None:
         return None
     clan = db.get(Clan, m.clan_id)
     m.status = "declined_seen"
     db.commit()
-    return {"crew": clan.name if clan and clan.disbanded_at is None else None}
+    # Nothing to say if the crew folded in the meantime, and the row is spent either way.
+    return {"crew": clan.name} if clan and clan.disbanded_at is None else None
 
 
 def set_role(db, actor: str, clan_id: str, store_id: str, role: str) -> None:
@@ -416,6 +466,9 @@ def disband(db, actor: str, clan_id: str) -> None:
         # crew folded underneath you is not hopping: the members took no action at all, and
         # were being benched a week and shown "You just walked out of one".
         mm.status = "disbanded"
+    # The admin's disband clears these and the leader's did not, so the same action left two
+    # different maps standing for up to a rebuild interval.
+    db.query(ClanCell).filter(ClanCell.clan_id == clan_id).delete()
     _retire(clan)
     db.commit()
 
@@ -433,6 +486,40 @@ def _retire(clan) -> None:
     if not clan.name.endswith(")"):
         clan.name = f"{clan.name} (folded {tag})"[:60]
     clan.slug = f"{clan.slug}-x{tag}"[:80]
+
+
+def unretire(db, clan) -> str | None:
+    """Undo _retire. Returns an error sentence, or None when it worked.
+
+    Restore has to be a real undo: a crew brought back under its retirement tag, with the
+    members still marked gone, is the leaderless shell the whole of leave() exists to stop.
+    """
+    tag = f" (folded {clan.clan_id[:6]})"
+    name = clan.name[:-len(tag)] if clan.name.endswith(tag) else clan.name
+    if db.query(Clan).filter(Clan.name == name, Clan.clan_id != clan.clan_id).first():
+        return f"{name} has been taken since. Rename that crew first."
+    suffix = f"-x{clan.clan_id[:6]}"
+    slug = clan.slug[:-len(suffix)] if clan.slug.endswith(suffix) else clan.slug
+    if db.query(Clan).filter(Clan.slug == slug, Clan.clan_id != clan.clan_id).first():
+        slug = free_slug(db, name)
+    clan.name, clan.slug, clan.disbanded_at = name, slug, None
+    back = 0
+    for m in db.query(ClanMember).filter(ClanMember.clan_id == clan.clan_id,
+                                         ClanMember.status == "disbanded").all():
+        m.status = "active"
+        m.left_at = None
+        back += 1
+    if back and not db.query(ClanMember).filter(
+            ClanMember.clan_id == clan.clan_id, ClanMember.role == "leader",
+            ClanMember.left_at.is_(None)).first():
+        # somebody has to be in charge, or this is the shell again in a different shape
+        first = (db.query(ClanMember)
+                 .filter(ClanMember.clan_id == clan.clan_id, ClanMember.status == "active",
+                         ClanMember.left_at.is_(None))
+                 .order_by(ClanMember.joined_at.asc()).first())
+        if first:
+            first.role = "leader"
+    return None
 
 
 def touch(db, store_id: str) -> None:

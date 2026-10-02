@@ -259,3 +259,132 @@ def test_a_folded_crew_hands_its_colours_straight_back(db):
     crews.disband(db, "z1", a.clan_id)
     b = crews.create(db, "z2", "Next Up", colour=colour, pattern=pattern)
     assert (b.colour, b.pattern) == (colour, pattern)
+
+
+# --- coming back ----------------------------------------------------------------------
+
+def test_you_can_rejoin_a_crew_you_were_in(db):
+    """(clan_id, store_id) is the primary key and join() inserted a fresh row, so the second
+    time anybody joined a crew they had ever been in -- rejoining, re-asking after a decline,
+    re-asking after withdrawing -- the database refused and the panel said "That didn't work",
+    permanently. It is the most ordinary action in a social feature and nothing went near it."""
+    from services import settings
+    _rider(db, "rj1")
+    _rider(db, "rj2")
+    c = crews.create(db, "rj1", "Revolving Door", join_policy="open")
+    cfg = settings.get_crews(db)
+    settings.set_crews(db, enabled=cfg["enabled"], zoom=cfg["zoom"],
+                       window_days=cfg["window_days"], seed=cfg["seed"], cooldown_days=0,
+                       max_members=cfg["max_members"], opacity=cfg["opacity"],
+                       creation_open=cfg["creation_open"])
+    crews.join(db, "rj2", c.clan_id)
+    crews.leave(db, "rj2")
+    again = crews.join(db, "rj2", c.clan_id)
+    assert again.status == "active"
+    assert again.role == "member", "coming back is not coming back in charge"
+
+
+def test_a_declined_rider_can_ask_the_same_crew_again(db):
+    from services import settings
+    _rider(db, "ag1")
+    _rider(db, "ag2")
+    c = crews.create(db, "ag1", "Second Thoughts", join_policy="approval")
+    cfg = settings.get_crews(db)
+    settings.set_crews(db, enabled=cfg["enabled"], zoom=cfg["zoom"],
+                       window_days=cfg["window_days"], seed=cfg["seed"], cooldown_days=0,
+                       max_members=cfg["max_members"], opacity=cfg["opacity"],
+                       creation_open=cfg["creation_open"])
+    crews.join(db, "ag2", c.clan_id)
+    crews.decide(db, "ag1", c.clan_id, "ag2", accept=False)
+    assert crews.join(db, "ag2", c.clan_id).status == "pending"
+
+
+def test_a_leader_cannot_wave_someone_past_the_cap(db):
+    """The cap was enforced when a rider walked in and not when a leader approved one, so a
+    crew could sit over the line while its own row in the join list read "Full"."""
+    from services import settings
+    _rider(db, "cap1")
+    _rider(db, "cap2")
+    c = crews.create(db, "cap1", "One Seat", join_policy="approval")
+    cfg = settings.get_crews(db)
+    settings.set_crews(db, enabled=cfg["enabled"], zoom=cfg["zoom"],
+                       window_days=cfg["window_days"], seed=cfg["seed"],
+                       cooldown_days=cfg["cooldown_days"], max_members=1,
+                       opacity=cfg["opacity"], creation_open=cfg["creation_open"])
+    crews.join(db, "cap2", c.clan_id)
+    with pytest.raises(crews.CrewError) as e:
+        crews.decide(db, "cap1", c.clan_id, "cap2", accept=True)
+    assert e.value.code == "crew_full"
+
+
+# --- folding --------------------------------------------------------------------------
+
+def test_a_pending_rider_is_not_left_behind_when_the_crew_folds(db):
+    """The fold marked the leaver and left every other open row alone, so a rider waiting on
+    a request sat in front of a crew that no longer existed, told to wait for a leader who
+    was gone."""
+    _rider(db, "pf1")
+    _rider(db, "pf2")
+    c = crews.create(db, "pf1", "Lights Out", join_policy="approval")
+    crews.join(db, "pf2", c.clan_id)
+    crews.leave(db, "pf1")
+    db.refresh(c)
+    assert c.disbanded_at is not None
+    assert crews.membership(db, "pf2") is None, "nobody is left waiting on a folded crew"
+    assert crews.cooldown_until(db, "pf2") is None, "they did not walk out of anything"
+
+
+def test_nobody_is_benched_when_their_leader_folds_the_crew(db):
+    """The cooldown exists to stop crew-hopping. A member whose leader disbands took no
+    action at all, and was being given a week and the words "You just walked out of one"."""
+    _rider(db, "bf1")
+    _rider(db, "bf2")
+    c = crews.create(db, "bf1", "Not My Call", join_policy="open")
+    crews.join(db, "bf2", c.clan_id)
+    crews.disband(db, "bf1", c.clan_id)
+    assert crews.cooldown_until(db, "bf1") is None
+    assert crews.cooldown_until(db, "bf2") is None
+
+
+def test_a_rider_is_told_once_that_their_crew_folded(db):
+    _rider(db, "tf1")
+    _rider(db, "tf2")
+    c = crews.create(db, "tf1", "Here Today", join_policy="open")
+    crews.join(db, "tf2", c.clan_id)
+    crews.disband(db, "tf1", c.clan_id)
+    first = crews.last_fold(db, "tf2")
+    assert first and first["crew"] == "Here Today", "and without the retirement tag"
+    assert crews.last_fold(db, "tf2") is None, "news once, not for ever"
+
+
+def test_restoring_a_crew_gives_back_its_name_and_its_riders(db):
+    """Admin disband retires the name, so restore had to become a real undo: clearing only
+    `disbanded_at` handed back a crew called "X (folded abc123)" with no members and no
+    leader, sitting in the public join list, which is the one state the rest of this file
+    works to make impossible."""
+    _rider(db, "re1")
+    _rider(db, "re2")
+    c = crews.create(db, "re1", "Back Again", join_policy="open")
+    crews.join(db, "re2", c.clan_id)
+    crews.disband(db, "re1", c.clan_id)
+    assert crews.unretire(db, c) is None
+    db.commit()
+    db.refresh(c)
+    assert c.name == "Back Again" and "(folded" not in c.name
+    assert c.slug == "back-again"
+    assert c.disbanded_at is None
+    assert _active(db, c.clan_id) == 2
+    leaders = (db.query(ClanMember)
+               .filter(ClanMember.clan_id == c.clan_id, ClanMember.role == "leader",
+                       ClanMember.left_at.is_(None)).count())
+    assert leaders == 1, "a restored crew needs somebody in charge"
+
+
+def test_a_name_taken_since_the_fold_blocks_the_restore_with_a_sentence(db):
+    _rider(db, "tk1")
+    _rider(db, "tk2")
+    c = crews.create(db, "tk1", "Popular", join_policy="open")
+    crews.disband(db, "tk1", c.clan_id)
+    crews.create(db, "tk2", "Popular")
+    err = crews.unretire(db, c)
+    assert err and "taken" in err.lower()

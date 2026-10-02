@@ -36,6 +36,13 @@ def _ip(request: Request) -> str:
     return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
 
 
+def _living(db: Session, clan_id: str):
+    """A crew that still exists. A folded one keeps its row and carries a retirement tag in
+    its name, which a public endpoint has no business handing out."""
+    c = db.get(Clan, clan_id)
+    return c if c is not None and c.disbanded_at is None else None
+
+
 def _gate(db: Session) -> dict:
     cfg = settings.get_crews(db)
     if not cfg["enabled"]:
@@ -284,6 +291,13 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
         answer = crews.last_answer(db, ws.store_id)
         if answer:
             out["declined_by"] = answer["crew"]
+        else:
+            # Your leader folded the crew, or the last member walked out from under your
+            # request. Both drop you back on the join list with no word, which is also what
+            # cancelling your own request looks like.
+            folded = crews.last_fold(db, ws.store_id)
+            if folded:
+                out["folded"] = folded["crew"]
     return out
 
 
@@ -581,6 +595,7 @@ MAX_EMBLEM_BYTES = 64 * 1024
 @router.get("/crews/{slug}/emblem")
 def crew_emblem(slug: str, db: Session = Depends(get_db)):
     """The uploaded emblem, or the generated one. Always something, never a broken image."""
+    _gate(db)        # the one crew route that answered with the mode switched off
     clan = db.query(Clan).filter(Clan.slug == slug).first()
     if clan is None:
         raise HTTPException(404, "no_crew")
@@ -719,7 +734,7 @@ def territory_at(lat: float, lon: float, db: Session = Depends(get_db)):
     cell = db.query(ClanCell).filter(ClanCell.tile == tile).first()
     if cell is None:
         return {"tile": tile, "crew": None, "area_km2": round(T.area_km2(tile), 2)}
-    clan = db.get(Clan, cell.clan_id)
+    clan = _living(db, cell.clan_id)
     return {"tile": tile, "area_km2": round(T.area_km2(tile), 2),
             "km": round(cell.km or 0.0, 1), "riders": cell.riders,
             "since": cell.first_led.isoformat() + "Z" if cell.first_led else None,

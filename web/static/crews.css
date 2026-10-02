@@ -170,6 +170,9 @@ a.crewqr { display: flex; text-decoration: none; }
 /* One row, one baseline. Nothing set this, so second and third sat five pixels apart from
    each other for no reason, and first stepped up by a different amount again. */
 .crewboard .podium { gap: 10px; padding: 8px 0 12px; align-items: flex-end; }
+/* flex-end aligns the margin box, and the host hands first place an 18px bottom margin, so
+   the gold card floated while second and third agreed to two pixels. */
+.crewboard .pod.p1 { margin-bottom: 0; }
 .crewboard .pod { max-width: none; flex: 1 1 0; }
 
 /* Your own crew is folded away once you have one: you know what crew you are in, and the
@@ -189,7 +192,10 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewcontrib { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
 .crewcrow { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12px; }
 .crewcrow .av { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%; }
-.crewcname { flex: 0 0 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A fixed column, so every bar starts at the same x. Sized to the name, each bar began
+   where that rider's name happened to end and three bars had three origins, which is the one
+   thing a bar chart may not do. */
+.crewcname { flex: 0 0 42%; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a bar rather than a second number: the shape of who carries the crew reads at a glance */
 .crewcbar { flex: 1; height: 5px; background: rgba(255,255,255,.07); min-width: 24px; }
 .crewcbar i { display: block; height: 100%; background: var(--sec, #ff8ad8); }
@@ -505,6 +511,15 @@ a.crewqr { display: flex; text-decoration: none; }
 /* Everything the phone changes, in one place and in cascade order. Seven separate
    blocks is how a rule ends up silently cancelling an earlier one instead of
    deliberately overriding it, which had happened three times in here. */
+/* The neighbourhood leads the last column and the holder sits under it, so a long name
+   cannot widen the two-letter bearing beside it. */
+.crewtat { display: block; font-weight: 600; letter-spacing: 0; color: var(--ink, #eef1fb);
+  text-transform: none; line-height: 1.25; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.crewtwho i { display: block; font-style: normal; font-size: 11px; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crewtdir { line-height: 1.25; }
+
 /* Hit areas, on their own trigger. These used to sit inside the width block while the pass
    reorder sat in the coarse-pointer block a hundred and sixty lines away, so a phone turned
    to landscape -- 844x390, which matches one and not the other -- quietly gave every one of
@@ -526,14 +541,18 @@ a.crewqr { display: flex; text-decoration: none; }
     border: 4px solid transparent; border-left-color: currentColor;
     transition: transform .15s ease; }
   details[open] > summary::before { transform: rotate(90deg); }
-  .crewpickc, .crewpickp { min-height: 44px; }
+  /* min-height beats aspect-ratio, so a 33px-wide chip became a 33x44 portrait rectangle in
+     a feature whose entire visual language is squares. Wider tracks instead: fewer columns,
+     square chips, and the thumb still clears 44. */
+  .crewpickc, .crewpickp { min-height: 0; }
   .crewpickp .crewsw { width: 32px; height: 32px; }
 }
 
 @media (max-width: 560px) {
   /* A contributor row is read, not tapped: six riders at 44px is 264px of panel spent on a
      bar chart nobody can press. */
-  #cf-patterns { grid-template-columns: repeat(4, 1fr); max-width: 220px; }
+  /* the same track as the colours above it, so the two grids share a left edge and a size */
+  #cf-patterns { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
   .crewcard { padding: 12px 12px; }
   .crewhead { gap: 9px; }
   .crewlogo { width: 42px; height: 42px; flex: 0 0 42px; }
@@ -541,6 +560,13 @@ a.crewqr { display: flex; text-decoration: none; }
      facts that barely move from week to week. This hands back about ninety pixels and two
      more crews. */
   .crewboard .podic { width: 30px; height: 30px; }
+  /* 122 and "squares" were set at the same size, in a 78px column, so every card wrapped and
+     the unit ended up shouting louder than the number it belongs to. */
+  /* 18px still ran "squares" past the card edge: the word is seven characters of Orbitron
+     in a 78px column. 15 fits it, and the number stays the biggest thing on the card. */
+  .crewboard .pod .km { font-size: 15px; line-height: 1.15; white-space: normal;
+    overflow-wrap: anywhere; }
+  .crewboard .pod .psub { font-size: 10px; line-height: 1.2; }
   .crewboard .pod { padding: 8px 6px; }
   .crewboard .podium { padding: 4px 0 8px; }
   .crewbig { font-size: 22px; }
@@ -568,7 +594,7 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewboard table .celln { align-items: flex-start; }
   .crewboard table .celln > span { white-space: normal; overflow: visible;
     text-overflow: clip; line-height: 1.2; }
-  .crewpick { grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); }
+  .crewpick { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
   /* the action buttons were clipping against the panel's bottom edge */
   .crewmine .crewacts { padding-bottom: 14px; }
   /* a 150px image was sitting in a 188px box */
@@ -576,12 +602,15 @@ a.crewqr { display: flex; text-decoration: none; }
   /* The badge was hidden here, which took the explanation off exactly the rows that need one:
      a phone showed "ridden, Cykelslangen has it" and no reason why riding it again would do
      nothing. It wraps onto its own line instead, lined up under the text. */
-  /* The phrase takes what it needs; the second line takes the rest. */
+  /* Two lines: what it costs and which way, then where it is and who has it. The phrase
+     column takes what it needs rather than a percentage of the row, but it must not grow
+     into the rest, or the bearing ends up at the far margin 150px from the figure it
+     modifies while the place it describes sits on the next line at the far left. */
   .crewtargets { --kmc: auto; }
-  .crewtkm { flex: 1 1 auto; }
+  .crewtkm { flex: 0 1 auto; }
+  .crewtdir { margin-left: 6px; }
   .crewtwho { flex: 1 0 100%; order: 3; font-size: 11px; margin-top: 1px; }
-  .crewtat { display: inline; }
-  .crewtwho i { display: inline; }
+  .crewtat, .crewtwho i { display: inline; }
   /* the two facts on that line are different kinds of fact, so they are separated rather
      than run together */
   .crewtat + i::before { content: " · "; opacity: .85; }
@@ -637,14 +666,8 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* The neighbourhood, under the bearing. Small and quiet: it answers "where" for somebody who
    knows the city, and costs nothing to skip for somebody who does not. */
-/* The neighbourhood leads the last column and the holder sits under it, so a long name
-   cannot widen the two-letter bearing beside it. */
-.crewtat { display: block; font-weight: 600; letter-spacing: 0; color: var(--ink, #eef1fb);
-  text-transform: none; line-height: 1.25; white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; }
-.crewtwho i { display: block; font-style: normal; font-size: 11px; line-height: 1.25;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.crewtdir { line-height: 1.25; }
-
 /* the answer to "I rode it, where is it", under the rows that prompted the question */
 .crewdrawn { margin-top: 10px; opacity: .75; }
+
+/* the neighbourhood, at the top of the tip the ring opens */
+.crewtipat { display: block; font-weight: 600; opacity: .8; margin-bottom: 1px; }

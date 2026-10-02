@@ -409,6 +409,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} afviste jeres anmodning. Ingen ventetid, vælg et andet.",
   "crew.how.8": "Én fører kan kun lægge {c} km om ugen i ét felt, uanset hvor langt de kører, så et felt holdes af hvor mange af jer der kører det. To af jer kan holde én af dem ude for evigt, og intet du kører alene tager det tilbage.",
   "crew.targets.far": "uden for rækkevidde lige nu",
+  "crew.folded.h": "Det crew er væk",
+  "crew.folded.p": "{name} blev lukket. Jeres gamle ture bliver hos det, og I kan melde jer ind et andet sted med det samme.",
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -817,6 +819,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} hat eure Anfrage abgelehnt. Keine Wartezeit, nimm eine andere.",
   "crew.how.8": "Ein Fahrer bringt pro Woche höchstens {c} km in ein Feld, egal wie weit er fährt, also hält ein Feld, wer zu mehreren darin fährt. Zu zweit haltet ihr einen Einzelnen ewig fern, und allein holt ihn niemand zurück.",
   "crew.targets.far": "vorerst außer Reichweite",
+  "crew.folded.h": "Die Crew gibt es nicht mehr",
+  "crew.folded.p": "{name} wurde aufgelöst. Eure alten Fahrten bleiben dort, und ihr könnt sofort einer anderen beitreten.",
  },
  "es": {
   "dock.riders": "Riders",
@@ -1225,6 +1229,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} rechazó vuestra solicitud. Sin esperas, elegid otra.",
   "crew.how.8": "Un rider solo puede meter {c} km por semana en una casilla, por lejos que vaya, así que una casilla la tiene quien la rueda entre más. Dos aguantáis a uno para siempre, y nada que ruede solo os la quita.",
   "crew.targets.far": "fuera de alcance por ahora",
+  "crew.folded.h": "Esa cuadrilla ya no está",
+  "crew.folded.p": "{name} se disolvió. Vuestras rodadas antiguas se quedan con ella, y podéis entrar en otra ahora mismo.",
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1633,6 +1639,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} rechazó su solicitud. Sin esperas, elijan otra.",
   "crew.how.8": "Un rider solo puede meter {c} km por semana en una casilla, por lejos que vaya, así que una casilla la tiene quien la rueda entre más. Dos aguantan a uno para siempre, y nada que ruede solo se la quita.",
   "crew.targets.far": "fuera de alcance por ahora",
+  "crew.folded.h": "Esa banda ya no está",
+  "crew.folded.p": "{name} se disolvió. Sus rodadas viejas se quedan ahí, y pueden entrar a otra ahora mismo.",
  },
  "fr": {
   "dock.riders": "Riders",
@@ -2041,6 +2049,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} a refusé votre demande. Pas d'attente, choisis-en un autre.",
   "crew.how.8": "Un rider ne peut mettre que {c} km par semaine dans une case, quelle que soit la distance, donc une case appartient à ceux qui la roulent à plusieurs. À deux vous tenez un solitaire indéfiniment, et rien de ce qu'il roule seul ne la reprendra.",
   "crew.targets.far": "hors de portée pour l'instant",
+  "crew.folded.h": "Ce crew n'existe plus",
+  "crew.folded.p": "{name} a été dissous. Vos anciennes sorties restent avec lui, et vous pouvez en rejoindre un autre tout de suite.",
  },
  "it": {
   "dock.riders": "Rider",
@@ -2449,6 +2459,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} ha rifiutato la vostra richiesta. Nessuna attesa, sceglietene un'altra.",
   "crew.how.8": "Un rider può mettere solo {c} km a settimana in una casella, per quanto lontano vada, quindi una casella la tiene chi la gira in più persone. In due tenete fuori uno per sempre, e da solo non se la riprende.",
   "crew.targets.far": "fuori portata per ora",
+  "crew.folded.h": "Quella squadra non c'è più",
+  "crew.folded.p": "{name} è stata sciolta. I vostri giri vecchi restano lì, e potete entrare in un'altra subito.",
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -2857,6 +2869,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name}に申請を断られた。待ち時間はなし、別のところへ。",
   "crew.how.8": "一人が一マスに入れられるのは週{c}kmまで。どれだけ走っても同じだから、マスは何人で走ったかで決まる。二人いれば一人は永久に入れないし、一人でいくら走っても取り返せない。",
   "crew.targets.far": "今は手が届かない",
+  "crew.folded.h": "そのクランはもうない",
+  "crew.folded.p": "{name}は解散した。前の走行はそのまま残る。すぐ別のところに入れる。",
  },
  "ko": {
   "dock.riders": "라이더",
@@ -3265,6 +3279,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name}이(가) 가입 신청을 거절했다. 기다릴 필요 없이 다른 데를 골라라.",
   "crew.how.8": "한 사람이 한 칸에 넣을 수 있는 건 주당 {c}km까지다. 아무리 달려도 똑같으니 칸은 몇 명이 달렸느냐로 정해진다. 둘이면 혼자인 쪽을 영원히 막을 수 있고, 혼자서는 아무리 달려도 되찾지 못한다.",
   "crew.targets.far": "지금은 손이 안 닿는다",
+  "crew.folded.h": "그 클랜은 사라졌다",
+  "crew.folded.p": "{name}은(는) 해산했다. 예전 주행은 거기 남고, 바로 다른 데 들어갈 수 있다.",
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -3673,6 +3689,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} heeft je verzoek afgewezen. Geen wachttijd, kies een andere.",
   "crew.how.8": "Eén rijder krijgt maar {c} km per week in een vakje, hoe ver hij ook rijdt, dus een vakje is van wie het met z'n meesten rijdt. Met z'n tweeën hou je er één eeuwig buiten, en alleen rijdend pak je het nooit terug.",
   "crew.targets.far": "voorlopig buiten bereik",
+  "crew.folded.h": "Die crew bestaat niet meer",
+  "crew.folded.p": "{name} is opgeheven. Je oude ritten blijven erbij, en je kunt meteen bij een andere.",
  },
  "no": {
   "dock.riders": "Førere",
@@ -4081,6 +4099,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} avslo forespørselen deres. Ingen ventetid, velg et annet.",
   "crew.how.8": "Én fører får bare lagt {c} km i uka i én rute, uansett hvor langt de kjører, så en rute holdes av hvor mange av dere som kjører den. To av dere holder én av dem ute for alltid, og ingenting du kjører alene tar den tilbake.",
   "crew.targets.far": "utenfor rekkevidde nå",
+  "crew.folded.h": "Det crewet er borte",
+  "crew.folded.p": "{name} ble lagt ned. De gamle turene blir hos det, og dere kan bli med i et annet med en gang.",
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -4489,6 +4509,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} odrzuciła wasze zgłoszenie. Bez czekania, wybierzcie inną.",
   "crew.how.8": "Jeden rider wrzuci w jedno pole najwyżej {c} km tygodniowo, choćby jechał bez końca, więc pole trzyma ten, kto jeździ po nim w większej liczbie. We dwójkę zatrzymacie jednego na zawsze, a sam nic nie odbierze.",
   "crew.targets.far": "na razie poza zasięgiem",
+  "crew.folded.h": "Tej ekipy już nie ma",
+  "crew.folded.p": "{name} została rozwiązana. Stare przejazdy przy niej zostają, a wy możecie od razu dołączyć do innej.",
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -4897,6 +4919,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} recusou seu pedido. Sem espera, escolhe outra.",
   "crew.how.8": "Um rider só mete {c} km por semana num quadrado, por mais que role, então o quadrado é de quem roda em mais gente. Em dois vocês seguram um pra sempre, e sozinho ele não retoma nada.",
   "crew.targets.far": "fora de alcance por enquanto",
+  "crew.folded.h": "Essa turma acabou",
+  "crew.folded.p": "{name} foi dissolvida. Seus rolês antigos ficam com ela, e você já pode entrar em outra.",
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -5305,6 +5329,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} отклонил вашу заявку. Ждать не надо, выбирайте другой.",
   "crew.how.8": "Один райдер кладёт в одну клетку не больше {c} км в неделю, сколько бы ни ездил, так что клетку держит тот, кого больше. Вдвоём вы удержите одного навсегда, и в одиночку он её не вернёт.",
   "crew.targets.far": "пока не по зубам",
+  "crew.folded.h": "Этого клана больше нет",
+  "crew.folded.p": "{name} распущен. Старые поездки остаются при нём, а вы можете сразу вступить в другой.",
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -5713,6 +5739,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} avslog er förfrågan. Ingen väntetid, välj ett annat.",
   "crew.how.8": "En förare får bara in {c} km i veckan i en ruta, hur långt den än kör, så en ruta hålls av hur många av er som kör den. Två av er håller ute en för alltid, och ensam tar ingen tillbaka den.",
   "crew.targets.far": "utom räckhåll just nu",
+  "crew.folded.h": "Det crewet finns inte längre",
+  "crew.folded.p": "{name} lades ner. Era gamla turer stannar kvar hos det, och ni kan gå med i ett annat direkt.",
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -6121,6 +6149,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} isteğinizi geri çevirdi. Bekleme yok, başka birini seçin.",
   "crew.how.8": "Bir sürücü bir kareye haftada en fazla {c} km koyabilir, ne kadar giderse gitsin, yani kareyi kaç kişi sürüyorsa o tutar. İkiniz birini sonsuza dek dışarıda tutarsınız, tek başına kimse geri alamaz.",
   "crew.targets.far": "şimdilik ulaşılmaz",
+  "crew.folded.h": "O ekip artık yok",
+  "crew.folded.p": "{name} dağıldı. Eski sürüşleriniz onda kalıyor, hemen başka birine katılabilirsiniz.",
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -6529,6 +6559,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} відхилив вашу заявку. Чекати не треба, оберіть інший.",
   "crew.how.8": "Один райдер кладе в одну клітину не більше {c} км на тиждень, скільки б не їздив, тож клітину тримає той, кого більше. Удвох ви втримаєте одного назавжди, і сам він її не поверне.",
   "crew.targets.far": "поки що зась",
+  "crew.folded.h": "Цього клану більше немає",
+  "crew.folded.p": "{name} розпущено. Старі поїздки лишаються при ньому, а ви можете одразу вступити в інший.",
  },
  "zh": {
   "dock.riders": "骑友",
@@ -6937,6 +6969,8 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} 拒绝了你们的申请。不用等，换一个吧。",
   "crew.how.8": "一个人一周最多往一格里放 {c} 公里，骑多远都一样，所以一格归骑的人多的那边。你们两个人能把一个人永远挡在外面，他一个人怎么骑都拿不回去。",
   "crew.targets.far": "暂时够不着",
+  "crew.folded.h": "那个战队没了",
+  "crew.folded.p": "{name} 已解散。你们之前骑的仍然算在它名下，现在就可以加入别的。",
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -7345,5 +7379,7 @@ TRANSLATIONS = {
   "crew.declined.p": "{name} 拒絕了你們的申請。不用等，換一個吧。",
   "crew.how.8": "一個人一週最多往一格裡放 {c} 公里，騎多遠都一樣，所以一格歸騎的人多的那邊。你們兩個人能把一個人永遠擋在外面，他一個人怎麼騎都拿不回去。",
   "crew.targets.far": "暫時搆不著",
+  "crew.folded.h": "那個戰隊沒了",
+  "crew.folded.p": "{name} 已解散。你們之前騎的仍然算在它名下，現在就可以加入別的。",
  },
 }
