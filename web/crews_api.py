@@ -43,6 +43,10 @@ def _gate(db: Session) -> dict:
     return cfg
 
 
+# How much of a joining rider's own back catalogue comes with them. See _stamp_recent.
+JOIN_BACKFILL_DAYS = 14
+
+
 def _me(request: Request, db: Session) -> WebSession | None:
     ws = pairing.session(db, request.cookies.get(pairing.COOKIE), scope="crew")
     return ws
@@ -287,15 +291,20 @@ def create_crew(payload: dict, request: Request, db: Session = Depends(get_db)):
 
 
 def _stamp_recent(db: Session, store_id: str, clan_id: str) -> None:
-    """Give a brand-new crew the rider's rides from inside the current window.
+    """Give a crew the rider's rides from the last couple of weeks.
 
     Without this a crew founded today holds nothing until its members ride again, and the
-    founder's first look at the map is an empty one. Only rides still inside the rolling window
-    are stamped, and only rides that carry no crew already — nothing is taken from another
-    crew's history.
+    founder's first look at the map is an empty one. Only rides that carry no crew already are
+    stamped, so nothing is ever taken from another crew's history.
+
+    Two weeks, not the whole ninety-day window. At ninety this was the single biggest lever in
+    the game and it needed no riding at all: one free agent joining took the smallest crew from
+    4 squares to 53, and signing every unaffiliated rider in the window was worth 685 squares
+    and took 44 off the leader. Worse, it is one-shot and global, so recruiting a rider does
+    not only gain you their backlog, it denies it to everybody else for good. Two weeks is
+    "what you have been riding lately", which is what this was for.
     """
-    cfg = settings.get_crews(db)
-    since = utcnow() - timedelta(days=cfg["window_days"])
+    since = utcnow() - timedelta(days=JOIN_BACKFILL_DAYS)
     (db.query(Trip)
      .filter(Trip.rider_store_id == store_id, Trip.clan_id.is_(None),
              Trip.start_utc >= since, Trip.validation_status == "validated")
@@ -336,9 +345,11 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
     cfg = settings.get_crews(db)
     out["contributors"] = territory.contributors(db, clan.clan_id, cfg["window_days"])
     # Where to ride next: the whole point of the mode is choosing where to go, and until now
-    # nothing told anybody where that was. Only your own crew's list, though. On somebody
-    # else's page it would read as a list of their weak spots, and that is a scouting report,
-    # not a route.
+    # nothing told anybody where that was. Only your own crew's list, though — not because the
+    # underlying numbers are secret, they are not: /api/v1/territory is public and carries
+    # every crew's pressure and shortfall, and the map's own tooltip reads them out to
+    # anybody. It is that this is a crew's plan for its own week, and other people's plans are
+    # not a thing the site hands out.
     out["targets"] = []
     ws = _me(request, db)
     if ws is not None:

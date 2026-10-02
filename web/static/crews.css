@@ -449,6 +449,9 @@ a.crewqr { display: flex; text-decoration: none; }
   animation: crewtipin .18s ease both;
 }
 .crewtip.left { transform: translate(calc(-100% - 14px), -50%); }
+/* near the top of the map there is nothing above the pointer to hang it from */
+.crewtip.below { transform: translate(14px, 14px); }
+.crewtip.left.below { transform: translate(calc(-100% - 14px), 14px); }
 .crewtip b { display: block; font-size: 12px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
 .crewtip span { display: block; color: var(--mut, #7a86ad); }
@@ -501,3 +504,8 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewboard table .val.sub { display: table-cell; font-size: 10.5px; text-align: right; }
   .crewboard table .val.sub .crewarea { display: none; }
 }
+
+
+/* how long a crew has held a square, filled in after the popup opens */
+.crewpop-since:empty { display: none; }
+.crewmore { margin: 6px 0 0; opacity: .8; }

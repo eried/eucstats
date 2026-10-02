@@ -496,3 +496,15 @@ def test_a_bigger_loop_never_pays_less_than_a_smaller_one():
         assert ratio >= last - 1e-9, f"{n}x{n} pays {ratio:.2f}, down from {last:.2f}"
         assert ratio <= 2.0 + 1e-9, f"{n}x{n} pays {ratio:.2f}, a ring must not swallow a city"
         last = ratio
+
+
+def test_joining_brings_a_fortnight_not_a_season():
+    """At the full ninety-day window this was the biggest lever in the game and it needed no
+    riding: one free agent joining took the smallest crew from 4 squares to 53, and it is
+    one-shot and global, so recruiting a rider denies their backlog to everyone else for
+    good. It exists so a crew founded today is not looking at an empty map."""
+    from web.crews_api import JOIN_BACKFILL_DAYS
+    from services.territory import WINDOW_DAYS
+    assert JOIN_BACKFILL_DAYS <= 21, "a joiner must not hand over a whole season"
+    assert JOIN_BACKFILL_DAYS < WINDOW_DAYS / 3, (JOIN_BACKFILL_DAYS, WINDOW_DAYS)
+    assert JOIN_BACKFILL_DAYS >= 7, "and a crew founded today should still see something"

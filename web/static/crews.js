@@ -559,6 +559,7 @@
       el.style.left = px.x + "px";
       el.style.top = px.y + "px";
       if (px.x + el.offsetWidth + 30 > window.innerWidth) el.classList.add("left");
+      if (px.y < el.offsetHeight / 2 + 8) el.classList.add("below");
       hoverTip = el;
     }, HOVER_MS);
   }
@@ -577,11 +578,21 @@
     var state = words[0], detail = words[1];
     hideTip();
     if (POPUP) POPUP.remove();
+    // How long they have held it. The server has computed this all along and nothing read it,
+    // so the mode had no past tense at all: who holds what, never for how long.
+    api("GET", "/api/v1/territory/at?lat=" + e.lngLat.lat + "&lon=" + e.lngLat.lng)
+      .then(function (r) {
+        if (!r.ok || !r.body || !r.body.since || !POPUP) return;
+        var el = POPUP.getElement && POPUP.getElement();
+        var slot = el && el.querySelector(".crewpop-since");
+        if (slot) slot.textContent = t("crew.tile.since", { d: heldFor(r.body.since) });
+      });
     POPUP = new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)
-        + "</span><span>" + esc(detail) + "</span></div></div>")
+        + "</span><span>" + esc(detail) + '</span><span class="crewpop-since"></span>'
+        + "</div></div>")
       .addTo(map);
   }
 
@@ -715,6 +726,15 @@
   // who reads their rides in miles should not have one board quietly answering in km.
   var MI2_PER_KM2 = 0.3861021585;
   var MI_PER_KM = 0.6213711922;
+
+  // "three weeks" rather than a date: the question is how entrenched they are, not the exact
+  // afternoon it happened.
+  function heldFor(iso) {
+    var d = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
+    if (d >= 14) return t("crew.ago.weeks", { n: Math.floor(d / 7) });
+    if (d >= 2) return t("crew.ago.days", { n: d });
+    return t("crew.ago.new");
+  }
 
   function daysUntil(iso) {
     var d = Math.ceil((new Date(iso) - Date.now()) / 86400000);
@@ -874,6 +894,7 @@
     rows.sort(function (a, b) {
       return (urgency[a.band] - urgency[b.band]) || (a.need - b.need);
     });
+    var hidden = Math.max(0, rows.length - 5);
     LOSING = rows.slice(0, 5);
     // bearings from the middle of everything the crew holds, not from the middle of the five
     // rows: with one row those are the same point and the direction comes out empty
@@ -908,6 +929,8 @@
             + t(x.band === 3 ? "crew.lose.cold"
                 : x.band === 2 ? "crew.lose.now" : "crew.lose.soon") + "</span></div>";
         }).join("")
+      // 85 squares are losable across the world and 45 were shown, with nothing saying so
+      + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { n: hidden }) + "</p>" : "")
       + "</div>";
   }
 
@@ -1101,9 +1124,11 @@
     // all three used to answer "only a leader or officer can do that", to somebody pressing a
     // button only shown to people who are neither
     leader_active: "crew.e.leaderback", not_eligible: "crew.e.notyou",
-    no_leader: "crew.e.notyou", no_request: "crew.e.norequest",
-    too_large: "crew.e.image", too_large_after_encode: "crew.e.image",
-    not_an_image: "crew.e.image"
+    no_request: "crew.e.norequest",
+    // a 2 MB file can still come out over the 64 KB cap once it is re-encoded, and "make it
+    // smaller" is the wrong advice for a photograph that is already small
+    too_large: "crew.e.image", not_an_image: "crew.e.image",
+    too_large_after_encode: "crew.e.image2"
   };
 
   function errMsg(err) {
@@ -1399,6 +1424,7 @@
     if (clr) clr.onclick = function () {
       fetch("/api/v1/crews/" + c.slug + "/emblem",
             { method: "DELETE", credentials: "same-origin" })
+        .catch(function () { return { ok: false }; })
         .then(function () { show(); reloadTerritory(); });
     };
     // the crew's own ground, from the ranking it is already in
