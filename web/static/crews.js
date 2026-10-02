@@ -583,7 +583,13 @@
               pendingStatus = t("crew.signin.ok");
               show();
             }
-            else if (!p.ok) startPairing();
+            else if (!p.ok) {
+              // counted like any other roll. This path used to restart pairing without
+              // touching the counter, so the "stops after five codes" promise did not cover
+              // the one case that can repeat on its own.
+              if (pairRolls++ >= PAIR_MAX_ROLLS) { stopPairing(); return; }
+              startPairing();
+            }
           });
       }, 2000);
     });

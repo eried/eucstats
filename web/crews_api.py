@@ -168,7 +168,7 @@ def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
                      ClanMember.left_at.is_(None)).count())
     return {"slug": clan.slug, "name": clan.name, "description": clan.description,
             "colour": clan.colour, "pattern": clan.pattern, "members": n,
-            "join_policy": clan.join_policy, "has_logo": clan.logo_png is not None,
+            "join_policy": clan.join_policy,
             # what it holds, so picking a crew is not a blind name-pick that costs a cooldown
             "km2": clan.terr_best_km2 or 0.0, "tiles": clan.terr_tiles or 0,
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
@@ -230,7 +230,12 @@ def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
     if q:
         query = query.filter(Clan.name.ilike(f"%{q.strip()}%"))
     # busiest first, so a shortened list is the useful end of it
-    rows = query.order_by(Clan.terr_best_km2.desc().nullslast()).limit(min(limit, 100)).all()
+    # The emblem is a LargeBinary on the row and is read only to test it for null, which at a
+    # 64 KB cap and a few hundred crews is megabytes pulled out of SQLite and thrown away on
+    # every listing. Deferred: it is loaded when something actually asks for the image.
+    from sqlalchemy.orm import defer
+    rows = (query.options(defer(Clan.logo_png))
+            .order_by(Clan.terr_best_km2.desc().nullslast()).limit(min(limit, 100)).all())
     counts = _member_counts(db)
     return {"crews": [_crew_brief(db, c, counts) for c in rows]}
 
@@ -552,6 +557,15 @@ def territory_payload(request: Request, db: Session = Depends(get_db)):
     etag = f'W/"terr-{zoom}-{int(territory.cached_mtime(zoom))}"'
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304)
+    # The file is gzipped on disk and normally handed over as it is, but a client that
+    # explicitly refused compression was being given it anyway.
+    accept = request.headers.get("accept-encoding", "")
+    if "gzip" not in accept.lower():
+        import gzip as _gz
+        return Response(_gz.decompress(body), media_type="application/json",
+                        headers={"ETag": etag,
+                                 "Cache-Control": "public, max-age=60, must-revalidate",
+                                 "Vary": "Accept-Encoding"})
     return Response(body, media_type="application/json",
                     headers={"Content-Encoding": "gzip", "ETag": etag,
                              # A minute, and revalidate after it. At five minutes a rebuild

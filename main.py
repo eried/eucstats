@@ -129,11 +129,30 @@ from web.admin_crews import crews_admin_router  # noqa: E402
 from web.public import public_router  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
-# The page is one 132 KB inline HTML string and was going out uncompressed whenever nginx
-# was not in front of it; crews adds 56 KB of static on top. minimum_size keeps it off the
-# small JSON responses, where the CPU is not worth the few bytes. The territory payload is
-# already gzipped on disk and sets its own Content-Encoding, so this leaves it alone.
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# Already-compressed files are sent as they are. GZipMiddleware decides on size alone, so it
+# was re-compressing video and PNGs: intro.mp4 cost 50 ms of CPU to save 1,583 bytes out of a
+# megabyte (six times the work of just sending it), and favicon.png came out 23 bytes BIGGER.
+# On a single worker whose page ceiling is about 57 requests a second, that is the landing
+# page paying for nothing. It also removes the invalid combination the measurement turned up:
+# a 206 range response carrying Content-Encoding, where the byte range is stated over the
+# uncompressed representation and the body is compressed.
+_PRECOMPRESSED = (".mp4", ".webm", ".mov", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+                  ".avif", ".ico", ".woff", ".woff2", ".zip", ".gz", ".mp3", ".ogg")
+
+
+class SelectiveGZip(GZipMiddleware):
+    """GZip, except for bytes that are already compressed."""
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            path = scope.get("path", "").lower()
+            if path.endswith(_PRECOMPRESSED):
+                await self.app(scope, receive, send)
+                return
+        await super().__call__(scope, receive, send)
+
+
+app.add_middleware(SelectiveGZip, minimum_size=1024)
 app.add_middleware(SessionMiddleware, secret_key=_get_session_secret())
 class _CachedStatic(StaticFiles):
     """Static files with a cache lifetime.

@@ -799,7 +799,7 @@ def get_crews(db: Session) -> dict:
             _CREWS_CACHE["v"] = cached
         return cached
     out = {
-        "enabled": (get_meta(db, "crew_enabled", "0") or "0") == "1",
+        "enabled": live,
         "zoom": _clamp_int(get_meta(db, "crew_zoom", 14), 14, 8, 16),
         "window_days": _clamp_int(get_meta(db, "crew_window_days", 90), 90, 7, 730),
         "seed": _clamp_int(get_meta(db, "crew_seed", 2), 2, 1, 4),
