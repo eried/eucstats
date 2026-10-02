@@ -164,10 +164,10 @@ def _cooldown_days(db) -> int:
     from it, so after any restart the page promised three and the server still enforced seven.
     A rider waited out the countdown, tapped Join, and was told they were still cooling off.
     """
+    from services import settings
     try:
-        from web import settings
-        return int(settings.get_crews(db).get("cooldown_days", COOLDOWN_DAYS))
-    except Exception:
+        return int(settings.get_crews(db)["cooldown_days"])
+    except (KeyError, TypeError, ValueError):
         return COOLDOWN_DAYS
 
 
