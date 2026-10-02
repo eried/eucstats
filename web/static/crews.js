@@ -41,13 +41,14 @@
     return [[[w, n], [e, n], [e, s], [w, s], [w, n]]];
   }
 
+  // cells arrive as [crewIndex, x, y, pressure] quads
   function cellsByCrew() {
     var out = [];
     if (!TERR || !TERR.cells) return out;
-    for (var i = 0; i < TERR.cells.length; i += 3) {
+    for (var i = 0; i < TERR.cells.length; i += 4) {
       var c = TERR.cells[i];
       if (!out[c]) out[c] = [];
-      out[c].push([TERR.cells[i + 1], TERR.cells[i + 2]]);
+      out[c].push([TERR.cells[i + 1], TERR.cells[i + 2], TERR.cells[i + 3] || 0]);
     }
     return out;
   }
@@ -130,14 +131,20 @@
     TERR.crews.forEach(function (crew, idx) {
       var cells = groups[idx] || [];
       if (!cells.length) return;
-      // one MultiPolygon per crew: adjacent tiles share an edge exactly, so a single feature
-      // renders as one solid shape with no antialiasing seam running through it
-      fills.features.push({
-        type: "Feature",
-        properties: { c: crew.colour, p: "crewpat-" + crew.pattern, i: idx,
-                      name: crew.name, slug: crew.slug, km2: crew.km2 },
-        geometry: { type: "MultiPolygon",
-                    coordinates: cells.map(function (t) { return tileRing(t[0], t[1], z); }) }
+      // One feature per crew per pressure band. Adjacent tiles share an edge exactly, so a
+      // single feature renders as one solid shape with no antialiasing seam through it — and
+      // splitting by band is what lets contested ground be drawn fainter without needing a
+      // separate feature for every tile on the map.
+      [0, 1, 2].forEach(function (band) {
+        var inBand = cells.filter(function (t) { return (t[2] || 0) === band; });
+        if (!inBand.length) return;
+        fills.features.push({
+          type: "Feature",
+          properties: { c: crew.colour, p: "crewpat-" + crew.pattern, i: idx, band: band,
+                        name: crew.name, slug: crew.slug, km2: crew.km2 },
+          geometry: { type: "MultiPolygon",
+                      coordinates: inBand.map(function (t) { return tileRing(t[0], t[1], z); }) }
+        });
       });
       edges.features.push({
         type: "Feature",
@@ -176,8 +183,12 @@
 
     requestAnimationFrame(function () {
       if (!map.getLayer("crew-fill")) return;
-      map.setPaintProperty("crew-fill", "fill-opacity", op);
-      map.setPaintProperty("crew-pattern", "fill-opacity", Math.min(1, op + 0.15));
+      map.setPaintProperty("crew-fill", "fill-opacity",
+        ["match", ["get", "band"], 1, op * 0.66, 2, op * 0.38, op]);
+      map.setPaintProperty("crew-pattern", "fill-opacity",
+        ["match", ["get", "band"], 1, Math.min(1, op + 0.15) * 0.66,
+                                   2, Math.min(1, op + 0.15) * 0.38,
+         Math.min(1, op + 0.15)]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
     });
@@ -238,12 +249,22 @@
     var f = e.features && e.features[0];
     if (!f) return;
     var p = f.properties;
+    // The band is the answer to "am I actually taking this off them?". Without it the only
+    // signal is the shade, and a shade on its own is something you notice after the fact.
+    var state = [t("crew.tile.safe"), t("crew.tile.pushed"), t("crew.tile.slipping")][p.band || 0];
     new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
-        + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + p.km2
-        + " km² held</span></div></div>")
+        + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + fmtKm2(p.km2)
+        + " · " + esc(state) + "</span></div></div>")
       .addTo(map);
+  }
+
+  // Every visible string goes through the page's translator. They live in web/i18n.py EN,
+  // which is the source the translation workflow regenerates the other locales from.
+  function t(key, vars) {
+    var out = (H.t ? H.t(key, vars) : key);
+    return out;
   }
 
   function esc(s) {
@@ -277,30 +298,16 @@
       + esc(colour) + '" data-p="' + esc(pattern) + '"></span>';
   }
 
-  var EXPLAINER =
-    '<details class="crewhow"><summary>How territory works</summary>' +
-    '<p>Ground is won by <b>riding it</b>. Every validated ride is credited to the crew you ' +
-    'were in when you uploaded it, and the kilometres are spread across the map tiles the ' +
-    'ride passed through. In each tile, the crew with the most kilometres <b>over the last ' +
-    '90 days</b> holds it.</p>' +
-    '<p>A crew has to <b>plant a 2×2 block</b> before it holds anything at all. One ride ' +
-    'down one street paints nothing — four tiles won together is a deliberate claim. From ' +
-    'there, territory <b>grows by contact</b>: any tile you win that touches your existing ' +
-    'ground joins it. Tiles that touch nothing are not shown.</p>' +
-    '<p>Nothing is permanent. The window rolls, so a crew that stops riding fades, and ' +
-    '<b>more kilometres takes a tile</b> from whoever holds it. Ties stay with whoever got ' +
-    'there first, so borders do not flicker.</p>' +
-    '<p>Your rides keep the crew that earned them. Switching crews does not redraw the ' +
-    'map — and leaving one does not take its ground away from the people still riding for ' +
-    'it.</p></details>';
+  function explainer() {
+    return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
+      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.4", "crew.how.5"]
+        .map(function (k) { return "<p>" + t(k) + "</p>"; }).join("")
+      + "</details>";
+  }
 
-  // The standings use the site's own podium component, handed in by the page, so crews look
-  // like every other board rather than like a bolted-on mode. The headline number is the
-  // biggest unbroken stretch a crew holds: the same area scattered across a country is a
-  // weaker thing to own than one solid block, and this is the metric the mode is about.
   function rankingHTML(rows) {
     if (!rows || !rows.length) {
-      return '<div class="empty">No crew holds any ground yet.</div>';
+      return '<div class="empty">' + t("crew.empty") + "</div>";
     }
     if (!H.podList) return plainRank(rows);
     return H.podList(rows, {
@@ -308,8 +315,8 @@
       label: function (e) { return esc(e.name); },
       val: function (e) { return fmtKm2(e.best_km2); },
       sub: function (e) {
-        return e.tiles + (e.tiles === 1 ? " tile" : " tiles")
-          + (e.regions > 1 ? " · " + e.regions + " patches" : "");
+        return tiles(e.tiles)
+          + (e.regions > 1 ? " · " + t("crew.patches", { n: e.regions }) : "");
       },
       click: true
     });
@@ -321,12 +328,24 @@
         + '<td><span class="celln">' + swatch(r.colour, r.pattern)
         + "<span>" + esc(r.name) + "</span></span></td>"
         + "<td class=val>" + fmtKm2(r.best_km2) + "</td>"
-        + '<td class="val sub">' + r.tiles + " tiles</td></tr>";
+        + '<td class="val sub">' + tiles(r.tiles) + "</td></tr>";
     }).join("") + "</tbody></table>";
   }
 
+  function tiles(n) {
+    return n === 1 ? t("crew.tile1") : t("crew.tiles", { n: n });
+  }
+
+  // Area follows the same metric/imperial switch as every other number on the site. A rider
+  // who reads their rides in miles should not have one board quietly answering in km.
+  var MI2_PER_KM2 = 0.3861021585;
+
   function fmtKm2(v) {
-    return (v == null ? 0 : Math.round(v)).toLocaleString() + " km²";
+    var n = v == null ? 0 : v;
+    if (H.mph && H.mph()) {
+      return Math.round(n * MI2_PER_KM2).toLocaleString() + " mi²";
+    }
+    return Math.round(n).toLocaleString() + " km²";
   }
 
   var ROLEIC = {
@@ -341,7 +360,7 @@
   function contributorsHTML(rows) {
     if (!rows || !rows.length) return "";
     var top = rows[0].km || 1;
-    return '<div class="crewcontrib"><h4>Who rode for it</h4>' + rows.map(function (c) {
+    return '<div class="crewcontrib"><h4>' + t("crew.mine.who") + "</h4>" + rows.map(function (c) {
       var pct = Math.max(3, Math.round((c.km / top) * 100));
       return '<div class="crewcrow">'
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
@@ -360,16 +379,13 @@
     // the one awkward case in the whole flow is a tap. The QR itself is the same link, so on
     // a phone the image is tappable too.
     return '<div class="crewcard crewsign">'
-      + "<h3>Get your Crew Pass</h3>"
-      + "<p class=hint>No password, no account. Your <b>EUC Planet</b> app vouches for you "
-      + "once, and this browser can fly your colours from then on.</p>"
+      + "<h3>" + t("crew.signin.h") + "</h3>"
+      + '<p class=hint>' + t("crew.signin.p") + "</p>"
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
-      + '<p class=hint id="crewcodehint">Scan it with the app. '
-      + "Good for three minutes.</p>"
-      + '<a class="crewbtn crewopen" id="crewopen" href="#">Open EUC Planet</a>'
-      + '<p class="hint crewsame">On this phone right now? Tap that instead — '
-      + "you can't scan your own screen.</p>"
+      + '<p class=hint id="crewcodehint">' + t("crew.signin.scan") + "</p>"
+      + '<a class="crewbtn crewopen" id="crewopen" href="#">' + t("crew.signin.open") + "</a>"
+      + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"
       + "</div>";
   }
 
@@ -421,27 +437,25 @@
   function createHTML(ident) {
     var cols = (window.__CREWCFG__ && window.__CREWCFG__.palette) || [];
     return '<div class="crewcard">'
-      + "<h3>Start a crew</h3>"
-      + "<p class=hint>Your colour and pattern are picked from the least-used combination "
-      + "so the map stays readable — change them if you like. No two crews fly the same "
-      + "pair.</p>"
-      + '<label>Name<input id="cf-name" maxlength="28" placeholder="Nordlys Collective"></label>'
-      + '<label>Description<input id="cf-desc" maxlength="280" placeholder="Oslo, mostly after dark."></label>'
+      + "<h3>" + t("crew.new.h") + "</h3>"
+      + '<p class=hint>' + t("crew.new.p") + "</p>"
+      + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28" placeholder="Nordlys Collective"></label>'
+      + "<label>" + t("crew.new.desc") + '<input id="cf-desc" maxlength="280" placeholder="Oslo, mostly after dark."></label>'
       + '<div class="crewident">' + swatch(ident.colour, ident.pattern, 40)
-      + '<div><div class="crewidentl">Colours</div>'
+      + '<div><div class="crewidentl">' + t("crew.new.colours") + "</div>"
       + '<select id="cf-colour">' + cols.map(function (c) {
           return '<option value="' + c + '"' + (c === ident.colour ? " selected" : "") + ">"
             + c + "</option>"; }).join("") + "</select>"
       + '<select id="cf-pattern">' + PATTERNS.map(function (p) {
           return '<option value="' + p + '"' + (p === ident.pattern ? " selected" : "") + ">"
             + p + "</option>"; }).join("") + "</select></div></div>"
-      + "<label>Who can join"
+      + "<label>" + t("crew.new.who")
       + '<select id="cf-policy">'
       + '<option value="approval">A leader approves each request</option>'
       + '<option value="open">Anyone can join</option>'
       + '<option value="invite">Only with an invite code</option>'
       + "</select></label>"
-      + '<button class="crewbtn" id="cf-go">Create crew</button>'
+      + '<button class="crewbtn" id="cf-go">' + t("crew.new.go") + "</button>"
       + "</div>";
   }
 
@@ -483,42 +497,42 @@
       + esc(c.pattern) + " · " + c.members + (c.members === 1 ? " rider" : " riders")
       + " · you are the " + esc(me.role) + "</div></div></div>";
     if (me.status === "pending") {
-      h += '<div class="crewmsg">Your request is waiting for a leader to approve it.</div>';
+      h += '<div class="crewmsg">' + t("crew.join.pending") + "</div>";
     }
     if (c.description) h += "<p>" + esc(c.description) + "</p>";
-    h += '<div class="crewterr" id="crewterr">—</div>';
+    h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
     if (c.invite_code) {
-      h += '<p class=hint>Invite code: <code>' + esc(c.invite_code) + "</code></p>";
+      h += '<p class=hint>' + t("crew.mine.invite") + ': <code>' + esc(c.invite_code) + "</code></p>";
     }
     if (me.pending && me.pending.length) {
-      h += '<div class="crewpend"><h4>Waiting to join</h4>'
+      h += '<div class="crewpend"><h4>' + t("crew.pending.h") + "</h4>"
         + me.pending.map(function (p) {
             return '<div class="crewpendr"><span>' + esc(p.name) + "</span>"
-              + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '">Accept</button>'
-              + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '">Decline</button>'
+              + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '">' + t("crew.accept") + "</button>"
+              + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '">' + t("crew.decline") + "</button>"
               + "</div>"; }).join("")
         + "</div>";
     }
     if (lead) {
-      h += '<details class="crewedit"><summary>Crew settings</summary>'
+      h += '<details class="crewedit"><summary>' + t("crew.mine.settings") + "</summary>"
         + '<label>Name<input id="ce-name" maxlength="28" value="' + esc(c.name) + '"></label>'
         + '<label>Description<input id="ce-desc" maxlength="280" value="'
         + esc(c.description || "") + '"></label>'
-        + "<label>Who can join<select id=\"ce-policy\">"
+        + "<label>" + t("crew.new.who") + '<select id="ce-policy">'
         + ["approval", "open", "invite"].map(function (p) {
             return '<option value="' + p + '"' + (p === c.join_policy ? " selected" : "")
               + ">" + p + "</option>"; }).join("")
         + "</select></label>"
-        + '<label class="crewfile">Emblem (a small square image)'
+        + '<label class="crewfile">' + t("crew.mine.emblem")
         + '<input type="file" id="ce-logo" accept="image/*"></label>'
         + '<p class=hint>Leave it empty and we draw one from your crew name and colour.</p>'
         + '<button class="crewbtn" id="ce-save">Save</button>'
-        + '<button class="crewbtn ghost" id="ce-clearlogo">Use the generated emblem</button>'
+        + '<button class="crewbtn ghost" id="ce-clearlogo">' + t("crew.mine.generated") + "</button>"
         + "</details>";
     }
     h += '<div class="crewacts">'
-      + '<button class="crewbtn ghost" id="cm-leave">Leave crew</button>'
-      + '<button class="crewbtn ghost" id="cm-signout">Hand back the pass</button>'
+      + '<button class="crewbtn ghost" id="cm-leave">' + t("crew.mine.leave") + "</button>"
+      + '<button class="crewbtn ghost" id="cm-signout">' + t("crew.mine.signout") + "</button>"
       + "</div></div>";
     return h;
   }
@@ -539,7 +553,7 @@
     });
     var leave = document.getElementById("cm-leave");
     if (leave) leave.onclick = function () {
-      if (!confirm("Leave " + c.name + "? There is a 7-day wait before you can join another."))
+      if (!confirm(t("crew.mine.leaveq", { name: c.name })))
         return;
       api("POST", "/api/v1/crews/leave", {}).then(function (r) {
         if (r.ok) { show(); reloadTerritory(); }
@@ -585,30 +599,30 @@
     api("GET", "/api/v1/crews/" + c.slug).then(function (r) {
       var el = document.getElementById("crewterr");
       if (!el || !r.ok) return;
-      var t = r.body.territory || {};
-      el.innerHTML = '<div class="crewbig">' + fmtKm2(t.best_km2)
-        + ' <span>biggest patch</span></div>'
-        + '<div class="crewsub">' + (t.tiles || 0) + " tiles"
-        + (t.regions > 1 ? " across " + t.regions + " patches" : "")
-        + (t.km2 && t.km2 !== t.best_km2 ? " · " + fmtKm2(t.km2) + " in all" : "")
-        + (t.tiles ? "" : " — ride a 2×2 block to plant your first claim") + "</div>"
+      var terr = r.body.territory || {};     // not `t`: that is the translator
+      el.innerHTML = '<div class="crewbig">' + fmtKm2(terr.best_km2)
+        + " <span>" + t("crew.mine.ao") + "</span></div>"
+        + '<div class="crewsub">' + tiles(terr.tiles || 0)
+        + (terr.regions > 1 ? " · " + t("crew.patches", { n: terr.regions }) : "")
+        + (terr.km2 && terr.km2 !== terr.best_km2
+            ? " · " + t("crew.inall", { v: fmtKm2(terr.km2) }) : "")
+        + (terr.tiles ? "" : " · " + t("crew.mine.start")) + "</div>"
         + contributorsHTML(r.body.contributors);
     });
   }
 
   function joinHTML(crews, me) {
     if (me.cooldown_until) {
-      return '<div class="crewcard"><h3>Joining a crew</h3>'
-        + '<div class="crewmsg">You just walked out of a crew. You can pick a new one after '
-        + esc(new Date(me.cooldown_until).toLocaleString()) + "."
-        + "</div><p class=hint>Keeps people from hopping crews every week to farm ground. "
-        + "Short enough not to sting, long enough not to be worth it.</p></div>";
+      return '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>"
+        + '<div class="crewmsg">'
+        + t("crew.join.wait.p", { when: new Date(me.cooldown_until).toLocaleString() })
+        + "</div></div>";
     }
     if (!crews.length) return "";
-    return '<div class="crewcard"><h3>Join a crew</h3><div class="crewlist">'
+    return '<div class="crewcard"><h3>' + t("crew.join.h") + '</h3><div class="crewlist">'
       + crews.map(function (c) {
-          var label = c.join_policy === "open" ? "Join"
-            : c.join_policy === "invite" ? "Use code" : "Request";
+          var label = c.join_policy === "open" ? t("crew.join.btn")
+            : c.join_policy === "invite" ? t("crew.join.code") : t("crew.join.ask");
           return '<div class="crewrow">' + swatch(c.colour, c.pattern, 26)
             + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + c.members
             + (c.members === 1 ? " rider" : " riders") + " · " + esc(c.join_policy)
@@ -624,7 +638,7 @@
       b.onclick = function () {
         var body = {};
         if (b.dataset.pol === "invite") {
-          var code = prompt("Invite code for this crew:");
+          var code = prompt(t("crew.join.code"));
           if (!code) return;
           body.invite_code = code;
         }
@@ -671,7 +685,7 @@
       // Standings first and always: the mode is a competition, and a visitor who is not in a
       // crew should land on the board rather than on a sign-in form. The rider's own crew
       // sits under it, folded away once they have one — they already know what it is.
-      var h = '<div class="crewcard crewboard"><h3>Biggest unbroken ground</h3>'
+      var h = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
         + rankingHTML(rank) + "</div>";
       if (!me.paired) {
         h += signInHTML();
@@ -682,14 +696,13 @@
           + '<span class="crewsumrole">' + esc(me.role) + "</span></summary>"
           + myCrewHTML(me) + "</details>";
       } else if (!me.can_found) {
-        h += '<div class="crewcard"><h3>Get a ride in first</h3><p class=hint>Crews are for '
-          + "riders. Send up one good ride from the app and you can start a crew or join "
-          + "one.</p></div>" + joinHTML(all, me);
+        h += '<div class="crewcard"><h3>' + t("crew.first.h") + "</h3>"
+          + '<p class=hint>' + t("crew.first.p") + "</p></div>" + joinHTML(all, me);
       } else {
         h += (me.creation_open ? createHTML(window.__CREWIDENT__ || { colour: "#4363d8", pattern: "solid" }) : "")
           + joinHTML(all, me);
       }
-      h += EXPLAINER;
+      h += explainer();
       panel.innerHTML = h;
 
       if (!me.paired) startPairing();
@@ -721,7 +734,7 @@
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
     if (idx < 0) return;
     var b = new maplibregl.LngLatBounds(), any = false;
-    for (var i = 0; i < TERR.cells.length; i += 3) {
+    for (var i = 0; i < TERR.cells.length; i += 4) {
       if (TERR.cells[i] !== idx) continue;
       var x = TERR.cells[i + 1], y = TERR.cells[i + 2];
       b.extend([tileLon(x, TERR.z), tileLat(y, TERR.z)]);

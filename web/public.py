@@ -974,7 +974,7 @@ async function init(){
     CELLS=await j("/map/cells?zoom="+HEAT.zoom); addHeat();
     if(window.EUCCrews&&window.__CREWCFG__&&window.__CREWCFG__.enabled)
       window.EUCCrews.init(map,{setPanel:setPanel,closePanel:closePanel,t:t,
-        podList:podList,av:av,cc:cc});   // reuse the site podium so crews match the other boards
+        podList:podList,av:av,cc:cc,mph:mph});   // same podium AND same unit switch as every other board
     mapReady=true; doIntro();
   });
 }

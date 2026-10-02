@@ -303,6 +303,27 @@ def award(acc: dict, live: set, prev: dict, seed: int = SEED,
     return kept, won
 
 
+def _pressure(acc: dict, tile: str, holder: str, held_km: float) -> int:
+    """How hard the nearest rival is pushing on this tile, 0 (safe) to 2 (slipping).
+
+    Territory was binary — held or not — which hides the only thing that makes it a game: that
+    somebody is riding your ground right now. A tile at 95% of your kilometres looks identical
+    to one nobody has touched in three months, right up until the night it flips.
+
+    Three buckets rather than a continuous value, because the client draws one shape per crew
+    per bucket. A finer scale would mean a shape per tile.
+    """
+    rivals = [v[0] for c, v in acc.get(tile, {}).items() if c != holder]
+    if not rivals or held_km <= 0:
+        return 0
+    ratio = max(rivals) / held_km
+    if ratio >= 0.85:
+        return 2          # about to go
+    if ratio >= 0.5:
+        return 1          # being pushed
+    return 0
+
+
 def _zoom_of(won: dict) -> int:
     for tile in won:
         p = T.parse(tile)
@@ -346,7 +367,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             db.add(ClanCell(tile=tile, clan_id=clan_id, km=round(km, 3), riders=riders,
                             first_led=first_led.get((tile, clan_id)) or now))
             km2 += T.area_km2(tile)
-            cells_flat.extend((idx, x, y))
+            cells_flat.extend((idx, x, y, _pressure(acc, tile, clan_id, km)))
         comps = regions(pts)
         best_km2 = 0.0
         for comp in comps:
@@ -373,14 +394,15 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         # ranked by the biggest unbroken stretch a crew holds, not the total: one solid
         # block is a harder thing to own than the same area scattered across a country
         "crews": sorted(payload_crews, key=lambda c: (-c["best_km2"], -c["km2"])),
-        "cells": cells_flat,                    # [crewIndex, x, y, crewIndex, x, y, ...]
+        # [crewIndex, x, y, pressure, ...] — pressure is 0 safe / 1 pushed / 2 slipping
+        "cells": cells_flat,
         "regions": regions_out,
     }
     # `crews` is sorted for display but `cells` indexes the unsorted order, so the indices are
     # remapped rather than leaving the client to join on two different orderings
     remap = {c["id"]: i for i, c in enumerate(payload["crews"])}
     old_to_new = {i: remap[clan_id] for i, clan_id in enumerate(order)}
-    payload["cells"] = [old_to_new[v] if k % 3 == 0 else v
+    payload["cells"] = [old_to_new[v] if k % 4 == 0 else v
                         for k, v in enumerate(cells_flat)]
     for r in payload["regions"]:
         r["c"] = old_to_new[r["c"]]
@@ -392,7 +414,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         fh.write(body)
     tmp.replace(p)                              # atomic: a reader never sees half a file
 
-    return {"crews": len(payload["crews"]), "tiles": len(won), "held": len(cells_flat) // 3,
+    return {"crews": len(payload["crews"]), "tiles": len(won), "held": len(cells_flat) // 4,
             "regions": len(regions_out), "bytes": p.stat().st_size,
             "window_days": window_days, "zoom": zoom}
 

@@ -457,13 +457,25 @@ async def upload_emblem(slug: str, request: Request, file: UploadFile = File(...
     try:
         from io import BytesIO
         from PIL import Image
+        # Pillow will happily decode a 370 KB file into a 90-megapixel surface — about a
+        # gigabyte of RAM once converted and resampled, which OOM-kills the process. The size
+        # is known straight after open(), before any of that work happens, so the guard costs
+        # nothing and goes first.
+        Image.MAX_IMAGE_PIXELS = 40_000_000
         img = Image.open(BytesIO(raw))
+        if img.size[0] * img.size[1] > 30_000_000:
+            raise ValueError("too many pixels")
         img.load()
+        if max(img.size) > 4096:          # before any resampling work is done on it
+            raise ValueError("too many pixels")
         img = img.convert("RGBA")
-        side = min(img.size)
-        left = (img.size[0] - side) // 2
-        top = (img.size[1] - side) // 2
-        img = img.crop((left, top, left + side, top + side)).resize((128, 128), Image.LANCZOS)
+        # Fitted inside the square, not cropped to fill it. Cropping a wide logo to a square
+        # cuts a third of it off, and a crew emblem is artwork somebody chose — a 600x380
+        # badge should arrive intact with space either side, not with its ends removed.
+        img.thumbnail((128, 128), Image.LANCZOS)
+        square = Image.new("RGBA", (128, 128), (0, 0, 0, 0))
+        square.paste(img, ((128 - img.size[0]) // 2, (128 - img.size[1]) // 2))
+        img = square
         buf = BytesIO()
         img.save(buf, format="PNG", optimize=True)
         out = buf.getvalue()
