@@ -767,19 +767,36 @@ def set_heatmap(db: Session, cell_size, route_mode, floor, radius, intensity, op
     set_meta(db, "hm_opacity", str(_clamp_float(opacity, 0.62, 0.0, 1.0)))
 
 
-_CREWS_CACHE: dict = {"v": None}
+# Cached with a short life rather than until written. Invalidating on write is only correct
+# while one process does all the writing: an admin saving in the web worker leaves a second
+# worker, a script, or the retention loop holding the old answer forever. Five seconds keeps
+# essentially all of the saving (this is read several times per request) and bounds how long
+# anything can be wrong, including the kill switch, which is the one setting that must take
+# effect when somebody reaches for it.
+_CREWS_CACHE: dict = {"v": None, "at": 0.0}
+_CREWS_TTL = 5.0
 
 
 def _invalidate_crews_cache() -> None:
     _CREWS_CACHE["v"] = None
+    _CREWS_CACHE["at"] = 0.0
 
 
 def get_crews(db: Session) -> dict:
     """Crews & Territory settings. `enabled` is the kill switch: off hides the mode entirely,
     stops the nightly rebuild and refuses every crew endpoint, without dropping a single row —
     a feature that cannot be switched off is a feature that has to be perfect on day one."""
+    import time as _time
+    # The kill switch is never cached. It is the one setting whose whole purpose is to take
+    # effect the moment somebody reaches for it, usually because something is going wrong, and
+    # a switch that waits five seconds, or until the process that holds the cache happens to
+    # be the one you clicked in, is not a switch. One query; the other seven are cached.
+    live = (get_meta(db, "crew_enabled", "0") or "0") == "1"
     cached = _CREWS_CACHE["v"]
-    if cached is not None:
+    if cached is not None and (_time.time() - _CREWS_CACHE["at"]) < _CREWS_TTL:
+        if cached["enabled"] != live:
+            cached = dict(cached, enabled=live)
+            _CREWS_CACHE["v"] = cached
         return cached
     out = {
         "enabled": (get_meta(db, "crew_enabled", "0") or "0") == "1",
@@ -800,6 +817,7 @@ def get_crews(db: Session) -> dict:
     # settings that change when somebody clicks save on the admin page. One process, one
     # dict, invalidated on write.
     _CREWS_CACHE["v"] = out
+    _CREWS_CACHE["at"] = _time.time()
     return out
 
 
