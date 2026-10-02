@@ -187,8 +187,8 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
     sess = f"""
     <div class=card>
       <h2>Sessions</h2>
-      <p class=hint>{sessions} browser session{"s" if sessions != 1 else ""} are signed in
-      through a paired phone. A crew session can create, join and leave crews and act on
+      <p class=hint>{sessions} browser session{"s" if sessions != 1 else ""}
+      {"is" if sessions == 1 else "are"} signed in through a paired phone. A crew session can create, join and leave crews and act on
       members — it cannot upload a ride, rename a rider, or delete anything. Signing a rider
       out is what a lost phone needs; the rider id itself comes back when they reinstall the
       app on the same store account.</p>
