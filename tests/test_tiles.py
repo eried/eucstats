@@ -20,8 +20,18 @@ def test_ground_size_shrinks_toward_the_poles():
     oslo = tiles.area_km2(tiles.tile_of(59.91, 10.75))
     equator = tiles.area_km2(tiles.tile_of(0.0, 10.75))
     assert oslo < equator / 3, (oslo, equator)
-    assert 4.0 < oslo < 8.0, oslo            # ~2.4 km a side
-    assert 20.0 < equator < 28.0, equator    # ~4.9 km a side
+    # Asserted against the zoom rather than against numbers typed in once: the default moved
+    # from 13 to 14 and this test was the only thing that noticed, which is the right outcome
+    # but it should not need editing every time.
+    import math
+    side_eq = tiles.EARTH_C_KM / (1 << tiles.DEFAULT_ZOOM)      # km across at the equator
+    assert 0.9 < equator / (side_eq ** 2) < 1.1, (equator, side_eq)
+    # Both of a tile's ground dimensions shrink with cos(latitude), not just its width: a
+    # Mercator tile spans a fixed slice of longitude AND a slice of latitude that narrows at
+    # the same rate. That is the property that keeps it square on the ground, which is the
+    # whole reason an emblem can be dropped into one without stretching.
+    side_oslo = side_eq * math.cos(math.radians(59.91))
+    assert 0.9 < oslo / (side_oslo ** 2) < 1.1, (oslo, side_oslo)
 
 
 def test_a_fast_ride_leaves_no_holes():
