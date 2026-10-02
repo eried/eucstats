@@ -74,10 +74,13 @@ HALF_LIFE_DAYS = 21.0
 # without a cap the tile beside somebody's front door is unreachable by any number of other
 # riders, and with it a tile is won by how many of you ride there.
 #
-# The week is a rolling seven days back from now, not the calendar week. On ISO weeks a rider
-# could put the full cap in on Sunday and the full cap in again on Monday, so the real limit
-# was twice the stated one for anybody who noticed.
+# The week is seven days measured from each ride, not a calendar week. On calendar weeks a
+# rider puts the full cap in on one side of the boundary and the full cap in again on the
+# other, so the real limit was twice the stated one for anybody who noticed where the
+# boundary was. It is not measured from *now* either: that let a score climb on its own as
+# trips aged into fresh buckets, and a score may only ever decay. See accumulate().
 RIDER_TILE_WEEK_CAP_KM = 6.0
+CAP_WINDOW_S = 7 * 86400
 
 
 def _out_path(zoom: int) -> Path:
@@ -172,9 +175,10 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
             .order_by(Trip.start_utc.desc(), Trip.trip_uuid.desc())
             .all())
 
-    # (rider, tile, week) -> km already counted, so one odometer cannot hold a tile
+    # (rider, tile) -> [(when, km counted), ...] newest first, so one odometer cannot hold a
+    # tile. See CAP_WINDOW_S for why this is a trailing window rather than a calendar week.
     tracks = _tracks_for(db, [r[0] for r in rows])
-    spent: dict[tuple, float] = {}
+    spent: dict[tuple, list] = {}
     acc: dict[str, dict[str, list]] = {}
     # when each crew last rode each tile, which is how a level contest is decided
     recency: dict[tuple, float] = {}
@@ -194,22 +198,28 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
         scale = (km or 0.0) / total
         age_days = max(0.0, (now - started).total_seconds() / 86400.0) if started else 0.0
         weight = 0.5 ** (age_days / HALF_LIFE_DAYS)
-        # Anchored to a fixed epoch, not to how old the trip is right now. Bucketing by age
-        # meant a trip crossed into a new bucket as it aged, releasing kilometres the cap had
-        # suppressed: a tile's score could rise 79% between two rebuilds with nobody riding,
-        # and a rider acting on "4 km would take it" could find the holder had doubled
-        # overnight. A score may only ever decay on its own.
-        week = int(started.timestamp() // 604800) if started else 0
+        when = started.timestamp() if started else 0.0
         for tile, d in per_tile.items():
             ridden = d * scale
             if ridden < min_visit_km(tile):
                 continue                         # clipped the corner; not a visit
-            key = (store_id, tile, week)
-            room = RIDER_TILE_WEEK_CAP_KM - spent.get(key, 0.0)
+            key = (store_id, tile)
+            seen = spent.get(key)
+            if seen is None:
+                seen = spent[key] = []
+            # Everything already counted for this rider and square is newer, because the rows
+            # are ordered newest first, so the window is the tail of the list: walk back from
+            # the oldest entry until one is more than a week away and stop.
+            used = 0.0
+            for i in range(len(seen) - 1, -1, -1):
+                if seen[i][0] - when >= CAP_WINDOW_S:
+                    break
+                used += seen[i][1]
+            room = RIDER_TILE_WEEK_CAP_KM - used
             if room <= 0:
                 continue
             counted = min(ridden, room)
-            spent[key] = spent.get(key, 0.0) + counted
+            seen.append((when, counted))
             e = acc.setdefault(tile, {}).setdefault(clan_id, [0.0, set()])
             e[0] += counted * weight
             e[1].add(store_id)
@@ -560,8 +570,11 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
     floor = min_lead_km(tile)
     out = blocked or set()
     dead = seedless or set()
-    rivals = [v[0] for c, v in acc.get(tile, {}).items()
-              if c != holder and c not in dead and v[0] >= floor and (tile, c) not in out]
+    near = [(v[0], c) for c, v in acc.get(tile, {}).items()
+            if c != holder and c not in dead and v[0] >= floor and (tile, c) not in out]
+    rivals = [v for v, _c in near]
+    # who is pushing, for the card that is about to lose the square
+    _pressure.last_rival = max(near)[1] if near else None
 
     if not rivals:
         slack = held_km - floor
@@ -982,6 +995,8 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     order = sorted(kept.keys())
     payload_crews = []
     cells_flat: list[int] = []
+    # [cell ordinal, crew index, ...] for the squares somebody else is riding
+    rivals_flat: list[int] = []
     regions_out = []
     for idx, clan_id in enumerate(order):
         c = clans[clan_id]
@@ -1012,6 +1027,9 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # be different from, and marking all of it new says the opposite of what it means
             if prev and got and (now - got).days < FRESH_DAYS:
                 band += 5
+            rival = getattr(_pressure, "last_rival", None)
+            if rival is not None and band in (1, 2):
+                rivals_flat.extend((len(cells_flat) // 5, order.index(rival)))
             cells_flat.extend((idx, x, y, band, need))
         comps = patches_by_clan[clan_id]          # worked out once, above
         best_km2 = 0.0
@@ -1050,6 +1068,8 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         # band: 0 safe, 1 somebody is riding it, 2 about to flip, 3 fading for lack of riding
         # the number: what a rival still needs, or for 0 and 3 how much slack the holder has
         "cells": cells_flat,
+        # [cell ordinal, crew index] pairs: who is taking the square, where there is a who
+        "rivals": rivals_flat,
         "regions": regions_out,
     }
     # `crews` is sorted for display but `cells` indexes the unsorted order, so the indices are
@@ -1058,6 +1078,8 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     old_to_new = {i: remap[clan_id] for i, clan_id in enumerate(order)}
     payload["cells"] = [old_to_new[v] if k % 5 == 0 else v
                         for k, v in enumerate(cells_flat)]
+    payload["rivals"] = [old_to_new[v] if k % 2 else v
+                         for k, v in enumerate(rivals_flat)]
     for r in payload["regions"]:
         r["c"] = old_to_new[r["c"]]
 

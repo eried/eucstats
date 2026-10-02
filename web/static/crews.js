@@ -408,6 +408,7 @@
     // The rings mostly sit on ground nobody holds, which has no crew-fill feature under it, so
     // hover and click were dead on exactly the squares the card points at.
     map.on("mousemove", "crew-target-hit", onTargetHover);
+    map.on("click", "crew-target-hit", onTargetTap);
     map.on("mouseleave", "crew-target-hit", hideTip);
     map.on("mouseenter", "crew-target-hit", cursorPointer);
     map.on("mouseleave", "crew-target-hit", cursorDefault);
@@ -566,9 +567,28 @@
     map.once("mousemove", function (ev) { px = ev.point; });
     hoverTimer = setTimeout(function () {
       if (hoverKey !== key) return;
+      hoverTip = ringTip(row, px);
+    }, HOVER_MS);
+  }
+
+  // A tap is not a hover: no delay, and it stays put until the next tap or a drag.
+  function onTargetTap(e) {
+    if (!TERR) return;
+    var xy = tileAt(e.lngLat);
+    var row = null;
+    TARGETS.concat(LOSING).forEach(function (x) {
+      if (x.x === xy[0] && x.y === xy[1]) row = x;
+    });
+    if (!row) return;
+    hideTip();
+    hoverKey = "tap" + xy[0] + ":" + xy[1];
+    hoverTip = ringTip(row, e.point, true);
+  }
+
+  function ringTip(row, px, sticky) {
       var el = document.createElement("div");
       var losing = row.band !== undefined;
-      el.className = "crewtip " + (losing ? "bl" : "bt");
+      el.className = "crewtip " + (losing ? "bl" : "bt") + (sticky ? " tap" : "");
       el.innerHTML = "<b>" + esc(losing
             ? (row.band === 3 ? fadesIn(Math.round(row.need * 10))
                : t("crew.lose.gap", { v: effort(row.need, row.y) }))
@@ -586,8 +606,7 @@
       el.style.top = px.y + "px";
       if (px.x + el.offsetWidth + 30 > window.innerWidth) el.classList.add("left");
       if (px.y < el.offsetHeight / 2 + 8) el.classList.add("below");
-      hoverTip = el;
-    }, HOVER_MS);
+      return el;
   }
 
   function onCellClick(e) {
@@ -700,6 +719,19 @@
 
   var FRESH = {};
 
+  // When the world was last drawn, so the panel can answer "I rode, where is it".
+  var DRAWN = null;
+
+  function drawnLine() {
+    // The server does the arithmetic: the browser's clock is not the one the file was
+    // stamped by, and on a phone it is frequently minutes out.
+    if (!DRAWN || DRAWN.drawn_s_ago == null) return "";
+    var mins = Math.round((DRAWN.every - DRAWN.drawn_s_ago) / 60);
+    // Overdue: the rebuild shares the retention loop, so it lands on that loop's next pass.
+    if (mins <= 1) return '<p class="hint crewdrawn">' + t("crew.drawn.soon") + "</p>";
+    return '<p class="hint crewdrawn">' + t("crew.drawn.in", { n: mins }) + "</p>";
+  }
+
   function rankingHTML(rows) {
     if (!rows || !rows.length) {
       return '<div class="empty">' + t("crew.empty") + "</div>";
@@ -764,6 +796,7 @@
     return '<div class="crewlegend">'
       + band(0, "crew.tile.safe") + band(1, "crew.tile.pushed")
       + band(2, "crew.tile.slipping") + band(3, "crew.tile.fading")
+      + band(4, "crew.tile.ringed")
       + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
       + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
       + '<span class="bf"><i'
@@ -845,10 +878,15 @@
     return 360 / n / 360 * EARTH_C_KM * Math.cos(mid * Math.PI / 180) * MIN_LEAD_EDGE;
   }
 
+  // Six rungs, not four. The top one was open-ended, so a square 1.6 km out of reach and one
+  // 5.0 km out of reach were both "the long way round": half the rows on a card said the same
+  // thing about a Tuesday evening and a Saturday morning. The ratios are to the square's own
+  // floor, so a word means the same amount of work in Tromso as in Singapore.
   function effort(km, y) {
     if (SHOW_NUMBERS) return fmtKm(km);
     var r = km / (floorKm(y) || 0.5);
-    return t("crew.take." + (r <= 0.4 ? 1 : r <= 1 ? 2 : r <= 2.5 ? 3 : 4));
+    return t("crew.take." + (r <= 0.4 ? 1 : r <= 1 ? 2 : r <= 2.5 ? 3
+                             : r <= 5 ? 4 : r <= 10 ? 5 : 6));
   }
 
   function margin(km, y) {
@@ -881,7 +919,6 @@
   // "same as the row above". Dimming the repeated words to the point where they read as a
   // repeat put them under three and a half to one against this background, which is below the
   // floor for body text, and there is no opacity that is both.
-  var DITTO = "\u3003";
 
   var TARGETS = [];
   var TARGETSEL = -1;
@@ -909,7 +946,8 @@
     // whenever the crew holds nothing, which is who it was written for.
     var nothing = !ME || !ME.crew || !ME.crew.tiles;
     if (!TARGETS.length) {
-      return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p></div>";
+      return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p>"
+        + drawnLine() + "</div>";
     }
     var seenWho = {};
     var body = TARGETS.map(function (x, i) {
@@ -936,12 +974,12 @@
             + '<span class="crewtkm">' + km
             + (x.blocked ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
             + '<span class="crewtdir">' + bearing(x.dir) + "</span>"
-            + '<span class="crewtwho' + rw + '">' + (rw ? DITTO : who) + "</span>"
+            + '<span class="crewtwho' + rw + '">' + who + "</span>"
             + tag + "</div>";
         }).join("");
     return head + '<p class=hint>'
       + t(nothing ? "crew.targets.p0" : "crew.targets.p", { n: SEED }) + "</p>"
-      + body + "</div>";
+      + body + drawnLine() + "</div>";
   }
 
   // The widest phrase decides the column, because the phrase is prose and the locales differ
@@ -959,8 +997,19 @@
   // this costs one pass over an array the browser has had the whole time. Without it the mode
   // is offence only: the crew at the top of the board was being out-ridden in ten squares and
   // the panel was telling them to go paint empty fields.
+  // cell ordinal -> the crew taking it. Sparse: only the squares somebody else is riding.
+  var RIVALS = {};
+
+  function indexRivals() {
+    RIVALS = {};
+    var r = TERR && TERR.rivals;
+    if (!r) return;
+    for (var i = 0; i + 1 < r.length; i += 2) RIVALS[r[i]] = r[i + 1];
+  }
+
   function loseHTML(slug) {
     if (!TERR || !TERR.crews) return "";
+    indexRivals();
     var idx = -1;
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
     if (idx < 0) return "";
@@ -975,7 +1024,7 @@
       // of their squares were quietly going cold.
       if (band !== 1 && band !== 2 && band !== 3) continue;   // 4 cannot be lost
       rows.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2], band: band,
-                  need: TERR.cells[i + 4] / 10 });
+                  need: TERR.cells[i + 4] / 10, rival: RIVALS[i / 5] });
     }
     LOSING = [];
     if (!rows.length || !all.length) return "";
@@ -1012,8 +1061,14 @@
           // restating the heading. Band 3 has no rival, so its number is days left.
           var gap = x.band === 3 ? fadesIn(Math.round(x.need * 10))
                                  : t("crew.lose.gap", { v: effort(x.need, x.y) });
-          var state = t(x.band === 3 ? "crew.lose.cold"
-                        : x.band === 2 ? "crew.lose.now" : "crew.lose.soon");
+          // "creeping up" twice told you nothing about who. The attacking card has named its
+          // victim since the first round; this one named nobody, so there was no grudge in a
+          // game that runs on them.
+          var who = x.rival == null ? null : (TERR.crews[x.rival] || {}).name;
+          var state = x.band === 3 ? t("crew.lose.cold")
+            : who ? t(x.band === 2 ? "crew.lose.nowwho" : "crew.lose.soonwho",
+                      { name: esc(who) })
+            : t(x.band === 2 ? "crew.lose.now" : "crew.lose.soon");
           // no ditto on the distance: see the note in the targets card above
           var rs = seenState[state] ? " rpt" : "";
           seenState[state] = 1;
@@ -1021,7 +1076,7 @@
             + '<span class="crewtkm">' + gap
             + (x.band === 3 ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
-            + '<span class="crewtwho' + rs + '">' + (rs ? DITTO : state) + "</span></div>";
+            + '<span class="crewtwho' + rs + '">' + state + "</span></div>";
         }).join("")
       // 85 squares are losable across the world and 45 were shown, with nothing saying so
       + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { n: hidden }) + "</p>" : "")
@@ -1252,6 +1307,9 @@
   /* ---------- create / manage ---------- */
 
   function createHTML(ident) {
+    // No invented fallback. Nothing is preselected until the server says what is free, which
+    // is a form with no colour chosen rather than a form lying about one.
+    ident = ident || { colour: null, pattern: null };
     var cols = (window.__CREWCFG__ && window.__CREWCFG__.palette) || [];
     // Colours are swatches, not a dropdown of hex codes. Nobody picks a crew identity by
     // reading "#000075", and the thing being chosen is the thing you will see on the map, so
@@ -1418,7 +1476,7 @@
       + (me.role === "leader"
          ? '<button class="crewbtn ghost" id="cm-disband">' + t("crew.mine.disband") + "</button>"
          : "")
-      + (me.role !== "leader" && me.leader_stale
+      + (me.role !== "leader" && me.leader_stale && me.can_claim
          ? '<button class="crewbtn ghost" id="cm-claim">' + t("crew.mine.claim") + "</button>"
          : "")
       + '<button class="crewbtn ghost" id="cm-signout">' + t("crew.mine.signout") + "</button>"
@@ -1659,8 +1717,21 @@
     Promise.all([
       api("GET", "/api/v1/crews/me"),
       api("GET", "/api/v1/crews/ranking/all?limit=25"),
-      api("GET", "/api/v1/crews?limit=60")
+      api("GET", "/api/v1/crews?limit=60"),
+      api("GET", "/api/v1/crews/drawn")
     ]).then(function (res) {
+      DRAWN = res[3] && res[3].ok ? res[3].body : null;
+      // A failure is not the same as not being signed in. The gate returns crews_disabled,
+      // and mapping that onto {paired:false} put a signed-in rider in front of a sign-in
+      // form, a pairing spinner and a dead QR before anything mentioned the real reason.
+      var off = !res[0].ok && (res[0].err || {}).detail === "crews_disabled";
+      if (off) {
+        clearLayers();
+        panel.innerHTML = '<div class="crewcard"><h3>' + t("crew.off.h") + "</h3>"
+          + '<p class=hint>' + t("crew.e.off") + "</p></div>";
+        ME = null;
+        return;
+      }
       var me = res[0].ok ? res[0].body : { paired: false };
       ME = me;
       // The pulse layer is built before this resolves, so without re-applying the filter it
@@ -1697,7 +1768,7 @@
         // outcome is the error in the card directly below it.
         h += (me.cooldown_until ? ""
               : me.creation_open
-                ? createHTML(window.__CREWIDENT__ || { colour: "#4363d8", pattern: "solid" })
+                ? createHTML(window.__CREWIDENT__ || null)
                 : '<div class="crewcard"><h3>' + t("crew.closed.h") + "</h3>"
                   + '<p class=hint>' + t("crew.closed.p") + "</p></div>")
           + joinHTML(all, me);
@@ -1720,7 +1791,11 @@
     });
     if (!window.__CREWIDENT__) {
       api("GET", "/api/v1/crews/identity").then(function (r) {
-        if (r.ok) { window.__CREWIDENT__ = r.body; }
+        if (!r.ok) return;
+        window.__CREWIDENT__ = r.body;
+        // Nothing redrew when this landed, so the first create form of a session was painted
+        // with a hard-coded blue under a heading that says we picked something free.
+        if (document.getElementById("cf-colours")) show();
       });
     }
   }

@@ -28,7 +28,7 @@ PALETTE = [
 PATTERNS = ["solid", "stripes", "dots", "hatch"]
 
 JOIN_POLICIES = ("open", "approval", "invite")
-COOLDOWN_DAYS = 7          # after leaving, before joining another crew
+COOLDOWN_DAYS = 7          # the default; the admin's figure comes from settings, see _cooldown_days
 IDLE_LEADER_DAYS = 90      # before the longest-serving member may claim leadership
 NAME_RE = re.compile(r"^[\w \-'&.]{3,28}$", re.UNICODE)
 
@@ -42,6 +42,24 @@ class CrewError(Exception):
 def slugify(name: str) -> str:
     s = re.sub(r"[^\w]+", "-", (name or "").strip().lower(), flags=re.UNICODE).strip("-")
     return s or uuid.uuid4().hex[:8]
+
+
+def free_slug(db, name: str) -> str:
+    """A slug nothing else has ever used.
+
+    `name` and `slug` are both UNIQUE for the life of the table, and only the slug collides
+    silently: `Night Riders` and `Night.Riders` are two legal, different names that slugify to
+    the same string, so the second founder passed the name check, hit the database and got a
+    500 that read `That did not work.` with nothing to act on.
+    """
+    base = slugify(name)
+    taken = {r[0] for r in db.query(Clan.slug).filter(Clan.slug.like(base + "%")).all()}
+    if base not in taken:
+        return base
+    for n in range(2, 60):
+        if f"{base}-{n}" not in taken:
+            return f"{base}-{n}"
+    return f"{base}-{uuid.uuid4().hex[:6]}"
 
 
 # --- identity -----------------------------------------------------------------------------
@@ -129,12 +147,28 @@ def cooldown_until(db, store_id: str):
     # never ridden a metre for.
     last = (db.query(ClanMember)
             .filter(ClanMember.store_id == store_id, ClanMember.status == "active",
-                    ClanMember.left_at.isnot(None))
+                    ClanMember.left_at.isnot(None))   # 'disbanded' rows are exempt, see disband
             .order_by(ClanMember.left_at.desc()).first())
     if not last or membership(db, store_id):
         return None
-    until = last.left_at + timedelta(days=COOLDOWN_DAYS)
+    until = last.left_at + timedelta(days=_cooldown_days(db))
     return until if until > utcnow() else None
+
+
+def _cooldown_days(db) -> int:
+    """The admin's figure, read now rather than remembered.
+
+    The admin screen used to assign `crews.COOLDOWN_DAYS` on save, which is one process's
+    memory of a number: it did not survive a restart, and it did not reach a second worker.
+    Meanwhile the browser is handed the configured value and renders `Next crew in 3 days`
+    from it, so after any restart the page promised three and the server still enforced seven.
+    A rider waited out the countdown, tapped Join, and was told they were still cooling off.
+    """
+    try:
+        from web import settings
+        return int(settings.get_crews(db).get("cooldown_days", COOLDOWN_DAYS))
+    except Exception:
+        return COOLDOWN_DAYS
 
 
 def can_found(db, store_id: str) -> bool:
@@ -155,7 +189,10 @@ def create(db, store_id: str, name: str, description: str = "", colour: str | No
         raise CrewError("cooldown", f"You can found or join a crew after {until:%d %b %H:%M}.")
     if not can_found(db, store_id):
         raise CrewError("no_trips", "Upload one validated ride before founding a crew.")
-    if db.query(Clan).filter(Clan.name == name.strip(), Clan.disbanded_at.is_(None)).first():
+    # Disbanded crews included: the column is UNIQUE for the life of the table, so a name
+    # checked against live crews only passed here and then raised an IntegrityError nobody
+    # caught. Disband frees the name by retiring it, so this stays a short list.
+    if db.query(Clan).filter(Clan.name == name.strip()).first():
         raise CrewError("name_taken", "That name is taken.")
 
     sug = suggest_identity(db)
@@ -168,7 +205,7 @@ def create(db, store_id: str, name: str, description: str = "", colour: str | No
     if join_policy not in JOIN_POLICIES:
         join_policy = "approval"
 
-    clan = Clan(clan_id=uuid.uuid4().hex, name=name.strip(), slug=slugify(name),
+    clan = Clan(clan_id=uuid.uuid4().hex, name=name.strip(), slug=free_slug(db, name),
                 description=(description or "").strip()[:280], colour=colour, pattern=pattern,
                 join_policy=join_policy, created_by=store_id,
                 invite_code=uuid.uuid4().hex[:8].upper())
@@ -212,7 +249,16 @@ def leave(db, store_id: str) -> None:
     if m.role == "leader" and _active_members(db, m.clan_id) > 1 and not _officers(db, m.clan_id):
         raise CrewError("promote_first",
                         "Make somebody an officer first. Someone has to run the place.")
+    # The last one out turns the lights off. A crew left with nobody in it kept its ground,
+    # kept its place on the board and kept sitting in the join list reading `0 riders`, and
+    # with the default approval policy anybody who joined it waited forever for a leader who
+    # did not exist. Only an admin could clear it, and nothing told them it was there.
+    last_one = _active_members(db, m.clan_id) <= 1 and m.status == "active"
     m.left_at = utcnow()
+    if last_one:
+        clan = db.get(Clan, m.clan_id)
+        if clan and clan.disbanded_at is None:
+            _retire(clan)
     db.commit()
 
 
@@ -246,6 +292,40 @@ def set_role(db, actor: str, clan_id: str, store_id: str, role: str) -> None:
         me.role = "officer"
     m.role = role
     db.commit()
+
+
+def claim_eligible(db, store_id: str, clan_id: str) -> bool:
+    """Would claim_leadership succeed for this rider right now?
+
+    The panel used to show the take-over button on `nobody is in charge` alone, to every
+    member including ones whose own request has not been approved. For most of them the
+    button could only ever fail, and a pending rider in a leaderless crew is in the one trap
+    it exists to open: nobody is left who can approve them.
+    """
+    try:
+        _eligible_for(db, clan_id, store_id)
+        return True
+    except CrewError:
+        return False
+
+
+def _eligible_for(db, clan_id: str, store_id: str):
+    leader = (db.query(ClanMember)
+              .filter(ClanMember.clan_id == clan_id, ClanMember.role == "leader",
+                      ClanMember.left_at.is_(None)).first())
+    if leader is not None:
+        idle_since = leader.last_seen or leader.joined_at
+        if idle_since and (utcnow() - idle_since) < timedelta(days=IDLE_LEADER_DAYS):
+            raise CrewError("leader_active", "The leader is still active.")
+    q = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == clan_id, ClanMember.status == "active",
+                 ClanMember.left_at.is_(None)))
+    if leader is not None:
+        q = q.filter(ClanMember.store_id != leader.store_id)
+    eligible = q.order_by(ClanMember.joined_at.asc()).first()
+    if eligible is None or eligible.store_id != store_id:
+        raise CrewError("not_eligible", "The longest-serving active member takes over.")
+    return leader, eligible
 
 
 def claim_leadership(db, store_id: str, clan_id: str) -> None:
@@ -291,11 +371,32 @@ def disband(db, actor: str, clan_id: str) -> None:
     if m.role != "leader":
         raise CrewError("not_leader", "Only the leader can disband a crew.")
     clan = db.get(Clan, clan_id)
-    clan.disbanded_at = utcnow()
     for mm in db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
                                           ClanMember.left_at.is_(None)).all():
         mm.left_at = utcnow()
+        # Folding your own crew is not walking out on one. The leader's row is `active`, so
+        # stamping it here started the same week-long cooldown that leaving does, silently,
+        # one button away from Leave and with the same styling. Founding a crew by mistake
+        # and undoing it cost a week.
+        if mm.store_id == actor:
+            mm.status = "disbanded"
+    _retire(clan)
     db.commit()
+
+
+def _retire(clan) -> None:
+    """Fold a crew and give its name back.
+
+    `name` and `slug` are UNIQUE for the life of the table, so a disbanded crew went on
+    holding both forever and re-founding under the same name was a 500. The colours are
+    freed the moment a crew folds; the name works the same way now, by moving the dead
+    crew's out of the way rather than by keeping a graveyard of reserved words.
+    """
+    clan.disbanded_at = utcnow()
+    tag = clan.clan_id[:6]
+    if not clan.name.endswith(")"):
+        clan.name = f"{clan.name} (folded {tag})"[:60]
+    clan.slug = f"{clan.slug}-x{tag}"[:80]
 
 
 def touch(db, store_id: str) -> None:

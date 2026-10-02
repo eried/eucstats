@@ -5,8 +5,11 @@
  * mode is about holding rectangles, and a pill-shaped card next to a tile grid looks borrowed.
  */
 
+/* Lighter than what it sits on, not darker. rgba(10,15,30,.5) over the panel's own glass
+   came out within one 8-bit value of the panel on every channel, so a card was visible only
+   by its border, and a nested card, whose border is removed, by nothing at all. */
 .crewcard {
-  background: rgba(10, 15, 30, .5);
+  background: rgba(255, 255, 255, .035);
   border: 1px solid var(--line, #243055);
   border-left: 2px solid var(--sec, #ff8ad8);
   padding: 14px 15px;
@@ -162,7 +165,9 @@ a.crewqr { display: flex; text-decoration: none; }
 }
 /* and the three cards were centred inside a full-width table, so nothing lined up with the
    ranked rows underneath them */
-.crewboard .podium { gap: 10px; padding: 8px 0 12px; }
+/* One row, one baseline. Nothing set this, so second and third sat five pixels apart from
+   each other for no reason, and first stepped up by a different amount again. */
+.crewboard .podium { gap: 10px; padding: 8px 0 12px; align-items: flex-end; }
 .crewboard .pod { max-width: none; flex: 1 1 0; }
 
 /* Your own crew is folded away once you have one: you know what crew you are in, and the
@@ -255,8 +260,8 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewlegend span { display: flex; align-items: flex-start; gap: 5px; }
 .crewlegnote { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px;
   color: var(--mut, #7a86ad); opacity: .85; }
-.crewlegend i { display: inline-block; width: 16px; height: 16px;
-  flex: 0 0 16px; margin-top: 1px; position: relative; background: var(--sec, #ff8ad8);
+.crewlegend i { display: inline-block; width: 22px; height: 22px;
+  flex: 0 0 22px; margin-top: 0; position: relative; background: var(--sec, #ff8ad8);
   border: 1px solid rgba(255,255,255,.25); }
 /* The chips describe what the map paints and nothing else. A ten per cent opacity step is
    visible across a city block and invisible across sixteen pixels, so the two contested bands
@@ -268,8 +273,17 @@ a.crewqr { display: flex; text-decoration: none; }
 /* The white wash, not the shade. `opacity` is written inline from the same array the map
    paints from, and a running animation outranks inline style, so animating opacity here threw
    that ladder away and made bands 1 and 2 identical. */
+/* A second channel, because the first one does not survive sixteen pixels. The comment two
+   rules up says a ten per cent opacity step is invisible at this size, and then four chips
+   were told apart by exactly that: `Held`, `Someone else is riding it`, `About to flip` and
+   `Going cold` were four identical hatched squares. Band 1 keeps the full square, band 2 is
+   cut in half the way a square about to change hands is, band 3 is reduced to a corner. */
 .crewlegend .b1 i, .crewlegend .b2 i { border-style: dashed; border-color: #fff;
   animation: crewwash 5.2s ease-in-out infinite; }
+.crewlegend .b2 i { clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%); }
+.crewlegend .b3 i { clip-path: polygon(0 0, 100% 0, 0 100%); }
+/* ringed: the same solid square as band 0 with the loop that won it drawn on top */
+.crewlegend .b4 i { box-shadow: inset 0 0 0 3px rgba(255,255,255,.55); }
 @keyframes crewwash {
   0%, 100% { box-shadow: inset 0 0 0 16px rgba(255,255,255,0); }
   50% { box-shadow: inset 0 0 0 16px rgba(255,255,255,.26); }
@@ -300,9 +314,16 @@ a.crewqr { display: flex; text-decoration: none; }
 
 @keyframes crewbreathe { 0%, 100% { opacity: .15; } 50% { opacity: .85; } }
 @media (prefers-reduced-motion: reduce) {
-  /* the map stops for these readers, so the key has to stop with it */
+  /* The map stops for these readers, so everything in the panel stops with it. This used to
+     name the three key chips and nothing else, which left the one animation the query exists
+     for -- a pulsing ring that grabs the eye on purpose -- running. */
   .crewlegend .b1 i, .crewlegend .b2 i, .crewlegend .bf i { animation: none; }
   .crewlegend .bf i { opacity: .55; }
+  .panel[data-sec=crews] *, .panel[data-sec=crews] *::before, .panel[data-sec=crews] *::after,
+  .crewtip, .crewtip *, .crewpop, .crewpop * {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }
 
 
@@ -368,8 +389,10 @@ a.crewqr { display: flex; text-decoration: none; }
 }
 .crewtargets.nums { --kmc: 58px; }
 .crewtargets .hint { margin: 0 0 8px; }
+/* Top-aligned, because the phrase wraps and the other two columns do not: centred, the
+   bearing on a two-line row sat level with neither line and the column staggered down. */
 .crewtrow {
-  display: flex; align-items: center; gap: 9px; padding: 6px 8px; margin: 0 -8px;
+  display: flex; align-items: flex-start; gap: 9px; padding: 6px 8px; margin: 0 -8px;
   border-top: 1px solid rgba(255,255,255,.05); cursor: pointer; font-size: 13px;
 }
 .crewtrow:first-of-type { border-top: 0; }
@@ -461,8 +484,10 @@ a.crewqr { display: flex; text-decoration: none; }
    because the column has to line up, but it stops shouting. */
 /* de-emphasised, not erased: .34 measured under 2:1 against the panel, and on a
    phone there is no hover to bring it back. */
-.crewtrow .rpt { opacity: .62; }
-.crewtrow:hover .rpt { opacity: 1; }
+/* An explicit colour rather than a second opacity: on a `done` row the two multiplied down
+   to 2.5:1 against the card, which is below any threshold worth naming. */
+.crewtrow .rpt { color: #6f7b9e; }
+.crewtrow:hover .rpt { color: var(--mut, #9aa6c8); }
 
 
 /* what a crew took this week, on its own row of the board */
@@ -477,6 +502,17 @@ a.crewqr { display: flex; text-decoration: none; }
    blocks is how a rule ends up silently cancelling an earlier one instead of
    deliberately overriding it, which had happened three times in here. */
 @media (max-width: 560px) {
+  /* Hit areas. This block changed padding, type size, wrapping and grid columns and never
+     once said how big a thing you tap should be, on the screen where everything is tapped.
+     Measured before this rule: a mini button 28px, a target row 31px, a ranked row 31px, the
+     settings summary 32px, a pattern chip a hard 30px. */
+  .crewbtn, .crewbtn.mini { min-height: 44px; padding-top: 0; padding-bottom: 0;
+    display: inline-flex; align-items: center; justify-content: center; }
+  .crewtrow { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+  .crewrank td, .crewboard table td { padding-top: 11px; padding-bottom: 11px; }
+  .crewedit summary, .crewhow summary { min-height: 44px; display: flex; align-items: center; }
+  .crewcrow { min-height: 44px; }
+  #cf-patterns { grid-template-columns: repeat(4, 1fr); max-width: 220px; }
   .crewcard { padding: 12px 12px; }
   .crewhead { gap: 9px; }
   .crewlogo { width: 42px; height: 42px; flex: 0 0 42px; }
@@ -506,7 +542,6 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewboard table .celln > span { white-space: normal; overflow: visible;
     text-overflow: clip; line-height: 1.2; }
   .crewpick { grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); }
-  #cf-patterns { grid-template-columns: repeat(4, 30px); }   /* four fit; they are not 30 */
   /* the action buttons were clipping against the panel's bottom edge */
   .crewmine .crewacts { padding-bottom: 14px; }
   /* a 150px image was sitting in a 188px box */
@@ -517,7 +552,10 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewtargets { --kmc: min(var(--kmw, 88px), 46%); }
   .crewtargets.nums { --kmc: 52px; }
   .crewtrow { flex-wrap: wrap; row-gap: 3px; }
-  .crewtag { margin-left: calc(var(--kmc) + 44px); }
+  /* Its own line, at the full width of the row. Indented to clear the columns above it and
+     capped at 38% besides, the badge had about 110px to say "breaks their block, 9 squares
+     go" in, and said it over three lines in a box pinned to the right margin. */
+  .crewtag { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }
   .crewcname { max-width: none; }
   .crewboard table .val.sub { font-size: 11px; text-align: right; width: 1%; }
   .crewboard table .val.sub .crewarea { display: none; }
@@ -550,3 +588,10 @@ a.crewqr { display: flex; text-decoration: none; }
 /* the figure behind the phrase, on the square itself: same weight as in the two cards */
 .crewtip span i, .crewpop-in span i { font-style: normal; font-size: 10.5px; opacity: .62;
   font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Tapped rather than hovered: it has to survive the finger coming off, so it gets a shadow
+   deep enough to sit above the fill and room enough to read at arm's length. */
+.crewtip.tap { font-size: 13px; padding: 9px 11px; box-shadow: 0 6px 22px rgba(0,0,0,.6); }
+
+/* the answer to "I rode it, where is it", under the rows that prompted the question */
+.crewdrawn { margin-top: 10px; opacity: .75; }

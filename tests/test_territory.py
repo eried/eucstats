@@ -532,3 +532,35 @@ def test_the_first_crews_each_get_their_own_colour(db):
                     join_policy="open", invite_code=f"I{i}"))
         db.commit()
     assert len(set(seen)) == len(PALETTE), f"{len(set(seen))} colours across {len(PALETTE)} crews"
+
+def test_the_weekly_cap_cannot_be_doubled_by_riding_at_midnight():
+    """The cap is what makes a square won by how many of you ride there rather than by one
+    person's odometer, and a calendar week handed it straight back: epoch second 604800*n is
+    a Thursday midnight UTC, so a rider who knew that put the full cap in on Wednesday
+    evening and the full cap in again on Thursday morning. Fourteen hours, double the stated
+    limit. Nothing about honest riding may change."""
+    from services.territory import CAP_WINDOW_S, RIDER_TILE_WEEK_CAP_KM as CAP
+
+    def counted(hours_ago):
+        """What accumulate's cap allows one rider in one square, newest ride first."""
+        seen, total = [], 0.0
+        for h in sorted(hours_ago):
+            when = -h * 3600.0
+            used = 0.0
+            for i in range(len(seen) - 1, -1, -1):
+                if seen[i][0] - when >= CAP_WINDOW_S:
+                    break
+                used += seen[i][1]
+            room = CAP - used
+            if room <= 0:
+                continue
+            take = min(CAP, room)
+            seen.append((when, take))
+            total += take
+        return total
+
+    assert counted([0, 14]) == CAP            # the midnight trick, fourteen hours apart
+    assert counted([0, 6]) == CAP             # one session, two rides
+    assert counted([0, 24 * 6]) == CAP        # six days apart is still one window
+    assert counted([0, 24 * 8]) == CAP * 2    # eight days apart is two
+    assert counted([0, 24 * 7, 24 * 14, 24 * 21]) == CAP * 4   # a month of honest riding

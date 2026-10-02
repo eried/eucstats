@@ -46,6 +46,10 @@ def _gate(db: Session) -> dict:
 # How much of a joining rider's own back catalogue comes with them. See _stamp_recent.
 JOIN_BACKFILL_DAYS = 14
 
+# How often the whole-world rebuild runs. Mirrors main._territory_if_due, and is served to
+# the panel so it can say when a ride will show up rather than looking broken.
+REBUILD_EVERY_S = 3600
+
 
 def _me(request: Request, db: Session) -> WebSession | None:
     ws = pairing.session(db, request.cookies.get(pairing.COOKIE), scope="crew")
@@ -179,6 +183,23 @@ def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
 
 
+@router.get("/crews/drawn")
+def territory_drawn(db: Session = Depends(get_db)):
+    """When the map was last drawn, and how often it is.
+
+    Everything a rider sees is baked at rebuild time, so the gap between finishing a ride and
+    seeing it is up to a full interval. It is not a bug to hide; it is a number to print.
+    """
+    import time
+    cfg = _gate(db)
+    at = territory.cached_mtime(cfg["zoom"])
+    # one frame, server side: st_mtime is a true epoch second and utcnow() is a naive UTC
+    # datetime whose .timestamp() is read as local time, which put the last redraw in the
+    # future by the box's own UTC offset
+    return {"drawn_s_ago": max(0, int(time.time() - at)) if at else None,
+            "every": REBUILD_EVERY_S}
+
+
 @router.get("/crews/me")
 def crews_me(request: Request, db: Session = Depends(get_db)):
     """The state the crew panel renders from: session, membership, and what it may do."""
@@ -217,6 +238,11 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                     idle = lead.last_seen or lead.joined_at
                     out["leader_stale"] = bool(
                         idle and (utcnow() - idle) >= timedelta(days=crews.IDLE_LEADER_DAYS))
+                # and whether this particular rider is the one who may do it. Without this
+                # the button rendered for everybody who could see the flag, including riders
+                # still waiting to be let in, for whom it can only ever fail.
+                out["can_claim"] = bool(out.get("leader_stale")) and crews.claim_eligible(
+                    db, ws.store_id, clan.clan_id)
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
                 out["roster"] = [
