@@ -107,9 +107,17 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   pointer-events: auto; cursor: pointer; transition: opacity .25s;
 }
+/* A plate behind the emblem. Without it the generated badge uses the crew's own colour over
+   the crew's own fill, so it read as the map pattern showing THROUGH the logo rather than the
+   logo sitting on top of it. The plate is dark and slightly inset, which separates the two at
+   every zoom and works just as well for an uploaded logo with transparent corners. */
 .crewemb img {
   width: 100%; height: 100%; object-fit: contain;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,.75));
+  padding: 7%;
+  background: rgba(4, 8, 16, .66);
+  border: 1px solid rgba(255, 255, 255, .22);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, .7);
+  box-sizing: border-box;
 }
 .crewemb-n {
   margin-top: 3px; font-size: 11px; font-weight: 700; letter-spacing: .3px;
@@ -192,4 +200,27 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewboard .pname { font-size: 12px; }
   .crewcname { max-width: 34%; }
   .crewacts .crewbtn { flex: 1 1 auto; }
+}
+
+/* --- picking an identity --- */
+
+/* Swatches, not a dropdown of hex codes. The thing being chosen is the thing that ends up on
+   the map, so it is shown as it will look, pattern and all. */
+.crewidentrow { display: flex; gap: 12px; align-items: flex-start; margin: 12px 0 0; }
+.crewpreview { flex: 0 0 auto; }
+.crewpreview .crewsw { border-width: 2px; }
+.crewpickwrap { flex: 1; min-width: 0; }
+.crewpick { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0 9px; }
+.crewpickc, .crewpickp {
+  width: 24px; height: 24px; padding: 0; border: 1px solid rgba(255,255,255,.22);
+  cursor: pointer; border-radius: 0; background-clip: padding-box;
+}
+.crewpickp { background: transparent; display: flex; align-items: center; justify-content: center; }
+.crewpickp .crewsw { width: 20px; height: 20px; border: 0; }
+.crewpickc.on, .crewpickp.on { outline: 2px solid #fff; outline-offset: 1px; }
+.crewpickc:hover, .crewpickp:hover { outline: 1px solid rgba(255,255,255,.6); outline-offset: 1px; }
+
+@media (max-width: 560px) {
+  .crewpickc, .crewpickp { width: 30px; height: 30px; }   /* thumbs, not cursors */
+  .crewpickp .crewsw { width: 26px; height: 26px; }
 }

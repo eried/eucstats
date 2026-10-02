@@ -183,12 +183,14 @@
 
     requestAnimationFrame(function () {
       if (!map.getLayer("crew-fill")) return;
+      // The dip is a warning, not a disappearance. At 38% a contested tile read as almost
+      // unowned, which is the wrong story: it is still theirs right up until the moment it
+      // flips, and the map should say "someone is leaning on this", not "this is nearly gone".
+      var pat = Math.min(1, op + 0.15);
       map.setPaintProperty("crew-fill", "fill-opacity",
-        ["match", ["get", "band"], 1, op * 0.66, 2, op * 0.38, op]);
+        ["match", ["get", "band"], 1, op * 0.84, 2, op * 0.66, op]);
       map.setPaintProperty("crew-pattern", "fill-opacity",
-        ["match", ["get", "band"], 1, Math.min(1, op + 0.15) * 0.66,
-                                   2, Math.min(1, op + 0.15) * 0.38,
-         Math.min(1, op + 0.15)]);
+        ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, pat]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
     });
@@ -436,53 +438,90 @@
 
   function createHTML(ident) {
     var cols = (window.__CREWCFG__ && window.__CREWCFG__.palette) || [];
+    // Colours are swatches, not a dropdown of hex codes. Nobody picks a crew identity by
+    // reading "#000075", and the thing being chosen is the thing you will see on the map, so
+    // the picker shows it with the pattern already on it.
+    var colourGrid = '<div class="crewpick" id="cf-colours">' + cols.map(function (c) {
+      return '<button type="button" class="crewpickc' + (c === ident.colour ? " on" : "")
+        + '" data-c="' + c + '" style="background:' + c + '" title="' + c + '"></button>';
+    }).join("") + "</div>";
+    var patternGrid = '<div class="crewpick" id="cf-patterns">' + PATTERNS.map(function (pt) {
+      return '<button type="button" class="crewpickp' + (pt === ident.pattern ? " on" : "")
+        + '" data-p="' + pt + '" title="' + pt + '">'
+        + '<span class="crewsw" data-p="' + pt + '" style="background:' + ident.colour
+        + '"></span></button>';
+    }).join("") + "</div>";
     return '<div class="crewcard">'
       + "<h3>" + t("crew.new.h") + "</h3>"
       + '<p class=hint>' + t("crew.new.p") + "</p>"
       + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28" placeholder="Nordlys Collective"></label>'
       + "<label>" + t("crew.new.desc") + '<input id="cf-desc" maxlength="280" placeholder="Oslo, mostly after dark."></label>'
-      + '<div class="crewident">' + swatch(ident.colour, ident.pattern, 40)
-      + '<div><div class="crewidentl">' + t("crew.new.colours") + "</div>"
-      + '<select id="cf-colour">' + cols.map(function (c) {
-          return '<option value="' + c + '"' + (c === ident.colour ? " selected" : "") + ">"
-            + c + "</option>"; }).join("") + "</select>"
-      + '<select id="cf-pattern">' + PATTERNS.map(function (p) {
-          return '<option value="' + p + '"' + (p === ident.pattern ? " selected" : "") + ">"
-            + p + "</option>"; }).join("") + "</select></div></div>"
+      + '<div class="crewidentrow">'
+      + '<div class="crewpreview">' + swatch(ident.colour, ident.pattern, 62) + "</div>"
+      + "<div class=crewpickwrap><div class=crewidentl>" + t("crew.new.colours") + "</div>"
+      + colourGrid + patternGrid + "</div></div>"
+      + '<input type="hidden" id="cf-colour" value="' + ident.colour + '">'
+      + '<input type="hidden" id="cf-pattern" value="' + ident.pattern + '">'
       + "<label>" + t("crew.new.who")
       + '<select id="cf-policy">'
-      + '<option value="approval">A leader approves each request</option>'
-      + '<option value="open">Anyone can join</option>'
-      + '<option value="invite">Only with an invite code</option>'
+      + '<option value="approval">' + t("crew.new.approval") + "</option>"
+      + '<option value="open">' + t("crew.new.open") + "</option>"
+      + '<option value="invite">' + t("crew.new.invite") + "</option>"
       + "</select></label>"
       + '<button class="crewbtn" id="cf-go">' + t("crew.new.go") + "</button>"
       + "</div>";
   }
 
   function bindCreate() {
-    var sw = document.querySelector(".crewident .crewsw");
+    var preview = document.querySelector(".crewpreview .crewsw");
+    var hidC = document.getElementById("cf-colour");
+    var hidP = document.getElementById("cf-pattern");
+    if (!hidC || !hidP) return;
+
     function sync() {
-      var c = document.getElementById("cf-colour").value;
-      var p = document.getElementById("cf-pattern").value;
-      if (sw) { sw.style.background = c; sw.dataset.p = p; }
+      if (preview) {
+        preview.style.background = hidC.value;
+        preview.dataset.p = hidP.value;
+      }
+      // the pattern swatches show the chosen colour, so the two choices are seen together
+      document.querySelectorAll("#cf-patterns .crewsw").forEach(function (el) {
+        el.style.background = hidC.value;
+      });
     }
-    ["cf-colour", "cf-pattern"].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.onchange = sync;
+
+    document.querySelectorAll("#cf-colours .crewpickc").forEach(function (b) {
+      b.onclick = function () {
+        hidC.value = b.dataset.c;
+        document.querySelectorAll("#cf-colours .crewpickc").forEach(function (o) {
+          o.classList.toggle("on", o === b);
+        });
+        sync();
+      };
     });
+    document.querySelectorAll("#cf-patterns .crewpickp").forEach(function (b) {
+      b.onclick = function () {
+        hidP.value = b.dataset.p;
+        document.querySelectorAll("#cf-patterns .crewpickp").forEach(function (o) {
+          o.classList.toggle("on", o === b);
+        });
+        sync();
+      };
+    });
+    sync();
+
     var go = document.getElementById("cf-go");
     if (go) go.onclick = function () {
       go.disabled = true;
       api("POST", "/api/v1/crews", {
         name: document.getElementById("cf-name").value,
         description: document.getElementById("cf-desc").value,
-        colour: document.getElementById("cf-colour").value,
-        pattern: document.getElementById("cf-pattern").value,
+        colour: hidC.value,
+        pattern: hidP.value,
         join_policy: document.getElementById("cf-policy").value
       }).then(function (r) {
         go.disabled = false;
-        if (r.ok) { show(); reloadTerritory(); }
-        else setStatus((r.err && r.err.detail) || "That did not work.", true);
+        if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
+        else setStatus((r.err && r.err.detail) || t("crew.err"), true);
       });
     };
   }
@@ -556,7 +595,7 @@
       if (!confirm(t("crew.mine.leaveq", { name: c.name })))
         return;
       api("POST", "/api/v1/crews/leave", {}).then(function (r) {
-        if (r.ok) { show(); reloadTerritory(); }
+        if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
         else setStatus((r.err && r.err.detail) || "That did not work.", true);
       });
     };
@@ -643,7 +682,7 @@
           body.invite_code = code;
         }
         api("POST", "/api/v1/crews/" + b.dataset.join + "/join", body).then(function (r) {
-          if (r.ok) { show(); reloadTerritory(); }
+          if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
           else setStatus((r.err && r.err.detail) || "That did not work.", true);
         });
       };
@@ -659,6 +698,24 @@
     if (!map.getLayer("heat")) return;
     var want = on ? ((window.__HEAT__ && window.__HEAT__.opacity) || 0.62) : 0;
     try { map.setPaintProperty("heat", "heatmap-opacity", want); } catch (e) {}
+  }
+
+  // Re-rendering resets the panel's scroll, so an action that changes your standing left you
+  // staring at the top of the board with no sign it worked. Whatever is new gets scrolled to.
+  var revealNext = null;
+
+  function reveal(sel) {
+    revealNext = sel;
+  }
+
+  function doReveal() {
+    if (!revealNext) return;
+    var el = document.querySelector(revealNext);
+    revealNext = null;
+    if (el) {
+      if (el.tagName === "DETAILS") el.open = true;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }
 
   function show() {
@@ -709,6 +766,7 @@
       else stopPairing();
       if (me.crew) bindMine(me);
       else { bindCreate(); bindJoin(); }
+      doReveal();
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
         el.onclick = function () {
           var r = rank[+el.dataset.i];

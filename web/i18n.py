@@ -85,6 +85,7 @@ EN: dict[str, str] = {
     "crew.how.4": "Nothing is forever. Stop riding and it fades. Ride more than someone and you take theirs.",
     "crew.how.5": "Old rides keep the crew they were done for. Walking out doesn't rub the map.",
     "crew.empty": "Nobody holds anything yet.",
+    "crew.err": "That didn't work.",
     # what a tile says when you tap it
     "crew.tile.safe": "Nobody near it",
     "crew.tile.pushed": "Someone is riding this",
