@@ -313,9 +313,11 @@ a.crewqr { display: flex; text-decoration: none; }
    of step with it three times. */
 .crewlegend .bt i { background: transparent; border: 2px solid #ffd24a;
   box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
-.crewlegend .bd i { background: #fff; opacity: .55; animation: crewbreathe 3.2s ease-in-out infinite; }
+/* 5.2s and half a cycle apart, which is what the map actually does */
+.crewlegend .bd i { background: #fff; opacity: .55;
+  animation: crewbreathe 5.2s ease-in-out infinite; }
 .crewlegend .bf i { background: var(--sec, #ff8ad8); opacity: .55;
-  animation: crewbreathe 3.2s ease-in-out infinite reverse; }
+  animation: crewbreathe 5.2s ease-in-out infinite; animation-delay: -2.6s; }
 @keyframes crewbreathe { 0%, 100% { opacity: .15; } 50% { opacity: .85; } }
 @media (prefers-reduced-motion: reduce) {
   .crewlegend .bd i, .crewlegend .bf i { animation: none; opacity: .55; }
@@ -385,31 +387,41 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtrow:hover { background: rgba(255,138,216,.09); }
 /* A phrase, not a figure: "a short ride" in a 58px tabular-nums column wrapped onto two
    lines. The monospace column comes back only when the admin asks for exact kilometres. */
-.crewtkm { flex: 0 0 auto; width: min(var(--kmw, 96px), 46%);
-  font-weight: 600; color: var(--sec, #ff8ad8); }
+/* One variable for the width so the phone rule cannot be defeated by the inline --kmw the
+   list sets from its own longest phrase. */
+.crewtargets { --kmc: min(var(--kmw, 96px), 46%); }
+.crewtargets.nums { --kmc: 58px; }
+/* gold, because the ring this column points at is gold. The lose card is orange for the same
+   reason. That pairing is the only thing telling the two cards apart at a glance. */
+.crewtkm { flex: 0 0 auto; width: var(--kmc); font-weight: 600; color: #ffd24a; }
 .crewtargets.nums { --kmw: 58px; }
-.crewtargets.nums .crewtkm { width: 58px;
+.crewtargets.nums .crewtkm {
   font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums;
   font-weight: 700; text-align: right;
 }
 .crewtdir {
-  flex: 0 0 26px; font-size: 11px; font-weight: 700; letter-spacing: .4px;
+  flex: 0 0 auto; min-width: 26px; font-size: 11px; font-weight: 700; letter-spacing: .4px;
   color: var(--mut, #7a86ad);
 }
 /* min-width:0 or a long crew name in a long locale pushes the badge off a 390px screen */
-.crewtwho { flex: 1 1 auto; min-width: 0; color: var(--mut, #7a86ad); font-size: 12px; }
+.crewtwho {
+  flex: 0 1 auto; min-width: 0; color: var(--mut, #7a86ad); font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 /* nothing to ride here today: present, legible, and plainly not the thing to do next */
 .crewtrow.done { opacity: .72; }
 .crewtrow.done .crewtkm { color: var(--mut, #7a86ad); font-weight: 400; }
 .crewtag {
-  flex: 0 0 auto; font-size: 10px; letter-spacing: .3px; text-transform: uppercase;
-  padding: 2px 6px; border-radius: 3px; white-space: nowrap;
-  border: 1px solid currentColor; opacity: .9;
+  flex: 0 0 auto; margin-left: auto; font-size: 10px; letter-spacing: .3px;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+  opacity: .95;
 }
+/* Two different claims had one identical gold chip; and the hottest label in the panel was
+   #ff6b6b, which is the Countries button in the dock below it and this panel's own error
+   red. The hot one moves into the crews family instead of borrowing another section's. */
 .crewtag.first { color: #ffd24a; background: rgba(255,210,74,.12); }
-.crewtag.joins { color: #ffd24a; background: rgba(255,210,74,.12); }
-/* the biggest move on the board gets the only hot colour in the card */
-.crewtag.kills { color: #ff6b6b; background: rgba(255,107,107,.14); }
+.crewtag.joins { color: #9fe8ff; background: rgba(159,232,255,.12); }
+.crewtag.kills { color: #ff4fa3; background: rgba(255,79,163,.16); }
 .crewtag.done { color: var(--mut, #7a86ad); background: rgba(154,166,200,.1); }
 
 /* the other half of the game, same shape so the two read as a pair */
@@ -419,10 +431,10 @@ a.crewqr { display: flex; text-decoration: none; }
   /* The badge was hidden here, which took the explanation off exactly the rows that need one:
      a phone showed "ridden, Cykelslangen has it" and no reason why riding it again would do
      nothing. It wraps onto its own line instead, lined up under the text. */
-  .crewtargets { --kmw: 88px; }
-  .crewtargets.nums { --kmw: 52px; }
+  .crewtargets { --kmc: min(var(--kmw, 88px), 46%); }
+  .crewtargets.nums { --kmc: 52px; }
   .crewtrow { flex-wrap: wrap; row-gap: 3px; }
-  .crewtag { margin-left: calc(var(--kmw) + 35px); }
+  .crewtag { margin-left: calc(var(--kmc) + 35px); }
 }
 
 
@@ -433,11 +445,12 @@ a.crewqr { display: flex; text-decoration: none; }
   padding: 6px 9px; border-radius: 4px; max-width: 210px;
   background: rgba(6, 10, 20, .94); border: 1px solid rgba(255, 255, 255, .16);
   box-shadow: 0 4px 18px rgba(0, 0, 0, .55);
-  font-size: 11.5px; line-height: 1.45; white-space: nowrap;
+  font-size: 11.5px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere;
   animation: crewtipin .18s ease both;
 }
 .crewtip.left { transform: translate(calc(-100% - 14px), -50%); }
-.crewtip b { display: block; font-size: 12px; }
+.crewtip b { display: block; font-size: 12px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .crewtip span { display: block; color: var(--mut, #7a86ad); }
 /* the band is the left edge, so the shades are learned where they are used */
 .crewtip.b1 { border-left: 3px solid rgba(255, 255, 255, .75); }
@@ -446,8 +459,10 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtip.b4 { border-left: 3px solid #ffd24a; }
 /* a ring's own tooltip, in the ring's own colour */
 .crewtip.bt { border-left: 3px solid #ffd24a; }
+.crewtip.bl { border-left: 3px solid #ff9f6b; }
 .crewtip.b0 { border-left: 3px solid rgba(255,255,255,.28); }
 .crewtip em { font-style: normal; color: #ffd24a; }
+.crewtip.bt em { color: #ff4fa3; }
 @keyframes crewtipin { from { opacity: 0; transform: translate(10px, -50%); } }
 
 
@@ -466,9 +481,23 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* Eight rows naming the same crew eight times reads as a rendering fault. The repeat stays,
    because the column has to line up, but it stops shouting. */
-.crewtrow .rpt { opacity: .34; }
-.crewtrow:hover .rpt { opacity: .75; }
+/* de-emphasised, not erased: .34 measured under 2:1 against the panel, and on a
+   phone there is no hover to bring it back. */
+.crewtrow .rpt { opacity: .62; }
+.crewtrow:hover .rpt { opacity: 1; }
 
 
 /* what a crew took this week, on its own row of the board */
-.crewgain { color: #39d98a; font-variant-numeric: tabular-nums; }
+/* a mint of our own: #39d98a is the Records button sitting in the same dock */
+.crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; }
+
+
+/* the orange ring had no chip, the third time this legend has drifted from the map */
+.crewlegend .bl i { background: transparent; border: 2px solid #ff9f6b; }
+
+/* The scoreline was inside the cell the phone hides, so the one piece of news in the mode
+   vanished on the device most people use. The tile count goes instead. */
+@media (max-width: 560px) {
+  .crewboard table .val.sub { display: table-cell; font-size: 10.5px; text-align: right; }
+  .crewboard table .val.sub .crewarea { display: none; }
+}

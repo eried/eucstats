@@ -499,7 +499,15 @@ def _close_holes(kept: dict[str, set]) -> dict[str, set]:
             blocked = (everyone - comp) | claimed
             got = fill_enclosed(comp, blocked)
             if len(got) > len(comp):
-                continue                      # a ring cannot swallow more than it rode
+                # A ring cannot swallow more than it rode, but dropping the whole gain made
+                # the rule punish riding: a loop one block wider went from paying double to
+                # paying nothing, and crew.how.3 promises the opposite. Take as much as the
+                # ring is worth instead, from the middle outward, so the curve flattens at
+                # twice rather than falling off a cliff.
+                cx = sum(x for x, _ in got) / len(got)
+                cy = sum(y for _, y in got) / len(got)
+                got = set(sorted(got, key=lambda q: (q[0] - cx) ** 2 + (q[1] - cy) ** 2
+                                 )[:len(comp)])
             gained |= got
         claimed |= gained
         out[clan_id] = pts | gained
@@ -522,9 +530,11 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
       4 ringed                     held because the crew rode all the way around it
 
     Rivals under the tile's own floor, rivals whose claim here was withdrawn for failing to
-    seed, and crews with no 2x2 anywhere on the map, are not counted: a warning that fires on
-    somebody who structurally cannot take the tile is a warning people learn to ignore. The
-    last of those three was missing and was half of every warning in the world.
+    seed, and crews that are nowhere near a block of their own, are not counted: a warning
+    that fires on somebody who structurally cannot take the tile is one people learn to
+    ignore. `seedless` is the crews that draw nothing AND are more than one square from
+    drawing something; a crew with three corners of a block is one ride from all of it and
+    counts like anybody else.
     """
     if held_km <= 0:
         # Gained by enclosure: nobody rode it, so none of the questions below apply. This used
@@ -609,6 +619,23 @@ def _rivals_near(held: set, buckets: dict, clan_id: str, reach: int = REACH) -> 
     # the cells are coarse, so trim to the ones genuinely within reach
     return {q for q in out
             if any(max(abs(q[0] - hx), abs(q[1] - hy)) <= reach for (hx, hy) in held)}
+
+
+def _one_square_short(pts: set, seed: int = SEED) -> bool:
+    """Is this crew a single square away from a block of its own?
+
+    Cheap: for every square they lead, look at the blocks it sits in and count how many corners
+    they already have. One missing is one ride.
+    """
+    if not pts:
+        return False
+    for (x, y) in pts:
+        for dx in range(-(seed - 1), 1):
+            for dy in range(-(seed - 1), 1):
+                block = [(x + dx + a, y + dy + b) for a in range(seed) for b in range(seed)]
+                if sum(1 for b in block if b in pts) >= len(block) - 1:
+                    return True
+    return False
 
 
 def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
@@ -755,11 +782,25 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         if len(theirs) < 2:
             continue
         left = seeded(theirs - {(t["x"], t["y"])}, seed)
-        # more than the square itself goes: the rest of it was only standing on that block
-        if len(theirs) - len(left) > 1:
-            t["kills"] = True
+        # More than one dangling tile. At "> 1" this fired on four crews out of five to mean
+        # "they lose two squares out of a hundred and twenty", in the hottest colour in the
+        # card, which teaches a rider to ignore it before they ever meet a real one.
+        lost = len(theirs) - len(left)
+        t["kills"] = lost > 1 and lost >= max(3, len(theirs) // 4)
     # a square that takes a crew off the map outranks everything except being on the map
     # yourself, which is the same move from the other side
+    out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
+                            rank(t), t["need"], t["x"], t["y"]))
+    # One per victim. Four rows that are the same decision about the same crew are one row and
+    # three wasted lines, and the cheapest of them is the one to ride.
+    struck = set()
+    for t in out:
+        if not t.get("kills"):
+            continue
+        if t["held_by"] in struck:
+            t["kills"] = False
+        else:
+            struck.add(t["held_by"])
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
                             rank(t), t["need"], t["x"], t["y"]))
     # `grows` has done its job in the sort. It was true of ten rows in ten for almost every
@@ -784,6 +825,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     """Recompute every crew's territory and write both outputs. Returns a short report."""
     acc, recency = accumulate(db, window_days, zoom)
     prev, first_led = {}, {}
+    won_at = {}              # when the newest ride behind a tile actually happened
     for cell in db.query(ClanCell).all():      # one scan for both dicts, not two
         prev[cell.tile] = cell.clan_id
         first_led[(cell.tile, cell.clan_id)] = cell.first_led
@@ -795,10 +837,22 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         .group_by(ClanMember.clan_id).all())
 
     kept, won, withdrawn_all = award(acc, set(clans), prev, seed, last_seen=recency)
+    # recency holds minus-days-ago per (tile, crew); turn the winner's into a date
+    for (rtile, rcid), age in recency.items():
+        rw = won.get(rtile)
+        if rw and rw[0] == rcid:
+            won_at[rtile] = utcnow() - timedelta(days=max(0.0, -age))
 
-    # crews that draw nothing anywhere: they cannot take a square off anyone, so they must not
-    # set warnings off on one
-    seedless = set(clans) - set(kept)
+    # Crews that draw nothing anywhere AND are not one square from drawing something. The
+    # first half alone was too generous: a crew holding three corners of a block is one ride
+    # from existing, and everything it leads flips the moment it lands, so leaving it out of
+    # the bands meant the holder got no warning at all until it was over.
+    seedless = set()
+    for cid in set(clans) - set(kept):
+        leads = {(p[1], p[2]) for p in
+                 (T.parse(t) for t, w in won.items() if w[0] == cid) if p}
+        if not _one_square_short(leads, seed):
+            seedless.add(cid)
     patches_by_clan = {cid: regions(pts) for cid, pts in kept.items()}
 
     # --- where to ride next, worked out BEFORE the write transaction opens.
@@ -844,7 +898,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     db.query(ClanCell).delete()
     for c in clans.values():          # cleared first, so a crew that lost everything shows 0
         c.terr_km2 = c.terr_best_km2 = 0.0
-        c.terr_tiles = c.terr_regions = 0
+        c.terr_tiles = c.terr_regions = c.terr_best_tiles = 0
         c.targets_json = targets_json.get(c.clan_id)
     now = utcnow()
     order = sorted(kept.keys())
@@ -868,25 +922,35 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # Fresh ground rides along in the band rather than as a sixth integer per cell:
             # the payload is five ints a tile and a whole extra column to carry one bit would
             # be 20% more bytes on the one response every visitor downloads.
-            got = first_led.get((tile, clan_id))
+            # Dated from the ride that won the square, not from this rebuild. Stamping `now`
+            # meant a crew that recruited one rider's back catalogue showed "49 new this
+            # week", and the first rebuild against an empty table lit the entire map up.
+            got = first_led.get((tile, clan_id)) or won_at.get(tile)
             if got and (now - got).days < FRESH_DAYS:
                 band += 5
             cells_flat.extend((idx, x, y, band, need))
         comps = patches_by_clan[clan_id]          # worked out once, above
         best_km2 = 0.0
+        best_tiles = 0
         for comp in comps:
             ex, ey, es = emblem_slot(comp)
             regions_out.append({"c": idx, "e": [ex, ey, es], "n": len(comp)})
-            # the headline number: one solid block beats the same area in scattered pockets
+            # One solid block beats the same ground in scattered pockets, counted in squares.
+            # A square is the same amount of riding at every latitude and its area is not, so
+            # ranking on area hands a rider at the equator four times the credit.
+            if len(comp) > best_tiles:
+                best_tiles = len(comp)
             best_km2 = max(best_km2, sum(T.area_km2(f"{zoom}/{x}/{y}") for (x, y) in comp))
         c.terr_km2 = round(km2, 1)
         c.terr_best_km2 = round(best_km2, 1)
+        c.terr_best_tiles = best_tiles
         c.terr_tiles = len(pts)
         c.terr_regions = len(comps)
         payload_crews.append({
             "id": clan_id, "name": c.name, "slug": c.slug, "colour": c.colour,
             "pattern": c.pattern, "tiles": len(pts), "km2": round(km2, 1),
-            "best_km2": round(best_km2, 1), "regions": len(comps),
+            "best_km2": round(best_km2, 1), "best_tiles": best_tiles,
+            "regions": len(comps),
             "members": member_counts.get(clan_id, 0),
             "emblem": f"/api/v1/crews/{c.slug}/emblem",
         })
@@ -946,11 +1010,13 @@ def ranking(db, limit: int = 50) -> list[dict]:
     """
     rows = (db.query(Clan)
             .filter(Clan.disbanded_at.is_(None), Clan.terr_tiles > 0)
-            .order_by(Clan.terr_best_km2.desc(), Clan.terr_km2.desc())
+            # squares first, area only to break a tie: see the note in rebuild()
+            .order_by(Clan.terr_best_tiles.desc(), Clan.terr_best_km2.desc())
             .limit(limit).all())
     return [{"clan_id": c.clan_id, "name": c.name, "slug": c.slug, "colour": c.colour,
              "pattern": c.pattern, "tiles": c.terr_tiles or 0,
              "km2": c.terr_km2 or 0.0, "best_km2": c.terr_best_km2 or 0.0,
+             "best_tiles": c.terr_best_tiles or 0,
              "regions": c.terr_regions or 0,
              "emblem": f"/api/v1/crews/{c.slug}/emblem"}
             for c in rows]

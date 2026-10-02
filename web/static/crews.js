@@ -152,7 +152,7 @@
 
   var LAYERS = ["crew-fill", "crew-pattern", "crew-contested", "crew-edge",
                 "crew-edge-glow", "crew-target-case", "crew-target-line",
-                "crew-pulse-danger", "crew-pulse-fresh"];
+                "crew-pulse-danger", "crew-pulse-fresh", "crew-target-hit"];
 
   function cursorPointer() { map.getCanvas().style.cursor = "pointer"; }
   function cursorDefault() { map.getCanvas().style.cursor = ""; }
@@ -198,16 +198,25 @@
     pulseUp = false;
   }
 
+  // Your ground, when you have some. Applied here as well as at build time, because the layer
+  // is created before the request that says who you are has come back.
+  function scopePulse() {
+    if (!map || !map.getLayer("crew-pulse-danger")) return;
+    map.setFilter("crew-pulse-danger", (ME && ME.crew)
+      ? ["all", ["==", ["get", "kind"], "danger"], ["==", ["get", "slug"], ME.crew.slug]]
+      : ["==", ["get", "kind"], "danger"]);
+  }
+
   function clearLayers() {
     map.off("zoom", onZoom);
     map.off("click", "crew-fill", onCellClick);
     map.off("mouseenter", "crew-fill", cursorPointer);
     map.off("mouseleave", "crew-fill", cursorDefault);
     map.off("mousemove", "crew-fill", onCellHover);
-    map.off("mousemove", "crew-target-line", onTargetHover);
-    map.off("mouseleave", "crew-target-line", hideTip);
-    map.off("mouseenter", "crew-target-line", cursorPointer);
-    map.off("mouseleave", "crew-target-line", cursorDefault);
+    map.off("mousemove", "crew-target-hit", onTargetHover);
+    map.off("mouseleave", "crew-target-hit", hideTip);
+    map.off("mouseenter", "crew-target-hit", cursorPointer);
+    map.off("mouseleave", "crew-target-hit", cursorDefault);
     map.off("mouseleave", "crew-fill", hideTip);
     map.off("movestart", hideTip);
     hideTip();
@@ -362,6 +371,7 @@
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
+      scopePulse();
       startPulse(pulse.features.length);
       // The basemap picker calls setStyle, style.load fires, and this runs again from
       // scratch. Without this the gold rings were torn down and never came back, and a crew
@@ -381,10 +391,10 @@
     map.on("mousemove", "crew-fill", onCellHover);
     // The rings mostly sit on ground nobody holds, which has no crew-fill feature under it, so
     // hover and click were dead on exactly the squares the card points at.
-    map.on("mousemove", "crew-target-line", onTargetHover);
-    map.on("mouseleave", "crew-target-line", hideTip);
-    map.on("mouseenter", "crew-target-line", cursorPointer);
-    map.on("mouseleave", "crew-target-line", cursorDefault);
+    map.on("mousemove", "crew-target-hit", onTargetHover);
+    map.on("mouseleave", "crew-target-hit", hideTip);
+    map.on("mouseenter", "crew-target-hit", cursorPointer);
+    map.on("mouseleave", "crew-target-hit", cursorDefault);
     map.on("mouseleave", "crew-fill", hideTip);
     map.on("movestart", hideTip);              // dragging the map is not resting on a square
   }
@@ -463,7 +473,8 @@
       band === 4 ? t("crew.tile.ringedp")
         : band === 3 ? fadesIn(tenths)
         : band === 1 || band === 2 ? t("crew.tile.needw", { v: effort(km, y) })
-        : t("crew.tile.clear", { v: margin(km, y) })
+        // the words version is already a whole clause; only the figures need a sentence
+        : SHOW_NUMBERS ? t("crew.tile.clear", { v: fmtKm(km) }) : margin(km, y)
     ];
   }
 
@@ -521,18 +532,26 @@
     hideTip();
     hoverKey = key;
     var row = null;
-    TARGETS.forEach(function (x) { if (x.x === xy[0] && x.y === xy[1]) row = x; });
-    if (!row) return;
+    TARGETS.concat(LOSING).forEach(function (x) {
+      if (x.x === xy[0] && x.y === xy[1]) row = x;
+    });
+    if (!row) { hoverKey = ""; return; }
     var px = e.point;
     map.once("mousemove", function (ev) { px = ev.point; });
     hoverTimer = setTimeout(function () {
       if (hoverKey !== key) return;
       var el = document.createElement("div");
-      el.className = "crewtip bt";
-      el.innerHTML = "<b>" + esc(row.blocked ? t("crew.targets.blocked")
-                                             : effort(row.need, row.y)) + "</b>"
-        + "<span>" + esc(row.held_by
-            ? t("crew.targets.taken", { name: esc(row.held_name || "") })
+      var losing = row.band !== undefined;
+      el.className = "crewtip " + (losing ? "bl" : "bt");
+      el.innerHTML = "<b>" + esc(losing
+            ? (row.band === 3 ? fadesIn(Math.round(row.need * 10))
+               : t("crew.lose.gap", { v: effort(row.need, row.y) }))
+            : row.blocked ? t("crew.targets.blocked") : effort(row.need, row.y)) + "</b>"
+        + "<span>" + esc(losing
+            ? t(row.band === 3 ? "crew.lose.cold"
+                : row.band === 2 ? "crew.lose.now" : "crew.lose.soon")
+            : row.held_by
+            ? t("crew.targets.taken", { name: row.held_name || "" })
             : t("crew.tile.free")) + "</span>"
         + (row.kills ? "<span><em>" + esc(t("crew.targets.kills")) + "</em></span>" : "")
         + (row.first ? "<span><em>" + esc(t("crew.targets.first")) + "</em></span>" : "");
@@ -610,7 +629,8 @@
 
   function explainer() {
     return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
-      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.4", "crew.how.5", "crew.how.6"]
+      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.7", "crew.how.4", "crew.how.5",
+         "crew.how.6"]
         .map(function (k) { return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS }) + "</p>"; }).join("")
       // The five shades belong here rather than under the board. It is a key, and a key is
       // something you look up once, not a row of swatches on screen every time you visit.
@@ -644,13 +664,14 @@
       iconFn: function (e) { return '<img class="crewpodemb" alt="" src="' + e.emblem + '"/>'; },
       // the swatch is the crew's identity on the map, so it belongs beside every name
       label: function (e) { return swatch(e.colour, e.pattern, 14) + " " + esc(e.name); },
-      val: function (e) { return fmtKm2(e.best_km2); },
+      // squares, because that is what the board is sorted on and a square is the same amount
+      // of riding everywhere. The area sits underneath, where it informs without ranking.
+      val: function (e) { return tiles(e.best_tiles || e.tiles); },
       sub: function (e) {
         var gained = FRESH[e.slug] || 0;
-        return tiles(e.tiles)
-          + (e.regions > 1 ? " · " + t("crew.patches", { n: e.regions }) : "")
-          + (gained ? ' · <span class="crewgain">'
-             + t("crew.board.gained", { n: gained }) + "</span>" : "");
+        return '<span class="crewarea">' + fmtKm2(e.best_km2)
+          + (e.regions > 1 ? " · " + t("crew.patches", { n: e.regions }) : "") + "</span>"
+          + (gained ? ' <span class="crewgain">+' + gained + "</span>" : "");
       },
       click: true
     });
@@ -666,6 +687,7 @@
       + '<span class="b3"><i></i>' + t("crew.tile.fading") + "</span>"
       + '<span class="b4"><i></i>' + t("crew.tile.ringed") + "</span>"
       + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
+      + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
       + '<span class="bd"><i></i>' + t("crew.legend.danger") + "</span>"
       + '<span class="bf"><i></i>' + t("crew.legend.fresh") + "</span>"
       + "</div>";
@@ -676,7 +698,7 @@
       return '<tr class="sel" data-i="' + i + '"><td class=rk>' + (i + 1) + "</td>"
         + '<td><span class="celln">' + swatch(r.colour, r.pattern)
         + "<span>" + esc(r.name) + "</span></span></td>"
-        + "<td class=val>" + fmtKm2(r.best_km2) + "</td>"
+        + "<td class=val>" + tiles(r.best_tiles || r.tiles) + "</td>"
         + '<td class="val sub">' + tiles(r.tiles) + "</td></tr>";
     }).join("") + "</tbody></table>";
   }
@@ -786,7 +808,7 @@
     if (!TARGETS.length) {
       return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p></div>";
     }
-    var prevWho = null, prevKm = null;
+    var seenKm = {}, seenWho = {};
     var body = TARGETS.map(function (x, i) {
           var tag = x.first ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
             : x.kills ? '<span class="crewtag kills">' + t("crew.targets.kills") + "</span>"
@@ -799,16 +821,16 @@
           // Nothing goes in the number column on a square whose shortfall is zero: riding it
           // again does nothing, and a word there wore the styling meant for a distance.
           var km = x.blocked ? "" : effort(x.need, x.y);
-          var rk = km && km === prevKm ? " rpt" : "";
-          var rw = who === prevWho ? " rpt" : "";
-          prevKm = km; prevWho = who;
+          var rk = km && seenKm[km] ? " rpt" : "";
+          var rw = seenWho[who] ? " rpt" : "";
+          seenKm[km] = 1; seenWho[who] = 1;
           return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
             + '<span class="crewtkm' + rk + '">' + km + "</span>"
             + '<span class="crewtdir">' + bearing(x.dir) + "</span>"
             + '<span class="crewtwho' + rw + '">' + who + "</span>" + tag + "</div>";
         }).join("");
     return head + '<p class=hint>'
-      + t(nothing ? "crew.targets.none" : "crew.targets.p", { n: SEED }) + "</p>"
+      + t(nothing ? "crew.targets.p0" : "crew.targets.p", { n: SEED }) + "</p>"
       + body + "</div>";
   }
 
@@ -817,7 +839,7 @@
   function widest(rows) {
     var n = 7;
     (rows || []).forEach(function (x) {
-      var w = (x.blocked ? "" : x.lead || effort(x.need, x.y)).length;
+      var w = (x.blocked ? "" : effort(x.need, x.y)).length;
       if (w > n) n = w;
     });
     return Math.min(n + 1, 22);
@@ -868,7 +890,11 @@
     });
     return '<div style="--kmw:' + Math.min(cols + 1, 26) + 'ch" class="crewtargets crewlose'
       + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.lose.h") + "</h4>"
-      + '<p class=hint>' + t("crew.lose.p") + "</p>"
+      // eight crews in fourteen have nothing but fading ground, and telling them a rival is
+      // closing in on it is simply untrue
+      + '<p class=hint>'
+      + t(LOSING.every(function (x) { return x.band === 3; }) ? "crew.lose.p3" : "crew.lose.p")
+      + "</p>"
       + LOSING.map(function (x, i) {
           return '<div class="crewtrow sel" data-l="' + i + '">'
             // their gap, not your effort, and the third column carries urgency rather than
@@ -1518,6 +1544,9 @@
     ]).then(function (res) {
       var me = res[0].ok ? res[0].body : { paired: false };
       ME = me;
+      // The pulse layer is built before this resolves, so without re-applying the filter it
+      // always took the "every crew" branch and your own ground never stood out.
+      scopePulse();
       var rank = res[1].ok ? res[1].body.crews || [] : [];
       var all = res[2].ok ? res[2].body.crews || [] : [];
       // Standings first and always: the mode is a competition, and a visitor who is not in a
@@ -1645,6 +1674,11 @@
       id: "crew-target-case", type: "line", source: "crew-targets",
       paint: { "line-color": "rgba(0,0,0,.6)",
                "line-width": ["interpolate", ["linear"], ["zoom"], 8, 3.5, 14, 7] }
+    });
+    // an invisible fill, because the line it used to be bound to is three pixels wide
+    map.addLayer({
+      id: "crew-target-hit", type: "fill", source: "crew-targets",
+      paint: { "fill-color": "#000", "fill-opacity": 0.01 }
     });
     map.addLayer({
       id: "crew-target-line", type: "line", source: "crew-targets",

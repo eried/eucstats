@@ -280,7 +280,8 @@ class Clan(Base):
     # request: the ranking used to recompute the area of every held tile on every page view,
     # which is a full scan plus trigonometry per row for a number that changes once an hour.
     terr_km2 = Column(Float, default=0.0)        # everything held
-    terr_best_km2 = Column(Float, default=0.0)   # the largest single connected region
+    terr_best_km2 = Column(Float, default=0.0)
+    terr_best_tiles = Column(Integer, default=0)   # the ranked number: squares, not area   # the largest single connected region
     terr_tiles = Column(Integer, default=0)
     terr_regions = Column(Integer, default=0)
     targets_json = Column(Text)                  # ground this crew could take next

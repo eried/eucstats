@@ -271,7 +271,8 @@ def claim_leadership(db, store_id: str, clan_id: str) -> None:
     eligible = q.order_by(ClanMember.joined_at.asc()).first()
     if eligible is None or eligible.store_id != store_id:
         raise CrewError("not_eligible", "The longest-serving active member takes over.")
-    leader.role = "member"
+    if leader is not None:          # there may be nobody to stand down
+        leader.role = "member"
     eligible.role = "leader"
     db.commit()
 

@@ -250,7 +250,8 @@ def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
     # every listing. Deferred: it is loaded when something actually asks for the image.
     from sqlalchemy.orm import defer
     rows = (query.options(defer(Clan.logo_png))
-            .order_by(Clan.terr_best_km2.desc().nullslast()).limit(min(limit, 100)).all())
+            .order_by(Clan.terr_best_tiles.desc().nullslast(),
+                      Clan.terr_best_km2.desc().nullslast()).limit(min(limit, 100)).all())
     counts = _member_counts(db)
     return {"crews": [_crew_brief(db, c, counts) for c in rows]}
 
@@ -330,6 +331,7 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
                               "joined": m.joined_at.isoformat() + "Z" if m.joined_at else None})
     out["territory"] = {"km2": clan.terr_km2 or 0.0, "tiles": clan.terr_tiles or 0,
                         "best_km2": clan.terr_best_km2 or 0.0,
+                        "best_tiles": clan.terr_best_tiles or 0,
                         "regions": clan.terr_regions or 0}
     cfg = settings.get_crews(db)
     out["contributors"] = territory.contributors(db, clan.clan_id, cfg["window_days"])

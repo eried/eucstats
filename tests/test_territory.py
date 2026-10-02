@@ -453,3 +453,46 @@ def test_new_ground_rides_along_in_the_band_without_a_sixth_column():
         assert packed % 5 == band, "the band survives the fold"
         assert packed >= 5, "and the bit is readable"
     assert 4 % 5 == 4 and 9 % 5 == 4, "ringed ground, fresh and not, decode the same"
+
+
+def test_a_crew_with_nobody_in_charge_can_still_be_taken_over(db):
+    """A leader may walk out the moment an officer exists, which leaves no leader row at all.
+    The officer cannot disband (not the leader) and cannot be promoted (only a leader
+    promotes), so claim_leadership is the only way out. It used to raise "no leader to
+    replace", and once that was guarded at the top of the function it crashed on the write."""
+    from datetime import timedelta
+    from models import Clan, ClanMember, utcnow
+    from services import crews
+    db.add(Clan(clan_id="t-nolead", name="No One In Charge", slug="no-one-in-charge",
+                colour="#46f0f0", pattern="solid", join_policy="open", invite_code="X"))
+    from models import Rider
+    db.add(Rider(store_id="t-officer", display_name="Officer", flag="NO"))
+    db.commit()                       # the membership points at both of these
+    db.add(ClanMember(clan_id="t-nolead", store_id="t-officer", role="officer",
+                      status="active",
+                      joined_at=utcnow() - timedelta(days=crews.IDLE_LEADER_DAYS + 5),
+                      last_seen=utcnow()))
+    db.commit()
+    crews.claim_leadership(db, "t-officer", "t-nolead")
+    m = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == "t-nolead",
+                 ClanMember.store_id == "t-officer").first())
+    assert m.role == "leader", "the one person left has to be able to take it over"
+
+
+def test_a_bigger_loop_never_pays_less_than_a_smaller_one():
+    """The guard that stops a thin ring swallowing a city used to drop the whole gain, so a
+    loop one block wider went from paying double to paying nothing. A rule that punishes
+    riding further is the one kind this file is not allowed to have."""
+    from services.territory import _close_holes
+    last = 0.0
+    for n in (5, 6, 7, 8, 10, 14, 20):
+        ring = set()
+        for i in range(n):
+            ring |= {(i, 0), (i, n - 1), (0, i), (n - 1, i)}
+        ring |= {(1, 1), (2, 1), (1, 2), (2, 2)}        # a bulge so it seeds
+        held = _close_holes({"A": ring})["A"]
+        ratio = len(held) / len(ring)
+        assert ratio >= last - 1e-9, f"{n}x{n} pays {ratio:.2f}, down from {last:.2f}"
+        assert ratio <= 2.0 + 1e-9, f"{n}x{n} pays {ratio:.2f}, a ring must not swallow a city"
+        last = ratio
