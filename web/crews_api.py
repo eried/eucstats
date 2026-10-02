@@ -276,10 +276,11 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
         out["roster"].append({"name": r.display_name if r else "?",
                               "flag": r.flag if r else None, "role": m.role,
                               "joined": m.joined_at.isoformat() + "Z" if m.joined_at else None})
-    held = territory.ranking(db, limit=500)
-    mine = next((h for h in held if h["clan_id"] == clan.clan_id), None)
-    out["territory"] = {"km2": mine["km2"] if mine else 0.0,
-                        "tiles": mine["tiles"] if mine else 0}
+    out["territory"] = {"km2": clan.terr_km2 or 0.0, "tiles": clan.terr_tiles or 0,
+                        "best_km2": clan.terr_best_km2 or 0.0,
+                        "regions": clan.terr_regions or 0}
+    cfg = settings.get_crews(db)
+    out["contributors"] = territory.contributors(db, clan.clan_id, cfg["window_days"])
     return out
 
 
@@ -543,7 +544,7 @@ def territory_at(lat: float, lon: float, db: Session = Depends(get_db)):
 
 _PAIR_PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Pair with EUC Planet</title><style>
+<title>Crew Pass</title><style>
 :root{color-scheme:dark}
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
  background:#070b16;color:#dce6f7;font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -553,15 +554,14 @@ a.btn{display:block;margin:20px 0 8px;padding:13px;background:#2ea8ff;color:#061
  font-weight:700;text-decoration:none}
 p{color:#8c99bb;font-size:13.5px}b{color:#dce6f7}
 </style></head><body><div class=w>
-<h1 style="font-size:19px;margin:0">Pair this browser</h1>
-<p>Approve it in <b>EUC Planet</b> to use Crews.</p>
+<h1 style="font-size:19px;margin:0">Crew Pass</h1>
+<p>Say yes in <b>EUC Planet</b> and that browser can fly your colours.</p>
 <div class=code>__CODE__</div>
 <a class=btn href="eucplanet://pair?code=__CODE__&amp;host=__HOST__">Open EUC Planet</a>
-<p>If the app did not open, start it yourself, go to <b>Crews &rarr; Scan</b>, and enter the
-code above.</p>
-<p style="margin-top:22px;font-size:12px">Only approve a code you asked for. Approving one
-signs that browser in as you &mdash; for crews only. It can never upload a ride, rename you or
-delete anything.</p>
+<p>App did not open? Start it yourself, go to <b>Crews</b>, and punch in the code above.</p>
+<p style="margin-top:22px;font-size:12px">Only say yes to a code you asked for. A pass lets a
+browser act for you in crews &mdash; start one, join one, leave one. It can't send up rides,
+rename you, or delete anything.</p>
 </div></body></html>"""
 
 

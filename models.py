@@ -1,9 +1,11 @@
 """SQLAlchemy models for eucstats (see spec §5)."""
 from datetime import datetime, timezone
 
+import secrets
+
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
-    LargeBinary, String, Text,
+    LargeBinary, String, Text, event,
 )
 
 from database import Base
@@ -37,8 +39,28 @@ class Rider(Base):
     last_flag_change = Column(DateTime)
     last_avatar_change = Column(DateTime)
     consent_public = Column(Boolean, default=True)
+    # The id the public API uses. The store_id must NOT appear in public payloads: it is what
+    # the app authenticates uploads with, and it was being published in every leaderboard row
+    # — which made it a stable cross-site identifier for every rider AND meant anyone could
+    # read one off the site and use it. Avatars and row keys only ever needed an opaque
+    # handle, so they get one.
+    public_id = Column(String, unique=True, index=True)
     created_at = Column(DateTime, default=utcnow)
     deleted_at = Column(DateTime)
+
+
+
+@event.listens_for(Rider, "before_insert")
+def _give_rider_a_public_id(mapper, connection, target):
+    """Every rider gets an opaque public handle at creation, without exception.
+
+    A listener rather than a default on the column, and rather than trusting each call site to
+    remember: the public API publishes this in place of the store_id, so a rider who somehow
+    arrives without one would either vanish from the leaderboards or tempt someone into
+    falling back to the store_id — which is the leak this exists to close.
+    """
+    if not target.public_id:
+        target.public_id = secrets.token_hex(8)
 
 
 class Wheel(Base):
@@ -254,6 +276,13 @@ class Clan(Base):
     created_at = Column(DateTime, default=utcnow)
     created_by = Column(String, ForeignKey("riders.store_id"))
     disbanded_at = Column(DateTime)    # set rather than deleted: trips still point here
+    # Territory standings, written by the nightly rebuild. Kept here rather than derived per
+    # request: the ranking used to recompute the area of every held tile on every page view,
+    # which is a full scan plus trigonometry per row for a number that changes once an hour.
+    terr_km2 = Column(Float, default=0.0)        # everything held
+    terr_best_km2 = Column(Float, default=0.0)   # the largest single connected region
+    terr_tiles = Column(Integer, default=0)
+    terr_regions = Column(Integer, default=0)
 
 
 class ClanMember(Base):

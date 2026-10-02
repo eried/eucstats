@@ -69,9 +69,11 @@ def brief(db, base: dict, country: str | None, speed_kmh: float | None,
     """
     if not is_incognito(db, country, speed_kmh):
         return base
-    tok = token(db, base.get("store_id") or "")
+    # the token is derived from the public handle now; the store_id no longer appears in any
+    # public payload, so there is nothing else here to derive it from
+    tok = token(db, base.get("id") or "")
     marks = {"anon": True, "mark": tok[:16], "alias": alias(tok)}
     if reveal:
         return {**base, **marks}
-    return {"store_id": None, "name": alias(tok), "flag": None, "has_avatar": False,
+    return {"id": None, "name": alias(tok), "flag": None, "has_avatar": False,
             "lat": None, "lon": None, **marks}

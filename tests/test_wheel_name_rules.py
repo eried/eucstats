@@ -75,7 +75,11 @@ def _login(client):
     if config.ADMIN_STATE_FILE.exists():
         config.ADMIN_STATE_FILE.unlink()
     client.get("/admin")
-    secret = _json.loads(config.ADMIN_STATE_FILE.read_text())["totp_secret"]
+    state = _json.loads(config.ADMIN_STATE_FILE.read_text())
+    # single factor on purpose: the two-factor rule has its own test
+    state["admin_require_pairing"] = False
+    config.ADMIN_STATE_FILE.write_text(_json.dumps(state))
+    secret = state["totp_secret"]
     client.post("/admin/verify-totp", data={"code": pyotp.TOTP(secret).now()})
 
 

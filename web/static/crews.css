@@ -123,3 +123,73 @@
 .crewpop-in img { width: 34px; height: 34px; }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
 .crewpop-in span { font-size: 11px; color: var(--mut, #7a86ad); }
+
+/* --- Crew Pass --- */
+
+/* The "open the app" button is only useful on the device the app is installed on, and that is
+   also the one case where scanning is impossible — you cannot point a phone's camera at its
+   own screen. So it shows on touch devices and hides on a desktop, where the QR is the whole
+   point. `hover:none` + `pointer:coarse` is the honest test for that: it asks what the input
+   device can do rather than guessing from the user agent string. */
+.crewopen, .crewsame { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .crewopen { display: block; text-align: center; text-decoration: none; }
+  .crewsame { display: block; }
+  /* on a phone the code block is the same link, so a stray tap still does the right thing */
+  .crewqr img { opacity: .55; }
+}
+a.crewqr { display: flex; text-decoration: none; }
+
+/* --- standings, contributors, folded personal crew --- */
+
+.crewboard { padding-bottom: 8px; }
+/* the emblem sits in the site's own podium slot, so crews read like every other board */
+.crewpodemb { width: 100%; height: 100%; object-fit: contain; }
+.crewboard .podic { width: 46px; height: 46px; }
+
+/* Your own crew is folded away once you have one: you know what crew you are in, and the
+   board is what you came to look at. It springs open while a join is still pending, which is
+   the one state that needs attention. */
+.crewmine-wrap { border: 1px solid var(--line, #243055); margin: 0 0 11px; }
+.crewmine-wrap > summary {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer;
+  font-size: 13px;
+}
+.crewmine-wrap > summary::-webkit-details-marker { display: none; }
+.crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
+.crewsumemb { width: 26px; height: 26px; flex: 0 0 26px; }
+.crewsumrole { font-size: 11px; color: var(--mut, #7a86ad); text-transform: uppercase; letter-spacing: .5px; }
+.crewmine-wrap .crewcard { border: 0; border-left: 2px solid var(--sec, #2ea8ff); margin: 0; }
+
+.crewcontrib { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
+.crewcrow { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12.5px; }
+.crewcrow .av { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%; }
+.crewcname { flex: 0 0 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* a bar rather than a second number: the shape of who carries the crew reads at a glance */
+.crewcbar { flex: 1; height: 5px; background: rgba(255,255,255,.07); min-width: 24px; }
+.crewcbar i { display: block; height: 100%; background: var(--sec, #2ea8ff); }
+.crewckm { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--mut, #7a86ad); }
+.crewrole { margin-left: 5px; font-size: 11px; }
+.crewrole.lead { color: #ffd24a; }
+.crewrole.off { color: #39d98a; }
+.crewrole.past { color: var(--mut, #7a86ad); }
+
+/* --- phone --- */
+@media (max-width: 560px) {
+  .crewcard { padding: 12px 12px; }
+  .crewhead { gap: 9px; }
+  .crewlogo { width: 42px; height: 42px; flex: 0 0 42px; }
+  .crewbig { font-size: 22px; }
+  .crewqr img { width: 150px; height: 150px; }
+  .crewcode { font-size: 21px; letter-spacing: 5px; }
+  .crewident { flex-wrap: wrap; }
+  /* The tile count is the first thing to go when there is no room. It has to be said twice:
+     the standings use the site's own podium, which builds its own table rather than the
+     .crewrank one, and without this both numbers wrap onto two lines each. */
+  .crewrank .val.sub,
+  .crewboard table .val.sub { display: none; }
+  .crewboard table .val { white-space: nowrap; }
+  .crewboard .pname { font-size: 12px; }
+  .crewcname { max-width: 34%; }
+  .crewacts .crewbtn { flex: 1 1 auto; }
+}

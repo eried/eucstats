@@ -24,13 +24,13 @@ def test_frequent_marathon_pace(db):
     _trip(db, "b", "b1", duration_s=1200, avg_speed=35, distance_km=10)   # fastest avg
 
     freq = stats.frequent_flyer(db)
-    assert freq[0]["store_id"] == "a" and freq[0]["trips_total"] == 2
+    assert freq[0]["id"] == "a" and freq[0]["trips_total"] == 2
 
     mar = stats.marathoner(db)
-    assert mar[0]["store_id"] == "a" and mar[0]["ride_hours"] == 2.0
+    assert mar[0]["id"] == "a" and mar[0]["ride_hours"] == 2.0
 
     pace = stats.pace_maker(db)
-    assert pace[0]["store_id"] == "b" and pace[0]["avg_speed"] == 35.0
+    assert pace[0]["id"] == "b" and pace[0]["avg_speed"] == 35.0
 
 
 def test_battery_weekend_night(db):

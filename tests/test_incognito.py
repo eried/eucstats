@@ -20,7 +20,7 @@ def test_over_the_limit_sends_no_identity(db):
     _rider(db, "dk1", "Kestrel", "DK", 41.0)          # DK limit is 20
     row = [r for r in stats.speed_leaderboard(db) if r["best_speed"] == 41.0][0]
     assert row["anon"] is True
-    assert row["store_id"] is None
+    assert row["id"] is None
     assert row["name"] != "Kestrel"
     assert row["flag"] is None                        # the flag names one person on a small board
     assert row["lat"] is None and row["lon"] is None  # a start point is a street address

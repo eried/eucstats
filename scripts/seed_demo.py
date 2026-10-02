@@ -129,7 +129,8 @@ def main() -> int:
             print(f"  {name:<26} {clan.colour} {clan.pattern:<8} "
                   f"{len(group)} riders, {n} rides")
 
-    rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"])
+    rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
+                           seed=cfg["seed"])
     print(f"\n{made} crews · territory: {rep}")
     print("\ntop crews by ground held:")
     for r in territory.ranking(db, limit=12):

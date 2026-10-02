@@ -77,10 +77,19 @@ def start_pairing(db) -> dict:
 
 
 def check_pairing(db, token: str) -> dict:
-    """Poll an admin pairing. Returns {"status": "paired"} only for the bound rider."""
+    """Poll an admin pairing. Returns {"status": "paired"} only for the bound rider.
+
+    The scope check is the whole point and it was missing: `poll()` returns status "paired"
+    for a RIDER pairing too, so without this an attacker who had the TOTP code could satisfy
+    the "second factor" with two public API calls and no phone at all — which made the second
+    factor not a factor. The purpose is pinned at both ends: the token must have been minted
+    with purpose="admin" (see start_pairing), and the poll must report admin scope.
+    """
     res = pairing.poll(db, token)
     if res.get("status") != "paired":
         return res
+    if res.get("scope") != "admin":
+        return {"status": "denied", "reason": "not_an_admin_pairing"}
     sid = res.get("store_id")
     if not sid or not claim_or_check(sid):
         return {"status": "denied", "reason": "not_admin"}

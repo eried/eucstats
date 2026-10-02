@@ -23,9 +23,9 @@ def test_weekly_champion(db):
     agg.apply(t("w_t3", "w2", 8.0, 1))
 
     out = generate_weekly(db, ref=date(2026, 6, 1))
-    assert out["champion"]["store_id"] == "w1"
+    assert out["champion"]["id"] == "w1"
     assert out["champion"]["km"] == 15.0
-    assert out["top"][1]["store_id"] == "w2"
+    assert out["top"][1]["id"] == "w2"
 
     key = iso_week_key(date(2026, 6, 1))
     assert db.get(models.LeaderboardSnapshot, ("week", key, "distance")) is not None

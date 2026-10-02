@@ -23,13 +23,13 @@ def test_early_peak_energy(db):
     _trip(db, "b", "b1", start_utc=datetime(2026, 6, 4, 15, 0), ascent_m=50, wh_per_km=10, distance_km=5)
 
     eb = stats.early_bird(db)
-    assert eb[0]["store_id"] == "a" and eb[0]["morning_rides"] == 2
+    assert eb[0]["id"] == "a" and eb[0]["morning_rides"] == 2
 
     pk = stats.peak_bagger(db)
-    assert pk[0]["store_id"] == "a" and pk[0]["peak_ascent"] == 300
+    assert pk[0]["id"] == "a" and pk[0]["peak_ascent"] == 300
 
     en = stats.power_plant(db)
-    assert en[0]["store_id"] == "a" and en[0]["energy_kwh"] == 0.4   # (200+200) Wh
+    assert en[0]["id"] == "a" and en[0]["energy_kwh"] == 0.4   # (200+200) Wh
 
 
 def test_explorer_bigday_commuter(db):

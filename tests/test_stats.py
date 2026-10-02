@@ -29,7 +29,7 @@ def _seed(db):
 def test_mileage_leaderboard_order(db):
     _seed(db)
     lb = stats.mileage_leaderboard(db)
-    assert [e["store_id"] for e in lb][:2] == ["s1", "s2"]
+    assert [e["id"] for e in lb][:2] == ["s1", "s2"]
     assert lb[0]["total_km"] == 30.0
 
 
@@ -38,7 +38,7 @@ def test_speed_and_records(db):
     assert stats.speed_leaderboard(db)[0]["best_speed"] == 45.0
     recs = {r["key"]: r for r in stats.records(db)}
     assert recs["top_speed"]["value"] == 45.0
-    assert recs["mileage_king"]["rider"]["store_id"] == "s1"
+    assert recs["mileage_king"]["rider"]["id"] == "s1"
 
 
 def test_countries_and_summary(db):
@@ -53,7 +53,7 @@ def test_leaderboard_endpoints(db):
     _seed(db)
     with TestClient(app) as client:
         r = client.get("/api/v1/leaderboards/mileage")
-        assert r.status_code == 200 and r.json()["entries"][0]["store_id"] == "s1"
+        assert r.status_code == 200 and r.json()["entries"][0]["id"] == "s1"
         assert client.get("/api/v1/leaderboards/nope").status_code == 404
         assert client.get("/api/v1/stats/summary").json()["trips"] == 3
         assert client.get("/api/v1/map/cells?zoom=0.1").status_code == 200

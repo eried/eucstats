@@ -190,7 +190,8 @@ def scenario_territory(base: str, tag: str, leader: Rider) -> None:
     # ground in both directions — which is what these loops do
     for i, km in enumerate((26.0, 30.0, 22.0, 28.0)):
         leader.ride(km=km, days_ago=5 + i, cruise=30.0)
-    rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"])
+    rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
+                            seed=cfg["seed"])
     check("the rebuild produces territory", rep["held"] > 0, str(rep))
     check("every held tile is in a region", rep["regions"] > 0)
 

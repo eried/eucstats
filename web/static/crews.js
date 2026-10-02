@@ -294,30 +294,82 @@
     'map — and leaving one does not take its ground away from the people still riding for ' +
     'it.</p></details>';
 
+  // The standings use the site's own podium component, handed in by the page, so crews look
+  // like every other board rather than like a bolted-on mode. The headline number is the
+  // biggest unbroken stretch a crew holds: the same area scattered across a country is a
+  // weaker thing to own than one solid block, and this is the metric the mode is about.
   function rankingHTML(rows) {
     if (!rows || !rows.length) {
       return '<div class="empty">No crew holds any ground yet.</div>';
     }
+    if (!H.podList) return plainRank(rows);
+    return H.podList(rows, {
+      iconFn: function (e) { return '<img class="crewpodemb" alt="" src="' + e.emblem + '"/>'; },
+      label: function (e) { return esc(e.name); },
+      val: function (e) { return fmtKm2(e.best_km2); },
+      sub: function (e) {
+        return e.tiles + (e.tiles === 1 ? " tile" : " tiles")
+          + (e.regions > 1 ? " · " + e.regions + " patches" : "");
+      },
+      click: true
+    });
+  }
+
+  function plainRank(rows) {
     return '<table class="crewrank"><tbody>' + rows.map(function (r, i) {
-      return '<tr class="sel" data-slug="' + esc(r.slug) + '"><td class=rk>' + (i + 1) + "</td>"
+      return '<tr class="sel" data-i="' + i + '"><td class=rk>' + (i + 1) + "</td>"
         + '<td><span class="celln">' + swatch(r.colour, r.pattern)
         + "<span>" + esc(r.name) + "</span></span></td>"
-        + "<td class=val>" + r.km2 + " km²</td>"
+        + "<td class=val>" + fmtKm2(r.best_km2) + "</td>"
         + '<td class="val sub">' + r.tiles + " tiles</td></tr>";
     }).join("") + "</tbody></table>";
+  }
+
+  function fmtKm2(v) {
+    return (v == null ? 0 : Math.round(v)).toLocaleString() + " km²";
+  }
+
+  var ROLEIC = {
+    leader: '<span class="crewrole lead" title="Leader">★</span>',
+    officer: '<span class="crewrole off" title="Officer">◆</span>',
+    member: "",
+    past: '<span class="crewrole past" title="No longer in the crew">·</span>'
+  };
+
+  // Who actually rode for the crew, over the same window the territory is measured on — so
+  // the list explains the shape on the map rather than ranking loyalty.
+  function contributorsHTML(rows) {
+    if (!rows || !rows.length) return "";
+    var top = rows[0].km || 1;
+    return '<div class="crewcontrib"><h4>Who rode for it</h4>' + rows.map(function (c) {
+      var pct = Math.max(3, Math.round((c.km / top) * 100));
+      return '<div class="crewcrow">'
+        + (H.av ? H.av(c.id, c.has_avatar, c) : "")
+        + (H.cc && c.flag ? H.cc(c.flag) : "")
+        + '<span class="crewcname">' + esc(c.name) + (ROLEIC[c.role] || "") + "</span>"
+        + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
+        + '<span class="crewckm">' + Math.round(c.km) + " km</span></div>";
+    }).join("") + "</div>";
   }
 
   /* ---------- sign-in ---------- */
 
   function signInHTML() {
+    // Same phone as the browser? Then there is nothing to point a camera at — you cannot scan
+    // your own screen. The deep link opens the app directly and it comes straight back, so
+    // the one awkward case in the whole flow is a tap. The QR itself is the same link, so on
+    // a phone the image is tappable too.
     return '<div class="crewcard crewsign">'
-      + "<h3>Sign in with your phone</h3>"
-      + "<p class=hint>Crews has no password. Open <b>EUC Planet</b> on your phone, "
-      + "tap <b>Scan</b>, and point it at this code — the app tells us who you are. "
-      + "Nothing is typed, and your rider id never leaves the phone.</p>"
-      + '<div class="crewqr" id="crewqr"><div class="spin"></div></div>'
+      + "<h3>Get your Crew Pass</h3>"
+      + "<p class=hint>No password, no account. Your <b>EUC Planet</b> app vouches for you "
+      + "once, and this browser can fly your colours from then on.</p>"
+      + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
-      + '<p class=hint id="crewcodehint">The code expires in three minutes.</p>'
+      + '<p class=hint id="crewcodehint">Scan it with the app. '
+      + "Good for three minutes.</p>"
+      + '<a class="crewbtn crewopen" id="crewopen" href="#">Open EUC Planet</a>'
+      + '<p class="hint crewsame">On this phone right now? Tap that instead — '
+      + "you can't scan your own screen.</p>"
       + "</div>";
   }
 
@@ -328,8 +380,17 @@
       pairToken = r.body.token;
       var qr = document.getElementById("crewqr");
       var code = document.getElementById("crewcode");
-      if (qr) qr.innerHTML = '<img alt="Pairing QR code" src="data:image/png;base64,'
-        + r.body.qr + '"/>';
+      var open = document.getElementById("crewopen");
+      // the app-scheme form of the same link, so a tap on this device hands the code to the
+      // app without a round trip through the web page
+      var deep = "eucplanet://pair?code=" + encodeURIComponent(r.body.code)
+        + "&host=" + encodeURIComponent(location.origin);
+      if (qr) {
+        qr.innerHTML = '<img alt="Crew Pass code" src="data:image/png;base64,'
+          + r.body.qr + '"/>';
+        qr.href = deep;
+      }
+      if (open) open.href = deep;
       if (code) code.textContent = r.body.code;
       var left = r.body.expires_in;
       pairTimer = setInterval(function () {
@@ -457,7 +518,7 @@
     }
     h += '<div class="crewacts">'
       + '<button class="crewbtn ghost" id="cm-leave">Leave crew</button>'
-      + '<button class="crewbtn ghost" id="cm-signout">Sign out of this browser</button>'
+      + '<button class="crewbtn ghost" id="cm-signout">Hand back the pass</button>'
       + "</div></div>";
     return h;
   }
@@ -525,19 +586,23 @@
       var el = document.getElementById("crewterr");
       if (!el || !r.ok) return;
       var t = r.body.territory || {};
-      el.innerHTML = '<div class="crewbig">' + (t.km2 || 0) + ' <span>km² held</span></div>'
+      el.innerHTML = '<div class="crewbig">' + fmtKm2(t.best_km2)
+        + ' <span>biggest patch</span></div>'
         + '<div class="crewsub">' + (t.tiles || 0) + " tiles"
-        + (t.tiles ? "" : " — ride a 2×2 block to plant your first claim") + "</div>";
+        + (t.regions > 1 ? " across " + t.regions + " patches" : "")
+        + (t.km2 && t.km2 !== t.best_km2 ? " · " + fmtKm2(t.km2) + " in all" : "")
+        + (t.tiles ? "" : " — ride a 2×2 block to plant your first claim") + "</div>"
+        + contributorsHTML(r.body.contributors);
     });
   }
 
   function joinHTML(crews, me) {
     if (me.cooldown_until) {
       return '<div class="crewcard"><h3>Joining a crew</h3>'
-        + '<div class="crewmsg">You left a crew recently. You can join another after '
+        + '<div class="crewmsg">You just walked out of a crew. You can pick a new one after '
         + esc(new Date(me.cooldown_until).toLocaleString()) + "."
-        + "</div><p class=hint>The wait stops crew-hopping to chase territory. It is short "
-        + "enough not to sting and long enough not to be worth it.</p></div>";
+        + "</div><p class=hint>Keeps people from hopping crews every week to farm ground. "
+        + "Short enough not to sting, long enough not to be worth it.</p></div>";
     }
     if (!crews.length) return "";
     return '<div class="crewcard"><h3>Join a crew</h3><div class="crewlist">'
@@ -603,20 +668,27 @@
       ME = me;
       var rank = res[1].ok ? res[1].body.crews || [] : [];
       var all = res[2].ok ? res[2].body.crews || [] : [];
-      var h = "";
+      // Standings first and always: the mode is a competition, and a visitor who is not in a
+      // crew should land on the board rather than on a sign-in form. The rider's own crew
+      // sits under it, folded away once they have one — they already know what it is.
+      var h = '<div class="crewcard crewboard"><h3>Biggest unbroken ground</h3>'
+        + rankingHTML(rank) + "</div>";
       if (!me.paired) {
-        h = signInHTML();
+        h += signInHTML();
       } else if (me.crew) {
-        h = myCrewHTML(me);
+        h += '<details class="crewmine-wrap" ' + (me.status === "pending" ? "open" : "")
+          + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
+          + "<span>" + esc(me.crew.name) + "</span>"
+          + '<span class="crewsumrole">' + esc(me.role) + "</span></summary>"
+          + myCrewHTML(me) + "</details>";
       } else if (!me.can_found) {
-        h = '<div class="crewcard"><h3>Ride once first</h3><p class=hint>Crews are for '
-          + "riders. Upload one validated ride from the app and you can found or join "
+        h += '<div class="crewcard"><h3>Get a ride in first</h3><p class=hint>Crews are for '
+          + "riders. Send up one good ride from the app and you can start a crew or join "
           + "one.</p></div>" + joinHTML(all, me);
       } else {
-        h = (me.creation_open ? createHTML(window.__CREWIDENT__ || { colour: "#4363d8", pattern: "solid" }) : "")
+        h += (me.creation_open ? createHTML(window.__CREWIDENT__ || { colour: "#4363d8", pattern: "solid" }) : "")
           + joinHTML(all, me);
       }
-      h += '<div class="crewcard"><h3>Most ground held</h3>' + rankingHTML(rank) + "</div>";
       h += EXPLAINER;
       panel.innerHTML = h;
 
@@ -624,8 +696,11 @@
       else stopPairing();
       if (me.crew) bindMine(me);
       else { bindCreate(); bindJoin(); }
-      panel.querySelectorAll("[data-slug]").forEach(function (tr) {
-        tr.onclick = function () { flyToCrew(tr.dataset.slug); };
+      panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
+        el.onclick = function () {
+          var r = rank[+el.dataset.i];
+          if (r) flyToCrew(r.slug);
+        };
       });
     });
     if (!window.__CREWIDENT__) {

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import math
 from datetime import timedelta
 from pathlib import Path
 
@@ -48,6 +49,7 @@ from services import tiles as T
 WINDOW_DAYS = 90           # the rolling window: territory is what you ride, not what you rode
 SEED = 2                   # a crew must hold a SEED x SEED block to claim anything
 MIN_TILE_KM = 0.3          # below this a tile is a passing GPS wobble, not a visit
+MIN_LEAD_KM = 1.0          # and below THIS a lead does not take the tile at all
 
 
 def _out_path(zoom: int) -> Path:
@@ -68,13 +70,40 @@ def _trip_points(db, trip_uuid: str):
         return []
 
 
+def _per_tile_km(points, zoom: int) -> dict[str, float]:
+    """How far the ride actually went inside each tile.
+
+    Each segment between two fixes is credited to the tile its midpoint falls in. Segments are
+    tens of metres and tiles are kilometres across, so the error is one segment at each
+    boundary — far below the noise in GPS distance itself.
+
+    This replaces splitting the trip's distance evenly across every tile it touched, which had
+    the property that the more ground a ride covered the less each tile was worth. A long ride
+    joining two areas — the whole point of a road trip under a "biggest unbroken region" rule
+    — scored a few hundred metres per tile and claimed none of them, while a short loop around
+    one block scored kilometres. It rewarded exactly the wrong riding.
+    """
+    out: dict[str, float] = {}
+    for (la1, lo1), (la2, lo2) in zip(points, points[1:]):
+        mlat = (la1 + la2) / 2.0
+        dx = (lo2 - lo1) * 111.32 * math.cos(math.radians(mlat))
+        dy = (la2 - la1) * 111.32
+        d = math.hypot(dx, dy)
+        if d <= 0 or d > 50:            # a 50 km step between fixes is a teleport, not a ride
+            continue
+        tile = T.tile_of(mlat, (lo1 + lo2) / 2.0, zoom)
+        if tile:
+            out[tile] = out.get(tile, 0.0) + d
+    return out
+
+
 def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> dict:
     """{tile: {clan_id: [km, {riders}]}} over the window.
 
-    A trip's distance is split evenly across the tiles it crossed. Weighting by the share
-    actually ridden in each tile would be more precise and is not worth a second pass over
-    every point: a tile is 2-5 km across, so a ride crosses few enough of them that even
-    splitting is within the noise of GPS distance itself.
+    Per-tile distance comes from the track, then the whole trip is scaled so its tiles sum to
+    the odometer distance the ingest pipeline validated. That keeps the authority with the
+    number that was checked against the GPS trace, while the *shape* comes from where the ride
+    actually went.
     """
     since = utcnow() - timedelta(days=window_days)
     rows = (db.query(Trip.trip_uuid, Trip.clan_id, Trip.rider_store_id, Trip.distance_km,
@@ -87,40 +116,48 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
     acc: dict[str, dict[str, list]] = {}
     for trip_uuid, clan_id, store_id, km, slat, slon in rows:
         pts = _trip_points(db, trip_uuid)
-        if pts:
-            crossed = T.tiles_along(pts, zoom)
-        else:                                   # no stored track: the start tile alone
+        per_tile = _per_tile_km(pts, zoom) if len(pts) > 1 else {}
+        if not per_tile:                         # no usable track: the start tile alone
             t = T.tile_of(slat, slon, zoom)
-            crossed = [t] if t else []
-        crossed = list(dict.fromkeys(crossed))  # unique, order kept
-        if not crossed:
+            if not t:
+                continue
+            per_tile = {t: km or 0.0}
+        total = sum(per_tile.values())
+        if total <= 0:
             continue
-        share = (km or 0.0) / len(crossed)
-        if share < MIN_TILE_KM and len(crossed) > 1:
-            # a long ride through many tiles still counts; a 200 m hop that clipped the corner
-            # of eight tiles does not get to claim all eight
-            keep = max(1, int((km or 0.0) / MIN_TILE_KM))
-            crossed = crossed[:keep]
-            share = (km or 0.0) / len(crossed)
-        for tile in crossed:
-            per = acc.setdefault(tile, {})
-            e = per.setdefault(clan_id, [0.0, set()])
+        scale = (km or 0.0) / total              # trust the validated odometer for the total
+        for tile, d in per_tile.items():
+            share = d * scale
+            if share <= 0:
+                continue
+            e = acc.setdefault(tile, {}).setdefault(clan_id, [0.0, set()])
             e[0] += share
             e[1].add(store_id)
     return acc
 
 
-def winners(acc: dict, previous: dict | None = None) -> dict[str, tuple[str, float, int]]:
+def winners(acc: dict, previous: dict | None = None,
+            skip: set | None = None) -> dict[str, tuple[str, float, int]]:
     """{tile: (clan_id, km, riders)} — most kilometres takes the tile.
+
+    A lead under MIN_LEAD_KM takes nothing. Without that floor the cheapest way to hold ground
+    was a fabricated 0.3 km "ride", which bought roughly thirty times more area per kilometre
+    than actually riding — and the floor is what the spec said all along.
 
     Ties go to whoever held it first, which is the only answer that does not hand a tile back
     and forth every rebuild. `previous` is the last round's holders, from `ClanCell`.
+
+    `skip` is a set of (tile, clan_id) claims that have already been ruled out this rebuild —
+    see the re-award loop in rebuild().
     """
     prev = previous or {}
+    blocked = skip or set()
     out = {}
     for tile, per in acc.items():
         best = None
         for clan_id, (km, riders) in per.items():
+            if km < MIN_LEAD_KM or (tile, clan_id) in blocked:
+                continue
             incumbent = prev.get(tile) == clan_id
             key = (km, 1 if incumbent else 0)
             if best is None or key > best[0]:
@@ -137,7 +174,7 @@ def _xy(tile: str) -> tuple[int, int]:
     return (p[1], p[2])
 
 
-def seeded(held: set[tuple[int, int]]) -> set[tuple[int, int]]:
+def seeded(held: set[tuple[int, int]], seed: int = SEED) -> set[tuple[int, int]]:
     """The subset of a crew's tiles that is connected to at least one full SEED x SEED block.
 
     Everything else is dropped. This is the rule that turns a scattering of won tiles into
@@ -147,7 +184,7 @@ def seeded(held: set[tuple[int, int]]) -> set[tuple[int, int]]:
         return set()
     seeds = set()
     for (x, y) in held:
-        block = [(x + dx, y + dy) for dx in range(SEED) for dy in range(SEED)]
+        block = [(x + dx, y + dy) for dx in range(seed) for dy in range(seed)]
         if all(b in held for b in block):
             seeds.update(block)
     if not seeds:
@@ -217,16 +254,69 @@ def emblem_slot(comp: set[tuple[int, int]]) -> tuple[int, int, int]:
 
 # --- the rebuild --------------------------------------------------------------------------
 
-def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> dict:
+def award(acc: dict, live: set, prev: dict, seed: int = SEED,
+          rounds: int = 8) -> tuple[dict[str, set], dict]:
+    """Decide who draws what, re-awarding tiles their winner cannot actually hold.
+
+    The naive version — pick the km leader per tile, then drop whatever fails to seed — made
+    spoiling the cheapest move in the game. A crew that could never draw a tile still took it
+    off everyone else: one 10.1 km ride through the middle of a rival's 2x2 block punched a
+    hole that unseeded all six of their tiles, and left nothing of its own behind. Riding to
+    deny beat riding to hold.
+
+    So a claim that cannot be drawn is withdrawn and the tile falls to the next crew in line,
+    repeatedly, until the picture stops changing. A crew with no 2x2 anywhere simply never
+    appears on the map, which is the intended rule — it just no longer takes the ground down
+    with it.
+
+    `live` is the set of crews that still exist; a disbanded crew's claims are withdrawn the
+    same way rather than salting the ground for the rest of the window.
+    """
+    blocked: set = set()
+    for _ in range(rounds):
+        won = winners(acc, prev, skip=blocked)
+        by_clan: dict[str, set] = {}
+        for tile, (clan_id, _km, _r) in won.items():
+            by_clan.setdefault(clan_id, set()).add(_xy(tile))
+        z = _zoom_of(won)
+        withdrawn = set()
+        kept: dict[str, set] = {}
+        for clan_id, pts in by_clan.items():
+            drawable = seeded(pts, seed) if clan_id in live else set()
+            if drawable:
+                kept[clan_id] = drawable
+            for (x, y) in pts - drawable:
+                tile = f"{z}/{x}/{y}"
+                # Only hand the tile on where somebody else is actually in line for it.
+                # Withdrawing every undrawable claim instead cascades: a crew's claims on
+                # tiles nobody else wants get withdrawn too, so the next round it holds even
+                # less, and the whole map empties out. A claim nobody can inherit is simply
+                # left standing and drawn by nobody, which costs no one anything.
+                rivals = [c for c in acc.get(tile, {})
+                          if c != clan_id and (tile, c) not in blocked
+                          and acc[tile][c][0] >= MIN_LEAD_KM]
+                if rivals:
+                    withdrawn.add((tile, clan_id))
+        if not withdrawn:
+            return kept, won
+        blocked |= withdrawn
+    return kept, won
+
+
+def _zoom_of(won: dict) -> int:
+    for tile in won:
+        p = T.parse(tile)
+        if p:
+            return p[0]
+    return T.DEFAULT_ZOOM
+
+
+def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
+            seed: int = SEED) -> dict:
     """Recompute every crew's territory and write both outputs. Returns a short report."""
     acc = accumulate(db, window_days, zoom)
     prev = {c.tile: c.clan_id for c in db.query(ClanCell).all()}
     first_led = {(c.tile, c.clan_id): c.first_led for c in db.query(ClanCell).all()}
-    won = winners(acc, prev)
-
-    by_clan: dict[str, set] = {}
-    for tile, (clan_id, _km, _r) in won.items():
-        by_clan.setdefault(clan_id, set()).add(_xy(tile))
 
     clans = {c.clan_id: c for c in db.query(Clan).filter(Clan.disbanded_at.is_(None)).all()}
     member_counts = dict(
@@ -234,16 +324,13 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> d
         .filter(ClanMember.status == "active", ClanMember.left_at.is_(None))
         .group_by(ClanMember.clan_id).all())
 
-    kept: dict[str, set] = {}
-    for clan_id, pts in by_clan.items():
-        if clan_id not in clans:          # disbanded mid-window: its ground is simply free
-            continue
-        s = seeded(pts)
-        if s:
-            kept[clan_id] = s
+    kept, won = award(acc, set(clans), prev, seed)
 
     # --- ClanCell rows: the admin view and the ranking read these
     db.query(ClanCell).delete()
+    for c in clans.values():          # cleared first, so a crew that lost everything shows 0
+        c.terr_km2 = c.terr_best_km2 = 0.0
+        c.terr_tiles = c.terr_regions = 0
     now = utcnow()
     order = sorted(kept.keys())
     payload_crews = []
@@ -260,12 +347,21 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> d
                             first_led=first_led.get((tile, clan_id)) or now))
             km2 += T.area_km2(tile)
             cells_flat.extend((idx, x, y))
-        for comp in regions(pts):
+        comps = regions(pts)
+        best_km2 = 0.0
+        for comp in comps:
             ex, ey, es = emblem_slot(comp)
             regions_out.append({"c": idx, "e": [ex, ey, es], "n": len(comp)})
+            # the headline number: one solid block beats the same area in scattered pockets
+            best_km2 = max(best_km2, sum(T.area_km2(f"{zoom}/{x}/{y}") for (x, y) in comp))
+        c.terr_km2 = round(km2, 1)
+        c.terr_best_km2 = round(best_km2, 1)
+        c.terr_tiles = len(pts)
+        c.terr_regions = len(comps)
         payload_crews.append({
             "id": clan_id, "name": c.name, "slug": c.slug, "colour": c.colour,
             "pattern": c.pattern, "tiles": len(pts), "km2": round(km2, 1),
+            "best_km2": round(best_km2, 1), "regions": len(comps),
             "members": member_counts.get(clan_id, 0),
             "emblem": f"/api/v1/crews/{c.slug}/emblem",
         })
@@ -273,9 +369,10 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> d
 
     payload = {
         "z": zoom, "generated": now.isoformat() + "Z", "window_days": window_days,
-        "seed": SEED,
-        # ranked by ground held, which is the measure the crews are competing on
-        "crews": sorted(payload_crews, key=lambda c: -c["km2"]),
+        "seed": seed,
+        # ranked by the biggest unbroken stretch a crew holds, not the total: one solid
+        # block is a harder thing to own than the same area scattered across a country
+        "crews": sorted(payload_crews, key=lambda c: (-c["best_km2"], -c["km2"])),
         "cells": cells_flat,                    # [crewIndex, x, y, crewIndex, x, y, ...]
         "regions": regions_out,
     }
@@ -312,21 +409,56 @@ def cached_mtime(zoom: int = T.DEFAULT_ZOOM) -> float:
 
 
 def ranking(db, limit: int = 50) -> list[dict]:
-    """Crews by ground held. One pass over `ClanCell`, no per-crew queries."""
-    clans = {c.clan_id: c for c in db.query(Clan).filter(Clan.disbanded_at.is_(None)).all()}
-    agg: dict[str, list] = {}
-    for clan_id, tile, km in db.query(ClanCell.clan_id, ClanCell.tile, ClanCell.km).all():
-        e = agg.setdefault(clan_id, [0, 0.0, 0.0])      # tiles, km2, km ridden
-        e[0] += 1
-        e[1] += T.area_km2(tile)
-        e[2] += km or 0.0
+    """Crews by their biggest unbroken stretch of ground.
+
+    Reads the standings the rebuild wrote. The previous version recomputed `area_km2()` — a
+    parse plus sinh, atan and cos — for every held tile on every request, which is a full
+    table scan and a few hundred trig calls to answer a question whose answer changes once an
+    hour.
+    """
+    rows = (db.query(Clan)
+            .filter(Clan.disbanded_at.is_(None), Clan.terr_tiles > 0)
+            .order_by(Clan.terr_best_km2.desc(), Clan.terr_km2.desc())
+            .limit(limit).all())
+    return [{"clan_id": c.clan_id, "name": c.name, "slug": c.slug, "colour": c.colour,
+             "pattern": c.pattern, "tiles": c.terr_tiles or 0,
+             "km2": c.terr_km2 or 0.0, "best_km2": c.terr_best_km2 or 0.0,
+             "regions": c.terr_regions or 0,
+             "emblem": f"/api/v1/crews/{c.slug}/emblem"}
+            for c in rows]
+
+
+def contributors(db, clan_id: str, window_days: int = WINDOW_DAYS, limit: int = 20) -> list:
+    """Who actually rode for this crew, most kilometres first.
+
+    Deliberately scoped to the same rolling window as territory, so the list explains the
+    ground on the map rather than all-time loyalty. Riders are named by their public handle;
+    the store_id never leaves the server.
+    """
+    from datetime import timedelta
+    from models import Rider
+    since = utcnow() - timedelta(days=window_days)
+    rows = (db.query(Trip.rider_store_id, sa.func.sum(Trip.distance_km),
+                     sa.func.count(Trip.trip_uuid))
+            .filter(Trip.clan_id == clan_id, Trip.validation_status == "validated",
+                    Trip.start_utc >= since)
+            .group_by(Trip.rider_store_id)
+            .order_by(sa.func.sum(Trip.distance_km).desc())
+            .limit(limit).all())
+    if not rows:
+        return []
+    ids = [r[0] for r in rows]
+    riders = {r.store_id: r for r in db.query(Rider).filter(Rider.store_id.in_(ids)).all()}
+    roles = {m.store_id: m.role for m in
+             db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
+                                         ClanMember.store_id.in_(ids)).all()}
     out = []
-    for clan_id, (n, km2, km) in agg.items():
-        c = clans.get(clan_id)
-        if not c:
-            continue
-        out.append({"clan_id": clan_id, "name": c.name, "slug": c.slug, "colour": c.colour,
-                    "pattern": c.pattern, "tiles": n, "km2": round(km2, 1),
-                    "km": round(km, 1)})
-    out.sort(key=lambda r: -r["km2"])
-    return out[:limit]
+    for store_id, km, n in rows:
+        r = riders.get(store_id)
+        out.append({"id": r.public_id if r else None,
+                    "name": r.display_name if r else "—",
+                    "flag": r.flag if r else None,
+                    "has_avatar": bool(r and r.avatar_png),
+                    "role": roles.get(store_id, "past"),
+                    "km": round(km or 0.0, 1), "rides": n})
+    return out

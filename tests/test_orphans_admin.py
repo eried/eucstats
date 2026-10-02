@@ -16,8 +16,16 @@ def _auth(client):
     if config.ADMIN_STATE_FILE.exists():
         config.ADMIN_STATE_FILE.unlink()
     client.get("/admin")
-    secret = json.loads(config.ADMIN_STATE_FILE.read_text())["totp_secret"]
-    client.post("/admin/verify-totp", data={"code": pyotp.TOTP(secret).now()})
+    state = json.loads(config.ADMIN_STATE_FILE.read_text())
+    # These tests are about other parts of the console, not about how it is unlocked. The
+    # admin sign-in wants two factors now (a code AND a pairing confirmed from a phone), and
+    # driving a pairing handshake in every one of them would test the same six lines over and
+    # over. This is the documented single-factor escape hatch, used here for the same reason
+    # it exists: so the console is reachable without a second device. The two-factor rule
+    # itself is covered by tests/test_admin_two_factor.py.
+    state["admin_require_pairing"] = False
+    config.ADMIN_STATE_FILE.write_text(json.dumps(state))
+    client.post("/admin/verify-totp", data={"code": pyotp.TOTP(state["totp_secret"]).now()})
 
 
 def _seed(db):

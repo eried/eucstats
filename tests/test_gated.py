@@ -16,8 +16,8 @@ def test_gate_filters_by_time_and_distance(db):
     # long ride: temp 55 (qualifies every tier); short ride: temp 99 (only the 5min/1.5km tier)
     _trip(db, "long", "tl", 4000, 50.0, max_temp=55.0)
     _trip(db, "short", "ts", 400, 2.0, max_temp=99.0)
-    basic = {r["store_id"]: r["v"] for r in stats.BOARDS["temphigh_b"](db, 10)}   # 5min/1.5km
-    epic = {r["store_id"]: r["v"] for r in stats.BOARDS["temphigh_l"](db, 10)}    # 60min/40km
+    basic = {r["id"]: r["v"] for r in stats.BOARDS["temphigh_b"](db, 10)}   # 5min/1.5km
+    epic = {r["id"]: r["v"] for r in stats.BOARDS["temphigh_l"](db, 10)}    # 60min/40km
     assert basic.get("short") == 99.0 and basic.get("long") == 55.0   # both clear the basic gate
     assert "short" not in epic and epic.get("long") == 55.0           # short ride excluded from epic
 
@@ -26,7 +26,7 @@ def test_min_direction_orders_ascending(db):
     _trip(db, "a", "ta", 4000, 50.0, min_battery_pct=12.0)
     _trip(db, "b", "tb", 4000, 50.0, min_battery_pct=3.0)
     rows = stats.BOARDS["battlow_l"](db, 10)            # Running on Fumes: lowest battery first
-    assert rows[0]["store_id"] == "b" and rows[0]["v"] == 3.0
+    assert rows[0]["id"] == "b" and rows[0]["v"] == 3.0
 
 
 def test_new_boards_ship_hidden(db):

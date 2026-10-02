@@ -143,9 +143,17 @@ def export_rider(store_id: str, db: Session = Depends(get_db)):
     return p
 
 
-@router.get("/riders/{store_id}/avatar")
-def get_avatar(store_id: str, db: Session = Depends(get_db)):
-    r = IdentityService(db).repo.get(store_id)
+@router.get("/riders/{rider_id}/avatar")
+def get_avatar(rider_id: str, db: Session = Depends(get_db)):
+    """Avatar by public handle, or by store_id for the app's own use.
+
+    The public page only ever has the handle now. The app still addresses riders by the
+    store_id it holds, and both land here, so no existing client breaks.
+    """
+    from models import Rider
+    r = db.query(Rider).filter(Rider.public_id == rider_id).first()
+    if r is None:
+        r = IdentityService(db).repo.get(rider_id)
     if not r or not r.avatar_png:
         raise HTTPException(404, "no avatar")
     return Response(content=r.avatar_png, media_type="image/png")

@@ -14,12 +14,21 @@ def test_totp_enroll_login_and_status(db):
         # not enrolled -> enroll page, secret created
         r = client.get("/admin")
         assert r.status_code == 200
-        secret = json.loads(config.ADMIN_STATE_FILE.read_text())["totp_secret"]
+        state = json.loads(config.ADMIN_STATE_FILE.read_text())
+        secret = state["totp_secret"]
 
-        # verify with a valid code -> authenticated session
+        # a valid code alone is NOT enough any more: the console wants a pairing from the
+        # admin's phone as well, so this lands on the second-factor step
         code = pyotp.TOTP(secret).now()
         r = client.post("/admin/verify-totp", data={"code": code})
         assert r.status_code in (200, 303)
+        assert client.get("/admin/api/status").status_code == 401
+
+        # with the phone factor switched off in admin.json — the documented path for an
+        # operator who has lost the bound device — the code alone gets in again
+        state["admin_require_pairing"] = False
+        config.ADMIN_STATE_FILE.write_text(json.dumps(state))
+        client.post("/admin/verify-totp", data={"code": pyotp.TOTP(secret).now()})
 
         s = client.get("/admin/api/status")
         assert s.status_code == 200
@@ -46,7 +55,11 @@ def test_approve_flagged_trip(db):
                              validation_status="flagged")
     with TestClient(app) as client:
         client.get("/admin")
-        secret = json.loads(config.ADMIN_STATE_FILE.read_text())["totp_secret"]
+        state = json.loads(config.ADMIN_STATE_FILE.read_text())
+        # single factor on purpose: the two-factor rule has its own test
+        state["admin_require_pairing"] = False
+        config.ADMIN_STATE_FILE.write_text(json.dumps(state))
+        secret = state["totp_secret"]
         client.post("/admin/verify-totp", data={"code": pyotp.TOTP(secret).now()})
         r = client.post("/admin/trip/fl1/approve")
         assert r.status_code in (200, 303)

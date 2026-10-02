@@ -54,11 +54,42 @@ NEW_COLUMNS = {
               ("brake_g_30", "FLOAT"), ("brake_g_50", "FLOAT"),
               ("stop_30_s", "FLOAT"), ("stop_50_s", "FLOAT"), ("moving_s", "FLOAT"),
               ("cutout_count", "INTEGER"), ("descent_m", "FLOAT"), ("lift_count", "INTEGER"), ("spin_count", "INTEGER"), ("clan_id", "VARCHAR")],
+    "riders": [("public_id", "VARCHAR")],
+    "clans": [("terr_km2", "FLOAT"), ("terr_best_km2", "FLOAT"),
+              ("terr_tiles", "INTEGER"), ("terr_regions", "INTEGER")],
     "wheels": [("alt_keys", "TEXT"), ("ble_mac", "VARCHAR"), ("serial", "VARCHAR")],
     "rider_stats": [("best_freespin", "FLOAT"), ("best_voltage_sag", "FLOAT"),
                     ("best_sustained_accel", "FLOAT"), ("total_moving_s", "FLOAT"),
                     ("real_ride_count", "INTEGER")],
 }
+
+
+def backfill_public_ids(db_path: str | None = None) -> int:
+    """Give every rider an opaque public id. Idempotent; runs at startup.
+
+    Separate from ensure_schema because adding the column is not enough: until every row has
+    a value the public API has nothing to publish in place of the store_id, and a half-filled
+    column would mean some riders silently vanish from the leaderboards.
+    """
+    import secrets
+    import sqlite3
+    path = db_path or str(config.DB_PATH)
+    con = sqlite3.connect(path)
+    n = 0
+    try:
+        cols = {row[1] for row in con.execute("PRAGMA table_info(riders)")}
+        if "public_id" not in cols:
+            return 0
+        rows = con.execute(
+            "SELECT store_id FROM riders WHERE public_id IS NULL OR public_id = ''").fetchall()
+        for (sid,) in rows:
+            con.execute("UPDATE riders SET public_id=? WHERE store_id=?",
+                        (secrets.token_hex(8), sid))
+            n += 1
+        con.commit()
+    finally:
+        con.close()
+    return n
 
 
 def ensure_schema(db_path: str | None = None) -> list[str]:
@@ -91,3 +122,4 @@ def init_db():
         pass
     Base.metadata.create_all(bind=engine)
     ensure_schema()                           # backfill columns on pre-existing DBs
+    backfill_public_ids()                     # and give every rider an opaque public handle

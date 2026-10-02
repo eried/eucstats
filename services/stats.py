@@ -19,12 +19,19 @@ def _rider_loc(db, store_id: str):
 
 
 def _rider_brief(db, store_id: str) -> dict:
+    """One rider as the public API shows them.
+
+    `id` is the opaque public handle, never the store_id. The store_id is what the app signs
+    uploads with; publishing it in every leaderboard row made it both a stable cross-site
+    identifier for every rider and a credential anyone could read off the site. Nothing in the
+    public page needs more than a handle — it keys avatars and table rows and nothing else.
+    """
     r = db.get(Rider, store_id)
     lat, lon = _rider_loc(db, store_id)
     if r is None:
-        return {"store_id": store_id, "name": None, "flag": None,
+        return {"id": None, "name": None, "flag": None,
                 "has_avatar": False, "lat": lat, "lon": lon}
-    return {"store_id": store_id, "name": r.display_name, "flag": r.flag,
+    return {"id": r.public_id, "name": r.display_name, "flag": r.flag,
             "has_avatar": r.avatar_png is not None, "lat": lat, "lon": lon}
 
 

@@ -290,7 +290,7 @@ const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||
 // that, because nothing here was ever given the identity. For a signed-in admin the server
 // DOES send the real rider alongside the marker, so the eye toggle can show either view -
 // which is why this asks isAdminView() rather than trusting the payload alone.
-const anonView=e=>!!(e&&e.anon)&&!(isAdminView()&&(e.store_id!=null||e.country!=null));
+const anonView=e=>!!(e&&e.anon)&&!(isAdminView()&&(e.id!=null||e.country!=null));
 // Deterministic pattern drawn from the mark: stable per rider (so one anonymous rider keeps
 // one face across the board) and carrying nothing that can be run backwards.
 function dazzle(mark){
@@ -320,7 +320,7 @@ const GLOBE='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" aria-labe
 const anonName=e=>e.alias||e.name||"Rider";
 const av=(id,has,e)=>anonView(e)?`<img class="av anonav" alt="" src="${dazzle(e.mark)}"/>`
   :(has===false?'<span class="av avph"></span>':`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
-const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.store_id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||e.store_id)}</span></span>`;
+const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
 const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v3a2 2 0 0 1-2 2H4M20 9h-3a2 2 0 0 1-2-2V4M4 15h3a2 2 0 0 1 2 2v3M15 20v-3a2 2 0 0 1 2-2h3"/></svg>';
@@ -487,7 +487,7 @@ function showArea(lon,lat,km){
 function flyToRider(e){
   if(!e||e.lat==null||e.lon==null||!map) return;
   closePanel();
-  const key=new Date().toISOString().slice(0,10)+"|"+e.store_id;       // changes daily, stable within a day
+  const key=new Date().toISOString().slice(0,10)+"|"+e.id;       // changes daily, stable within a day
   const R=1.7;                                                          // max privacy noise per axis (km)
   const dxKm=((hashStr(key+"x")%1000)/1000)*2*R-R, dyKm=((hashStr(key+"y")%1000)/1000)*2*R-R;  // -R..+R
   const olat=e.lat+dyKm/111, olon=e.lon+dxKm/(111*(Math.cos(e.lat*Math.PI/180)||1e-6));
@@ -650,9 +650,9 @@ function brandLogo(name){const mono=(name||"?").replace(/[^A-Za-z0-9]/g,"").slic
 function podList(rows,cfg){
   if(!rows||!rows.length) return '<div class="empty">'+t("empty.nodata")+'</div>';
   const o=[1,0,2],rkn=[t("pod.1"),t("pod.2"),t("pod.3")],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>anonView(e)?GLOBE:(cfg.flag?cc(cfg.flag(e)):'');
-  const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.store_id,e.has_avatar,e):(cfg.iconFn?`<div class="podic">${cfg.iconFn(e)}</div>`:(cfg.icon?`<div class="podic">${cfg.icon}</div>`:''))}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
+  const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.id,e.has_avatar,e):(cfg.iconFn?`<div class="podic">${cfg.iconFn(e)}</div>`:(cfg.icon?`<div class="podic">${cfg.icon}</div>`:''))}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
   const rest=rows.slice(3);let list='';
-  if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td><span class="celln">${cfg.av?av(e.store_id,e.has_avatar,e):''}${fl(e)}<span>${cfg.label(e)}</span></span></td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
+  if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td><span class="celln">${cfg.av?av(e.id,e.has_avatar,e):''}${fl(e)}<span>${cfg.label(e)}</span></span></td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
   return pod+list;
 }
 function showRiders(){
@@ -667,7 +667,7 @@ async function loadBoard(k){
   const b=BOARDS.find(x=>x.k===k),rows=(await j(`/leaderboards/${k}?limit=30`)).entries,cont=document.getElementById("lb");
   if(!cont)return;
   if(b){var ci=IC[b.k]||IC[b.ic]||'';setCap(b.tone?'<span style="color:'+b.tone+'">'+ci+'</span>':ci,bd(b));}
-  cont.innerHTML=podList(rows,{av:true,flag:e=>anonView(e)?null:e.flag,label:e=>anonView(e)?anonName(e):(e.name||e.store_id),val:e=>bval(b,e[b.c]),click:true});
+  cont.innerHTML=podList(rows,{av:true,flag:e=>anonView(e)?null:e.flag,label:e=>anonView(e)?anonName(e):(e.name||'rider'),val:e=>bval(b,e[b.c]),click:true});
   cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToRider(rows[+el.dataset.i]));
   fitTop3(rows,e=>[e.lon,e.lat]);
 }
@@ -722,13 +722,13 @@ function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WH
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
   const recs=orderBy((await j("/records")).filter(r=>r.value!=null&&(isAdminView()||!HIDE.records.includes(r.key))),ORDER.records,r=>r.key);
-  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${anonView(r.rider)?GLOBE:cc(r.rider.flag)}${av(r.rider.store_id,r.rider.has_avatar,r.rider)}<span>${anonView(r.rider)?anonName(r.rider):(r.rider.name||r.rider.store_id)}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
+  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${anonView(r.rider)?GLOBE:cc(r.rider.flag)}${av(r.rider.id,r.rider.has_avatar,r.rider)}<span>${anonView(r.rider)?anonName(r.rider):(r.rider.name||'rider')}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
 async function showTech(){
   const d=await j("/stats/versions");
   const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
-  const rl=e=>`<span class="celln">${av(e.store_id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||e.store_id)}</span></span>`;
+  const rl=e=>`<span class="celln">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
   const sec=(key,t,h)=>{var hid=HIDE.app.includes(key);if(hid&&!isAdminView())return "";return `<div class="vsec${hid?' peek':''}"><div class="vtitle">${t}</div>${h}</div>`;};
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>'+t("empty.nodata")+'</td></tr>'}</table>`;
   const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>'+t("empty.nodata")+'</p>';};
@@ -787,11 +787,11 @@ function renderChampions(){
   const C=WC||{};
   if(!(C.day||C.week||C.month)){ch.style.display="none";return;}
   ch.style.display="block";ch.style.cursor="default";ch.onclick=null;
-  const line=(lab,c)=>c?`<div class="cline" data-sid="${c.store_id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||c.store_id}</b><span class="cscore">${t("champ.pts",{n:c.score})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
+  const line=(lab,c)=>c?`<div class="cline" data-sid="${c.id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||'rider'}</b><span class="cscore">${t("champ.pts",{n:c.score})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
   const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+t("champ.tip")).replace(/"/g,"&quot;");
   ch.innerHTML=`<div class="chead">${FLAG}<span>${t("champ.title")}</span><button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+
     line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month);
-  ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.store_id===el.dataset.sid);if(c)flyToRider(c);};});
+  ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.id===el.dataset.sid);if(c)flyToRider(c);};});
   const tb=document.querySelector(".topbar");
   const setC=(v)=>{if(tb)tb.classList.toggle("collapsed",v);try{localStorage.setItem("eucstats_champ_collapsed",v?"1":"0");}catch(_){}};
   const col=ch.querySelector(".ccol");
@@ -973,7 +973,8 @@ async function init(){
   map.on("load",async ()=>{
     CELLS=await j("/map/cells?zoom="+HEAT.zoom); addHeat();
     if(window.EUCCrews&&window.__CREWCFG__&&window.__CREWCFG__.enabled)
-      window.EUCCrews.init(map,{setPanel:setPanel,closePanel:closePanel,t:t});
+      window.EUCCrews.init(map,{setPanel:setPanel,closePanel:closePanel,t:t,
+        podList:podList,av:av,cc:cc});   // reuse the site podium so crews match the other boards
     mapReady=true; doIntro();
   });
 }

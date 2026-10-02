@@ -242,7 +242,8 @@ def rebuild(request: Request, db: Session = Depends(get_db)):
     if g:
         return g
     cfg = settings.get_crews(db)
-    rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"])
+    rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
+                           seed=cfg["seed"])
     pairing.sweep(db)
     return _redir(f"Rebuilt: {rep['held']} tiles held by {rep['crews']} crews "
                   f"across {rep['regions']} regions ({rep['bytes']} bytes on the wire).")

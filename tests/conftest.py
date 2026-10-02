@@ -38,3 +38,27 @@ def db():
         yield s
     finally:
         s.close()
+
+
+@pytest.fixture(autouse=True)
+def _public_handle_matches_store_id():
+    """In tests, a rider's public handle IS their store_id.
+
+    Production gives every rider a random opaque handle (models._give_rider_a_public_id),
+    because the public API publishes it in place of the store_id. That is the right behaviour
+    and the wrong thing to assert against: the fixtures here name riders "a", "b", "gone", and
+    every board assertion reads better comparing those than resolving a random hex each time.
+    So the handle is pinned to the store_id for the duration of a test, and the production
+    listener is left to do its job everywhere else.
+    """
+    import models
+    from sqlalchemy import event
+
+    def _pin(mapper, connection, target):
+        target.public_id = target.store_id
+
+    event.listen(models.Rider, "before_insert", _pin)
+    try:
+        yield
+    finally:
+        event.remove(models.Rider, "before_insert", _pin)

@@ -114,23 +114,71 @@ def tiles_along(points, zoom: int = DEFAULT_ZOOM) -> list[str]:
     return out
 
 
+def _xy_float(lat: float, lon: float, zoom: int) -> tuple[float, float] | None:
+    """Fractional tile coordinates — the same maths as tile_of without the floor.
+
+    The traversal below needs to know *where inside* a tile a point sits, not just which tile
+    it is in, so it can tell which edge the line leaves through first.
+    """
+    if lat is None or lon is None or not (-180.0 <= lon <= 180.0):
+        return None
+    lat = max(-85.05112878, min(85.05112878, float(lat)))
+    n = 1 << zoom
+    x = (float(lon) + 180.0) / 360.0 * n
+    y = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n
+    return x, y
+
+
 def _between(a, b, zoom: int) -> list[str]:
-    """Tiles under the straight line from a to b, excluding the endpoints' own tiles."""
-    ta, tb = tile_of(*a, zoom), tile_of(*b, zoom)
-    if ta is None or tb is None or ta == tb:
+    """Every tile the straight line from a to b crosses, in order, excluding a's own tile.
+
+    A proper grid traversal, one edge at a time. The previous version interpolated the line at
+    N evenly spaced points and mapped each to a tile, which on any diagonal advanced x and y
+    together: the result was a staircase of tiles touching only at their CORNERS, and the
+    tiles the line genuinely passed through were never emitted at all. Territory grows through
+    edges, so a corner-only chain is not a chain — a 31 km diagonal ride came out as six
+    disconnected tiles and claimed nothing. Only a ride running exactly along an axis worked,
+    which is why the original test (a due-east route) passed.
+
+    This steps whichever edge the line reaches next, so consecutive tiles always share an
+    edge, and nothing the line touches is skipped.
+    """
+    pa, pb = _xy_float(*a, zoom), _xy_float(*b, zoom)
+    if pa is None or pb is None:
         return []
-    pa, pb = parse(ta), parse(tb)
-    steps = max(abs(pb[1] - pa[1]), abs(pb[2] - pa[2]))
-    if steps <= 1:
+    x0f, y0f = pa
+    x1f, y1f = pb
+    x, y = int(x0f), int(y0f)
+    ex, ey = int(x1f), int(y1f)
+    if (x, y) == (ex, ey):
         return []
-    if steps > 256:          # a jump that big is a GPS teleport, not a ride
+    if abs(ex - x) + abs(ey - y) > 512:      # a jump that big is a GPS teleport, not a ride
         return []
-    out = []
-    for i in range(1, steps):
-        f = i / steps
-        lat = a[0] + (b[0] - a[0]) * f
-        lon = a[1] + (b[1] - a[1]) * f
-        t = tile_of(lat, lon, zoom)
-        if t is not None and (not out or out[-1] != t):
-            out.append(t)
+
+    dx, dy = x1f - x0f, y1f - y0f
+    step_x = 1 if dx > 0 else (-1 if dx < 0 else 0)
+    step_y = 1 if dy > 0 else (-1 if dy < 0 else 0)
+    # distance along the line (in units of t, 0..1) to the next vertical / horizontal edge
+    inf = float("inf")
+    t_max_x = ((x + (1 if step_x > 0 else 0)) - x0f) / dx if step_x else inf
+    t_max_y = ((y + (1 if step_y > 0 else 0)) - y0f) / dy if step_y else inf
+    t_delta_x = abs(1.0 / dx) if step_x else inf
+    t_delta_y = abs(1.0 / dy) if step_y else inf
+
+    n = 1 << zoom
+    out: list[str] = []
+    for _ in range(1024):                    # hard stop; the length guard above already bounds it
+        if t_max_x < t_max_y:
+            x += step_x
+            t_max_x += t_delta_x
+        else:
+            y += step_y
+            t_max_y += t_delta_y
+        if not (0 <= y < n):
+            break
+        if (x % n, y) == (ex, ey):
+            break                            # the endpoint's own tile is added by the caller
+        out.append(f"{zoom}/{x % n}/{y}")
+        if t_max_x > 1.0 and t_max_y > 1.0:
+            break
     return out

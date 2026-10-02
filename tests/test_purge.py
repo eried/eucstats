@@ -27,11 +27,11 @@ def _rider_with_trip(db, sid="s", name="Sheep"):
 
 def test_self_delete_hides_from_public_keeps_row(db):
     _rider_with_trip(db, "s", "Sheep")
-    assert any(e["store_id"] == "s" for e in stats.mileage_leaderboard(db))
+    assert any(e["id"] == "s" for e in stats.mileage_leaderboard(db))
     IdentityService(db).delete("s")                 # rider closes their own account
     db.expire_all()
     # gone from public boards + card — a closed account no longer counts publicly
-    assert not any(e["store_id"] == "s" for e in stats.mileage_leaderboard(db))
+    assert not any(e["id"] == "s" for e in stats.mileage_leaderboard(db))
     assert stats.rider_card(db, "s") is None
     # but the row is KEPT (not purged): name preserved, marked closed + opted out, so the
     # store_id can't be reused and the close is permanent. Only an admin purge erases data.
@@ -52,11 +52,11 @@ def test_purge_removes_everything(db):
     assert db.get(models.RawUpload, "tr-s") is None
     assert db.get(models.Wheel, "w-s") is None
     assert db.get(models.RiderStat, "s") is None
-    assert "s" not in [e["store_id"] for e in stats.mileage_leaderboard(db)]
+    assert "s" not in [e["id"] for e in stats.mileage_leaderboard(db)]
 
     # the other rider is untouched
     assert db.get(models.Rider, "keep") is not None
-    assert "keep" in [e["store_id"] for e in stats.mileage_leaderboard(db)]
+    assert "keep" in [e["id"] for e in stats.mileage_leaderboard(db)]
 
 
 def test_purge_missing_rider_returns_false(db):
@@ -67,8 +67,16 @@ def _auth(client):
     if config.ADMIN_STATE_FILE.exists():
         config.ADMIN_STATE_FILE.unlink()
     client.get("/admin")
-    secret = json.loads(config.ADMIN_STATE_FILE.read_text())["totp_secret"]
-    client.post("/admin/verify-totp", data={"code": pyotp.TOTP(secret).now()})
+    state = json.loads(config.ADMIN_STATE_FILE.read_text())
+    # These tests are about other parts of the console, not about how it is unlocked. The
+    # admin sign-in wants two factors now (a code AND a pairing confirmed from a phone), and
+    # driving a pairing handshake in every one of them would test the same six lines over and
+    # over. This is the documented single-factor escape hatch, used here for the same reason
+    # it exists: so the console is reachable without a second device. The two-factor rule
+    # itself is covered by tests/test_admin_two_factor.py.
+    state["admin_require_pairing"] = False
+    config.ADMIN_STATE_FILE.write_text(json.dumps(state))
+    client.post("/admin/verify-totp", data={"code": pyotp.TOTP(state["totp_secret"]).now()})
 
 
 def test_admin_delete_requires_matching_name(db):

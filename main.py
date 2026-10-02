@@ -59,7 +59,8 @@ def _territory_if_due(db) -> None:
         if _time.time() - _last_territory[0] < 3600:
             return
         from services import pairing, territory
-        rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"])
+        rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
+                               seed=cfg["seed"])
         pairing.sweep(db)
         _last_territory[0] = _time.time()
         logger.info("territory rebuilt: %s", rep)

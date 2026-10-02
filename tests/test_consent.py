@@ -18,10 +18,10 @@ def test_consent_false_hidden_from_public(db):
     _rider_trip(db, "yes", True, km=10.0)
     _rider_trip(db, "no", False, km=99.0)        # bigger, but opted out
 
-    ids = [e["store_id"] for e in stats.mileage_leaderboard(db)]
+    ids = [e["id"] for e in stats.mileage_leaderboard(db)]
     assert "yes" in ids and "no" not in ids       # opted-out rider absent from the board
 
-    rec_ids = [r["rider"]["store_id"] for r in stats.records(db)]
+    rec_ids = [r["rider"]["id"] for r in stats.records(db)]
     assert "no" not in rec_ids                     # and from records (even though km is highest)
 
     assert stats.global_summary(db)["riders"] == 1  # headline count excludes the opted-out rider
@@ -33,14 +33,14 @@ def test_deleted_rider_excluded_from_public(db):
     _rider_trip(db, "keep", True, km=10.0)
     _rider_trip(db, "gone", True, km=50.0)
     assert stats.global_summary(db)["riders"] == 2
-    assert "gone" in [e["store_id"] for e in stats.mileage_leaderboard(db)]
+    assert "gone" in [e["id"] for e in stats.mileage_leaderboard(db)]
 
     RiderRepo(db).soft_delete("gone")               # rider closes their own account
     db.expire_all()
     s = stats.global_summary(db)
     assert s["riders"] == 1                          # deleted rider no longer counted
     assert s["trips"] == 1 and s["total_km"] == 10.0 # nor its trip / distance
-    assert "gone" not in [e["store_id"] for e in stats.mileage_leaderboard(db)]
+    assert "gone" not in [e["id"] for e in stats.mileage_leaderboard(db)]
 
 
 def test_consent_default_true_is_public(db):
@@ -50,4 +50,4 @@ def test_consent_default_true_is_public(db):
                        distance_km=5.0, max_speed=20.0))
     db.commit()
     Aggregator(db).apply(db.get(models.Trip, "t-d"))
-    assert "d" in [e["store_id"] for e in stats.mileage_leaderboard(db)]
+    assert "d" in [e["id"] for e in stats.mileage_leaderboard(db)]

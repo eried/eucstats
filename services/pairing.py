@@ -145,8 +145,15 @@ def poll(db, token: str) -> dict:
                 .filter(WebSession.store_id == pt.store_id,
                         WebSession.scope == "crew").first())
     if pt.purpose == "admin":
-        # pairing proves possession of the phone; it is only ever one of the two admin factors
-        return {"status": "paired", "store_id": pt.store_id, "scope": "admin"}
+        # Pairing proves possession of the phone; it is only ever one of the two admin
+        # factors. Consumed here like any other: the admin branch used to return before the
+        # delete below, so a confirmed admin token answered "paired" forever — it never
+        # expired once used, and it travels in a URL query string, which means proxy logs
+        # and browser history held a replayable admin factor.
+        store = pt.store_id
+        db.delete(pt)
+        db.commit()
+        return {"status": "paired", "store_id": store, "scope": "admin"}
     sid = secrets.token_urlsafe(32)
     db.add(WebSession(session_id=sid, store_id=pt.store_id, scope="crew"))
     db.delete(pt)                        # one use, and nothing left to replay
