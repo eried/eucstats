@@ -26,18 +26,35 @@ async def _retention_loop():
             pass
         await asyncio.sleep(interval)
         try:
-            db = SessionLocal()
-            try:
-                from services import health
-                n = run_retention(db)
-                if n:
-                    logger.info("retention evicted %d raw uploads", n)
-                _territory_if_due(db)
-                health.heartbeat(db)             # periodic health snapshot -> data/health.log
-            finally:
-                db.close()
+            # On a thread, not on the event loop. All three of these are synchronous and the
+            # territory rebuild grows with the number of trips: measured, it blocked the loop
+            # for 1,487 ms at today's size and 17 seconds at a hundred times the trips, which
+            # on one worker is the whole site down, once an hour, for as long as it takes.
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _retention_once)
         except Exception:
             logger.exception("retention run failed")
+
+
+def _retention_once() -> None:
+    """One pass of the periodic housekeeping. Synchronous on purpose; the caller gives it a
+    thread."""
+    db = SessionLocal()
+    try:
+        from services import health, pairing
+        n = run_retention(db)
+        if n:
+            logger.info("retention evicted %d raw uploads", n)
+        _territory_if_due(db)
+        # swept here rather than inside the territory job, which returns early when crews are
+        # switched off and only runs hourly: expired pairings are this loop's business
+        try:
+            pairing.sweep(db)
+        except Exception:
+            logger.exception("pairing sweep failed")
+        health.heartbeat(db)                     # periodic health snapshot -> data/health.log
+    finally:
+        db.close()
 
 
 _last_territory = [0.0]
@@ -58,10 +75,9 @@ def _territory_if_due(db) -> None:
             return
         if _time.time() - _last_territory[0] < 3600:
             return
-        from services import pairing, territory
+        from services import territory
         rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
                                seed=cfg["seed"])
-        pairing.sweep(db)
         _last_territory[0] = _time.time()
         logger.info("territory rebuilt: %s", rep)
     except Exception:

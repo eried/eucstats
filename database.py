@@ -92,6 +92,36 @@ def backfill_public_ids(db_path: str | None = None) -> int:
     return n
 
 
+# Indexes the ORM does not declare, added idempotently alongside the columns. `trips.clan_id`
+# is the one that matters: the contributors query filters on it and without an index SQLite
+# walked every validated trip, which gets slower every week the site stays up.
+NEW_INDEXES = [
+    ("ix_trips_clan_start", "trips", "(clan_id, start_utc)"),
+    ("ix_clans_terr_best", "clans", "(terr_best_km2)"),
+]
+
+
+def ensure_indexes(db_path: str | None = None) -> list[str]:
+    import sqlite3
+    path = db_path or str(config.DB_PATH)
+    con = sqlite3.connect(path)
+    made = []
+    try:
+        have = {r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='index'")}
+        tables = {r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        for name, table, cols in NEW_INDEXES:
+            if name in have or table not in tables:
+                continue
+            con.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {table} {cols}")
+            made.append(name)
+        con.commit()
+    finally:
+        con.close()
+    return made
+
+
 def ensure_schema(db_path: str | None = None) -> list[str]:
     """Idempotently add any missing columns to an existing SQLite file.
     Returns the list of columns added (empty when already up to date)."""
@@ -123,3 +153,4 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     ensure_schema()                           # backfill columns on pre-existing DBs
     backfill_public_ids()                     # and give every rider an opaque public handle
+    ensure_indexes()

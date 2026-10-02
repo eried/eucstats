@@ -623,7 +623,9 @@ function setPanel(name,title,html){
 function closePanel(){
   if(openPanel===null&&!panel.classList.contains("open"))return;
   // the panel closes but the territory stays: you have to close it to look at the map, and a
-  // mode that erases itself the moment you try to see it is not a mode
+  // mode that erases itself the moment you try to see it is not a mode. The pairing poll
+  // does stop though, since nobody is looking at the code any more.
+  if(window.EUCCrews&&window.EUCCrews.panelClosed)window.EUCCrews.panelClosed();
   openPanel=null;
   document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));
   panel.style.animation="none";void panel.offsetWidth;

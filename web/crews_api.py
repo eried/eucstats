@@ -146,10 +146,26 @@ def signout(request: Request, db: Session = Depends(get_db)):
 
 # --- who am I -----------------------------------------------------------------------------
 
-def _crew_brief(db: Session, clan: Clan) -> dict:
-    n = (db.query(ClanMember)
-         .filter(ClanMember.clan_id == clan.clan_id, ClanMember.status == "active",
-                 ClanMember.left_at.is_(None)).count())
+def _member_counts(db: Session) -> dict:
+    """Active members per crew, in one grouped query.
+
+    _crew_brief used to COUNT per crew, so listing crews cost one query each: the client asks
+    for sixty on every panel open, which measured 69 queries and 20 ms, and the endpoint would
+    take two hundred.
+    """
+    import sqlalchemy as sa
+    return dict(db.query(ClanMember.clan_id, sa.func.count(ClanMember.store_id))
+                .filter(ClanMember.status == "active", ClanMember.left_at.is_(None))
+                .group_by(ClanMember.clan_id).all())
+
+
+def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
+    if counts is not None:
+        n = counts.get(clan.clan_id, 0)
+    else:
+        n = (db.query(ClanMember)
+             .filter(ClanMember.clan_id == clan.clan_id, ClanMember.status == "active",
+                     ClanMember.left_at.is_(None)).count())
     return {"slug": clan.slug, "name": clan.name, "description": clan.description,
             "colour": clan.colour, "pattern": clan.pattern, "members": n,
             "join_policy": clan.join_policy, "has_logo": clan.logo_png is not None,
@@ -208,12 +224,15 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
 # --- crews --------------------------------------------------------------------------------
 
 @router.get("/crews")
-def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 100):
+def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
     _gate(db)
     query = db.query(Clan).filter(Clan.disbanded_at.is_(None))
     if q:
         query = query.filter(Clan.name.ilike(f"%{q.strip()}%"))
-    return {"crews": [_crew_brief(db, c) for c in query.limit(min(limit, 200)).all()]}
+    # busiest first, so a shortened list is the useful end of it
+    rows = query.order_by(Clan.terr_best_km2.desc().nullslast()).limit(min(limit, 100)).all()
+    counts = _member_counts(db)
+    return {"crews": [_crew_brief(db, c, counts) for c in rows]}
 
 
 @router.get("/crews/identity")

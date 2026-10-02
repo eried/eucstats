@@ -25,7 +25,18 @@
   var ME = null;
 
   var PATTERNS = ["solid", "stripes", "dots", "hatch"];
-  var COOLDOWN_DAYS = (window.__CREWCFG__ && window.__CREWCFG__.cooldown_days) || 7;
+  var CFG = window.__CREWCFG__ || {};
+  // `|| 7` turned a configured 0 into 7, so an admin who switched the cooldown off was still
+  // telling riders to wait a week. Same class of bug as the hardcoded "7 days" it replaced.
+  var COOLDOWN_DAYS = CFG.cooldown_days != null ? CFG.cooldown_days : 7;
+  var SEED = CFG.seed || 2;
+  var WINDOW_DAYS = CFG.window_days || 90;
+
+  // "1 days" is not a thing
+  function days(n) {
+    if (n <= 0) return t("crew.now");
+    return n === 1 ? t("crew.day1") : t("crew.days", { n: n });
+  }
 
   /* ---------- geometry ---------- */
 
@@ -115,10 +126,27 @@
   var LAYERS = ["crew-fill", "crew-pattern", "crew-contested", "crew-edge",
                 "crew-edge-glow"];
 
+  function cursorPointer() { map.getCanvas().style.cursor = "pointer"; }
+  function cursorDefault() { map.getCanvas().style.cursor = ""; }
+
+  // Coalesced to one pass per frame. A single wheel gesture fires about 27 zoom events, and
+  // each one wrote three styles per marker.
+  var sizePending = false;
+  function onZoom() {
+    if (sizePending) return;
+    sizePending = true;
+    requestAnimationFrame(function () { sizePending = false; sizeEmblems(); });
+  }
+
   function clearLayers() {
+    map.off("zoom", onZoom);
+    map.off("click", "crew-fill", onCellClick);
+    map.off("mouseenter", "crew-fill", cursorPointer);
+    map.off("mouseleave", "crew-fill", cursorDefault);
     LAYERS.forEach(function (l) { if (map.getLayer(l)) map.removeLayer(l); });
     if (map.getSource("crew-cells")) map.removeSource("crew-cells");
     if (map.getSource("crew-edges")) map.removeSource("crew-edges");
+    if (map.getSource("crew-hot")) map.removeSource("crew-hot");
     markers.forEach(function (m) { m.remove(); });
     markers = [];
   }
@@ -129,6 +157,7 @@
     var z = TERR.z, groups = cellsByCrew();
     var fills = { type: "FeatureCollection", features: [] };
     var edges = { type: "FeatureCollection", features: [] };
+    var hot = { type: "FeatureCollection", features: [] };
 
     TERR.crews.forEach(function (crew, idx) {
       var cells = groups[idx] || [];
@@ -153,10 +182,20 @@
         properties: { c: crew.colour, i: idx },
         geometry: { type: "MultiLineString", coordinates: outline(cells, z) }
       });
+      // one dashed ring around the ground under pressure, not a box per tile
+      var pressed = cells.filter(function (t) { return (t[2] || 0) >= 1; });
+      if (pressed.length) {
+        hot.features.push({
+          type: "Feature",
+          properties: { c: crew.colour, i: idx },
+          geometry: { type: "MultiLineString", coordinates: outline(pressed, z) }
+        });
+      }
     });
 
     map.addSource("crew-cells", { type: "geojson", data: fills });
     map.addSource("crew-edges", { type: "geojson", data: edges });
+    map.addSource("crew-hot", { type: "geojson", data: hot });
 
     var op = (window.__CREWCFG__ && window.__CREWCFG__.opacity) || 0.55;
     map.addLayer({
@@ -175,11 +214,10 @@
     // Pressure needs a second channel. A shade on a dark map is something you notice
     // afterwards; a dashed edge is something you see.
     map.addLayer({
-      id: "crew-contested", type: "line", source: "crew-cells",
-      filter: [">=", ["get", "band"], 1],
+      id: "crew-contested", type: "line", source: "crew-hot",
       paint: { "line-color": "#ffffff",
-               "line-dasharray": [2, 2],
-               "line-width": ["match", ["get", "band"], 2, 1.6, 1.1],
+               "line-dasharray": [2, 1.6],
+               "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1.4, 14, 2.4],
                "line-opacity": 0,
                "line-opacity-transition": { duration: 600 } }
     });
@@ -207,15 +245,18 @@
         ["match", ["get", "band"], 1, pat * 0.84, 2, pat * 0.66, pat]);
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
-      map.setPaintProperty("crew-contested", "line-opacity",
-        ["match", ["get", "band"], 2, 0.6, 0.38]);
+      map.setPaintProperty("crew-contested", "line-opacity", 0.8);
     });
 
     buildEmblems();
-    map.on("zoom", sizeEmblems);
+    // Named, so they can be removed again. The two cursor handlers used to be inline
+    // functions, which meant clearLayers could not take them off and every open of the mode
+    // left three more delegated listeners behind, each running its own hit test on every
+    // mouse move.
+    map.on("zoom", onZoom);
     map.on("click", "crew-fill", onCellClick);
-    map.on("mouseenter", "crew-fill", function () { map.getCanvas().style.cursor = "pointer"; });
-    map.on("mouseleave", "crew-fill", function () { map.getCanvas().style.cursor = ""; });
+    map.on("mouseenter", "crew-fill", cursorPointer);
+    map.on("mouseleave", "crew-fill", cursorDefault);
   }
 
   /* ---------- emblems ---------- */
@@ -319,7 +360,7 @@
   function explainer() {
     return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
       + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.4", "crew.how.5"]
-        .map(function (k) { return "<p>" + t(k) + "</p>"; }).join("")
+        .map(function (k) { return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS }) + "</p>"; }).join("")
       + "</details>";
   }
 
@@ -427,6 +468,9 @@
       + "</div>";
   }
 
+  var pairRolls = 0;
+  var PAIR_MAX_ROLLS = 5;        // about fifteen minutes of waiting, then it asks
+
   function startPairing() {
     stopPairing();
     api("POST", "/api/v1/pair/start").then(function (r) {
@@ -448,8 +492,28 @@
       if (code) code.textContent = r.body.code;
       var left = r.body.expires_in;
       pairTimer = setInterval(function () {
+        // Nothing is going to happen while the tab is in the background, and a code that
+        // rolls forever is a code that eats the hourly budget for everybody sharing the
+        // address. One idle tab was making about 1,800 requests an hour.
+        if (document.hidden) return;
         left -= 2;
-        if (left <= 0) { startPairing(); return; }          // quietly roll a fresh code
+        if (left <= 0) {
+          if (pairRolls++ >= PAIR_MAX_ROLLS) {
+            stopPairing();
+            var el = document.getElementById("crewcodehint");
+            if (el) el.innerHTML = '<a href="#" id="crewagain">' + t("crew.signin.again")
+              + "</a>";
+            var again = document.getElementById("crewagain");
+            if (again) again.onclick = function (ev) {
+              ev.preventDefault();
+              pairRolls = 0;
+              startPairing();
+            };
+            return;
+          }
+          startPairing();
+          return;
+        }
         api("GET", "/api/v1/pair/poll?token=" + encodeURIComponent(pairToken))
           .then(function (p) {
             if (p.ok && p.body.status === "paired") {
@@ -457,6 +521,7 @@
               // the one step that spans two devices is the one that most needs a visible
               // result; every other action already reveals itself
               reveal(".crewcard:not(.crewboard)");
+              setStatus(t("crew.signin.ok"));
               show();
             }
             else if (!p.ok) startPairing();
@@ -472,8 +537,12 @@
 
   function setStatus(msg, bad) {
     var el = document.getElementById("crewstatus");
-    if (el) el.innerHTML = msg ? '<div class="crewmsg' + (bad ? " bad" : "") + '">'
+    if (!el) return;
+    el.innerHTML = msg ? '<div class="crewmsg' + (bad ? " bad" : "") + '">'
       + esc(msg) + "</div>" : "";
+    // The success path got scrolled into view and the failure path did not, so an error from
+    // deep inside the crew card painted at the top of a scrolled panel where nobody saw it.
+    if (msg) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   /* ---------- create / manage ---------- */
@@ -575,8 +644,10 @@
       + '<img class="crewlogo" src="' + c.emblem + '" alt=""/>'
       + "<div><h3>" + esc(c.name) + "</h3>"
       + '<div class="crewmeta">' + swatch(c.colour, c.pattern) + " "
-      + esc(c.pattern) + " · " + c.members + (c.members === 1 ? " rider" : " riders")
-      + " · you are the " + esc(me.role) + "</div></div></div>";
+      + riders(c.members) + " · "
+      + t(me.role === "leader" ? "crew.mine.youare"
+          : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember")
+      + "</div></div></div>";
     if (me.status === "pending") {
       h += '<div class="crewmsg">' + t("crew.join.pending") + "</div>";
     }
@@ -588,16 +659,21 @@
     // Leaving is blocked for a leader with members until somebody else can run the crew, and
     // there was no control anywhere to make that somebody. The endpoint existed; the button
     // did not, so a two-person crew's leader was stuck for good.
-    if (me.role === "leader" && me.roster && me.roster.length > 1) {
+    if (me.roster && me.roster.length > 1 && me.role === "leader") {
       h += '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
-        + me.roster.filter(function (x) { return x.role !== "leader"; }).map(function (x) {
-            return '<div class="crewpendr"><span>' + esc(x.name)
-              + (x.role === "officer" ? " " + ROLEIC.officer : "") + "</span>"
-              + '<button class="crewbtn mini ghost" data-role="'
-              + (x.role === "officer" ? "member" : "officer") + '" data-sid="'
-              + esc(x.store_id || "") + '">'
-              + t(x.role === "officer" ? "crew.roles.demote" : "crew.roles.promote")
-              + "</button></div>";
+        + me.roster.map(function (x) {
+            var mark = x.role === "leader" ? " " + ROLEIC.leader
+              : x.role === "officer" ? " " + ROLEIC.officer : "";
+            // the leader is listed, because a section called "The crew" that leaves them out
+            // is a section header telling a lie
+            var btn = x.role === "leader" ? ""
+              : '<button class="crewbtn mini ghost" data-role="'
+                + (x.role === "officer" ? "member" : "officer") + '" data-sid="'
+                + esc(x.store_id || "") + '">'
+                + t(x.role === "officer" ? "crew.roles.demote" : "crew.roles.promote")
+                + "</button>";
+            return '<div class="crewpendr"><span>' + esc(x.name) + mark + "</span>" + btn
+              + "</div>";
           }).join("") + "</div>";
     }
     if (me.pending && me.pending.length) {
@@ -611,18 +687,19 @@
     }
     if (lead) {
       h += '<details class="crewedit"><summary>' + t("crew.mine.settings") + "</summary>"
-        + '<label>Name<input id="ce-name" maxlength="28" value="' + esc(c.name) + '"></label>'
-        + '<label>Description<input id="ce-desc" maxlength="280" value="'
+        + "<label>" + t("crew.new.name") + '<input id="ce-name" maxlength="28" value="'
+        + esc(c.name) + '"></label>'
+        + "<label>" + t("crew.new.desc") + '<input id="ce-desc" maxlength="280" value="'
         + esc(c.description || "") + '"></label>'
         + "<label>" + t("crew.new.who") + '<select id="ce-policy">'
         + ["approval", "open", "invite"].map(function (p) {
             return '<option value="' + p + '"' + (p === c.join_policy ? " selected" : "")
-              + ">" + p + "</option>"; }).join("")
+              + ">" + t("crew.new." + p) + "</option>"; }).join("")
         + "</select></label>"
         + '<label class="crewfile">' + t("crew.mine.emblem")
         + '<input type="file" id="ce-logo" accept="image/*"></label>'
-        + '<p class=hint>Leave it empty and we draw one from your crew name and colour.</p>'
-        + '<button class="crewbtn" id="ce-save">Save</button>'
+        + '<p class=hint>' + t("crew.mine.emblemp") + "</p>" 
+        + '<button class="crewbtn" id="ce-save">' + t("crew.mine.save") + "</button>" 
         + '<button class="crewbtn ghost" id="ce-clearlogo">' + t("crew.mine.generated") + "</button>"
         + "</details>";
     }
@@ -658,7 +735,7 @@
     });
     var leave = document.getElementById("cm-leave");
     if (leave) leave.onclick = function () {
-      if (!confirm(t("crew.mine.leaveq", { name: c.name, n: COOLDOWN_DAYS })))
+      if (!confirm(t("crew.mine.leaveq", { name: c.name, n: days(COOLDOWN_DAYS) })))
         return;
       api("POST", "/api/v1/crews/leave", {}).then(function (r) {
         if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
@@ -712,7 +789,7 @@
         + (terr.regions > 1 ? " · " + t("crew.patches", { n: terr.regions }) : "")
         + (terr.km2 && terr.km2 !== terr.best_km2
             ? " · " + t("crew.inall", { v: fmtKm2(terr.km2) }) : "")
-        + (terr.tiles ? "" : " · " + t("crew.mine.start")) + "</div>"
+        + (terr.tiles ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
         + contributorsHTML(r.body.contributors);
     });
   }
@@ -721,7 +798,7 @@
     if (me.cooldown_until) {
       return '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>"
         + '<div class="crewmsg">'
-        + t("crew.join.wait.p", { n: daysUntil(me.cooldown_until) })
+        + t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) })
         + "</div></div>";
     }
     if (!crews.length) return "";
@@ -785,10 +862,19 @@
     if (!revealNext) return;
     var el = document.querySelector(revealNext);
     revealNext = null;
-    if (el) {
-      if (el.tagName === "DETAILS") el.open = true;
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (!el) return;
+    // Open every collapsed ancestor, not just the node itself. Revealing the crew card of a
+    // returning member scrolled to a node with no box, because the card lives inside a
+    // <details> that is shut by default, so the one step that spans two devices still ended
+    // in nothing visibly happening.
+    var up = el;
+    while (up) {
+      if (up.tagName === "DETAILS") up.open = true;
+      up = up.parentElement;
     }
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("crewflash");
+    setTimeout(function () { el.classList.remove("crewflash"); }, 1400);
   }
 
   function show() {
@@ -826,7 +912,7 @@
         h += '<details class="crewmine-wrap" ' + (me.status === "pending" ? "open" : "")
           + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
           + "<span>" + esc(me.crew.name) + "</span>"
-          + '<span class="crewsumrole">' + esc(me.role) + "</span></summary>"
+          + '<span class="crewsumrole">' + t("crew.role." + me.role) + "</span></summary>"
           + myCrewHTML(me) + "</details>";
       } else if (!me.can_found) {
         h += '<div class="crewcard"><h3>' + t("crew.first.h") + "</h3>"
@@ -910,6 +996,9 @@
       });
     },
     show: show,
+    // closing the panel leaves the territory drawn, but there is nothing to poll for once
+    // nobody is looking at the code
+    panelClosed: function () { stopPairing(); },
     hide: function () {
       if (!visible) return;
       visible = false;

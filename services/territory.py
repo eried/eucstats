@@ -48,7 +48,10 @@ from services import tiles as T
 
 WINDOW_DAYS = 90           # the rolling window: territory is what you ride, not what you rode
 SEED = 2                   # a crew must hold a SEED x SEED block to claim anything
-MIN_TILE_KM = 0.3          # below this a tile is a passing GPS wobble, not a visit
+# A visit is a fraction of a crossing, not a fixed distance. As a flat 0.3 km it was 12% of
+# a crossing at the equator and 60% at Longyearbyen, which is the same latitude bias the lead
+# floor was fixed for, pointing the other way.
+MIN_TILE_EDGE = 0.12       # fraction of a tile's edge that counts as having been there
 
 # A lead is measured against the tile's own size rather than a flat distance. A flat 1 km
 # bought four times as much ground at the equator as at Oslo, where tiles are a quarter the
@@ -66,6 +69,10 @@ HALF_LIFE_DAYS = 21.0
 # What one rider can contribute to one tile in a week. A crew is people, not an odometer:
 # without a cap the tile beside somebody's front door is unreachable by any number of other
 # riders, and with it a tile is won by how many of you ride there.
+#
+# The week is a rolling seven days back from now, not the calendar week. On ISO weeks a rider
+# could put the full cap in on Sunday and the full cap in again on Monday, so the real limit
+# was twice the stated one for anybody who noticed.
 RIDER_TILE_WEEK_CAP_KM = 6.0
 
 
@@ -75,16 +82,36 @@ def _out_path(zoom: int) -> Path:
 
 # --- gathering ----------------------------------------------------------------------------
 
-def _trip_points(db, trip_uuid: str):
+def _decode(points):
     from ingest.downsample import decode_track
-    tt = db.get(TripTrack, trip_uuid)
-    if not tt or not tt.points:
+    if not points:
         return []
     try:
-        return [(r[1], r[2]) for r in decode_track(tt.points)
+        return [(r[1], r[2]) for r in decode_track(points)
                 if r[1] is not None and r[2] is not None]
     except Exception:
         return []
+
+
+def _trip_points(db, trip_uuid: str):
+    tt = db.get(TripTrack, trip_uuid)
+    return _decode(tt.points if tt else None)
+
+
+def _tracks_for(db, uuids: list[str], stride: int = 400):
+    """Tracks for a batch of trips, fetched in chunks instead of one query each.
+
+    The per-trip `db.get` was 96% of the rebuild's queries: 168 of 175 at today's size, and
+    16,800 of 16,808 at a hundred times that. The decode itself is irreducible; the round
+    trips were not.
+    """
+    out = {}
+    for i in range(0, len(uuids), stride):
+        chunk = uuids[i:i + stride]
+        for uuid_, points in db.query(TripTrack.trip_uuid, TripTrack.points).filter(
+                TripTrack.trip_uuid.in_(chunk)).all():
+            out[uuid_] = points
+    return out
 
 
 def _per_tile_km(points, zoom: int) -> dict[str, float]:
@@ -115,7 +142,7 @@ def _per_tile_km(points, zoom: int) -> dict[str, float]:
 
 
 def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> dict:
-    """{tile: {clan_id: [km, {riders}]}} over the window.
+    """({tile: {clan_id: [km, {riders}]}}, {(tile, clan): recency}) over the window.
 
     Per-tile distance comes from the track, scaled so a trip's tiles sum to the odometer
     distance the ingest pipeline validated: the authority stays with the number that was
@@ -133,29 +160,40 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
                     Trip.clan_id.isnot(None),
                     Trip.start_utc >= since,
                     Trip.distance_km > 0)
+            # Newest first, and explicitly ordered. The weekly cap keeps the kilometres it
+            # meets first, and under decay those are worth more, so without an ORDER BY the
+            # result depended on whatever order SQLite handed the rows back: the same data
+            # could produce 4.9 or 6.0 weighted km for one rider-week and a contested tile
+            # could change hands between two rebuilds with nobody riding anything.
+            .order_by(Trip.start_utc.desc(), Trip.trip_uuid.desc())
             .all())
 
-    # (rider, tile, iso-week) -> km already counted, so one odometer cannot hold a tile
+    # (rider, tile, week) -> km already counted, so one odometer cannot hold a tile
+    tracks = _tracks_for(db, [r[0] for r in rows])
     spent: dict[tuple, float] = {}
     acc: dict[str, dict[str, list]] = {}
+    # when each crew last rode each tile, which is how a level contest is decided
+    recency: dict[tuple, float] = {}
     for trip_uuid, clan_id, store_id, km, slat, slon, started in rows:
-        pts = _trip_points(db, trip_uuid)
+        pts = _decode(tracks.get(trip_uuid))
         per_tile = _per_tile_km(pts, zoom) if len(pts) > 1 else {}
-        if not per_tile:                         # no usable track: the start tile alone
-            t = T.tile_of(slat, slon, zoom)
-            if not t:
-                continue
-            per_tile = {t: km or 0.0}
+        if not per_tile:
+            # No track, no ground. This used to fall back to dumping the whole odometer on
+            # the start tile, which meant a ride with a broken GPS log earned a full week's
+            # cap at home with no evidence of having gone anywhere, and was indistinguishable
+            # from a real ride. Territory is a claim about where you went; a trip that cannot
+            # say where it went does not get to make one. It still counts everywhere else.
+            continue
         total = sum(per_tile.values())
         if total <= 0:
             continue
         scale = (km or 0.0) / total
         age_days = max(0.0, (now - started).total_seconds() / 86400.0) if started else 0.0
         weight = 0.5 ** (age_days / HALF_LIFE_DAYS)
-        week = started.isocalendar()[:2] if started else (0, 0)
+        week = int(age_days // 7)                # rolling seven days, not the calendar week
         for tile, d in per_tile.items():
             ridden = d * scale
-            if ridden < MIN_TILE_KM:
+            if ridden < min_visit_km(tile):
                 continue                         # clipped the corner; not a visit
             key = (store_id, tile, week)
             room = RIDER_TILE_WEEK_CAP_KM - spent.get(key, 0.0)
@@ -166,27 +204,44 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
             e = acc.setdefault(tile, {}).setdefault(clan_id, [0.0, set()])
             e[0] += counted * weight
             e[1].add(store_id)
-    return acc
+            seen = recency.get((tile, clan_id), 0.0)
+            recency[(tile, clan_id)] = max(seen, -age_days)
+    return acc, recency
+
+
+def _tile_edge_km(tile: str) -> float:
+    """How far it is across a tile on the ground, at its own latitude."""
+    b = T.bounds(tile)
+    if b is None:
+        return 2.4
+    west, south, east, north = b
+    return ((east - west) / 360.0 * T.EARTH_C_KM
+            * math.cos(math.radians((south + north) / 2.0)))
 
 
 def min_lead_km(tile: str) -> float:
     """How far you must have ridden inside a tile before a lead counts.
 
     Scaled to the tile rather than fixed, so the same effort buys the same standing wherever
-    you ride. A tile at Oslo is about 2.4 km across and one at the equator 4.9 km, so a flat
-    kilometre was four times cheaper on the equator in area terms.
+    you ride. At the default zoom a tile is about 1.2 km across at Oslo and 2.4 km at the
+    equator, and a flat kilometre was twice as cheap on the equator in crossings and four
+    times as cheap in area.
+
+    No absolute clamp: one existed and it inverted the fix above about 70 degrees north, where
+    tiles are small enough that the clamp bit and Longyearbyen ended up paying more per
+    crossing than Oslo.
     """
-    b = T.bounds(tile)
-    if b is None:
-        return 1.0
-    west, south, east, north = b
-    import math as _m
-    edge = (east - west) / 360.0 * T.EARTH_C_KM * _m.cos(_m.radians((south + north) / 2.0))
-    return max(0.35, edge * MIN_LEAD_EDGE)
+    return _tile_edge_km(tile) * MIN_LEAD_EDGE
+
+
+def min_visit_km(tile: str) -> float:
+    """Below this, a ride only clipped the corner of a tile and did not visit it."""
+    return _tile_edge_km(tile) * MIN_TILE_EDGE
 
 
 def winners(acc: dict, previous: dict | None = None,
-            skip: set | None = None) -> dict[str, tuple[str, float, int]]:
+            skip: set | None = None,
+            last_seen: dict | None = None) -> dict[str, tuple[str, float, int]]:
     """{tile: (clan_id, km, riders)} — most kilometres takes the tile.
 
     A lead under the tile's own floor takes nothing. Without that floor the cheapest way to hold ground
@@ -201,6 +256,7 @@ def winners(acc: dict, previous: dict | None = None,
     """
     prev = previous or {}
     blocked = skip or set()
+    last_seen = last_seen or {}
     out = {}
     for tile, per in acc.items():
         best = None
@@ -208,8 +264,14 @@ def winners(acc: dict, previous: dict | None = None,
         for clan_id, (km, riders) in per.items():
             if km < floor or (tile, clan_id) in blocked:
                 continue
+            # Ties go to whoever rode it most recently, then to the incumbent. Incumbency
+            # alone made a level contest permanent: two crews riding a tile equally hard
+            # converge on the same number and the holder keeps it forever, so the closest
+            # rivalries were the only ones that could never resolve. Recency breaks that in
+            # the direction the whole mode is about, which is riding.
             incumbent = prev.get(tile) == clan_id
-            key = (km, 1 if incumbent else 0)
+            key = (round(km, 6), last_seen.get((tile, clan_id), 0.0),
+                   1 if incumbent else 0)
             if best is None or key > best[0]:
                 best = (key, clan_id, km, len(riders))
         if best:
@@ -305,7 +367,7 @@ def emblem_slot(comp: set[tuple[int, int]]) -> tuple[int, int, int]:
 # --- the rebuild --------------------------------------------------------------------------
 
 def award(acc: dict, live: set, prev: dict, seed: int = SEED,
-          rounds: int = 8) -> tuple[dict[str, set], dict]:
+          rounds: int = 8, last_seen: dict | None = None) -> tuple[dict[str, set], dict]:
     """Decide who draws what, re-awarding tiles their winner cannot actually hold.
 
     The naive version — pick the km leader per tile, then drop whatever fails to seed — made
@@ -324,7 +386,7 @@ def award(acc: dict, live: set, prev: dict, seed: int = SEED,
     """
     blocked: set = set()
     for _ in range(rounds):
-        won = winners(acc, prev, skip=blocked)
+        won = winners(acc, prev, skip=blocked, last_seen=last_seen)
         by_clan: dict[str, set] = {}
         for tile, (clan_id, _km, _r) in won.items():
             by_clan.setdefault(clan_id, set()).add(_xy(tile))
@@ -386,7 +448,7 @@ def _zoom_of(won: dict) -> int:
 def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             seed: int = SEED) -> dict:
     """Recompute every crew's territory and write both outputs. Returns a short report."""
-    acc = accumulate(db, window_days, zoom)
+    acc, recency = accumulate(db, window_days, zoom)
     prev = {c.tile: c.clan_id for c in db.query(ClanCell).all()}
     first_led = {(c.tile, c.clan_id): c.first_led for c in db.query(ClanCell).all()}
 
@@ -396,7 +458,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         .filter(ClanMember.status == "active", ClanMember.left_at.is_(None))
         .group_by(ClanMember.clan_id).all())
 
-    kept, won = award(acc, set(clans), prev, seed)
+    kept, won = award(acc, set(clans), prev, seed, last_seen=recency)
 
     # --- ClanCell rows: the admin view and the ranking read these
     db.query(ClanCell).delete()

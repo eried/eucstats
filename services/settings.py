@@ -767,11 +767,21 @@ def set_heatmap(db: Session, cell_size, route_mode, floor, radius, intensity, op
     set_meta(db, "hm_opacity", str(_clamp_float(opacity, 0.62, 0.0, 1.0)))
 
 
+_CREWS_CACHE: dict = {"v": None}
+
+
+def _invalidate_crews_cache() -> None:
+    _CREWS_CACHE["v"] = None
+
+
 def get_crews(db: Session) -> dict:
     """Crews & Territory settings. `enabled` is the kill switch: off hides the mode entirely,
     stops the nightly rebuild and refuses every crew endpoint, without dropping a single row —
     a feature that cannot be switched off is a feature that has to be perfect on day one."""
-    return {
+    cached = _CREWS_CACHE["v"]
+    if cached is not None:
+        return cached
+    out = {
         "enabled": (get_meta(db, "crew_enabled", "0") or "0") == "1",
         "zoom": _clamp_int(get_meta(db, "crew_zoom", 14), 14, 8, 16),
         "window_days": _clamp_int(get_meta(db, "crew_window_days", 90), 90, 7, 730),
@@ -781,10 +791,16 @@ def get_crews(db: Session) -> dict:
         "opacity": _clamp_float(get_meta(db, "crew_opacity", 0.55), 0.55, 0.0, 1.0),
         "creation_open": (get_meta(db, "crew_creation_open", "1") or "1") == "1",
     }
+    # Eight app_meta SELECTs per call, and _gate() calls this on every crews endpoint, for
+    # settings that change when somebody clicks save on the admin page. One process, one
+    # dict, invalidated on write.
+    _CREWS_CACHE["v"] = out
+    return out
 
 
 def set_crews(db: Session, enabled, zoom, window_days, seed, cooldown_days, max_members,
               opacity, creation_open) -> None:
+    _invalidate_crews_cache()
     set_meta(db, "crew_enabled", "1" if enabled else "0")
     set_meta(db, "crew_zoom", str(_clamp_int(zoom, 14, 8, 16)))
     set_meta(db, "crew_window_days", str(_clamp_int(window_days, 90, 7, 730)))

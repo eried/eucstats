@@ -73,7 +73,7 @@
 .crewrank .val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .crewrank .val.sub { color: var(--mut, #7a86ad); font-size: 11px; }
 .crewrank tr.sel { cursor: pointer; }
-.crewrank tr.sel:hover td { background: rgba(46,168,255,.1); }
+.crewrank tr.sel:hover td { background: rgba(255,138,216,.11); }
 .crewrank .celln { display: flex; align-items: center; gap: 8px; }
 
 .crewident { display: flex; gap: 12px; align-items: center; margin: 12px 0 0; }
@@ -87,7 +87,7 @@
 .crewqr img { width: 188px; height: 188px; image-rendering: pixelated; background: #fff; padding: 7px; }
 .crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
 
-.crewmsg { margin: 9px 0; padding: 8px 11px; background: rgba(46,168,255,.12); border-left: 2px solid #2ea8ff; font-size: 12.5px; }
+.crewmsg { margin: 9px 0; padding: 8px 11px; background: rgba(255,138,216,.13); border-left: 2px solid var(--sec, #ff8ad8); font-size: 12.5px; }
 .crewmsg.bad { background: rgba(255,107,107,.13); border-left-color: #ff6b6b; }
 
 .crewhow { font-size: 12.5px; line-height: 1.55; color: var(--mut, #7a86ad); border: 1px solid var(--line, #243055); padding: 0 13px; }
@@ -270,4 +270,45 @@ a.crewqr { display: flex; text-decoration: none; }
   #cf-patterns { grid-template-columns: repeat(4, 30px); }
   /* the action buttons were clipping against the panel's bottom edge */
   .crewmine .crewacts { padding-bottom: 14px; }
+}
+
+
+/* The mode's colour has to reach the numbers, not just the frame. These three come from the
+   page's own stylesheet with a hardcoded --acc, which is the Riders blue, so the three
+   largest figures on the board were rendering blue inside a pink panel. */
+.panel[data-sec=crews] .pod .km { color: var(--sec, #ff8ad8); }
+.panel[data-sec=crews] .hint { border-left-color: var(--sec, #ff8ad8); }
+.panel[data-sec=crews] .sel:hover { background: rgba(255,138,216,.1); }
+
+/* The legend has to agree with the map it explains: the fills step 1 / .84 / .66 and the
+   dashed edge is on both contested bands, not just the worst one. */
+.crewlegend .b1 i { opacity: .84; border-style: dashed; }
+.crewlegend .b2 i { opacity: .66; border-style: dashed; }
+
+@media (max-width: 560px) {
+  /* a 150px image was sitting in a 188px box */
+  .crewqr { min-height: 0; }
+}
+
+
+/* The revealed card says so for a moment. Scrolling to it is not the same as noticing it,
+   especially after an action that happened on another device. */
+@keyframes crewflash {
+  0% { box-shadow: 0 0 0 0 rgba(255,138,216,.0); }
+  22% { box-shadow: 0 0 0 3px rgba(255,138,216,.55); }
+  100% { box-shadow: 0 0 0 0 rgba(255,138,216,0); }
+}
+.crewflash { animation: crewflash 1.4s ease-out; }
+
+@media (hover: none) and (pointer: coarse) {
+  /* On the device the app is installed on, the button is the thing that works and the QR is
+     the thing that physically cannot. Put them in that order. */
+  .crewsign { display: flex; flex-direction: column; }
+  .crewsame { order: 1; }
+  .crewopen { order: 2; margin-top: 4px; }
+  .crewqr { order: 3; margin-top: 18px; }
+  .crewcode { order: 4; }
+  #crewcodehint { order: 5; }
+  .crewsign h3 { order: -2; }
+  .crewsign > .hint:first-of-type { order: -1; }
 }

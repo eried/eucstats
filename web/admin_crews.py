@@ -85,7 +85,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
           <tr><td><label><input type=checkbox name=creation_open{open_on}> Anyone may found a crew</label></td>
               <td class=mut>Off: existing crews carry on, no new ones are created.</td></tr>
           <tr><td>Tile zoom <input name=zoom value="{cfg['zoom']}" size=4></td>
-              <td class=mut>13 is about 2.4&nbsp;km across at Oslo and 4.9&nbsp;km at the
+              <td class=mut>14 is about 1.2&nbsp;km across at Oslo and 2.4&nbsp;km at the
               equator. Lower is coarser. Changing this invalidates every held tile.</td></tr>
           <tr><td>Rolling window (days) <input name=window_days value="{cfg['window_days']}" size=5></td>
               <td class=mut>Only rides inside the window count, so a crew that stops riding
