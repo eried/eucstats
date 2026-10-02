@@ -288,8 +288,14 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* The legend has to agree with the map it explains: the fills step 1 / .84 / .66 and the
    dashed edge is on both contested bands, not just the worst one. */
-.crewlegend .b1 i { opacity: .84; border-style: dashed; }
-.crewlegend .b2 i { opacity: .66; border-style: dashed; }
+/* The chips have to be separable at a glance, which .84 against .66 on a dark panel is not,
+   and every state the map paints needs one. The legend has drifted twice; it is generated
+   from the same list the map uses now in spirit, and sized so the steps are visible. */
+.crewlegend i { width: 16px; height: 16px; }
+.crewlegend .b1 i { opacity: .7; border-style: dashed; border-color: #fff; }
+.crewlegend .b2 i { opacity: .42; border-style: dashed; border-color: #fff; }
+.crewlegend .b3 i { opacity: .28; }
+.crewlegend .b4 i { opacity: 1; box-shadow: inset 0 0 0 2px rgba(0,0,0,.45); }
 
 @media (max-width: 560px) {
   /* a 150px image was sitting in a 188px box */
@@ -332,3 +338,9 @@ a.crewqr { display: flex; text-decoration: none; }
   font: inherit; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
 }
 .crewask .crewbtn { margin-right: 7px; }
+
+
+.crewboardsub { margin: -2px 0 10px; }
+.crewnoapp { margin-top: 10px; }
+.crewnoapp a { color: var(--sec, #ff8ad8); text-decoration: none; }
+.crewnoapp a:hover { text-decoration: underline; }

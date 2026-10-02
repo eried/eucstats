@@ -33,6 +33,18 @@
   var WINDOW_DAYS = CFG.window_days || 90;
 
   // "1 days" is not a thing
+  function fadesIn(n) {
+    return n <= 1 ? t("crew.tile.day1") : t("crew.tile.days", { n: n });
+  }
+
+  // With the cooldown switched off there is no waiting to describe, so the sentence changes
+  // rather than the number. "No new crew for right now" is what came out before.
+  function leaveQuestion(name) {
+    return COOLDOWN_DAYS > 0
+      ? t("crew.mine.leaveq", { name: name, n: days(COOLDOWN_DAYS) })
+      : t("crew.mine.leaveq0", { name: name });
+  }
+
   function days(n) {
     if (n <= 0) return t("crew.now");
     return n === 1 ? t("crew.day1") : t("crew.days", { n: n });
@@ -342,7 +354,7 @@
                  t("crew.tile.fading"), t("crew.tile.ringed")][band];
     // the number is the whole point: "about to flip" without it is a warning with no content
     var detail = band === 4 ? t("crew.tile.ringedp")
-      : band === 3 ? t("crew.tile.days", { n: info[1] })
+      : band === 3 ? fadesIn(info[1])
       : band === 1 || band === 2 ? t("crew.tile.need", { v: km.toFixed(1) })
       : t("crew.tile.clear", { v: km.toFixed(1) });
     new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
@@ -416,14 +428,15 @@
     });
   }
 
-  // The three states exist on the map whether or not anyone taps a tile, so they get named
-  // under the board rather than hiding in a popup.
+  // Every state the map can paint gets a chip. The legend has fallen out of step twice now,
+  // both times because a state was added to the map and not to the list that explains it.
   function legendHTML() {
     return '<div class="crewlegend">'
       + '<span class="b0"><i></i>' + t("crew.tile.safe") + "</span>"
       + '<span class="b1"><i></i>' + t("crew.tile.pushed") + "</span>"
       + '<span class="b2"><i></i>' + t("crew.tile.slipping") + "</span>"
       + '<span class="b3"><i></i>' + t("crew.tile.fading") + "</span>"
+      + '<span class="b4"><i></i>' + t("crew.tile.ringed") + "</span>"
       + "</div>";
   }
 
@@ -498,6 +511,8 @@
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
       + '<p class=hint id="crewcodehint">' + t("crew.signin.scan") + "</p>"
+      + '<p class="hint crewnoapp"><a href="#" id="crewgetapp">'
+      + t("crew.signin.noapp") + "</a></p>"
       + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"
       + '<a class="crewbtn crewopen" id="crewopen" href="#">' + t("crew.signin.open") + "</a>"
       + "</div>";
@@ -525,6 +540,12 @@
       }
       if (open) open.href = deep;
       if (code) code.textContent = r.body.code;
+      var get = document.getElementById("crewgetapp");
+      if (get) get.onclick = function (ev) {
+        ev.preventDefault();
+        var tab = document.querySelector('.dock button[data-p=tech]');
+        if (tab) tab.click();
+      };
       var left = r.body.expires_in;
       pairTimer = setInterval(function () {
         // Nothing is going to happen while the tab is in the background, and a code that
@@ -556,7 +577,10 @@
               // the one step that spans two devices is the one that most needs a visible
               // result; every other action already reveals itself
               reveal(".crewcard:not(.crewboard)");
-              setStatus(t("crew.signin.ok"));
+              // after the render, not before it: show() replaces the whole panel body,
+              // including the node this writes into, so setting it first wrote the one
+              // confirmation that matters into an element that was gone a line later
+              pendingStatus = t("crew.signin.ok");
               show();
             }
             else if (!p.ok) startPairing();
@@ -576,9 +600,11 @@
   function ask(message, confirmLabel, ok) {
     var host = document.getElementById("crewstatus");
     if (!host) { if (window.confirm(message)) ok(); return; }
+    // The quiet button is the one that acts and the bright one is the way out. Leaving costs
+    // a crew and a cooldown, and a stray tap should not be the easy path.
     host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
-      + '<button class="crewbtn mini" id="crewask-y">' + esc(confirmLabel) + "</button>"
-      + '<button class="crewbtn mini ghost" id="crewask-n">' + t("crew.cancel") + "</button>"
+      + '<button class="crewbtn mini ghost" id="crewask-y">' + esc(confirmLabel) + "</button>"
+      + '<button class="crewbtn mini" id="crewask-n">' + t("crew.cancel") + "</button>"
       + "</div>";
     host.scrollIntoView({ block: "nearest", behavior: "smooth" });
     document.getElementById("crewask-n").onclick = function () { host.innerHTML = ""; };
@@ -728,8 +754,10 @@
     }
     if (c.description) h += "<p>" + esc(c.description) + "</p>";
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
-    if (c.invite_code && c.join_policy === "invite") {
-      h += '<p class=hint>' + t("crew.mine.invite") + ': <code>' + esc(c.invite_code) + "</code></p>";
+    if (c.invite_code) {
+      h += '<p class=hint>'
+        + t(c.join_policy === "invite" ? "crew.mine.invite" : "crew.mine.invite2")
+        + ': <code>' + esc(c.invite_code) + "</code></p>";
     }
     // Leaving is blocked for a leader with members until somebody else can run the crew, and
     // there was no control anywhere to make that somebody. The endpoint existed; the button
@@ -810,8 +838,7 @@
     });
     var leave = document.getElementById("cm-leave");
     if (leave) leave.onclick = function () {
-      ask(t("crew.mine.leaveq", { name: c.name, n: days(COOLDOWN_DAYS) }),
-          t("crew.mine.leave"), function () {
+      ask(leaveQuestion(c.name), t("crew.mine.leave"), function () {
         api("POST", "/api/v1/crews/leave", {}).then(function (r) {
           if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
           else setStatus((r.err && r.err.detail) || t("crew.err"), true);
@@ -930,7 +957,7 @@
     // Not off, just faint. Territory answers "who holds this" and the heatmap answers "does
     // anybody actually ride here", and the second is useful context under the first as long
     // as it is quiet enough not to blur the edges that are the whole point.
-    var ghost = CFG.heat_ghost != null ? CFG.heat_ghost : 0.2;
+    var ghost = CFG.heat_ghost != null ? CFG.heat_ghost : 0.14;
     var want = on ? full : full * ghost;
     try { map.setPaintProperty("heat", "heatmap-opacity", want); } catch (e) {}
   }
@@ -938,6 +965,7 @@
   // Re-rendering resets the panel's scroll, so an action that changes your standing left you
   // staring at the top of the board with no sign it worked. Whatever is new gets scrolled to.
   var revealNext = null;
+  var pendingStatus = null;
 
   function reveal(sel) {
     revealNext = sel;
@@ -987,6 +1015,7 @@
       // crew should land on the board rather than on a sign-in form. The rider's own crew
       // sits under it, folded away once they have one — they already know what it is.
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
+        + '<p class="hint crewboardsub">' + t("crew.board.sub") + "</p>"
         + rankingHTML(rank) + legendHTML() + "</div>";
       // Signed out, the only thing you can act on goes first and the board follows. Signed
       // in, the board leads because that is what you came back to look at.
@@ -1017,6 +1046,7 @@
       if (me.crew) bindMine(me);
       else { bindCreate(); bindJoin(); }
       doReveal();
+      if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
         el.onclick = function () {
           var r = rank[+el.dataset.i];

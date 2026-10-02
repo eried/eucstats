@@ -225,7 +225,7 @@ def save_settings(request: Request, db: Session = Depends(get_db),
                   enabled: str = Form(None), creation_open: str = Form(None),
                   zoom: int = Form(14), window_days: int = Form(90), seed: int = Form(2),
                   cooldown_days: int = Form(7), max_members: int = Form(0),
-                  opacity: float = Form(0.55), heat_ghost: float = Form(0.2)):
+                  opacity: float = Form(0.55), heat_ghost: float = Form(0.14)):
     g = _guard(request)
     if g:
         return g
