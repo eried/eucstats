@@ -204,8 +204,10 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewpreview .crewsw { border-width: 2px; }
 .crewpickwrap { flex: 1; min-width: 0; }
 .crewpickc, .crewpickp {
-  width: 24px; height: 24px; padding: 0; border: 1px solid rgba(255,255,255,.22);
-  cursor: pointer; border-radius: 7px; background-clip: padding-box;
+  /* the grid counts the columns from the width there is, so the chip takes the cell it got
+     rather than sitting in the corner of it */
+  width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid rgba(255,255,255,.22);
+  cursor: pointer; background-clip: padding-box;   /* square: see the radius block below */
 }
 .crewpickp { background: transparent; display: flex; align-items: center; justify-content: center; }
 .crewpickp .crewsw { width: 20px; height: 20px; border: 0; }
@@ -221,14 +223,18 @@ a.crewqr { display: flex; text-decoration: none; }
    panel next to 7px tabs read as unfinished rather than as deliberate. */
 .crewcard, .crewmine-wrap, .crewhow { border-radius: 10px; }
 /* kept square on purpose: these ARE the map's language */
-.crewsw, .crewpickc, .crewpickp, .crewemb img { border-radius: 0; }
+.crewsw, .crewpickc, .crewpickp, .crewemb img, .crewembsm { border-radius: 0; }
+/* the crew's own emblem at name size, in the standings rows and the join list */
+.crewembsm { flex: 0 0 auto; vertical-align: -3px; object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.14); }
 
 /* a colour and pattern on every ranked row: this is a feature about identity and rows 4+
    carried none of it */
 .crewrank .celln .crewsw, .crewboard table .celln .crewsw { flex: 0 0 auto; }
 
 /* the colour grid was ragged; 12 to a row reads as a palette */
-.crewpick { display: grid; grid-template-columns: repeat(12, 24px); gap: 5px;
+.crewpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(24px, 1fr));
+  max-width: 353px; gap: 5px;
   margin: 5px 0 9px; }
 #cf-patterns { grid-template-columns: repeat(6, 24px); }
 
@@ -237,13 +243,20 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* the join list was nine identical filled buttons shouting over the crews themselves */
 .crewrow .crewbtn.mini { min-width: 86px; text-align: center; }
-.crewmeta2 { font-size: 11px; color: var(--mut, #7a86ad); }
+/* the crew's own words, on their own line under the stats, not welded onto the end of them */
+.crewmeta2 { display: block; margin-top: 1px; font-size: 11px; color: var(--mut, #7a86ad);
+  opacity: .85; }
 
 /* the band legend under the board */
-.crewlegend { display: flex; gap: 12px 14px; flex-wrap: wrap; margin: 10px 0 2px;
-  font-size: 11px; color: var(--mut, #7a86ad); }
-.crewlegend i { display: inline-block; width: 16px; height: 16px; margin-right: 5px;
-  vertical-align: -3px; background: var(--sec, #ff8ad8);
+/* a grid, so the chips line up in columns instead of wrapping 4 / 3 / 1, and a
+   wrapped label sits beside its swatch rather than under it */
+.crewlegend { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 6px 14px; margin: 10px 0 0; font-size: 11px; color: var(--mut, #7a86ad); }
+.crewlegend span { display: flex; align-items: flex-start; gap: 5px; }
+.crewlegnote { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px;
+  color: var(--mut, #7a86ad); opacity: .85; }
+.crewlegend i { display: inline-block; width: 16px; height: 16px;
+  flex: 0 0 16px; margin-top: 1px; position: relative; background: var(--sec, #ff8ad8);
   border: 1px solid rgba(255,255,255,.25); }
 /* The chips describe what the map paints and nothing else. A ten per cent opacity step is
    visible across a city block and invisible across sixteen pixels, so the two contested bands
@@ -280,7 +293,9 @@ a.crewqr { display: flex; text-decoration: none; }
    largest figures on the board were rendering blue inside a pink panel. */
 .panel[data-sec=crews] .rk,
 .panel[data-sec=crews] .pod .km { color: var(--sec, #ff8ad8); }
-.panel[data-sec=crews] .hint { border-left-color: var(--sec, #ff8ad8); }
+/* The card's own left edge is the line for the area. Three stacked hints on the pass card
+   drew three more inside it, each a separate stub with a gap above and below. */
+.panel[data-sec=crews] .hint { border-left: 0; padding-left: 0; }
 .panel[data-sec=crews] .sel:hover { background: rgba(255,138,216,.1); }
 
 @keyframes crewbreathe { 0%, 100% { opacity: .15; } 50% { opacity: .85; } }
@@ -469,15 +484,17 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewqr img { width: 150px; height: 150px; }
   .crewcode { font-size: 21px; letter-spacing: 5px; }
   .crewident { flex-wrap: wrap; }
-  /* The tile count is the first thing to go when there is no room. It has to be said twice:
-     the standings use the site's own podium, which builds its own table rather than the
-     .crewrank one, and without this both numbers wrap onto two lines each. */
-  .crewrank .val.sub,
-  .crewboard table .val.sub { display: none; }
-  .crewboard table .val { white-space: nowrap; }
+  /* Four columns in 317px. The site's own podium builds this table, so its cells arrive
+     nowrap and sized for a desktop: rank + name + "44 squares" + "8 new this week" came to
+     459px and the last two were cut off the right edge. Nothing is dropped, because the week
+     count is the only thing here that says the map moved. The numbers wrap, the padding
+     comes in, and the name column gives up its width first. */
+  .crewboard table { width: 100%; }
+  .crewboard table td { padding-left: 5px; padding-right: 5px; }
+  .crewboard table .val { white-space: nowrap; width: 1%; }
+  .crewrank .val.sub { display: none; }
   .crewacts .crewbtn { flex: 1 1 auto; }
-  .crewpickc, .crewpickp { width: 30px; height: 30px; }   /* thumbs, not cursors */
-  .crewpickp .crewsw { width: 26px; height: 26px; }
+  .crewpickp .crewsw { width: 26px; height: 26px; }   /* thumbs, not cursors */
   /* truncating crew names is indefensible in a feature about naming your crew */
   /* wrapping was not enough on its own: the ellipsis is inherited, so the name wrapped AND
      truncated. Truncating a crew name in a feature about naming your crew is indefensible. */
@@ -485,8 +502,11 @@ a.crewqr { display: flex; text-decoration: none; }
     white-space: normal; overflow: visible; text-overflow: clip;
     font-size: 11px; line-height: 1.15;
   }
-  .crewpick { grid-template-columns: repeat(8, 30px); }
-  #cf-patterns { grid-template-columns: repeat(4, 30px); }
+  .crewboard table .celln { align-items: flex-start; }
+  .crewboard table .celln > span { white-space: normal; overflow: visible;
+    text-overflow: clip; line-height: 1.2; }
+  .crewpick { grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); }
+  #cf-patterns { grid-template-columns: repeat(4, 30px); }   /* four fit; they are not 30 */
   /* the action buttons were clipping against the panel's bottom edge */
   .crewmine .crewacts { padding-bottom: 14px; }
   /* a 150px image was sitting in a 188px box */
@@ -499,7 +519,7 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewtrow { flex-wrap: wrap; row-gap: 3px; }
   .crewtag { margin-left: calc(var(--kmc) + 44px); }
   .crewcname { max-width: none; }
-  .crewboard table .val.sub { display: table-cell; font-size: 10.5px; text-align: right; }
+  .crewboard table .val.sub { font-size: 11px; text-align: right; width: 1%; }
   .crewboard table .val.sub .crewarea { display: none; }
 }
 
@@ -508,3 +528,25 @@ a.crewqr { display: flex; text-decoration: none; }
 /* how long a crew has held a square, filled in after the popup opens */
 .crewpop-since:empty { display: none; }
 .crewmore { margin: 6px 0 0; opacity: .8; }
+
+
+/* The phrase says how hard, the figure says how far. "the long way round" covers 1.6 km to
+   5.0 km, and the client has the number already. */
+.crewtkm i { font-style: normal; font-size: 10.5px; font-weight: 400; opacity: .62;
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.crewtargets.nums .crewtkm i { display: none; }
+
+/* the key carries the crew's pattern, the same way every other swatch in the panel does */
+.crewlegend i[data-p]::after { content: ""; position: absolute; inset: 0; }
+.crewlegend i[data-p=stripes]::after {
+  background: repeating-linear-gradient(45deg, rgba(0,0,0,.45) 0 2px, transparent 2px 5px); }
+.crewlegend i[data-p=dots]::after {
+  background-image: radial-gradient(rgba(0,0,0,.5) 28%, transparent 30%);
+  background-size: 5px 5px; }
+.crewlegend i[data-p=hatch]::after {
+  background: repeating-linear-gradient(45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px),
+              repeating-linear-gradient(-45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px); }
+
+/* the figure behind the phrase, on the square itself: same weight as in the two cards */
+.crewtip span i, .crewpop-in span i { font-style: normal; font-size: 10.5px; opacity: .62;
+  font-variant-numeric: tabular-nums; white-space: nowrap; }

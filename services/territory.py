@@ -683,8 +683,12 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     * `first` completes a 2x2 for a crew that holds nothing. Until you have a block you are not
       on the map however far you ride, and the crew in that state was the only one the list had
       nothing to say to.
-    * `joins` welds two separate patches into one. The board ranks on the biggest single patch,
-      so the roadtrip beats widening either end.
+    * `links` is a square on the road between two of the crew's patches, carrying how many
+      more squares it takes to close the gap. The board ranks on the biggest single patch, so
+      welding two together beats widening either end by any amount, and it is the only move in
+      the game worth planning a whole afternoon around. It used to be `joins`, which required
+      a square touching two patches at once: that can only happen across a gap of exactly one,
+      where the square is an ordinary neighbour anyway, so it fired on nothing, ever.
     * `grows` extends the patch the crew is ranked on. It sorts the list and stays off the
       screen: it was true of ten rows out of ten for eleven of twelve crews.
     * `kills` means the holder is standing on it: take it and their seed breaks, and whatever
@@ -725,6 +729,22 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
 
     patches = list(patches if patches is not None else regions(held))
     patches.sort(key=len, reverse=True)
+    # The road between the two biggest patches, when they are close enough that closing it is
+    # a ride rather than a holiday. Four squares is about five kilometres at Oslo.
+    link_road, link_len = set(), 0
+    if len(patches) > 1:
+        a = min(patches[0], key=lambda q: min((q[0] - r[0]) ** 2 + (q[1] - r[1]) ** 2
+                                              for r in patches[1]))
+        b = min(patches[1], key=lambda q: (q[0] - a[0]) ** 2 + (q[1] - a[1]) ** 2)
+        gap = max(abs(a[0] - b[0]), abs(a[1] - b[1])) - 1
+        if 0 < gap <= 4:
+            x0, y0, x1, y1 = a[0], a[1], b[0], b[1]
+            steps = max(abs(x1 - x0), abs(y1 - y0)) or 1
+            for i in range(steps + 1):
+                q = (round(x0 + (x1 - x0) * i / steps), round(y0 + (y1 - y0) * i / steps))
+                if q not in held:
+                    link_road.add(q)
+            link_len = len(link_road)
     if patches and buckets is not None:
         # rivals within riding distance. Not the whole board: a list that points at another
         # city is as useless as one that points at the next street.
@@ -764,7 +784,8 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                     "held_by": holder_of.get((x, y)),
                     "dir": _bearing(round(x - cx), round(y - cy)),
                     "first": first,
-                    "joins": len(touching) > 1,
+                    "joins": len(touching) > 1 or (x, y) in link_road,
+                    "links": link_len if (x, y) in link_road else 0,
                     "grows": biggest is not None and biggest in touching,
                     "blocked": need <= 0.0 and km > 0.0})
 
@@ -860,6 +881,7 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         del t["grows"]
         t.setdefault("kills", False)
         t.setdefault("lost", 0)
+        t.setdefault("links", 0)
     return out[:limit]
 
 

@@ -42,7 +42,7 @@ CREWS = {
     "Barcelona":  [("Diagonal Drift", "Grid city, diagonal habits.", "open")],
     "New York":   [("Five Borough Crew", "Bridges are free real estate.", "approval")],
     "Austin":     [("Hill Country Hum", "Humid and hilly.", "open")],
-    "Singapore":  [("Equator Express", "The tiles are enormous down here.", "open")],
+    "Singapore":  [("Equator Express", "The squares are enormous down here.", "open")],
     "Santiago":   [("Cordillera Sur", "The Andes are right there.", "open")],
     "Sydney":     [("Harbour Bridge Bombers", "Downhill both ways, somehow.", "open")],
 }

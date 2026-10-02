@@ -382,22 +382,23 @@ def test_the_list_can_point_past_the_end_of_your_own_street():
     assert max(t["x"] for t in out) > 2, "and the list has to point past our own edge"
 
 
-def test_a_welding_square_is_always_a_neighbour_already():
-    """A road between two patches was added as a candidate source on the theory that a square
-    welding them could not otherwise reach the list. It always could. `joins` needs one square
-    orthogonally touching two patches, which only happens across a one-tile gap, and that
-    square is a neighbour of held ground by definition. The road produced nothing at any
-    distance and cost up to 35ms a crew, so it went."""
+def test_the_roadtrip_between_two_patches_is_a_row_you_can_see():
+    """The board ranks on the biggest single patch, so welding two together beats widening
+    either end by any amount. For three rounds the flag that says so fired on nothing, ever:
+    it needed one square touching two patches at once, which happens only across a gap of
+    exactly one, where the square is an ordinary neighbour anyway. A real crew riding two
+    parts of a city is two to four squares short, and those squares now carry how many."""
     from services.territory import targets_for
-    for gap, want in ((1, True), (2, False), (3, False), (6, False)):
+    for gap, want in ((1, True), (2, True), (3, True), (4, True), (6, False)):
         left = {(0, 0), (1, 0), (0, 1), (1, 1)}
         right = {(2 + gap, 0), (3 + gap, 0), (2 + gap, 1), (3 + gap, 1)}
         out = targets_for(acc={}, kept={"A": left | right}, clan_id="A", won={}, zoom=14,
-                          limit=200)
-        joins = [(t["x"], t["y"]) for t in out if t["joins"]]
-        assert bool(joins) is want, (gap, joins)
+                          limit=60)
+        links = [t for t in out if t["links"]]
+        assert bool(links) is want, (gap, [(t["x"], t["y"]) for t in links])
         if want:
-            assert joins == [(2, 0), (2, 1)], joins
+            assert all(t["links"] == gap for t in links), (gap, links)
+            assert all(2 <= t["x"] <= 1 + gap for t in links), links
 
 
 def test_a_crew_one_square_from_existing_is_told_which_square():

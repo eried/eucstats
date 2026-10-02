@@ -444,6 +444,11 @@
     sizeEmblems();
   }
 
+  // A ceiling as well as a floor. Zoomed in, a big crew's emblem reached about 250px and
+  // covered six squares of the territory it was labelling, including the pressure shades
+  // underneath it, which is the one thing the reader came to look at.
+  var EMBLEM_MAX = 96;
+
   function sizeEmblems() {
     if (!TERR) return;
     var z = map.getZoom();
@@ -459,10 +464,12 @@
       // with the size of the region, so a sprawling crew stays identifiable over a country
       // while a four-tile crew still disappears when it should.
       var floor = tiles >= 40 ? 34 : tiles >= 15 ? 28 : tiles >= 6 ? 22 : 0;
-      px = Math.max(px, floor);
+      px = Math.min(Math.max(px, floor), EMBLEM_MAX);
       el.style.width = el.style.height = px + "px";
       el.style.opacity = px < 16 ? 0 : 1;
-      el.classList.toggle("tiny", px < 64);
+      // the name goes when the badge is too small to carry it, not when the crew is big: the
+      // floor above means a large crew can sit at 34px and still want its name
+      el.classList.toggle("tiny", px < Math.max(44, floor + 10));
     });
   }
 
@@ -490,7 +497,10 @@
         : band === 3 ? fadesIn(tenths)
         : band === 1 || band === 2 ? t("crew.tile.needw", { v: effort(km, y) })
         // the words version is already a whole clause; only the figures need a sentence
-        : SHOW_NUMBERS ? t("crew.tile.clear", { v: fmtKm(km) }) : margin(km, y)
+        : SHOW_NUMBERS ? t("crew.tile.clear", { v: fmtKm(km) }) : margin(km, y),
+      // the third slot is the figure behind the phrase, the same one the two cards print.
+      // With the setting on the phrase is already the figure, and 3 and 4 have no distance.
+      SHOW_NUMBERS || band === 3 || band === 4 ? "" : fmtKm(km)
     ];
   }
 
@@ -526,7 +536,7 @@
       var el = document.createElement("div");
       el.className = "crewtip b" + info[0];
       el.innerHTML = "<b>" + esc(p.name) + "</b><span>" + esc(w[0]) + "</span><span>"
-        + esc(w[1]) + "</span>"
+        + esc(w[1]) + (w[2] ? " <i>" + esc(w[2]) + "</i>" : "") + "</span>"
         + (info[2] ? "<span><em>" + esc(t("crew.tile.fresh")) + "</em></span>" : "");
       map.getCanvasContainer().appendChild(el);
       el.style.left = px.x + "px";
@@ -591,7 +601,7 @@
     var info = TILEINFO[tx + ":" + ty] || [p.band || 0, 0];
     // the number is the whole point: "about to flip" without it is a warning with no content
     var words = tileWords(info[0], info[1], ty);
-    var state = words[0], detail = words[1];
+    var state = words[0], detail = words[1], fig = words[2];
     hideTip();
     if (POPUP) POPUP.remove();
     // How long they have held it. The server has computed this all along and nothing read it,
@@ -607,7 +617,8 @@
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)
-        + "</span><span>" + esc(detail) + '</span><span class="crewpop-since"></span>'
+        + "</span><span>" + esc(detail) + (fig ? " <i>" + esc(fig) + "</i>" : "")
+        + '</span><span class="crewpop-since"></span>'
         + "</div></div>")
       .addTo(map);
   }
@@ -648,6 +659,14 @@
     });
   }
 
+  // The crew's own emblem at name size. Same source the map and the podium draw.
+  function emb(slug, size) {
+    var sz = size || 16;
+    return '<img class="crewembsm" style="width:' + sz + "px;height:" + sz
+      + 'px" alt="" src="/api/v1/crews/' + encodeURIComponent(slug) + '/emblem"/>';
+  }
+
+  // Only the identity picker, where the colour and the pattern are what you are choosing.
   function swatch(colour, pattern, size) {
     var sz = size || 18;
     return '<span class="crewsw" style="width:' + sz + "px;height:" + sz + "px;background:"
@@ -687,22 +706,36 @@
     }
     FRESH = freshByCrew();
     if (!H.podList) return plainRank(rows);
+    // 560 is the phone breakpoint the stylesheet and the fly-to already use. The podium is
+    // exempt: podList hands the same val and sub to the cards and to the rows below them.
+    var tight = window.innerWidth <= 560;
+    var top3 = rows.slice(0, 3);
+    // below the podium, which draws its own emblem above the name
+    var isRow = function (e) { return top3.indexOf(e) < 0; };
+    var short = function (e) { return tight && isRow(e); };
     return H.podList(rows, {
       iconFn: function (e) { return '<img class="crewpodemb" alt="" src="' + e.emblem + '"/>'; },
       // the swatch is the crew's identity on the map, so it belongs beside every name
-      label: function (e) { return swatch(e.colour, e.pattern, 14) + " " + esc(e.name); },
+      label: function (e) { return (isRow(e) ? emb(e.slug, 16) + " " : "") + esc(e.name); },
       // squares, because that is what the board is sorted on and a square is the same amount
       // of riding everywhere. The area sits underneath, where it informs without ranking.
-      val: function (e) { return tiles(e.best_tiles || e.tiles); },
+      val: function (e) {
+        var n = e.best_tiles || e.tiles;
+        return short(e) ? n.toLocaleString() : tiles(n);
+      },
       sub: function (e) {
         var gained = FRESH[e.slug] || 0;
         // No km2 here. The board ranks on squares, and area beside it inverted the ranking
         // two rows apart: 29 squares at 21 km2 above 20 squares at 120 km2. Area lives on the
         // crew's own card and in the popup, where nothing is being compared.
+        var full = t("crew.board.gained", { n: gained });
+        if (short(e)) {
+          return gained ? '<span class="crewgain" title="' + esc(full) + '">+'
+            + gained.toLocaleString() + "</span>" : "";
+        }
         return '<span class="crewarea">'
           + (e.regions > 1 ? plural(null, "crew.patches.few", "crew.patches", e.regions) : "") + "</span>"
-          + (gained ? ' <span class="crewgain">'
-             + esc(t("crew.board.gained", { n: gained })) + "</span>" : "");
+          + (gained ? ' <span class="crewgain">' + esc(full) + "</span>" : "");
       },
       click: true
     });
@@ -713,9 +746,18 @@
   // and once because a chip described a mark the map has never drawn. The styles live in one
   // block in crews.css now rather than in a rule and a later override of that rule, which is
   // what made it so easy to add to the wrong half.
+  // In the reader's own colours when they have some. The key was demonstrating the ladder
+  // in the panel's pink, which is a colour no crew on the map is allowed to use, and flat,
+  // while three crews in four carry a pattern.
+  function myInk() {
+    return ME && ME.crew ? [ME.crew.colour, ME.crew.pattern] : ["", ""];
+  }
+
   function band(n, key) {
-    return '<span class="b' + n + '"><i style="opacity:' + chipOp(n) + '"></i>'
-      + t(key) + "</span>";
+    var ink = myInk();
+    return '<span class="b' + n + '"><i style="opacity:' + chipOp(n)
+      + (ink[0] ? ";background:" + esc(ink[0]) : "") + '"'
+      + (ink[1] ? ' data-p="' + esc(ink[1]) + '"' : "") + "></i>" + t(key) + "</span>";
   }
 
   function legendHTML() {
@@ -724,17 +766,21 @@
       + band(2, "crew.tile.slipping") + band(3, "crew.tile.fading")
       + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
       + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
-      + '<span class="bf"><i></i>' + t("crew.legend.fresh") + "</span>"
+      + '<span class="bf"><i'
+      + (myInk()[0] ? ' style="background:' + esc(myInk()[0]) + '"' : "") + "></i>"
+      + t("crew.legend.fresh") + "</span>"
+      + '<p class="crewlegnote">' + t("crew.legend.note") + "</p>"
       + "</div>";
   }
 
   function plainRank(rows) {
     return '<table class="crewrank"><tbody>' + rows.map(function (r, i) {
       return '<tr class="sel" data-i="' + i + '"><td class=rk>' + (i + 1) + "</td>"
-        + '<td><span class="celln">' + swatch(r.colour, r.pattern)
+        + '<td><span class="celln">' + emb(r.slug, 16)
         + "<span>" + esc(r.name) + "</span></span></td>"
         + "<td class=val>" + tiles(r.best_tiles || r.tiles) + "</td>"
-        + '<td class="val sub">' + tiles(r.tiles) + "</td></tr>";
+        // the sub column used to repeat the same unit with a different number beside it
+        + '<td class="val sub">' + fmtKm2(r.best_km2) + "</td></tr>";
     }).join("") + "</tbody></table>";
   }
 
@@ -865,11 +911,13 @@
     if (!TARGETS.length) {
       return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p></div>";
     }
-    var seenKm = {}, seenWho = {};
+    var seenWho = {};
     var body = TARGETS.map(function (x, i) {
           var tag = x.first ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
             : x.kills ? '<span class="crewtag kills">'
               + t("crew.targets.kills", { n: x.lost || 0 }) + "</span>"
+            : x.links ? '<span class="crewtag joins">'
+              + t("crew.targets.links", { n: x.links }) + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
             : "";
@@ -882,11 +930,11 @@
           // only the holder: since the rows are deduplicated on effort, bearing and holder
           // together, two rows can share an effort word and still be different places, and a
           // ditto there would read as a mistake.
-          var rk = "";
           var rw = seenWho[who] ? " rpt" : "";
           seenWho[who] = 1;
           return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
-            + '<span class="crewtkm' + rk + '">' + (rk ? DITTO : km) + "</span>"
+            + '<span class="crewtkm">' + km
+            + (x.blocked ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
             + '<span class="crewtdir">' + bearing(x.dir) + "</span>"
             + '<span class="crewtwho' + rw + '">' + (rw ? DITTO : who) + "</span>"
             + tag + "</div>";
@@ -951,7 +999,7 @@
                : t("crew.lose.gap", { v: effort(x.need, x.y) })).length;
       if (w > cols) cols = w;
     });
-    var seenGap = {}, seenState = {};
+    var seenState = {};
     return '<div style="--kmw:' + Math.min(cols + 1, 30) + 'ch" class="crewtargets crewlose'
       + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.lose.h") + "</h4>"
       // eight crews in fourteen have nothing but fading ground, and telling them a rival is
@@ -966,10 +1014,12 @@
                                  : t("crew.lose.gap", { v: effort(x.need, x.y) });
           var state = t(x.band === 3 ? "crew.lose.cold"
                         : x.band === 2 ? "crew.lose.now" : "crew.lose.soon");
-          var rg = seenGap[gap] ? " rpt" : "", rs = seenState[state] ? " rpt" : "";
-          seenGap[gap] = 1; seenState[state] = 1;
+          // no ditto on the distance: see the note in the targets card above
+          var rs = seenState[state] ? " rpt" : "";
+          seenState[state] = 1;
           return '<div class="crewtrow sel" data-l="' + i + '">'
-            + '<span class="crewtkm' + rg + '">' + (rg ? DITTO : gap) + "</span>"
+            + '<span class="crewtkm">' + gap
+            + (x.band === 3 ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
             + '<span class="crewtwho' + rs + '">' + (rs ? DITTO : state) + "</span></div>";
         }).join("")
@@ -1297,8 +1347,7 @@
       + '<div class="crewhead">'
       + '<img class="crewlogo" src="' + c.emblem + '" alt=""/>'
       + "<div><h3>" + esc(c.name) + "</h3>"
-      + '<div class="crewmeta">' + swatch(c.colour, c.pattern) + " "
-      + riders(c.members) + " · "
+      + '<div class="crewmeta">' + riders(c.members) + " · "
       + t(me.role === "leader" ? "crew.mine.youare"
           : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember")
       + "</div></div></div>";
@@ -1519,7 +1568,7 @@
           // blind name-pick that costs a cooldown if it is wrong
           var sub = riders(c.members) + " · " + policy
             + (c.km2 ? " · " + fmtKm2(c.km2) : "");
-          return '<div class="crewrow">' + swatch(c.colour, c.pattern, 26)
+          return '<div class="crewrow">' + emb(c.slug, 26)
             + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + "</div>"
@@ -1624,7 +1673,8 @@
       // sits under it, folded away once they have one — they already know what it is.
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
         + '<p class="hint crewboardsub">' + t("crew.board.sub") + "</p>"
-        + firstRunNote() + rankingHTML(rank) + "</div>";
+        + firstRunNote()
+        + (TERR && TERR.pending && !rank.length ? "" : rankingHTML(rank)) + "</div>";
       // Signed out, the only thing you can act on goes first and the board follows. Signed
       // in, the board leads because that is what you came back to look at.
       var h = me.paired ? board : signInHTML() + board;
