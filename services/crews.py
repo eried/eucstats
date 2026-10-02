@@ -204,7 +204,7 @@ def leave(db, store_id: str) -> None:
         raise CrewError("not_in_crew", "You are not in a crew.")
     if m.role == "leader" and _active_members(db, m.clan_id) > 1 and not _officers(db, m.clan_id):
         raise CrewError("promote_first",
-                        "Make someone an officer first. Somebody has to run the place.")
+                        "Make somebody an officer first. Someone has to run the place.")
     m.left_at = utcnow()
     db.commit()
 
@@ -251,19 +251,24 @@ def claim_leadership(db, store_id: str, clan_id: str) -> None:
     leader = (db.query(ClanMember)
               .filter(ClanMember.clan_id == clan_id, ClanMember.role == "leader",
                       ClanMember.left_at.is_(None)).first())
-    if leader is None:
-        raise CrewError("no_leader", "This crew has no leader to replace.")
-    idle_since = leader.last_seen or leader.joined_at
-    if idle_since and (utcnow() - idle_since) < timedelta(days=IDLE_LEADER_DAYS):
-        raise CrewError("leader_active", "The leader is still active.")
+    # A leader may walk out the moment there is an officer, which leaves the crew with no
+    # leader row at all. That used to be permanent: the officer could not disband (not the
+    # leader), could not be promoted (only a leader may promote), and this raised "no leader
+    # to replace" at the one person trying to replace them. A crew with nobody in charge is
+    # exactly the case this function exists for, so there is no waiting period.
+    if leader is not None:
+        idle_since = leader.last_seen or leader.joined_at
+        if idle_since and (utcnow() - idle_since) < timedelta(days=IDLE_LEADER_DAYS):
+            raise CrewError("leader_active", "The leader is still active.")
     # the leader is excluded explicitly: they founded the crew, so they are always its
     # longest-serving member, and ordering by join date without this clause re-elects the
     # very person who stopped riding
-    eligible = (db.query(ClanMember)
-                .filter(ClanMember.clan_id == clan_id, ClanMember.status == "active",
-                        ClanMember.left_at.is_(None),
-                        ClanMember.store_id != leader.store_id)
-                .order_by(ClanMember.joined_at.asc()).first())
+    q = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == clan_id, ClanMember.status == "active",
+                 ClanMember.left_at.is_(None)))
+    if leader is not None:
+        q = q.filter(ClanMember.store_id != leader.store_id)
+    eligible = q.order_by(ClanMember.joined_at.asc()).first()
     if eligible is None or eligible.store_id != store_id:
         raise CrewError("not_eligible", "The longest-serving active member takes over.")
     leader.role = "member"

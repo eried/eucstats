@@ -556,7 +556,11 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
 
 
 _COMPASS = ("n", "ne", "e", "se", "s", "sw", "w", "nw")
-REACH = 4                      # how far out of your own ground the list is allowed to point
+# How far out of your own ground the list may point, in squares. At 4 this was five kilometres
+# at Copenhagen and three and a half at Tromso, which cannot cross a city: measured, it found a
+# rival for two crews out of twelve. Fourteen is about seventeen kilometres at Oslo, which is a
+# ride somebody might actually make to go and take something.
+REACH = 14
 
 
 def _bearing(dx: int, dy: int) -> str:
@@ -571,27 +575,46 @@ def _bearing(dx: int, dy: int) -> str:
     return _COMPASS[round(math.atan2(dx, -dy) / (math.pi / 4)) % 8]
 
 
-def _grown(pts: set, steps: int) -> set:
-    """Everything within `steps` squares of a set, including diagonals."""
-    out = set(pts)
-    edge = set(pts)
-    for _ in range(steps):
-        nxt = set()
-        for (x, y) in edge:
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    q = (x + dx, y + dy)
-                    if q not in out:
-                        nxt.add(q)
-        out |= nxt
-        edge = nxt
+def bucket(holder_of: dict, size: int = REACH) -> dict:
+    """Every held square filed by a coarse grid cell, built once for the whole board.
+
+    Flood-filling REACH rings out of each crew's own ground was fine at four steps and is not
+    at fourteen: the frontier grows with the square of the radius and it was being redone per
+    crew. Filing the board once and looking in the nine cells around each of a crew's own
+    squares answers the same question against a number that does not move.
+    """
+    out: dict = {}
+    for (x, y), cid in holder_of.items():
+        out.setdefault((x // size, y // size), []).append(((x, y), cid))
     return out
+
+
+def _rivals_near(held: set, buckets: dict, clan_id: str, reach: int = REACH) -> set:
+    """Squares another crew holds, within `reach` of anything this crew holds."""
+    out = set()
+    seen_cells = set()
+    for (x, y) in held:
+        cx, cy = x // reach, y // reach
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                cell = (cx + dx, cy + dy)
+                if cell in seen_cells:
+                    continue
+                seen_cells.add(cell)
+                for xy, cid in buckets.get(cell, ()):
+                    if cid != clan_id:
+                        out.add(xy)
+    if not out:
+        return out
+    # the cells are coarse, so trim to the ones genuinely within reach
+    return {q for q in out
+            if any(max(abs(q[0] - hx), abs(q[1] - hy)) <= reach for (hx, hy) in held)}
 
 
 def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                 limit: int = 8, holder_of: dict | None = None,
                 mine: set | None = None, leads: set | None = None,
-                patches: list | None = None) -> list[dict]:
+                patches: list | None = None, buckets: dict | None = None) -> list[dict]:
     """The ground this crew could take next, and what taking it would do.
 
     This is the one question the mode has to answer and did not. A rider could see that a tile
@@ -636,6 +659,8 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     # of this function. Computed here when absent so the function still stands alone.
     if holder_of is None:
         holder_of = {xy: other for other, pts in kept.items() for xy in pts}
+    if buckets is None:
+        buckets = bucket(holder_of)
     if mine is None:
         mine = {(p[1], p[2]) for p in
                 (T.parse(t) for t, per in acc.items() if clan_id in per) if p}
@@ -655,12 +680,10 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
 
     patches = list(patches if patches is not None else regions(held))
     patches.sort(key=len, reverse=True)
-    if patches:
+    if patches and buckets is not None:
         # rivals within riding distance. Not the whole board: a list that points at another
         # city is as useless as one that points at the next street.
-        near = _grown(held, REACH)
-        cand |= {xy for xy in near
-                 if holder_of.get(xy) not in (None, clan_id)}
+        cand |= _rivals_near(held, buckets, clan_id)
     cand -= held
 
     patch_of = {}
@@ -682,9 +705,9 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         need = max(0.0, max(min_lead_km(tile), w[1] if w else 0.0) - km)
         if need > 0:
             # A trip that puts less than the visit floor into a square is thrown away whole, so
-            # printing "0.1 km" where the floor is 0.15 asks for a ride that cannot count.
-            need = max(need, min_visit_km(tile))
-        need = round(need, 1)
+            # printing "0.1 km" where the floor is 0.15 asks for a ride that cannot count. Up,
+            # not nearest: round() put 0.147 back to 0.1 and undid this on the line below.
+            need = math.ceil(max(need, min_visit_km(tile)) * 10) / 10
         touching = {patch_of[nb] for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
                     if nb in patch_of}
         first = False
@@ -765,6 +788,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     # recomputed once per crew: 50M, 81M and 53M iterations at that size, 21 seconds of the
     # 36. Built once out here it is 1.2 seconds and nothing holds the lock.
     holder_of = {xy: cid for cid, pts in kept.items() for xy in pts}
+    buckets = bucket(holder_of)
     mine_by_clan: dict[str, set] = {}
     for tile, per in acc.items():
         pt = T.parse(tile)
@@ -786,7 +810,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                 acc, kept, clan_id, won, zoom,
                 holder_of=holder_of, mine=mine_by_clan.get(clan_id, set()),
                 leads=leads_by_clan.get(clan_id, set()),
-                patches=patches_by_clan.get(clan_id, [])))
+                patches=patches_by_clan.get(clan_id, []), buckets=buckets))
         except Exception:
             # A silent failure here empties every crew's list and then tells crews that hold
             # ground that they hold none, which is the opposite of the truth.

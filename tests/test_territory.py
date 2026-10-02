@@ -351,13 +351,21 @@ def test_your_own_ground_is_never_offered_back_to_you():
 
 
 def test_a_row_never_argues_with_its_own_number():
-    """0.04 km short prints as "0.0 km". If the flag is computed on the unrounded figure the
-    row shows no shortfall and then says you still need to ride, which reads as a bug."""
-    from services.territory import targets_for, min_lead_km
+    """A row that prints a shortfall has to print one you can actually ride off, and a row
+    that prints nothing has to mean there is nothing to ride. Rounding to nearest broke both
+    ends: 0.04 km short came out as "0.0 km" next to "go ride it", and 0.147 came out as
+    "0.1 km" when a 0.1 km contribution to that square is discarded whole."""
+    from services.territory import targets_for, min_lead_km, min_visit_km
+    import math
     tile = "14/70/70"
-    acc = {tile: {"A": [min_lead_km(tile) - 0.04, {"r"}]}}   # short by less than it shows
+    acc = {tile: {"A": [min_lead_km(tile) - 0.04, {"r"}]}}   # short by a sliver
     out = targets_for(acc, kept={}, clan_id="A", won={}, zoom=14)
     row = next(t for t in out if (t["x"], t["y"]) == (70, 70))
+    assert row["need"] >= math.ceil(min_visit_km(tile) * 10) / 10, row
+    assert not row["blocked"], "short is short, however little"
+    acc = {tile: {"A": [min_lead_km(tile) + 1.0, {"r"}]}}    # past the floor, still unheld
+    row = next(t for t in targets_for(acc, kept={}, clan_id="A", won={}, zoom=14)
+               if (t["x"], t["y"]) == (70, 70))
     assert row["need"] == 0.0 and row["blocked"], row
 
 

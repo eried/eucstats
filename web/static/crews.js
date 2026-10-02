@@ -436,6 +436,9 @@
     return [tx, ty];
   }
 
+  // Holder-neutral on purpose. These fire on every crew's fill, not only your own, and the
+  // crew name sits directly above them: "Yours, comfortably" over a rival's ground was simply
+  // a lie, and "Surrounded" over your own read as a warning when it means the opposite.
   function tileWords(band, tenths, y) {
     var km = tenths / 10;
     return [
@@ -472,6 +475,8 @@
     var info = TILEINFO[key];
     if (!info) return;
     var px = e.point;
+    // the latest point inside the square, not the one the pointer first crossed into it at
+    map.once("mousemove", function (ev) { px = ev.point; });
     hoverTimer = setTimeout(function () {
       if (hoverKey !== key || !map.getLayer("crew-fill")) return;
       var w = tileWords(info[0], info[1], xy[1]);
@@ -483,6 +488,8 @@
       map.getCanvasContainer().appendChild(el);
       el.style.left = px.x + "px";
       el.style.top = px.y + "px";
+      // it is nowrap, so max-width cannot save it: flip to the other side near the edge
+      if (px.x + el.offsetWidth + 30 > window.innerWidth) el.classList.add("left");
       hoverTip = el;
     }, HOVER_MS);
   }
@@ -532,7 +539,11 @@
       opt.headers["Content-Type"] = "application/json";
       opt.body = JSON.stringify(body);
     }
-    return fetch(path, opt).then(function (r) {
+    return fetch(path, opt).catch(function () {
+      // No catch at all before this: a dropped request rejected, the .then never ran, and
+      // "Create crew" stayed disabled with nothing on screen to say why.
+      return { ok: false, status: 0, json: function () { return Promise.resolve({}); } };
+    }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (b) {
         var detail = b && b.detail;
         if (typeof detail === "string") {
@@ -551,7 +562,7 @@
 
   function explainer() {
     return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
-      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.4", "crew.how.5"]
+      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.4", "crew.how.5", "crew.how.6"]
         .map(function (k) { return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS }) + "</p>"; }).join("")
       // The five shades belong here rather than under the board. It is a key, and a key is
       // something you look up once, not a row of swatches on screen every time you visit.
@@ -587,6 +598,8 @@
       + '<span class="b3"><i></i>' + t("crew.tile.fading") + "</span>"
       + '<span class="b4"><i></i>' + t("crew.tile.ringed") + "</span>"
       + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
+      + '<span class="bd"><i></i>' + t("crew.legend.danger") + "</span>"
+      + '<span class="bf"><i></i>' + t("crew.legend.fresh") + "</span>"
       + "</div>";
   }
 
@@ -653,7 +666,9 @@
   function margin(km, y) {
     if (SHOW_NUMBERS) return fmtKm(km);
     var r = km / (floorKm(y) || 0.5);
-    return t("crew.hold." + (r <= 0.5 ? 1 : r <= 2 ? 2 : 3));
+    // 0.35 because that is the gate _pressure uses for band 0; at 0.5 the tooltip could say
+    // "Yours, comfortably" and "hanging on" in the same box
+    return t("crew.hold." + (r <= 0.35 ? 1 : r <= 2 ? 2 : 3));
   }
 
   function fmtKm2(v) {
@@ -694,14 +709,17 @@
   function targetsHTML(rows) {
     TARGETS = rows || [];
     TARGETSEL = -1;
-    var head = '<div class="crewtargets' + (SHOW_NUMBERS ? " nums" : "") + '"><h4>'
-      + t("crew.targets.h") + "</h4>";
+    var head = '<div style="--kmw:' + widest(TARGETS) + 'ch" class="crewtargets'
+      + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.targets.h") + "</h4>";
+    // The "ride a block anywhere" line used to show only when there were no rows at all,
+    // which is the one case where a crew cannot act on it. It is the hint above the rows now
+    // whenever the crew holds nothing, which is who it was written for.
+    var nothing = !ME || !ME.crew || !ME.crew.tiles;
     if (!TARGETS.length) {
-      // The crew with nothing was the one being told nothing, which is backwards.
       return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p></div>";
     }
-    return head + '<p class=hint>' + t("crew.targets.p") + "</p>"
-      + TARGETS.map(function (x, i) {
+    var prevWho = null, prevKm = null;
+    var body = TARGETS.map(function (x, i) {
           var tag = x.first ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
@@ -711,12 +729,29 @@
             : t("crew.tile.free");
           // Nothing goes in the number column on a square whose shortfall is zero: riding it
           // again does nothing, and a word there wore the styling meant for a distance.
+          var km = x.blocked ? "" : effort(x.need, x.y);
+          var rk = km && km === prevKm ? " rpt" : "";
+          var rw = who === prevWho ? " rpt" : "";
+          prevKm = km; prevWho = who;
           return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
-            + '<span class="crewtkm">' + (x.blocked ? "" : effort(x.need, x.y)) + "</span>"
+            + '<span class="crewtkm' + rk + '">' + km + "</span>"
             + '<span class="crewtdir">' + bearing(x.dir) + "</span>"
-            + '<span class="crewtwho">' + who + "</span>" + tag + "</div>";
-        }).join("")
-      + "</div>";
+            + '<span class="crewtwho' + rw + '">' + who + "</span>" + tag + "</div>";
+        }).join("");
+    return head + '<p class=hint>'
+      + t(nothing ? "crew.targets.none" : "crew.targets.p", { n: SEED }) + "</p>"
+      + body + "</div>";
+  }
+
+  // The widest phrase decides the column, because the phrase is prose and the locales differ
+  // by a factor of two. ch is close enough for a proportional face and needs no measuring.
+  function widest(rows) {
+    var n = 7;
+    (rows || []).forEach(function (x) {
+      var w = (x.blocked ? "" : x.lead || effort(x.need, x.y)).length;
+      if (w > n) n = w;
+    });
+    return Math.min(n + 1, 22);
   }
 
   // The other half of the game. Every band and every shortfall is already in TERR.cells, so
@@ -734,13 +769,20 @@
       all.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2] });
       var band = TERR.cells[i + 3];
       band = bandOf(band);
-      if (band !== 1 && band !== 2) continue;      // 3 is decay, 4 cannot be lost
+      // 3 belongs here too. Nobody has to beat you for fading ground, you only have to not
+      // show up, and skipping it left ten crews out of twelve with an empty card while thirty
+      // of their squares were quietly going cold.
+      if (band !== 1 && band !== 2 && band !== 3) continue;   // 4 cannot be lost
       rows.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2], band: band,
                   need: TERR.cells[i + 4] / 10 });
     }
     LOSING = [];
     if (!rows.length || !all.length) return "";
-    rows.sort(function (a, b) { return (b.band - a.band) || (a.need - b.need); });
+    // about to flip first, then being ridden, then going cold on its own
+    var urgency = { 2: 0, 1: 1, 3: 2 };
+    rows.sort(function (a, b) {
+      return (urgency[a.band] - urgency[b.band]) || (a.need - b.need);
+    });
     LOSING = rows.slice(0, 5);
     // bearings from the middle of everything the crew holds, not from the middle of the five
     // rows: with one row those are the same point and the direction comes out empty
@@ -749,15 +791,27 @@
     cx /= all.length; cy /= all.length;
     // Same three columns as "where to ride next", so the two cards read as a pair: how hard,
     // which way, what about it.
-    return '<div class="crewtargets crewlose' + (SHOW_NUMBERS ? " nums" : "") + '"><h4>'
-      + t("crew.lose.h") + "</h4>"
+    var cols = 7;
+    LOSING.forEach(function (x) {
+      var w = (x.band === 3 ? fadesIn(Math.round(x.need * 10))
+               : t("crew.lose.gap", { v: effort(x.need, x.y) })).length;
+      if (w > cols) cols = w;
+    });
+    return '<div style="--kmw:' + Math.min(cols + 1, 26) + 'ch" class="crewtargets crewlose'
+      + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.lose.h") + "</h4>"
       + '<p class=hint>' + t("crew.lose.p") + "</p>"
       + LOSING.map(function (x, i) {
           return '<div class="crewtrow sel" data-l="' + i + '">'
-            + '<span class="crewtkm">' + effort(x.need, x.y) + "</span>"
+            // their gap, not your effort, and the third column carries urgency rather than
+            // restating the heading
+            // band 3 has no rival, so its number is days left rather than a rival's gap
+            + '<span class="crewtkm">'
+            + (x.band === 3 ? fadesIn(Math.round(x.need * 10))
+                            : t("crew.lose.gap", { v: effort(x.need, x.y) })) + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
             + '<span class="crewtwho">'
-            + t(x.band === 2 ? "crew.tile.slipping" : "crew.tile.pushed") + "</span></div>";
+            + t(x.band === 3 ? "crew.lose.cold"
+                : x.band === 2 ? "crew.lose.now" : "crew.lose.soon") + "</span></div>";
         }).join("")
       + "</div>";
   }
@@ -822,7 +876,7 @@
   function startPairing() {
     stopPairing();
     api("POST", "/api/v1/pair/start").then(function (r) {
-      if (!r.ok) { setStatus(t("crew.err"), true); return; }
+      if (!r.ok) { setStatus(errMsg(r.err), true); offerRetry(); return; }
       pairToken = r.body.token;
       var qr = document.getElementById("crewqr");
       var code = document.getElementById("crewcode");
@@ -941,13 +995,18 @@
   // crew read "crew_full" in a pink box, and the fourteen locales all answered in English.
   var ERRS = {
     crew_full: "crew.e.full", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
-    not_leader: "crew.e.forbidden", not_paired: "crew.e.pass", crews_disabled: "crew.e.pass",
+    not_leader: "crew.e.forbidden", not_paired: "crew.e.pass",
+    crews_disabled: "crew.e.off",
     bad_invite: "crew.e.invite", bad_name: "crew.e.name", name_taken: "crew.e.taken",
     already_in_crew: "crew.e.increw", no_trips: "crew.e.notrips", cooldown: "crew.e.cooldown",
     bad_identity: "crew.e.identity", identity_taken: "crew.e.identity",
-    no_crew: "crew.e.gone", not_member: "crew.e.gone", not_in_crew: "crew.e.gone",
-    promote_first: "crew.e.promote", leader_active: "crew.e.forbidden",
-    not_eligible: "crew.e.forbidden", no_leader: "crew.e.gone", no_request: "crew.e.gone",
+    no_crew: "crew.e.gone",
+    not_member: "crew.e.left", not_in_crew: "crew.e.left",
+    promote_first: "crew.e.promote",
+    // all three used to answer "only a leader or officer can do that", to somebody pressing a
+    // button only shown to people who are neither
+    leader_active: "crew.e.leaderback", not_eligible: "crew.e.notyou",
+    no_leader: "crew.e.notyou", no_request: "crew.e.norequest",
     too_large: "crew.e.image", too_large_after_encode: "crew.e.image",
     not_an_image: "crew.e.image"
   };
@@ -1230,11 +1289,15 @@
       if (!logo.files || !logo.files[0]) return;
       var fd = new FormData();
       fd.append("file", logo.files[0]);
+      // through the same reader as everything else, so "too big" says how big and the three
+      // image codes in ERRS stop being dead letters
       fetch("/api/v1/crews/" + c.slug + "/emblem",
             { method: "POST", body: fd, credentials: "same-origin" })
+        .catch(function () { return { ok: false, json: function () { return {}; } }; })
         .then(function (r) {
-          if (r.ok) { show(); reloadTerritory(); }
-          else setStatus(t("crew.mine.emblembad"), true);
+          if (r.ok) { show(); reloadTerritory(); return; }
+          Promise.resolve(r.json ? r.json() : {}).catch(function () { return {}; })
+            .then(function (b) { setStatus(errMsg({ detail: b && b.detail }), true); });
         });
     };
     var clr = document.getElementById("ce-clearlogo");
@@ -1259,8 +1322,7 @@
         + (terr.km2 && terr.km2 !== terr.best_km2
             ? " · " + t("crew.inall", { v: fmtKm2(terr.km2) }) : "")
         + (terr.tiles ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
-        + targetsHTML(r.body.targets)
-        + loseHTML(c.slug)
+        + (me.status === "pending" ? "" : targetsHTML(r.body.targets) + loseHTML(c.slug))
         + contributorsHTML(r.body.contributors);
       el.querySelectorAll("[data-t]").forEach(function (row) {
         row.onclick = function () { flyToTile(TARGETS[+row.dataset.t], +row.dataset.t); };
@@ -1477,7 +1539,10 @@
     var lat = (tileLat(x.y, TERR.z) + tileLat(x.y + 1, TERR.z)) / 2;
     // Closing the panel threw the list away to show eight identical outlines, so comparing two
     // squares cost two full round trips. On a phone the panel covers the map and has to go.
-    if (i != null) { TARGETSEL = i; showTargets(TARGETS); }
+    TARGETSEL = i == null ? -1 : i;
+    // a losing square is drawn too, in the colour its card uses, because flying there and
+    // marking nothing left you on a map with no way to tell which square you were sent to
+    showTargets(TARGETS, i == null ? x : null);
     if (window.innerWidth <= 560) H.closePanel && H.closePanel();
     // Close enough to find the street, far enough to still see it against the crew's own
     // ground. Flying to 13.2 put one square across the whole screen, which answers "where is
@@ -1489,15 +1554,21 @@
   // The same squares, marked on the ground. A list of distances is a table; a ring around the
   // block two streets over is a route. Not in the white dashed line the contested ring already
   // uses: that one means somebody is taking ground off you, which is the opposite thing.
-  function showTargets(rows) {
+  function showTargets(rows, losing) {
     // not on crew-cells: buildLayers returns early when no crew holds anything, so on a fresh
     // install the "puts you on the map" squares were listed and never drawn for anybody
     if (!map || !TERR || !map.isStyleLoaded()) return;
-    var data = { type: "FeatureCollection", features: (rows || []).map(function (x, i) {
+    var feats = (rows || []).map(function (x, i) {
       return { type: "Feature",
-               properties: { sel: i === TARGETSEL ? 1 : 0, dim: x.blocked ? 1 : 0 },
+               properties: { sel: i === TARGETSEL ? 1 : 0, dim: x.blocked ? 1 : 0, lose: 0 },
                geometry: { type: "Polygon", coordinates: tileRing(x.x, x.y, TERR.z) } };
-    }) };
+    });
+    if (losing) {
+      feats.push({ type: "Feature", properties: { sel: 1, dim: 0, lose: 1 },
+                   geometry: { type: "Polygon",
+                               coordinates: tileRing(losing.x, losing.y, TERR.z) } });
+    }
+    var data = { type: "FeatureCollection", features: feats };
     if (map.getSource("crew-targets")) { map.getSource("crew-targets").setData(data); return; }
     map.addSource("crew-targets", { type: "geojson", data: data });
     // a dark casing first, or a thin gold line disappears over the pale half of the palette
@@ -1509,7 +1580,9 @@
     map.addLayer({
       id: "crew-target-line", type: "line", source: "crew-targets",
       paint: {
-        "line-color": "#ffd24a",
+        // gold for ground to take, orange for ground to defend: the same two colours the
+        // two cards use for their first column
+        "line-color": ["case", ["==", ["get", "lose"], 1], "#ff9f6b", "#ffd24a"],
         // zoom has to be the input to the interpolate, not buried inside a case, so the
         // selected-or-not test moves into the stop values
         "line-width": ["interpolate", ["linear"], ["zoom"],

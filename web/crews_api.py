@@ -207,9 +207,12 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                         .filter(ClanMember.clan_id == clan.clan_id,
                                 ClanMember.role == "leader",
                                 ClanMember.left_at.is_(None)).first())
-                idle = lead and (lead.last_seen or lead.joined_at)
-                out["leader_stale"] = bool(
-                    idle and (utcnow() - idle) >= timedelta(days=crews.IDLE_LEADER_DAYS))
+                if lead is None:
+                    out["leader_stale"] = True        # nobody is in charge at all
+                else:
+                    idle = lead.last_seen or lead.joined_at
+                    out["leader_stale"] = bool(
+                        idle and (utcnow() - idle) >= timedelta(days=crews.IDLE_LEADER_DAYS))
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
                 out["roster"] = [
