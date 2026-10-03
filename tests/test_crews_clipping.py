@@ -36,13 +36,29 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from check_crews_css import CSS, canon, parse        # noqa: E402
 
 NL = chr(10)
+PUBLIC = ROOT / "web" / "public.py"
 
-# A declaration that can take text away rather than wrap it.
+# A declaration that takes text away rather than wrapping it.
+#
+# A bare `overflow: hidden` is NOT one: it is on `html`, `body`, `.panel`, `.topbar` and the
+# three podium shine masks, and asking an author to justify those says nothing about words.
+# Where `overflow: hidden` does cut text it is because a `nowrap` on the same element stopped
+# the wrap first, and that is the declaration named here.
 CLIPPING = {
     ("white-space", "nowrap"), ("white-space", "pre"),
     ("text-overflow", "ellipsis"),
-    ("overflow", "hidden"), ("overflow-x", "hidden"), ("overflow-y", "hidden"),
 }
+
+
+def _inline_stylesheet():
+    """The `<style>` block in public.py.
+
+    The first version of this file read only crews.css -- and two of the three instances it
+    was written for, both of them the dock, were in here.
+    """
+    src = PUBLIC.read_text(encoding="utf-8")
+    a = src.index("<style>") + len("<style>")
+    return src[a:src.index("</style>", a)]
 
 # Every selector allowed to clip, and what was measured in the locale that needs the most
 # room. Adding a row here is the review; the measurement belongs in the note.
@@ -74,6 +90,37 @@ REVIEWED = {
         "a distance in the map popup, same.",
     ".crewtip span i":
         "a distance in the hover tip, same.",
+    # --- the page's own stylesheet, which this file could not see for one commit
+    ".chip":
+        "the topbar statistics -- `9 Countries`, `9 Länder`. They sit in a `flex-wrap` strip "
+        "of four with `flex: 1 1 0`, so a long locale wraps the strip to two rows rather than "
+        "cutting; measured at 390 in all 19 with the longest (`Gesamt km`) intact.",
+    ".pname":
+        "a rider or crew name on the podium. User-supplied and unbounded, so the ellipsis is "
+        "the deliberate answer -- and the phone block already overrides it to wrap, because "
+        "truncating a crew's name in a feature about naming your crew is indefensible.",
+    ".cline b":
+        "a champion's display name. User-supplied, same reasoning.",
+    ".crow > span":
+        "a country's name beside its flag. From the host's own country table, not translated "
+        "here, and the flag carries the row if it ellipsises.",
+    ".celln > span":
+        "a rider's name in a board cell. User-supplied.",
+    ".recrider span":
+        "a record holder's name. User-supplied.",
+    ".brow .blab":
+        "a wheel brand's name, which comes from the trip data rather than from a translation.",
+    ".cck":
+        "the two map checkboxes. Two or three words, and they sit on their own row with the "
+        "map controls -- nothing shares the line to squeeze them.",
+    ".introctl .cbtn":
+        "the intro's two buttons, `flex: 1` in a two-item row, so each gets half the panel "
+        "and the longest translation measured (de `Überspringen`) fits.",
+    ".rfoot":
+        "the vertical credits rail, which is rotated and sized by its own content.",
+    "#testwm":
+        "the TEST DATA watermark, which is deliberately never translated -- it is a marker "
+        "for whoever is looking at a staging box.",
     ".crewsumsep":
         "the screen-reader-only separator. It is 1px by 1px on purpose and holds one "
         "character; the clipping is what hides it.",
@@ -82,9 +129,11 @@ REVIEWED = {
 
 def _clipping_selectors():
     out = {}
-    for _order, _ctx, sel, prop, val in parse(CSS.read_text(encoding="utf-8")):
-        if (prop, val.strip().lower()) in CLIPPING:
-            out.setdefault(canon(sel), set()).add(f"{prop}: {val.strip()}")
+    for where, text in (("crews.css", CSS.read_text(encoding="utf-8")),
+                        ("public.py", _inline_stylesheet())):
+        for _order, _ctx, sel, prop, val in parse(text):
+            if (prop, val.strip().lower()) in CLIPPING:
+                out.setdefault(canon(sel), set()).add(f"{where} {prop}: {val.strip()}")
     return out
 
 

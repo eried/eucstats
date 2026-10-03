@@ -856,7 +856,8 @@ a.crewqr { display: flex; text-decoration: none; }
 /* was `.crewtwho u`, with the underline turned straight back off: the only thing the
    tag was still doing was telling a screen reader that a crew's standing is
    underlined for emphasis, which is a layout choice. */
-.crewtwho .crewtst { opacity: .72; }
+.crewtwho .crewtst { opacity: .82; }   /* .72 measured 4.08:1 on a hovered row, under
+   AA: the row's hover tint lightens the backdrop under already-dimmed text */
 
 /* Worth one square: the same sentence the chip carries, without the box or the colour, so a
    row that has a small reason says it and the chips go on meaning something. */
