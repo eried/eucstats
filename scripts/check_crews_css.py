@@ -61,6 +61,26 @@ def parse(src):
                     depth -= 1
                 j += 1
             body, where = src[i + 1:j - 1], " ".join(ctx)
+            # A nested block is a rule too. The parser used to read a body as declarations and
+            # stop, so anything written with `&` or bare nesting parsed as nothing and was
+            # invisible to both passes. crews.css uses no nesting today, which is the only
+            # reason that was not already shipping.
+            if "{" in body:
+                inner_rules, body = _nested(body)
+                for inner_head, inner_body in inner_rules:
+                    for parent in expand(head):
+                        joined = (inner_head.replace("&", parent) if "&" in inner_head
+                                  else parent + " " + inner_head)
+                        for sel in expand(joined):
+                            for decl in inner_body.split(";"):
+                                if ":" not in decl:
+                                    continue
+                                prop, val = decl.split(":", 1)
+                                prop = prop.strip()
+                                if not prop or prop.startswith("--"):
+                                    continue
+                                order += 1
+                                decls.append((order, where, sel, prop, val.strip()))
             for sel in expand(head):
                 for decl in body.split(";"):
                     if ":" not in decl:
@@ -135,6 +155,40 @@ def split_top(text, sep):
 IS_RE = re.compile(r":(?:is|where)\(([^()]*)\)")
 
 
+def _nested(body):
+    """(rules, leftover) -- the rules nested inside a body, and the body's own declarations.
+
+    The leftover matters: a block can hold both, and stripping the nested rules with a regex
+    ate the declarations standing before them, so `.a { padding: 0; &.b { … } }` lost its
+    padding entirely and the rule it was overriding went unnoticed.
+    """
+    rules, leftover, i, n, buf = [], [], 0, len(body), ""
+    while i < n:
+        ch = body[i]
+        if ch == "{":
+            depth, j = 1, i + 1
+            while j < n and depth:
+                if body[j] == "{":
+                    depth += 1
+                elif body[j] == "}":
+                    depth -= 1
+                j += 1
+            # whatever stood before this block, minus the block's own selector
+            head = buf.strip()
+            if ";" in head:
+                decls, head = head.rsplit(";", 1)
+                leftover.append(decls)
+            rules.append((head.strip(), body[i + 1:j - 1]))
+            buf = ""
+            i = j
+            continue
+        buf += ch
+        i += 1
+    if buf.strip():
+        leftover.append(buf)
+    return rules, ";".join(x for x in leftover if x.strip())
+
+
 def expand(head):
     """Every selector a rule head stands for, with `:is()` and `:where()` written out.
 
@@ -153,6 +207,47 @@ def expand(head):
             for alt in split_top(m.group(1), ","):
                 todo.append(cur[:m.start()] + alt + cur[m.end():])
     return out
+
+
+# A logical property and its physical twin are the SAME declaration, not two. `padding-left`
+# and `padding-inline-start` on one selector are one rule written twice; `padding` followed by
+# `padding-left` is a shorthand then a refinement of it, which is ordinary CSS. Pass 1 keys on
+# this so the first pair is compared and the second is not.
+PHYSICAL = {
+    "padding-inline-start": "padding-left", "padding-inline-end": "padding-right",
+    "padding-block-start": "padding-top", "padding-block-end": "padding-bottom",
+    "margin-inline-start": "margin-left", "margin-inline-end": "margin-right",
+    "margin-block-start": "margin-top", "margin-block-end": "margin-bottom",
+    "inset-inline-start": "left", "inset-inline-end": "right",
+    "inset-block-start": "top", "inset-block-end": "bottom",
+    "border-inline-start": "border-left", "border-inline-end": "border-right",
+}
+
+
+def physical(prop):
+    return PHYSICAL.get(prop, prop)
+
+
+def canon(sel):
+    """One selector, written one way.
+
+    `.crewtrow .crewtag` and `.crewtrow  .crewtag` are the same rule and were two keys, so the
+    later of them was never compared with the earlier -- a reviewer got past this script with
+    one extra space. Swapping the class order (`.kills.crewtag` for `.crewtag.kills`) did it
+    too. Whitespace is collapsed, combinators are spaced consistently, and the classes inside
+    each compound are sorted.
+    """
+    t = re.sub(r"\s*([>+~])\s*", r" \1 ", (sel or "").strip())
+    t = re.sub(r"\s+", " ", t)
+    out = []
+    for part in t.split(" "):
+        if part in (">", "+", "~") or not part:
+            out.append(part)
+            continue
+        classes = sorted(re.findall(r"\.[\w-]+", part))
+        rest = re.sub(r"\.[\w-]+", "", part)
+        out.append(rest + "".join(classes))
+    return " ".join(x for x in out if x)
 
 
 def family(prop):
@@ -206,8 +301,11 @@ def specificity(sel):
 
 
 def compounds(sel):
-    """Split a selector into its compounds, dropping combinators."""
-    return [c for c in re.split(r"[\s>+~]+", sel.strip()) if c]
+    """Split a selector into its compounds, dropping combinators.
+
+    Canonical first, so two spellings of one selector give one answer.
+    """
+    return [c for c in re.split(r"[\s>+~]+", canon(sel)) if c]
 
 
 def classes_of(compound):
@@ -287,7 +385,7 @@ def main():
     # a cancellation. The family grouping belongs to pass 2, which is about specificity.
     by_key = collections.defaultdict(list)
     for d in decls:
-        by_key[(d[2], d[3])].append(d)
+        by_key[(canon(d[2]), physical(d[3]))].append(d)
     for (sel, prop), rows in sorted(by_key.items()):
         for a, b in zip(rows, rows[1:]):
             if bare(a[4]) == bare(b[4]):

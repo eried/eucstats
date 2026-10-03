@@ -103,6 +103,25 @@ def _cases():
          css + NL + ".zztag.hot { background: #f00; }" + NL
              + "@media (max-width: 560px) { :is(.zztag, .zzother) { background: none; } }" + NL,
          1),
+        # --- round ten: one extra space, a swapped class order, and CSS nesting
+        ("the same selector written with two spaces",
+         css + NL + "@media (max-width: 560px) { .crewtrow .crewtag { display: inline; } }"
+             + NL + ".crewtrow  .crewtag { display: block; }" + NL, 1),
+        ("the same compound with its classes swapped",
+         css + NL + "@media (max-width: 560px) { .crewtag.kills { display: inline; } }"
+             + NL + ".kills.crewtag { display: block; }" + NL, 1),
+        # The nested forms have to be the genuine equivalents of the flat bugs: a phone rule
+        # that is LESS specific than the rule it is trying to beat. Nesting `&.wide` instead
+        # makes it equally specific and later, which wins, and is correct CSS the checker
+        # should stay quiet about.
+        ("a logical property under a nested block",
+         css + NL + ".zzrowN.wide { padding-left: 9px; }" + NL
+             + "@media (max-width: 560px) { .zzrowN { padding-inline-start: 0;"
+             + " &.other { color: red; } } }" + NL, 1),
+        ("an :is() rule under a nested block",
+         css + NL + ".crewtrow .zztagW.hot { background: #f00; }" + NL
+             + "@media (max-width: 560px) { .crewtrow { :is(.zztagW, .zzother)"
+             + " { background: none; } } }" + NL, 1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
@@ -112,7 +131,7 @@ def _cases():
     ]
 
 
-@pytest.mark.parametrize("idx", range(11))
+@pytest.mark.parametrize("idx", range(15))
 def test_the_checker_is_not_fooled_and_does_not_cry_wolf(idx, tmp_path):
     name, mutated, want = _cases()[idx]
     assert mutated != CSS.read_text(encoding="utf-8"), (
