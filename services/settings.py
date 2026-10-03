@@ -807,9 +807,12 @@ def get_crews(db: Session) -> dict:
         "max_members": _clamp_int(get_meta(db, "crew_max_members", 0), 0, 0, 10000),
         "opacity": _clamp_float(get_meta(db, "crew_opacity", 0.55), 0.55, 0.0, 1.0),
         "creation_open": (get_meta(db, "crew_creation_open", "1") or "1") == "1",
-        # Whether the sign-in card warns that this is still a test. On by default: the notice
-        # exists for the window between "everyone can see it" and "everyone can rely on it",
-        # and a warning you have to remember to switch on is a warning nobody gets.
+        # Whether the panel warns that this is not open for public testing. On by default:
+        # the notice exists for the window between "everyone can see it" and "everyone can
+        # rely on it", and a warning you have to remember to switch on is a warning nobody
+        # gets. It sat on the sign-in card until a reviewer pointed out that a paired rider
+        # renders that card exactly never, so the one person it was keeping honest -- the one
+        # with a crew to lose -- was the one person who never saw it.
         "test_notice": (get_meta(db, "crew_test_notice", "1") or "1") == "1",
         # How much of the rider heatmap stays visible underneath the territory. The two modes
         # answer different questions and fight each other at full strength, but a ghost of

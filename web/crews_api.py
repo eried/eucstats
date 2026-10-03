@@ -418,7 +418,12 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                                 .order_by(ClanMember.left_at.asc()).all()):
                         left_at[row.store_id] = row.left_at
 
-                cool_days = timedelta(days=crews._cooldown_days(db))
+                # `_gate` has already read the settings, and this is the same clamped
+                # number it returns. Calling `crews._cooldown_days` was a reach into another
+                # module's private helper AND a second trip for a figure already in hand --
+                # the settings dict is cached except the kill switch, so it cost one query on
+                # every panel load, declines or none.
+                cool_days = timedelta(days=cfg["cooldown_days"])
                 now = utcnow()
 
                 def _declined(sid):

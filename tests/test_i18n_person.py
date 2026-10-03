@@ -76,6 +76,9 @@ CARDS = {
     "crew.lose.": "crew",
     "crew.legend.": "crew",
     "crew.signin.": "rider",
+    # the test notice: it is at the top of the panel rather than on a card, and it
+    # tells the one reader that what they build may be wiped
+    "crew.wip": "rider",
     "crew.mine.": "rider",
     "crew.join.": "rider",
     "crew.how.": "rider",

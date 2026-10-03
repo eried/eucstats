@@ -920,10 +920,28 @@
 
   // One, a few, many. English and most of the rest need only the first and last, and Russian,
   // Ukrainian and Polish need the middle one for 2, 3 and 4, which in this feature is nearly
-  // every number anybody sees: a crew has two or three patches, not twenty-seven.
+  // every number anybody sees: a crew has two or three patches, not twenty-seven. The middle
+  // branch can be run for everybody because the data agrees: every locale with no "few"
+  // category has `.few` identical to its plural, so for them it decides nothing.
+  //
+  // The singular is not like that. Russian and Ukrainian take it back at 21, 31, 101 and 121
+  // -- `21 клетка`, not `21 клеток` -- and Polish, which looks like the same rule, does not:
+  // `21 pól` is correct there. Everything else wants the plural for every number above one.
+  // Written as one arithmetic test for all nineteen languages, the board printed the genitive
+  // plural for one Russian row in ten.
+  var ONE_AT_X1 = { ru: 1, uk: 1 };
+
+  // The page already keeps this current: it sets `lang` on the root element every time the
+  // rider changes language, so there is nothing here to get out of step with it.
+  function locale() {
+    try { return document.documentElement.lang || "en"; } catch (e) { return "en"; }
+  }
+
   function plural(one, few, many, n) {
-    if (n === 1 && one) return t(one, { n: n });
     var d = n % 10, h = n % 100;
+    if (one && (n === 1 || (ONE_AT_X1[locale()] && d === 1 && h !== 11))) {
+      return t(one, { n: n });
+    }
     if (few && d >= 2 && d <= 4 && (h < 12 || h > 14)) return t(few, { n: n });
     return t(many, { n: n });
   }
@@ -1453,10 +1471,8 @@
     // the one awkward case in the whole flow is a tap. The QR itself is the same link, so on
     // a phone the image is tappable too.
     return '<div class="crewcard crewsign">'
-      // Above the heading, because it is the thing to read before deciding to join, and a
-      // rider who scrolls past the QR has already decided.
-      + (ME && ME.test_notice === false ? ""
-         : '<div class="crewmsg warn">' + t("crew.signin.wip") + "</div>")
+      // The test warning used to be here, which meant a rider only ever saw it before they
+      // had anything to lose. It is at the top of the panel now, for everybody.
       + "<h3>" + t("crew.signin.h") + "</h3>"
       + '<p class=hint>' + t("crew.signin.p") + "</p>"
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
@@ -2286,6 +2302,13 @@
       // Signed out, the only thing you can act on goes first and the board follows. Signed
       // in, the board leads because that is what you came back to look at.
       var h = me.paired ? board : signInHTML() + board;
+      // Above all of it, for everyone. On the sign-in card this reached nobody who had
+      // already paired -- and nobody at all on a public map, which is the whole panel for a
+      // visitor. `=== false` would hide it when `/crews/me` fell over and the flag never
+      // arrived, and showing it is the safe way to be wrong.
+      if (me.test_notice !== false) {
+        h = '<div class="crewmsg warn">' + t("crew.wip") + "</div>" + h;
+      }
       if (!me.paired) {
         /* the sign-in card is already at the top */
       } else if (me.crew) {
