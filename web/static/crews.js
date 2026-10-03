@@ -1635,6 +1635,10 @@
     var code = (err && (err.code || err.detail)) || "";
     if (code.indexOf("rate_limited") === 0) return t("crew.e.rate");
     var k = ERRS[code];
+    // One error names a button, and a string that restates another string's text cannot stay
+    // true across nineteen files: it quoted "Lascia la squadra" where the button says "Esci
+    // dalla squadra", and a different verb again in Polish. It takes the label now.
+    if (k === "crew.e.not_yourself") return t(k, { v: t("crew.mine.leave") });
     return k ? t(k) : t("crew.err");
   }
 

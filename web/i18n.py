@@ -153,7 +153,7 @@ EN: dict[str, str] = {
     "crew.e.expired": "That code has run out. Here is a fresh one.",
     "crew.e.norider": "The app has not sent us a ride yet. Upload one and try again.",
     "crew.e.busy": "Too many people pairing at once. Try again in a minute.",
-    "crew.e.not_yourself": "Use Leave crew for that.",
+    "crew.e.not_yourself": "Use {v} for that.",
     "crew.folded.h": "That crew is gone",
     "crew.folded.p": "{name} folded. Your old rides stay with it, and you can join another right away.",
     "crew.declined.h": "They said no",

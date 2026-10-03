@@ -47,7 +47,7 @@ EN_FINGERPRINT = {
     'crew.e.name': 'abd4d3a64081',
     'crew.e.norequest': 'fece4bf926ad',
     'crew.e.norider': '03cf260125f2',
-    'crew.e.not_yourself': 'e9a29555b3a8',
+    'crew.e.not_yourself': '885441937031',
     'crew.e.notrips': 'd14fb523bb2c',
     'crew.e.notyou': '360acb1001ed',
     'crew.e.off': '7f0f00727a43',
