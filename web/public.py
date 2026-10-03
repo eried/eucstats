@@ -31,7 +31,8 @@ __HIDECFG__
 <link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet"/>
 <style>
-:root{--ink:#eef1fb;--mut:#9aa6c8;--acc:#2ea8ff;--gold:#ffd24a;--line:#33457a;--surf:linear-gradient(158deg,rgba(34,52,100,.82),rgba(9,14,30,.85));--glass:rgba(13,17,32,.72);--shadow:0 12px 34px rgba(0,0,0,.6),inset 0 1px 0 rgba(130,170,255,.14)}
+:root{--ink:#eef1fb;--mut:#9aa6c8;--acc:#2ea8ff;--gold:#ffd24a;--line:#33457a;--surf:linear-gradient(158deg,rgba(34,52,100,.82),rgba(9,14,30,.85));--glass:rgba(13,17,32,.72);--shadow:0 12px 34px rgba(0,0,0,.6),inset 0 1px 0 rgba(130,170,255,.14);--panres:300px}
+@media(max-height:620px){:root{--panres:160px}}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;height:100dvh;font:14px/1.45 "Chakra Petch",ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#070a16;overflow:hidden}
 body{position:fixed;inset:0;width:100%}
@@ -83,14 +84,14 @@ svg.ic{width:18px;height:18px;display:block}
 .cinfo{background:none;border:0;color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:0}
 .cinfo:hover{color:var(--gold)}
 .ccol{background:none;border:0;color:var(--mut);cursor:pointer;padding:0;display:flex;align-items:center}.ccol:hover{color:var(--gold)}.ccol svg{width:15px;height:15px;transition:transform .25s}
-.topbar.collapsed{max-width:none;width:auto;background:transparent;border:0;box-shadow:none;backdrop-filter:none;overflow:visible}
-.topbar.collapsed .chips{display:none}
-.topbar.collapsed .champ{display:inline-flex;border-bottom:0;padding:8px 10px;border-radius:11px;background:var(--surf);border:1px solid var(--line);backdrop-filter:blur(10px);box-shadow:var(--shadow);opacity:.45;cursor:pointer;transition:opacity .25s;animation:none}
-.topbar.collapsed .champ:hover{opacity:1}
-.topbar.collapsed .chead{margin:0}
-.topbar.collapsed .chead>span,.topbar.collapsed .cinfo,.topbar.collapsed .ccol,.topbar.collapsed .cline{display:none}
-.topbar.collapsed .champ::after{display:none}
-.topbar.collapsed .cflag{width:24px;height:24px}
+.topbar.collapsed,.topbar.tight{max-width:none;width:auto;background:transparent;border:0;box-shadow:none;backdrop-filter:none;overflow:visible}
+.topbar.collapsed .chips,.topbar.tight .chips{display:none}
+.topbar.collapsed .champ,.topbar.tight .champ{display:inline-flex;border-bottom:0;padding:8px 10px;border-radius:11px;background:var(--surf);border:1px solid var(--line);backdrop-filter:blur(10px);box-shadow:var(--shadow);opacity:.45;cursor:pointer;transition:opacity .25s;animation:none}
+.topbar.collapsed .champ:hover,.topbar.tight .champ:hover{opacity:1}
+.topbar.collapsed .chead,.topbar.tight .chead{margin:0}
+.topbar.collapsed .chead>span,.topbar.collapsed .cinfo,.topbar.collapsed .ccol,.topbar.collapsed .cline,.topbar.tight .chead>span,.topbar.tight .cinfo,.topbar.tight .ccol,.topbar.tight .cline{display:none}
+.topbar.collapsed .champ::after,.topbar.tight .champ::after{display:none}
+.topbar.collapsed .cflag,.topbar.tight .cflag{width:24px;height:24px}
 .cline{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0}
 .cline .clab{width:42px;min-width:42px;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
 .cline b{color:var(--gold);font-weight:700;flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -123,7 +124,7 @@ svg.ic{width:18px;height:18px;display:block}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}
 .dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}.dock button[data-p=crews]{--sec:#ff8ad8}
-.panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:min(76dvh,calc(100dvh - 300px));max-height:760px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
+.panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:min(76dvh,calc(100dvh - var(--panres)));max-height:760px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
 .panel{transform-origin:50% 100%;border-top-width:2px;border-top-color:color-mix(in srgb,var(--sec,var(--acc)) 62%,transparent);box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 70px -52px var(--sec,transparent)}
 .panel[data-sec=riders]{--sec:#2ea8ff}.panel[data-sec=crews]{--sec:#ff8ad8}.panel[data-sec=countries]{--sec:#ff6b6b}.panel[data-sec=wheels]{--sec:#ffd24a}.panel[data-sec=brands]{--sec:#ff9f43}.panel[data-sec=records]{--sec:#39d98a}.panel[data-sec=tech]{--sec:#a78bfa}
@@ -879,7 +880,7 @@ function setupCfg(){
   render(); gear.onclick=()=>cfg.classList.toggle("open");
 }
 
-(function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();
+(function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");/* the matching half of @media(max-height:620px): the champion card drops to its badge, because below that height the panel needs the 110px more than the stats strip does. */var tb=document.querySelector(".topbar");if(tb)tb.classList.toggle("tight",h<=620);}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();
 async function init(){
   // Wire the autoplaying intro <video> FIRST, before any network await. Otherwise the
   // repeat-visit "seek to the end + reveal" attaches only after the i18n/stats fetches,

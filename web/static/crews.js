@@ -2393,10 +2393,14 @@
   // where the topbar lives -- a reviewer measured the ring completely hidden under it at
   // 600x800 and back behind the panel at phone-landscape). The obstacles are on screen and
   // measurable, so this asks where there is room instead of assuming.
-  function freeOffset() {
+  // `skip` leaves one obstacle out. It exists because the only thing the caller can do when
+  // there is no room is close the panel, and it cannot measure that having happened: see
+  // offsetForFlight().
+  function freeOffset(skip) {
     var W = window.innerWidth, H = window.innerHeight;
     var boxes = [];
     [".panel", ".topbar", ".dock"].forEach(function (sel) {
+      if (sel === skip) return;
       var el = document.querySelector(sel);
       if (!el) return;
       var r = el.getBoundingClientRect();
@@ -2447,8 +2451,15 @@
     // Closing the panel changes the obstacle set, which is the entire premise of
     // freeOffset(), so ask again rather than hardcode the centre: measured at 844x390 the
     // ring came down 11% under the topbar with the panel already gone and half the map free.
+    // Closing it changes the obstacle set, which is the premise -- but it cannot be MEASURED
+    // afterwards. `closePanel()` starts a 280ms slide and removes the class on a timeout, so
+    // a second look at the DOM sees the panel exactly where it was, returns null again, and
+    // the `|| [0, 0]` below sends the square to dead centre. A reviewer measured the box as
+    // bit-identical immediately after the call, and my harness had been hiding it by deleting
+    // the panel synchronously -- so the test asserted a fallback that could not run. The panel
+    // comes out by argument instead, which is knowable now rather than in 280ms.
     if (H.closePanel) H.closePanel();
-    return freeOffset() || [0, 0];
+    return freeOffset(".panel") || [0, 0];
   }
 
   function flyToTile(x, i) {
