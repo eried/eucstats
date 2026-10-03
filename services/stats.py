@@ -33,9 +33,12 @@ def _rider_brief(db, store_id: str) -> dict:
                 "has_avatar": False, "lat": lat, "lon": lon}
     # Never a handle that is not one. This is a public board: an anonymous reader took a
     # polluted id from here, stripped a prefix off it and paired as that rider.
-    return {"id": r.public_id if publishable_handle(r.public_id) else None,
-            "name": r.display_name, "flag": r.flag,
-            "has_avatar": r.avatar_png is not None, "lat": lat, "lon": lon}
+    # A suppressed id takes the avatar with it. Left true, the client built
+    # `/api/v1/riders/null/avatar`, which 404s and leaves a hole where the placeholder should
+    # be -- the row says it has a picture and then cannot name whose.
+    ok = publishable_handle(r.public_id)
+    return {"id": r.public_id if ok else None, "name": r.display_name, "flag": r.flag,
+            "has_avatar": ok and r.avatar_png is not None, "lat": lat, "lon": lon}
 
 
 def _board(db, column, limit, positive_only=False):

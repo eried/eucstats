@@ -69,9 +69,22 @@ def brief(db, base: dict, country: str | None, speed_kmh: float | None,
     """
     if not is_incognito(db, country, speed_kmh):
         return base
-    # the token is derived from the public handle now; the store_id no longer appears in any
-    # public payload, so there is nothing else here to derive it from
-    tok = token(db, base.get("id") or "")
+    # Derived from the public handle: the store_id no longer appears in any public payload,
+    # so there is nothing else here to derive it from.
+    #
+    # And never from an empty string. `_rider_brief` can now suppress a malformed handle to
+    # None, and `or ""` quietly handed every such rider the SAME token -- one alias, one mark,
+    # all of them merged into a single apparent person. That is the opposite of what this
+    # module promises, and it fails silently. A row with no handle is already unidentifiable,
+    # so it is marked anonymous and given no shared alias to collapse onto.
+    sid = base.get("id")
+    if not sid:
+        quiet = {"anon": True, "mark": None, "alias": None}
+        if reveal:
+            return {**base, **quiet}
+        return {"id": None, "name": None, "flag": None, "has_avatar": False,
+                "lat": None, "lon": None, **quiet}
+    tok = token(db, sid)
     marks = {"anon": True, "mark": tok[:16], "alias": alias(tok)}
     if reveal:
         return {**base, **marks}

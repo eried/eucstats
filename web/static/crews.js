@@ -1139,6 +1139,7 @@
     var saidGrow = {};
     var saidLink = {};
     var saidJoin = false;
+    var saidStray = false;
     var body = TARGETS.map(function (x, i) {
           // Worked out before the tag chain, not after it. The chain asks whether this
           // rival's name has already appeared on the card, and `var` hoisting handed it
@@ -1182,8 +1183,12 @@
             // Below the stray mark, not above it. A square that links two patches but leaves
             // the ranked number where it was got "2 to link up", which implies the opposite
             // of the one true thing about it.
-            : typeof x.grown === "number" && x.grown <= (x.own_now || 0)
-              ? '<span class="crewtquiet">' + t("crew.targets.stray") + "</span>"
+            // Gated like every other branch. I deleted the dead copy of this last round and
+            // left the live one ungated, so the card went on printing it twice on adjacent
+            // rows -- the duplicate was never the dead branch's doing.
+            : typeof x.grown === "number" && x.grown <= (x.own_now || 0) && !saidStray
+              ? ((saidStray = true),
+                 '<span class="crewtquiet">' + t("crew.targets.stray") + "</span>")
             : x.links && !saidLink[x.links]
               ? ((saidLink[x.links] = 1), '<span class="crewtag joins">'
                 + t("crew.targets.links", { n: x.links }) + "</span>")

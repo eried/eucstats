@@ -141,7 +141,10 @@ def scenario_found_a_crew(base: str, tag: str) -> Rider:
 
     check("a browser pairs by QR with no password", r.pair())
     me = r.me()
-    check("the paired session knows who it is", me.get("store_id") == r.store_id)
+    # `handle`, not `store_id`: the panel is told an opaque handle because a store_id is
+    # proof of identity at pair/confirm. This script asserted the old field and went red on
+    # the feature it exists to demonstrate.
+    check("the paired session knows who it is", bool(me.get("handle")))
     check("one validated ride is enough to found", me.get("can_found") is True)
 
     code, ident = r.api("GET", "/api/v1/crews/identity")
@@ -276,9 +279,13 @@ def scenario_joining(base: str, tag: str) -> None:
         check("approval: lands as pending", c == 200 and b.get("status") == "pending",
               err_code(b))
         pend = host.me().get("pending") or []
-        check("the leader sees the request", any(p["store_id"] == j.store_id for p in pend))
+        # Rows carry handles, and `decide` takes the handle the panel was given. Sending a
+        # raw store_id here answered `no_request`, which read as the approval flow being
+        # broken when it was this script holding the wrong end.
+        joiner = (j.me() or {}).get("handle")
+        check("the leader sees the request", any(p["store_id"] == joiner for p in pend))
         c, b = host.api("POST", f"/api/v1/crews/{slug}/decide",
-                        json={"store_id": j.store_id, "accept": True})
+                        json={"store_id": joiner, "accept": True})
         check("the leader can accept it", c == 200, err_code(b))
         check("the new member is active", j.me().get("status") == "active")
         check("their rides joined the crew too", _trips_in_crew(j.store_id) > 0)
@@ -347,8 +354,9 @@ def scenario_switching_and_renaming(base: str, tag: str) -> None:
     c, b = host.api("POST", "/api/v1/crews/leave", json={})
     check("a leader with members must promote someone first",
           err_code(b) == "promote_first", err_code(b))
+    # the handle again: /role takes what the roster published, not the store_id
     c, b = host.api("POST", f"/api/v1/crews/{hslug}/role",
-                    json={"store_id": mem.store_id, "role": "officer"})
+                    json={"store_id": (mem.me() or {}).get("handle"), "role": "officer"})
     check("promoting an officer works", c == 200, err_code(b))
     c, b = host.api("POST", "/api/v1/crews/leave", json={})
     check("and then the leader may go", c == 200, err_code(b))

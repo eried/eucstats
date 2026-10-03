@@ -245,12 +245,16 @@ def check_records() -> None:
                     entries = fn(db, 1)
                 except Exception:
                     continue
-                if not entries or not entries[0].get("store_id"):
+                # `id`, not `store_id`: the boards publish the rider's public handle now,
+                # because a store_id is proof of identity at pair/confirm and has no business
+                # in a payload. The rename landed in this branch and this gate did not, so
+                # every board fell through here and no champion message could be sent.
+                if not entries or not entries[0].get("id"):
                     continue
                 top = entries[0]
-                snap[board] = top["store_id"]
+                snap[board] = top["id"]
                 old = prev.get(board)
-                if old is not None and old != top["store_id"]:
+                if old is not None and old != top["id"]:
                     rider_hits.append((board, top, old))
 
         # group standings — top country / wheel / brand by distance
@@ -278,7 +282,7 @@ def check_records() -> None:
         # several boards, and we don't want a burst of one post per board for the same rider.
         by_rider: dict = {}
         for board, top, old_sid in rider_hits:
-            slot = by_rider.setdefault(top["store_id"], {"top": top, "hits": []})
+            slot = by_rider.setdefault(top["id"], {"top": top, "hits": []})
             slot["hits"].append((board, old_sid))
         for info in by_rider.values():
             top, hits = info["top"], info["hits"]
@@ -286,7 +290,11 @@ def check_records() -> None:
             if len(hits) == 1:
                 board, old_sid = hits[0]
                 name, desc = _board_label(board)
-                oldr = db.get(Rider, old_sid)
+                # By handle, not by primary key. Snapshots written before the rename hold
+                # store_ids; one of those simply does not resolve here, so the rider who held
+                # the board goes unnamed rather than the message claiming the wrong thing.
+                oldr = (db.query(Rider).filter(Rider.public_id == old_sid).first()
+                        if old_sid else None)
                 beat = f", beating <b>{_esc(oldr.display_name)}</b>" if oldr and oldr.display_name else ""
                 descpart = f" ({_esc(desc)})" if desc else ""
                 text = (f"🏆 New record! {who} is the new <b>{_esc(name)}</b>{descpart}{beat}."

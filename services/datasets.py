@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import config
+from database import backfill_public_ids
 
 REQUIRED_TABLES = {"riders", "trips"}
 
@@ -331,6 +332,11 @@ def switch_to(slug: str, reload_app: Optional[Callable[[], None]] = None) -> str
     try:
         from database import ensure_schema
         ensure_schema(str(active))
+        # An uploaded dataset is exactly the case the handle rule exists for: rows this code
+        # did not write. `switch_to` reconnects without restarting, so the startup repair
+        # never runs, and the import would serve whatever handles it arrived with until
+        # somebody happened to restart the process.
+        backfill_public_ids(str(active))
     except Exception:
         pass
     # 5) record + make the running app reconnect to the new file
