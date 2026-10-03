@@ -1015,15 +1015,20 @@
       return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p>"
         + drawnLine() + "</div>";
     }
+    // When every row is the block, the hint above has already said so and the badge is on
+    // all four, which makes it furniture rather than a mark.
+    var allFirst = TARGETS.every(function (x) { return x.first; });
     var seenWho = {};
     var body = TARGETS.map(function (x, i) {
-          var tag = x.first ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
+          var tag = x.first && !allFirst
+            ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
             : x.kills ? '<span class="crewtag kills">'
               + t("crew.targets.kills", { n: x.lost || 0 }) + "</span>"
             : x.links ? '<span class="crewtag joins">'
               + t("crew.targets.links", { n: x.links }) + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
-            : x.blocked ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
+            : x.blocked && !x.first
+              ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
             : "";
           // Not part of the chain above: a square can be the best move in the game AND more
           // than the crew can physically bank, and being told only the first is how somebody
@@ -1039,10 +1044,13 @@
             : t("crew.tile.free");
           // Nothing goes in the number column on a square whose shortfall is zero: riding it
           // again does nothing, and a word there wore the styling meant for a distance.
-          var km = x.blocked ? "" : effort(x.need, x.y);
-          // only the holder: since the rows are deduplicated on effort, bearing and holder
-          // together, two rows can share an effort word and still be different places, and a
-          // ditto there would read as a mistake.
+          // A square the crew already leads has nothing to ride, and printed an empty
+          // column: on a first-block card that was three rows in four saying nothing.
+          var km = x.blocked ? t(x.first ? "crew.targets.got" : "crew.targets.blocked")
+                             : effort(x.need, x.y);
+          // only the holder: rows are deduplicated on effort, place and holder -- not the
+          // bearing, which differs without anything differing -- so two rows can share an
+          // effort word and still be different places, and a ditto there would be a mistake.
           var rw = seenWho[who] ? " rpt" : "";
           seenWho[who] = 1;
           return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
@@ -1056,8 +1064,16 @@
             + '<i class="' + (rw ? "rpt" : "") + '">' + who + "</i></span>"
             + tag + "</div>";
         }).join("");
-    return head + '<p class=hint>'
-      + t(nothing ? "crew.targets.p0" : "crew.targets.p", { n: SEED }) + "</p>"
+    // How close they are, which is the whole point of the card for a crew with no ground.
+    var left = TARGETS.filter(function (x) { return x.first && !x.blocked; });
+    var togo = left.reduce(function (a, x) { return a + x.need; }, 0);
+    var lead = nothing && TARGETS.length && TARGETS[0].first
+      ? (left.length === 0
+         ? t("crew.targets.p0done")
+         : t(left.length === 1 ? "crew.targets.p0one" : "crew.targets.p0n",
+             { n: left.length, v: fmtKm(Math.round(togo * 10) / 10) }))
+      : t(nothing ? "crew.targets.p0" : "crew.targets.p", { n: SEED });
+    return head + '<p class=hint>' + lead + "</p>"
       + body + drawnLine() + "</div>";
   }
 
@@ -1355,6 +1371,8 @@
   // Every failure used to arrive as the server's own string: a rider who tried to join a full
   // crew read "crew_full" in a pink box, and the fourteen locales all answered in English.
   var ERRS = {
+    expired: "crew.e.expired", unknown: "crew.e.expired", used: "crew.e.expired",
+    no_rider: "crew.e.norider", busy: "crew.e.busy",
     crew_full: "crew.e.full", last_member: "crew.e.last_member",
     not_yourself: "crew.e.not_yourself", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
     not_leader: "crew.e.forbidden", not_paired: "crew.e.pass",
@@ -1521,6 +1539,14 @@
         + t(c.join_policy === "invite" ? "crew.mine.invite" : "crew.mine.invite2")
         + ': <code>' + esc(c.invite_code) + "</code></p>";
     }
+    if (me.declined && me.declined.length) {
+      h += '<div class="crewpend"><h4>' + t("crew.decl.h") + "</h4>"
+        + me.declined.map(function (x) {
+            return '<div class="crewpendr"><span>' + esc(x.name) + "</span>"
+              + '<button class="crewbtn mini ghost" data-undecline="'
+              + esc(x.store_id || "") + '">' + t("crew.decl.undo") + "</button></div>";
+          }).join("") + "</div>";
+    }
     // Leaving is blocked for a leader with members until somebody else can run the crew, and
     // there was no control anywhere to make that somebody. The endpoint existed; the button
     // did not, so a two-person crew's leader was stuck for good.
@@ -1606,6 +1632,15 @@
       b.onclick = function () {
         api("POST", "/api/v1/crews/" + c.slug + "/decide",
             { store_id: b.dataset.no, accept: false }).then(show);
+      };
+    });
+    document.querySelectorAll("[data-undecline]").forEach(function (b) {
+      b.onclick = function () {
+        api("POST", "/api/v1/crews/" + c.slug + "/decide",
+            { store_id: b.dataset.undecline, accept: true }).then(function (r) {
+          if (r.ok) { reveal(".crewmine-wrap"); show(); }
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+        });
       };
     });
     document.querySelectorAll("[data-kick]").forEach(function (b) {

@@ -557,7 +557,11 @@ def _name_lookup(acc: dict, kept: dict, clans: dict, zoom: int) -> dict:
     for tile in acc:
         pt = T.parse(tile)
         if pt:
-            want.add((pt[1], pt[2]))
+            # and everything around it: a first block is anchored on a ridden square and
+            # reaches a diagonal from it, which no other set here covers
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    want.add((pt[1] + dx, pt[2] + dy))
     if not want:
         return {}
     want = sorted(want)
@@ -634,9 +638,12 @@ def _first_block(acc: dict, clan_id: str, won: dict, zoom: int, mine: set,
         km = acc.get(tile, {}).get(clan_id, [0.0, set()])[0]
         return max(0.0, max(min_lead_km(tile), w[1] if w else 0.0) - km)
 
-    best, best_cost = None, None
+    def mine_km(x, y):
+        return acc.get(f"{zoom}/{x}/{y}", {}).get(clan_id, [0.0, set()])[0]
+
+    best, best_key = None, None
     seen = {}
-    for (ax, ay) in mine:
+    for (ax, ay) in sorted(mine):
         # every block this ridden square could be a corner of
         for dx in range(-(seed - 1), 1):
             for dy in range(-(seed - 1), 1):
@@ -646,8 +653,13 @@ def _first_block(acc: dict, clan_id: str, won: dict, zoom: int, mine: set,
                 sq = [(key[0] + a, key[1] + b) for a in range(seed) for b in range(seed)]
                 total = sum(cost(x, y) for x, y in sq)
                 seen[key] = total
-                if best_cost is None or total < best_cost:
-                    best, best_cost = sq, total
+                # Cheapest, and among equally cheap ones the block this crew already rides
+                # most -- six were tied for one crew and four for another, and the winner was
+                # whichever the set happened to yield first, so it could move between
+                # rebuilds with nothing having changed.
+                k = (round(total, 6), -sum(mine_km(x, y) for x, y in sq), key)
+                if best_key is None or k < best_key:
+                    best, best_key = sq, k
     return set(best or ())
 
 

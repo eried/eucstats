@@ -60,6 +60,10 @@
 .crewsub { font-size: 12px; color: var(--mut, #9aa6c8); margin-top: 4px; }
 
 .crewpend { border-top: 1px solid var(--line, #243055); margin-top: 10px; }
+/* Three controls and a display name in a row that does not wrap. German's "Zum Offizier
+   machen" beside "Entfernen" needs the name to be the thing that shortens, which it cannot
+   do without this -- the neighbouring .crewrown has had it all along. */
+.crewpendr > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .crewpendr { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
 .crewpendr span { flex: 1; }
 
@@ -492,7 +496,7 @@ a.crewqr { display: flex; text-decoration: none; }
 /* An in-panel question opens beside the control that raised it. Those controls live in flex
    rows, so the row has to let it take a line of its own or the crew name and the input are
    squeezed into slivers at 390px. */
-.crewrow, .crewacts { flex-wrap: wrap; }
+.crewrow, .crewacts { }
 .crewrow > .crewask, .crewacts > .crewask { flex: 1 0 100%; margin-top: 8px; }
 
 /* the badge is longer than the room left for it once the number column is subtracted */
@@ -550,10 +554,8 @@ a.crewqr { display: flex; text-decoration: none; }
     border: 4px solid transparent; border-left-color: currentColor;
     transition: transform .15s ease; }
   details[open] > summary::before { transform: rotate(90deg); }
-  /* min-height beats aspect-ratio, so a 33px-wide chip became a 33x44 portrait rectangle in
-     a feature whose entire visual language is squares. Wider tracks instead: fewer columns,
-     square chips, and the thumb still clears 44. */
-  .crewpickc, .crewpickp { min-height: 0; }
+  /* Wider tracks rather than a min-height: a min-height beats aspect-ratio, and a 33px-wide
+     chip stretched to 44 is a portrait rectangle in a feature whose language is squares. */
   .crewpickp .crewsw { width: 32px; height: 32px; }
 }
 
@@ -634,7 +636,6 @@ a.crewqr { display: flex; text-decoration: none; }
      text under the row they belong to. */
   .crewtag { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left;
     background: none; padding: 0; font-size: 11px; }
-  .crewcname { max-width: none; }
   .crewboard table .val.sub { font-size: 11px; text-align: right; width: 1%; }
   .crewboard table .val.sub .crewarea { display: none; }
 }

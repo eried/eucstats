@@ -82,9 +82,31 @@ def _hue(hex_colour: str) -> float:
     return colorsys.rgb_to_hsv(r, g, b)[0] * 360.0
 
 
+def _rgb(hex_colour: str) -> tuple[float, float, float]:
+    h = (hex_colour or "").lstrip("#")
+    if len(h) != 6:
+        return (0.0, 0.0, 0.0)
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
 def _hue_gap(a: str, b: str) -> float:
-    d = abs(_hue(a) - _hue(b)) % 360.0
-    return min(d, 360.0 - d)
+    """How far apart two crew colours look, in degrees of hue equivalent.
+
+    Hue on its own says grey, maroon and pastel pink are the same colour -- all three report
+    0 -- and says a readable pair 55 degrees apart is too close. Saturation and value carry
+    the rest of it, so they are folded in: a pair that differs mostly in lightness scores as
+    separable even when their hues agree.
+    """
+    import colorsys
+    ha, sa, va = colorsys.rgb_to_hsv(*_rgb(a))
+    hb, sb, vb = colorsys.rgb_to_hsv(*_rgb(b))
+    d = abs(ha - hb) * 360.0
+    hue = min(d, 360.0 - d)
+    # A hue difference only means anything when both colours have some saturation to carry
+    # it; between two near-greys it means nothing at all.
+    hue *= min(sa, sb)
+    # and a big step in saturation or lightness is its own separation, worth about 90 degrees
+    return hue + 90.0 * (abs(sa - sb) + abs(va - vb)) / 2.0
 
 
 def neighbour_colours(db, lat: float | None, lon: float | None,

@@ -78,6 +78,16 @@ def _err(e: crews.CrewError) -> HTTPException:
     return HTTPException(400, json.dumps({"code": e.code, "detail": e.detail}))
 
 
+def _perr(status: int, e) -> HTTPException:
+    """A pairing failure, in the envelope the client already unpacks.
+
+    The code is what the browser translates; the sentence is what the app shows, and
+    `no_rider` -- a rider whose first upload has not landed yet -- is the one that genuinely
+    needs explaining rather than naming.
+    """
+    return HTTPException(status, json.dumps({"code": e.code, "detail": e.detail}))
+
+
 # --- pairing ------------------------------------------------------------------------------
 
 @router.post("/pair/start")
@@ -97,7 +107,7 @@ def pair_start(request: Request, db: Session = Depends(get_db)):
     try:
         p = pairing.start(db, purpose="rider")
     except pairing.PairError as e:
-        raise HTTPException(429, e.detail)
+        raise _perr(429, e)
     base = str(request.base_url).rstrip("/")
     url = f"{base}/p/{p['code']}"
     return {"token": p["token"], "code": p["code"], "expires_in": p["expires_in"],
@@ -111,7 +121,7 @@ def pair_poll(token: str, response: Response, db: Session = Depends(get_db)):
     try:
         res = pairing.poll(db, token)
     except pairing.PairError as e:
-        raise HTTPException(410, e.code)
+        raise _perr(410, e)
     if res.get("session"):
         out = JSONResponse({k: v for k, v in res.items() if k != "session"})
         # HttpOnly so no script on the page can read it; Lax so a link from elsewhere still
@@ -129,7 +139,7 @@ def pair_describe(code: str, db: Session = Depends(get_db)):
     try:
         return pairing.describe(db, code)
     except pairing.PairError as e:
-        raise HTTPException(410, e.code)
+        raise _perr(410, e)
 
 
 @router.post("/pair/confirm")
@@ -148,7 +158,7 @@ def pair_confirm(payload: dict, request: Request, db: Session = Depends(get_db))
     try:
         return pairing.confirm(db, code, store_id)
     except pairing.PairError as e:
-        raise HTTPException(410, e.code)
+        raise _perr(410, e)
 
 
 @router.post("/crews/signout")
@@ -284,6 +294,17 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status == "pending",
                         ClanMember.left_at.is_(None)).all()]
+                # Refusals from the last week, so a leader who changed their mind has
+                # somewhere to do it. crews.decide(accept=True) reopens the request.
+                since = utcnow() - timedelta(days=7)
+                out["declined"] = [
+                    {"store_id": p.store_id,
+                     "name": (db.get(Rider, p.store_id).display_name
+                              if db.get(Rider, p.store_id) else "?")}
+                    for p in db.query(ClanMember).filter(
+                        ClanMember.clan_id == clan.clan_id,
+                        ClanMember.status.in_(("declined", "declined_seen")),
+                        ClanMember.left_at >= since).all()]
         crews.touch(db, ws.store_id)
     else:
         # Nobody told a rider their request had been turned down; the panel simply went back

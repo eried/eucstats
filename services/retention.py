@@ -15,6 +15,25 @@ def free_gb(path: str) -> float:
     return shutil.disk_usage(path).free / (1024 ** 3)
 
 
+def _sweep_spent_notices(db, now) -> int:
+    """Membership rows whose only job was to carry one notice, long since read.
+
+    `*_seen` means a rider has been told their request was declined, their crew folded or
+    they were removed. The notice is bounded to a week, so after that the row cannot be read
+    again by anything -- it is a tombstone, one per rider per crew per event, kept for ever.
+    """
+    from datetime import timedelta
+    from models import ClanMember
+    cutoff = now - timedelta(days=30)
+    n = (db.query(ClanMember)
+         .filter(ClanMember.status.in_(("declined_seen", "disbanded_seen", "removed_seen")),
+                 ClanMember.left_at.isnot(None), ClanMember.left_at < cutoff)
+         .delete(synchronize_session=False))
+    if n:
+        db.commit()
+    return n
+
+
 def run_retention(db, now=None, retention_days=None, disk_floor_gb=None,
                   data_dir=None) -> int:
     now = now or utcnow()
@@ -24,6 +43,8 @@ def run_retention(db, now=None, retention_days=None, disk_floor_gb=None,
         retention_days = r["days"] if retention_days is None else retention_days
         disk_floor_gb = r["disk_floor_gb"] if disk_floor_gb is None else disk_floor_gb
     data_dir = data_dir or str(config.DATA_DIR)
+
+    _sweep_spent_notices(db, now)
 
     tr = TripRepo(db)
     evicted = 0
