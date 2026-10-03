@@ -141,6 +141,10 @@ EN: dict[str, str] = {
     "crew.decl.h": "Turned down lately",
     "crew.decl.undo": "Let them in",
     "crew.decl.gone": "in another crew now",
+    # Third person and lowercase, like the line above it. The declines column
+    # used to borrow the join card's heading, which addresses the rider it is
+    # talking to -- so a leader was told to cool down about somebody else.
+    "crew.decl.cooling": "cooling off now",
     "crew.who.share": "{n}%",
     "crew.rank.top": "top of the board",
     "crew.rank.nth": "{n}th",

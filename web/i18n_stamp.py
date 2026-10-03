@@ -22,6 +22,7 @@ EN_FINGERPRINT = {
     'crew.day1': '2d8a6f7c3446',
     'crew.days': 'c752c6dea2f9',
     'crew.days.few': 'c752c6dea2f9',
+    'crew.decl.cooling': '2e9da3585735',
     'crew.decl.gone': 'a59e5b7a5455',
     'crew.decl.h': 'a4c9ab978287',
     'crew.decl.undo': '5adbc18abbff',

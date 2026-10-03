@@ -1858,7 +1858,11 @@
                  ? '<button class="crewbtn mini ghost" data-undecline="'
                    + esc(x.store_id || "") + '">' + t("crew.decl.undo") + "</button>"
                  : '<span class="crewgone">'
-                   + t(x.why === "cooldown" ? "crew.join.wait.h" : "crew.decl.gone")
+                   // `crew.decl.cooling`, not the join card's heading: that one addresses
+                   // the rider it is shown to, so next to somebody else's name it told the
+                   // leader to cool down. It was a Title-case heading in a column of
+                   // lowercase fragments, too.
+                   + t(x.why === "cooldown" ? "crew.decl.cooling" : "crew.decl.gone")
                    + "</span>")
               + "</div>";
           }).join("") + "</div>";
