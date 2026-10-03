@@ -794,3 +794,6 @@ a.crewqr { display: flex; text-decoration: none; }
 /* A name and its role mark are one thing; the phone was wrapping the diamond onto its own
    line under the name. */
 .crewpendr > span { white-space: nowrap; }
+
+/* The one true sentence about a card nobody is contesting. Above the rows, not on them. */
+.crewclear { margin: 0 0 8px; }

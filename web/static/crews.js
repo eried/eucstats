@@ -1051,6 +1051,25 @@
     return ME && ME.crew ? ME.crew.name : null;
   }
 
+  // Would taking this square move the READER past somebody? `passes` answers the mirror
+  // question -- whether the holder falls behind -- and returns nothing at all on a square
+  // nobody holds, which is every row of seven crews' cards.
+  function youPass(x) {
+    if (!TERR || !TERR.crews || !ME || !ME.crew) return null;
+    if (typeof x.grown !== "number" || !(x.grown > (x.own_now || 0))) return null;
+    var board = TERR.crews.slice().sort(function (a, b) {
+      return (b.best_tiles || 0) - (a.best_tiles || 0);
+    });
+    var mine = myName();
+    for (var i = 0; i < board.length; i++) {
+      if (board[i].name === mine) continue;
+      var theirs = board[i].best_tiles || 0;
+      // level or ahead now, behind after
+      if ((x.own_now || 0) <= theirs && x.grown > theirs) return board[i].name;
+    }
+    return null;
+  }
+
   function passes(x) {
     if (!TERR || !TERR.crews || !x.held_name || !(x.ranked_was > x.ranked_now)) return null;
     var board = TERR.crews.slice().sort(function (a, b) {
@@ -1092,6 +1111,13 @@
     // named it, so the second crew on the board got a card that said where to ride without
     // ever saying where.
     var prevAt = null;
+    // Nothing on this card is held by anybody. Seven crews of fifteen are in that position,
+    // and the honest thing to say about eight adjacent empty squares is the same sentence
+    // eight times -- so it is said once, here, and the rows go back to being distances.
+    var noRival = TARGETS.every(function (x) { return !x.held_by; });
+    if (noRival && TARGETS.length > 1) {
+      head += '<p class="hint crewclear">' + t("crew.targets.clear") + "</p>";
+    }
     var seenWho = {};
     var saidQuiet = {};
     var saidPass = {};
@@ -1159,6 +1185,15 @@
             // deleting it left 36 rows naming a rival and saying nothing about them at all.
             // Same sentence, no box, no colour: a reason for the rows that have a small one,
             // and the chips keep meaning something.
+            // Crossing somebody on the board by taking empty ground. Once per card, like the
+            // mirror case below it.
+            : youPass(x) && !saidPass[youPass(x)]
+              ? ((saidPass[youPass(x)] = 1), '<span class="crewtag youpass">'
+                + t("crew.targets.youpass") + "</span>")
+            // A square that adds a tile the ranked number cannot see. Three rows in the world,
+            // which is exactly why it is worth marking: riding one moves nothing.
+            : typeof x.grown === "number" && x.grown <= (x.own_now || 0) && !x.held_by
+              ? '<span class="crewtquiet">' + t("crew.targets.stray") + "</span>"
             : x.held_by && x.ranked_was - x.ranked_now === 1 && !saidQuiet[who]
               ? ((saidQuiet[who] = 1), '<span class="crewtquiet">'
                 + t("crew.targets.drops", { n: x.ranked_now }) + "</span>")
@@ -1746,7 +1781,10 @@
              : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember"))
       + "</div></div></div>";
     if (me.status === "pending") {
-      h += '<div class="crewmsg">' + t("crew.join.pending") + "</div>";
+      // The payload knew `leader_gone` all along and the card said "Waiting on a leader to
+      // let you in" regardless, to a rider whose crew has nobody who could ever answer them.
+      h += '<div class="crewmsg' + (me.leader_gone ? " bad" : "") + '">'
+        + t(me.leader_gone ? "crew.join.pending.none" : "crew.join.pending") + "</div>";
     }
     if (c.description) h += "<p>" + esc(c.description) + "</p>";
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';

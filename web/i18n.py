@@ -33,6 +33,9 @@ EN: dict[str, str] = {
     "crew.patches": "{n} patches",
     "crew.inall": "{v} all told",
     # signing in
+    "crew.targets.clear": "Nobody else is riding near you. Each of these adds one to your block.",
+    "crew.targets.stray": "adds a square, not to your block",
+    "crew.join.pending.none": "Nobody here can let you in. This crew has no leader.",
     "crew.signin.wip": "Not finished yet. Anything you build here can be wiped without warning.",
     "crew.signin.h": "Get your pass",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",

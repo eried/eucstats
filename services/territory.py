@@ -936,6 +936,17 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
 
     # Would taking it break the holder's seed? Only asked of the rows that made the cut, so a
     # crew pays for `limit` flood fills, not one per candidate.
+    #
+    # What the crew's own ranked number becomes if they take each square. Worked out on the
+    # same slice and from the same `seeded` the board itself uses, so a row cannot claim a
+    # number the board would not show. 113 rows of 118 grow it by one, which is why the card
+    # says that once rather than on every row; the five that grow it by nothing are the ones
+    # worth marking, because riding one is an evening that moves no number at all.
+    own_now = max((len(c) for c in regions(seeded(held, seed))), default=0)
+    for t in out[:limit * 2]:
+        t["grown"] = max(
+            (len(c) for c in regions(seeded(held | {(t["x"], t["y"])}, seed))), default=0)
+
     for t in out[:limit * 2]:
         holder = t["held_by"]
         t["kills"] = False
@@ -1004,6 +1015,14 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
                             1 if t.get("blocked") else 0,
                             rank(t), t["need"], t["x"], t["y"]))
+
+    # Carried on every row rather than beside the list, because the payload is a flat array of
+    # rows and the card reads them one at a time.
+    for t in out:
+        # None, not 0, for a row past the slice above: a default that happens to read as "this
+        # square does nothing for you" would put a warning on rows nobody measured.
+        t.setdefault("grown", None)
+        t["own_now"] = own_now
 
     # Everything a row prints is effort, bearing and who holds it, so two rows agreeing on all
     # three are the same row printed twice. A quarter of every card was a duplicate, and seven
