@@ -362,6 +362,12 @@ SHARED = {
     "crew.targets.h": {"legendHTML"},
     "crew.tiles": {"targetsHTML"},              # a count
     "crew.tile.fresh": {"legendHTML", "targetsHTML"},
+    # Handing the pass back moved out of the crew card, because the crew card is the one
+    # paired state that ALREADY had a way to do it: cooling off, removed, folded, declined and
+    # no-ride-yet had no control of any kind on them. Both strings are about the reader's own
+    # pass and say the same thing on every one of those cards, which is why the move is safe.
+    "crew.mine.signout": {"render", "bindSignOut"},
+    "crew.mine.signoutq": {"bindSignOut"},
 }
 
 # The functions that build each card. Anything rendering a key from another card has to appear

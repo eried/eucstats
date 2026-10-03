@@ -188,9 +188,39 @@
    own screen. So it shows on touch devices and hides on a desktop, where the QR is the whole
    point. `hover:none` + `pointer:coarse` is the honest test for that: it asks what the input
    device can do rather than guessing from the user agent string. */
-.crewopen, .crewsame { display: none; }
+/* `a.crewopen`, not `.crewopen`. The markup is `<a class="crewbtn crewopen">`, and
+   `.crewbtn { display: inline-flex }` in the touch block below is later in the file at the
+   same specificity, so it undid this for the button and not for the sentence -- a 390px
+   desktop window got the pink call to action with nothing explaining it. One element
+   selector settles it, and the show rule below carries the same weight so the pair stays
+   gated together. */
+a.crewopen, .crewsame { display: none; }
 
 a.crewqr { display: flex; text-decoration: none; }
+/* A link with no colour of its own computes to the browser default #0000EE, underlined, on a
+   near-black card. The QR is an image so nobody saw it -- until the image failed, or the
+   pairing expired and the retry link became the only control on the screen. */
+a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
+
+/* Five codes in a row went unanswered, so this pairing is over. The code was blanked to dots
+   -- which reads as loading -- while a full-size scannable QR and a bright `eucplanet://`
+   button both stayed live and went on offering a handshake that could not happen. */
+#crewqr.dead, #crewopen.dead {
+  opacity: .25; filter: grayscale(1); pointer-events: none; cursor: default;
+}
+
+/* A message anchored to the control that was pressed, rather than at the top of the panel
+   five screens away from it. */
+.crewstatusnear { margin: 8px 0 2px; }
+.crewstatusnear .crewmsg { margin: 0; }
+/* Inside the invite-code prompt, above the input it is about. */
+.crewaskmsg { margin: 0 0 8px; }
+
+/* Handing the pass back, for the five paired states that have no crew card to put it in. */
+.crewfoot {
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line, #243055);
+  display: flex; justify-content: flex-end;
+}
 
 /* --- standings, contributors, folded personal crew --- */
 
@@ -295,7 +325,13 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewpickp { background: transparent; display: flex; align-items: center; justify-content: center; }
 .crewpickp .crewsw { width: 20px; height: 20px; border: 0; }
 .crewpickc.on, .crewpickp.on { outline: 2px solid #fff; outline-offset: 1px; }
-.crewpickc:hover, .crewpickp:hover { outline: 1px solid rgba(255,255,255,.6); outline-offset: 1px; }
+/* `:not(.on)`, because these two are both 0-2-0 and neither is a subset of the other, so the
+   later one simply won: resting the pointer on the colour you had just chosen dropped its 2px
+   ring to the 1px ring every other cell shows, and on a 24-cell grid whose only state channel
+   is that outline the feedback at the moment of choosing was nothing at all. */
+.crewpickc:not(.on):hover, .crewpickp:not(.on):hover {
+  outline: 1px solid rgba(255,255,255,.6); outline-offset: 1px;
+}
 
 
 
@@ -421,7 +457,7 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* touch, in one block and in cascade order */
 @media (hover: none) and (pointer: coarse) {
-  .crewopen { display: block; text-align: center; text-decoration: none;
+  a.crewopen { display: block; text-align: center; text-decoration: none;
     order: 2; margin-top: 4px; }
   .crewsame { display: block; order: 1; }
   /* The QR is not dimmed. A faded code reads as a loading failure, and the honest signal is
@@ -866,7 +902,11 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* Worth one square: the same sentence the chip carries, without the box or the colour, so a
    row that has a small reason says it and the chips go on meaning something. */
-.crewtquiet { flex: 0 1 auto; margin-left: auto; max-width: 38%; font-size: 11px;
+/* 50 and not 38. 38% is a cap chosen against English: "drops them to 90" fits it and
+   `drückt sie auf 90` needs 85px against 81, `les fait tomber à 90` 98 against 94 and
+   `збиває їх до 90` 76 against 74 -- two to four pixels short, two lines each, and the first
+   row of the list opened ragged in three locales and square in the rest. */
+.crewtquiet { flex: 0 1 auto; margin-left: auto; max-width: 50%; font-size: 11px;
   text-align: right; line-height: 1.25; color: var(--mut, #9aa6c8); opacity: .8; }
 @media (max-width: 560px) {
   .crewtquiet { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }

@@ -1357,22 +1357,52 @@
       + body + drawnLine() + "</div>";
   }
 
+  // How many `ch` a string actually occupies, which is not how many characters it has.
+  //
+  // An ideograph, a kana, a hangul syllable and a fullwidth form each take about two `ch`.
+  // `.length` counted them as one, so sixteen characters of Japanese asked for 134px and
+  // needed 194, and the row wrapped between `0.6 km` and the phrase qualifying it.
+  //
+  // A count rather than a measurement on purpose. Both measurements that have lied in this
+  // file asked the browser something subtle at the wrong moment -- `scrollWidth` before the
+  // font settled, `ch` against a fallback face -- and this is deterministic and font-free.
+  // Ranges: Hangul Jamo, CJK radicals and punctuation, kana and Bopomofo, CJK Ext A, CJK
+  // Unified, Yi, Hangul syllables, CJK compatibility, and the fullwidth forms.
+  var WIDE = /[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6]/;
+  function chWidth(str) {
+    var s = String(str == null ? "" : str), n = 0;
+    for (var i = 0; i < s.length; i++) n += WIDE.test(s.charAt(i)) ? 2 : 1;
+    return n;
+  }
+
   // The widest phrase decides the column, because the phrase is prose and the locales differ
-  // by a factor of two. ch is close enough for a proportional face and needs no measuring.
-  // Including the number, which this measured without: `--kmw` came out too narrow whenever
-  // a card's phrases were short, and six rows of eight wrapped to double height.
-  function widest(rows) {
+  // by a factor of two. Including the number, which this measured without: `--kmw` came out
+  // too narrow whenever a card's phrases were short, and six rows of eight wrapped to double
+  // height.
+  //
+  // One function for both lists. They had two caps -- 38 here and 30 in `loseHTML` -- and the
+  // tighter one sat on the longer family of strings, because the lose phrasing is the target
+  // phrasing with "and it's theirs" appended. German wrapped and French missed by a pixel.
+  // `--kmc` clamps the result to `min(--kmw, 46%)` anyway, so the cap is a safety net and
+  // belongs in one place.
+  function widestOf(rows, phrase) {
     var n = 7;
     (rows || []).forEach(function (x) {
+      var w = chWidth(phrase(x));
+      if (w > n) n = w;
+    });
+    return Math.min(n + 1, 38);
+  }
+
+  function widest(rows) {
+    return widestOf(rows, function (x) {
       // Blocked rows too. They render `crew.targets.blocked` into this very column, and
       // measuring them as empty made the column too narrow for the one string that is
       // longest: 36 characters in Danish, past the cap in eight locales, two rows of six
       // standing at double height on a list whose whole job is to be scannable.
-      var w = (x.blocked ? t(x.first ? "crew.targets.got" : "crew.targets.blocked")
-                         : effort(x.need, x.y) + " " + fmtKm(x.need)).length;
-      if (w > n) n = w;
+      return x.blocked ? t(x.first ? "crew.targets.got" : "crew.targets.blocked")
+                       : effort(x.need, x.y) + " " + fmtKm(x.need);
     });
-    return Math.min(n + 1, 38);
   }
 
   // The other half of the game. Every band and every shortfall is already in TERR.cells, so
@@ -1445,14 +1475,12 @@
     cx /= all.length; cy /= all.length;
     // Same three columns as "where to ride next", so the two cards read as a pair: how hard,
     // which way, what about it.
-    var cols = 7;
-    LOSING.forEach(function (x) {
-      var w = (x.band === 3 ? fadesIn(Math.round(x.need * 10))
-               : t("crew.lose.gap", { v: effort(x.need, x.y) })).length;
-      if (w > cols) cols = w;
+    var cols = widestOf(LOSING, function (x) {
+      return x.band === 3 ? fadesIn(Math.round(x.need * 10))
+                          : t("crew.lose.gap", { v: effort(x.need, x.y) });
     });
     var seenState = {};
-    return '<div style="--kmw:' + Math.min(cols + 1, 30) + 'ch" class="crewtargets crewlose'
+    return '<div style="--kmw:' + cols + 'ch" class="crewtargets crewlose'
       + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.lose.h") + "</h4>"
       // eight crews in fourteen have nothing but fading ground, and telling them a rival is
       // closing in on it is simply untrue
@@ -1553,9 +1581,28 @@
     stopPairing();
     var code = document.getElementById("crewcode");
     if (code) code.textContent = "······";
+    // The code was blanked to dots -- which reads as LOADING -- and everything else on the
+    // card stayed live: a full-size scannable QR, and both `eucplanet://pair?code=…` links
+    // still carrying the dead code, so the biggest thing on screen and the brightest button
+    // on it both went on offering a pairing that could not happen.
+    var qr = document.getElementById("crewqr");
+    if (qr) {
+      qr.classList.add("dead");
+      qr.removeAttribute("href");
+      qr.setAttribute("aria-hidden", "true");
+    }
+    var open = document.getElementById("crewopen");
+    if (open) {
+      open.classList.add("dead");
+      open.removeAttribute("href");
+      open.setAttribute("aria-hidden", "true");
+    }
     var el = document.getElementById("crewcodehint");
     if (!el) return;
-    el.innerHTML = '<a href="#" id="crewagain">' + t("crew.signin.again") + "</a>";
+    // A bare `<a>` on this card computes to the browser default #0000EE, underlined, 13px, on
+    // near-black -- and in this state it is the only control left.
+    el.innerHTML = '<a href="#" class="crewbtn mini" id="crewagain">'
+      + t("crew.signin.again") + "</a>";
     var again = document.getElementById("crewagain");
     if (again) again.onclick = function (ev) {
       ev.preventDefault();
@@ -1659,6 +1706,18 @@
     host.querySelector("#crewask-y").onclick = function () { done(); ok(); };
   }
 
+  // One handler, wherever the button was rendered: inside the crew card's action row, or in
+  // the panel footer for the five paired states that have no crew card to put it in.
+  function bindSignOut() {
+    var so = document.getElementById("cm-signout");
+    if (!so) return;
+    so.onclick = function () {
+      ask(t("crew.mine.signoutq"), t("crew.mine.signout"), function () {
+        api("POST", "/api/v1/crews/signout", {}).then(function () { ME = null; show(); });
+      }, so);
+    };
+  }
+
   // An in-panel prompt, same reasoning.
   function askFor(message, placeholder, ok, near) {
     var host = askHost(near);
@@ -1673,10 +1732,25 @@
     var input = host.querySelector("#crewask-in");
     input.focus();
     host.querySelector("#crewask-n").onclick = done;
+    // `done()` used to run BEFORE `ok(v)`, so one wrong character in an eight-character invite
+    // code cost the prompt, the typing and 3.7 screens of scrolling back to the row it opened
+    // beside. The caller decides now: `ctl.close()` on success, `ctl.fail(msg)` to keep it.
+    function fail(msg) {
+      var box = host.querySelector(".crewaskmsg");
+      if (!box) {
+        box = document.createElement("div");
+        box.className = "crewmsg bad crewaskmsg";
+        box.setAttribute("role", "alert");
+        host.querySelector(".crewask").insertBefore(box, input);
+      }
+      box.textContent = msg;
+      input.focus();
+      input.select();
+    }
     function go() {
       var v = input.value.trim();
-      done();
-      if (v) ok(v);
+      if (!v) { done(); return; }
+      ok(v, { close: done, fail: fail });
     }
     host.querySelector("#crewask-y").onclick = go;
     input.onkeydown = function (e) { if (e.key === "Enter") go(); };
@@ -1729,9 +1803,40 @@
     return false;
   }
 
-  function setStatus(msg, bad) {
-    var el = document.getElementById("crewstatus");
+  // A slot sitting directly after the control that was pressed, for as long as its message
+  // is up. Without one, every failure painted into `#crewstatus` above the board: pressing
+  // Save in crew settings five screens down put the error five screens up and scrolled the
+  // form off the screen. `askHost` has done this for the confirm prompts since round four.
+  var statusSlot = null;
+
+  function statusHost(near) {
+    if (statusSlot && statusSlot.parentNode) {
+      statusSlot.parentNode.removeChild(statusSlot);
+    }
+    statusSlot = null;
+    var top = document.getElementById("crewstatus");
+    if (!near || !near.parentNode) return top;
+    statusSlot = document.createElement("div");
+    statusSlot.className = "crewstatusnear";
+    // The live attributes go on BEFORE any text does. A region created and filled in the same
+    // frame is frequently not announced at all, which is the whole point of this.
+    statusSlot.setAttribute("role", "status");
+    statusSlot.setAttribute("aria-live", "polite");
+    statusSlot.setAttribute("aria-atomic", "true");
+    near.parentNode.insertBefore(statusSlot, near.nextSibling);
+    return statusSlot;
+  }
+
+  function setStatus(msg, bad, near) {
+    var top = document.getElementById("crewstatus");
+    var el = statusHost(near);
     if (!el) return;
+    if (el !== top && top) top.innerHTML = "";
+    // An error is worth interrupting for and a confirmation is not. There was no live region
+    // anywhere in this feature, so a screen reader got nothing at all from a write -- not the
+    // error, not "You're in", not the offline failure.
+    el.setAttribute("role", bad ? "alert" : "status");
+    el.setAttribute("aria-live", bad ? "assertive" : "polite");
     el.innerHTML = msg ? '<div class="crewmsg' + (bad ? " bad" : "") + '">'
       + esc(msg) + "</div>" : "";
     // The success path got scrolled into view and the failure path did not, so an error from
@@ -1838,16 +1943,28 @@
       }).then(function (r) {
         go.disabled = false;
         if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-        else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+        else if (!onWrite(r)) {
+          setStatus(errMsg(r.err), true, go);
+          // the field, not the button: every one of these errors is about the name
+          var nm = document.getElementById("cf-name");
+          if (nm) { nm.focus(); nm.select(); }
+        }
       });
     };
   }
 
   // Where this crew sits and how far off the one above, from the board the browser already
   // holds. Nothing on the crew card said either.
+  // The board the panel is showing, so the rank on your card and the table under it cannot
+  // disagree. `TERR.crews` is the cached territory payload and the board is live: the cache
+  // had sixteen crews and the board thirteen, so a card read "16th" over a thirteen-row
+  // table, and a crew the board does not list got a rank of its own anyway.
+  var BOARD = null;
+
   function standing(slug) {
-    if (!TERR || !TERR.crews) return "";
-    var rows = TERR.crews.slice().sort(function (a, b) {
+    var src = BOARD || (TERR && TERR.crews);
+    if (!src || !src.length) return "";
+    var rows = src.slice().sort(function (a, b) {
       return (b.best_tiles || 0) - (a.best_tiles || 0);
     });
     var i = -1;
@@ -2080,7 +2197,7 @@
         api("POST", "/api/v1/crews/" + c.slug + "/decide",
             { store_id: b.dataset.undecline, accept: true }).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
         });
       };
     });
@@ -2091,7 +2208,7 @@
               api("POST", "/api/v1/crews/" + c.slug + "/remove",
                   { store_id: b.dataset.kick }).then(function (r) {
                 if (r.ok) { reveal(".crewmine-wrap"); show(); }
-                else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+                else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
               });
             }, b);
       };
@@ -2135,12 +2252,7 @@
         });
       }, claim);
     };
-    var so = document.getElementById("cm-signout");
-    if (so) so.onclick = function () {
-      ask(t("crew.mine.signoutq"), t("crew.mine.signout"), function () {
-        api("POST", "/api/v1/crews/signout", {}).then(function () { ME = null; show(); });
-      }, so);
-    };
+    bindSignOut();
     var save = document.getElementById("ce-save");
     if (save) save.onclick = function () {
       save.disabled = true;
@@ -2151,7 +2263,7 @@
       }).then(function (r) {
         save.disabled = false;
         if (r.ok) { show(); reloadTerritory(); }
-        else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+        else if (!onWrite(r)) setStatus(errMsg(r.err), true, save);
       });
     };
     var logo = document.getElementById("ce-logo");
@@ -2289,17 +2401,22 @@
   function bindJoin() {
     document.querySelectorAll("[data-join]").forEach(function (b) {
       b.onclick = function () {
-        function send(body) {
+        function send(body, ctl) {
           api("POST", "/api/v1/crews/" + b.dataset.join + "/join", body).then(function (r) {
-            if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-            else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+            if (r.ok) {
+              if (ctl) ctl.close();
+              reveal(".crewmine-wrap"); show(); reloadTerritory();
+            } else if (!onWrite(r)) {
+              if (ctl) ctl.fail(errMsg(r.err));
+              else setStatus(errMsg(r.err), true, b);
+            }
           });
         }
         if (b.dataset.pol === "invite") {
           // beside the row, and naming the crew: the prompt used to open at the top of the
           // panel, so by the time you read it you could no longer see which crew you tapped
           askFor(t("crew.join.codeask", { name: b.dataset.name || "" }), "ABC12345",
-                 function (code) { send({ invite_code: code }); }, b);
+                 function (code, ctl) { send({ invite_code: code }, ctl); }, b);
         } else {
           send({});
         }
@@ -2354,7 +2471,8 @@
   function show() {
     visible = true;
     H.setPanel("crews", (H.t ? H.t("title.crews") : "Crews & Territory"),
-      '<div id="crewstatus"></div><div id="crewpanel"><div class="spin"></div></div>');
+      '<div id="crewstatus" role="status" aria-live="polite" aria-atomic="true"></div>'
+      + '<div id="crewpanel"><div class="spin"></div></div>');
     render();
     if (TERR && !map.getLayer("crew-fill")) buildLayers();
     setHeat(false);
@@ -2391,6 +2509,7 @@
       // always took the "every crew" branch and your own ground never stood out.
       scopePulse();
       var rank = res[1].ok ? res[1].body.crews || [] : [];
+      if (res[1].ok) BOARD = rank;
       var all = res[2].ok ? res[2].body.crews || [] : [];
       MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
       // The board is the mode: it is a competition, and a rider who already has a crew came
@@ -2423,7 +2542,12 @@
           + "<span>" + esc(me.crew.name) + "</span>"
           // read back as "Harbour Bridge Bombersleader" without this
           + '<span class="crewsumsep"> &middot; </span>'
-          + '<span class="crewsumrole">' + t("crew.role." + me.role) + "</span></summary>"
+          // `/crews/me` answers `role: "member"` with `status: "pending"`, and this read the
+          // role alone -- so a rider still knocking had MEMBER over the top of a card saying
+          // "Waiting on a leader to let you in".
+          + '<span class="crewsumrole">'
+          + t(me.status === "pending" ? "crew.role.waiting" : "crew.role." + me.role)
+          + "</span></summary>"
           + myCrewHTML(me) + "</details>";
       } else if (me.removed_by) {
         h += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
@@ -2463,12 +2587,21 @@
           + joinHTML(all, me);
       }
       if (!me.crew) h += explainer();     // in a crew it is already above the crew card
+      // The only sign-out button in the feature was emitted by `myCrewHTML`, which this
+      // function calls on the `me.crew` branch alone -- so cooling off, removed, folded,
+      // declined and no-ride-yet had no control of ANY kind on them. A reviewer pressed
+      // Leave and found an empty `querySelectorAll` while the endpoint answered 200.
+      if (me.paired && !me.crew) {
+        h += '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout">'
+          + t("crew.mine.signout") + "</button></div>";
+      }
       panel.innerHTML = h;
 
       if (!me.paired) startPairing();
       else stopPairing();
       if (me.crew) bindMine(me);
       else { bindCreate(); bindJoin(); }
+      bindSignOut();
       doReveal();
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {

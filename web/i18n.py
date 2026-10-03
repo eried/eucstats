@@ -51,6 +51,11 @@ EN: dict[str, str] = {
     "pair.p": "Say yes in {app} and that browser can fly your colours.",
     "pair.noapp": "App did not open? Start it yourself, go to {crews}, and punch in the code above.",
     "pair.safe": "Only say yes to a code you asked for. A pass lets a browser act for you in crews: start one, join one, leave one. It can't send up rides, rename you, or delete anything.",
+    # A code lives three minutes and works once, so a scan of a photographed QR is likelier
+    # to be stale than live -- and this page used to render identically either way.
+    "pair.dead.h": "That code is done",
+    "pair.dead.p": "A code lasts three minutes and works once. Open {crews} on the site and it will hand you a fresh one.",
+    "pair.site": "Open EUC Stats",
     "panel.close": "Close",
     "panel.peek": "Preview as a normal visitor",
     "crew.wip": "Not open for public testing yet. Anything you build here can be wiped without warning.",
@@ -223,6 +228,9 @@ EN: dict[str, str] = {
     "crew.role.officer": "officer",
     "crew.role.member": "member",
     "crew.role.past": "left",
+    # `/crews/me` answers `role: "member"` with `status: "pending"`, so a rider still
+    # knocking had MEMBER written over a card saying "Waiting on a leader to let you in".
+    "crew.role.waiting": "waiting",
     "crew.accept": "Let in",
     "crew.decline": "No",
     "crew.pending.h": "Knocking",

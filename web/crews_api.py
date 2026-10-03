@@ -948,25 +948,47 @@ def territory_at(lat: float, lon: float, db: Session = Depends(get_db)):
 
 # --- the deep link the QR actually carries ------------------------------------------------
 
-_PAIR_PAGE = """<!doctype html><html lang=__LANG__><head><meta charset=utf-8>
+_PAIR_SHELL = """<!doctype html><html lang=__LANG__><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>__H__</title><style>
-:root{color-scheme:dark}
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
- background:#070b16;color:#dce6f7;font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-.w{max-width:420px;padding:28px 24px;text-align:center}
-.code{font:700 34px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:9px;margin:18px 0 6px}
-a.btn{display:block;margin:20px 0 8px;padding:13px;background:#2ea8ff;color:#061020;
- font-weight:700;text-decoration:none}
-p{color:#8c99bb;font-size:13.5px}b{color:#dce6f7}
-</style></head><body><div class=w>
-<h1 style="font-size:19px;margin:0">__H__</h1>
+<title>__TITLE__</title>
+<link rel=icon type="image/png" href="/static/favicon.png">
+<link rel=preconnect href="https://fonts.googleapis.com"><link rel=preconnect
+ href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700\
+&family=Orbitron:wght@700;800&display=swap" rel=stylesheet><style>
+:root{color-scheme:dark;--ink:#eef1fb;--mut:#9aa6c8;--line:#33457a;--pink:#ff8ad8}
+*{box-sizing:border-box;margin:0}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px;
+ background:#070a16;color:var(--ink);
+ font:15px/1.6 "Chakra Petch",ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif}
+.w{width:100%;max-width:420px;padding:26px 22px 22px;
+ background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));
+ border:1px solid var(--line);border-top:2px solid var(--pink);border-radius:12px;
+ box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 70px -52px var(--pink)}
+h1{font:800 19px/1.25 Orbitron,ui-sans-serif,sans-serif;letter-spacing:.5px}
+.code{font:800 32px/1 Orbitron,ui-monospace,monospace;letter-spacing:9px;
+ margin:18px 0 6px;color:var(--pink);text-align:center}
+a.btn{display:block;margin:18px 0 10px;padding:13px;background:var(--pink);color:#140a11;
+ font-weight:700;text-decoration:none;border-radius:8px;text-align:center}
+a.back{display:inline-block;margin-top:4px;color:var(--pink);font-size:13.5px}
+p{color:var(--mut);font-size:13.5px;margin-top:10px}b{color:var(--ink)}
+.safe{margin-top:20px;font-size:12px}
+</style></head><body><div class=w>__BODY__</div></body></html>"""
+
+_PAIR_LIVE = """<h1>__H__</h1>
 <p>__P__</p>
 <div class=code>__CODE__</div>
 <a class=btn href="eucplanet://pair?code=__CODE__&amp;host=__HOST__">__OPEN__</a>
 <p>__NOAPP__</p>
-<p style="margin-top:22px;font-size:12px">__SAFE__</p>
-</div></body></html>"""
+<p class=safe>__SAFE__</p>
+<p><a class=back href="__HOST__/">__SITE__</a></p>"""
+
+# A code lives three minutes and works once, so a scan of a photographed QR is likelier to be
+# stale than live. This page used to render byte-identical either way -- the heading, the code,
+# the button, the safety notice -- and hand the app a code that could not work.
+_PAIR_DEAD = """<h1>__DEADH__</h1>
+<p>__DEADP__</p>
+<a class=btn href="__HOST__/">__SITE__</a>"""
 
 
 @pair_router.get("/p/{code}")
@@ -989,24 +1011,43 @@ def pair_landing(code: str, request: Request, db: Session = Depends(get_db)):
     host = str(request.base_url).rstrip("/")
     # The rider scanned this with a camera app, so there is no stored preference to read and
     # no script to run -- only the header. `i18n.pick` is the same negotiation the public page
-    # uses. Two of these strings already existed: the button is the sign-in card's own, and
-    # the section name is the dock's.
+    # uses. Three of these strings already existed: the button is the sign-in card's own, the
+    # section name is the dock's, and the site name is the page title's.
     loc = i18n.pick(request.headers.get("accept-language", ""))
 
     def t(key, **vars):
+        """The translation escaped, then trusted HTML substituted INTO it.
+
+        The other order -- substitute, then escape the lot -- is what shipped in round sixteen,
+        and it served `Say yes in &lt;b&gt;EUC Planet&lt;/b&gt;` in all nineteen languages. A
+        `{name}` placeholder survives `escape()` untouched, so this order costs nothing.
+        """
         text = i18n.TRANSLATIONS.get(loc, {}).get(key) or i18n.EN.get(key, key)
+        out = escape(text)
         for name, value in vars.items():
-            text = text.replace("{" + name + "}", value)
-        return escape(text)
+            out = out.replace("{" + name + "}", value)
+        return out
+
+    # `describe()` is a read and consumes nothing, so asking costs the page nothing either.
+    live = True
+    try:
+        pairing.describe(db, safe)
+    except pairing.PairError:
+        live = False
 
     app_name = "<b>EUC Planet</b>"
-    crews_name = "<b>" + escape(t("dock.crews")) + "</b>"
-    page = (_PAIR_PAGE
+    crews_name = "<b>" + t("dock.crews") + "</b>"
+    body = (_PAIR_LIVE if live else _PAIR_DEAD)
+    page = (_PAIR_SHELL.replace("__BODY__", body)
             .replace("__LANG__", escape(loc))
+            .replace("__TITLE__", t("pair.h") if live else t("pair.dead.h"))
             .replace("__H__", t("pair.h"))
             .replace("__P__", t("pair.p", app=app_name))
             .replace("__OPEN__", t("crew.signin.open"))
             .replace("__NOAPP__", t("pair.noapp", crews=crews_name))
             .replace("__SAFE__", t("pair.safe"))
-            .replace("__CODE__", safe).replace("__HOST__", host))
+            .replace("__DEADH__", t("pair.dead.h"))
+            .replace("__DEADP__", t("pair.dead.p", crews=crews_name))
+            .replace("__SITE__", t("pair.site"))
+            .replace("__CODE__", safe).replace("__HOST__", escape(host)))
     return HTMLResponse(page)

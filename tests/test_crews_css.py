@@ -32,6 +32,10 @@ CSS = ROOT / "web" / "static" / "crews.css"
 PHONE_STRIP = """  .crewtag.first, .crewtag.joins, .crewtag.kills, .crewtag.drops,
   .crewtag.done, .crewtag.youpass { background: none; padding: 0; }"""
 
+# The shipped fix for the state/pseudo case, quoted so a case can put the bug back.
+PICKED = (".crewpickc:not(.on):hover, .crewpickp:not(.on):hover {" + chr(10)
+          + "  outline: 1px solid rgba(255,255,255,.6); outline-offset: 1px;" + chr(10) + "}")
+
 TRUNCATE = (".crewtwho i { display: block; font-style: normal; font-size: 11px;"
             " line-height: 1.25; }")
 KILLS = ".crewtag.kills { color: #ff4fa3; background: rgba(255,79,163,.16); }"
@@ -412,6 +416,42 @@ def _cases():
          css + NL + ".crewtrow.sel { background: rgba(255,138,216,.08); }" + NL, 0),
         ("a modifier class on a card",
          css + NL + ".crewcard.tight { padding: 8px 10px; }" + NL, 0),
+        # --- round seventeen: a transient pseudo-class erasing a state nothing puts back
+        # Both rules are 0-2-0 and neither selects a subset of the other, so the later one
+        # wins and a selected swatch under the pointer looks unselected. `subset_pair()`
+        # models extra CLASSES, which is why five rounds of hardening never saw it.
+        ("hover erasing the ring that says which swatch is chosen",
+         css.replace(PICKED, ".crewpickc:hover, .crewpickp:hover"
+                             " { outline: 1px solid rgba(255,255,255,.6); }", 1), 1),
+        # Planted names, because `.crewtrow:hover` and `.crewpickc.on` are real rules in this
+        # file: my first draft of these appended its own version of them, self-cancelled the
+        # shipped one, and two cases failed on a report that had nothing to do with what they
+        # were testing while a third PASSED on that report rather than on the STATE LOST it
+        # was written for.
+        ("hover erasing a selected row and nothing putting it back",
+         css + NL + ".zzrow.sel { background: rgba(255,138,216,.3); }" + NL
+             + ".zzrow:hover { background: rgba(255,255,255,.04); }" + NL, 1),
+        # The four shapes that make this pass narrow rather than loud. Each must stay silent,
+        # and each for its own reason.
+        # 1. the state IS put back, which is the other correct fix
+        ("a hover rule with the selected case written out beside it",
+         css + NL + ".zzrow.sel { background: rgba(255,138,216,.3); }" + NL
+             + ".zzrow:hover { background: rgba(255,255,255,.04); }" + NL
+             + ".zzrow.sel:hover { background: rgba(255,138,216,.38); }" + NL, 0),
+        # 2. `.gold1` is a fact about the row, not a state somebody selected. A hover tint
+        #    over a podium plate is ordinary CSS and reporting it is how this script gets
+        #    narrowed until it catches nothing.
+        ("a hover tint over a podium plate",
+         css + NL + ".zzpod.gold1 { background: rgba(104,84,30,.96); }" + NL
+             + ".zzpod:hover { background: rgba(255,255,255,.06); }" + NL, 0),
+        # 3. two different grids: the pointer on a pattern cell cannot erase a colour cell
+        ("a hover on one grid and a state on the other",
+         css + NL + ".zzgrida.on { outline: 3px solid #fff; }" + NL
+             + ".zzgridb:hover { outline: 1px solid rgba(255,255,255,.6); }" + NL, 0),
+        # 4. the state rule written LAST already wins, which is most of this stylesheet
+        ("a state rule standing after the hover rule it answers",
+         css + NL + ".zzrow:hover { background: rgba(255,255,255,.04); }" + NL
+             + ".zzrow.open { background: rgba(255,138,216,.3); }" + NL, 0),
         # Chrome honours this as a priority, so reporting it is the cry-wolf half again
         ("!important spelled with an escape",
          css.replace(PHONE_STRIP,

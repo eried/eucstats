@@ -759,6 +759,44 @@ def enumerated_family(a, rows):
     return len(seen) >= 2
 
 
+# A class that means "this one is in that state" and a pseudo-class that means "the pointer or
+# the keyboard is on it right now". The first is information; the second is transient.
+STATE_CLASSES = {"on", "sel", "active", "open", "current", "checked", "selected"}
+USER_PSEUDOS = {"hover", "focus", "focus-visible", "focus-within", "active"}
+
+
+def state_of(compound):
+    """The state classes this compound requires, if any."""
+    return {q[1:] for q in quals_of(compound)
+            if q.startswith(".") and q[1:] in STATE_CLASSES}
+
+
+def pseudo_of(compound):
+    """The user pseudo-classes this compound requires, if any."""
+    return {q[1:] for q in quals_of(compound)
+            if q.startswith(":") and q[1:].split("(")[0] in USER_PSEUDOS}
+
+
+def same_base(a, b):
+    """The two selectors address the same element, ignoring states and pseudos.
+
+    `.crewpickc.on` and `.crewpickc:hover` are the same cell in two conditions;
+    `.crewpickc.on` and `.crewpickp:hover` are two different grids and never conflict.
+    """
+    ca, cb = compounds(a), compounds(b)
+    if len(ca) != len(cb) or not ca:
+        return False
+    if ca[:-1] != cb[:-1]:
+        return False
+    if base_of(ca[-1]) != base_of(cb[-1]):
+        return False
+    strip = lambda cmp: frozenset(
+        q for q in quals_of(cmp)
+        if not (q.startswith(".") and q[1:] in STATE_CLASSES)
+        and not (q.startswith(":") and q[1:].split("(")[0] in USER_PSEUDOS))
+    return strip(ca[-1]) == strip(cb[-1])
+
+
 def relaxes(val, against=None):
     """Whether this value lifts a restriction the descendant sets.
 
@@ -842,6 +880,56 @@ def main():
     for d in decls:
         by_prop[family(d[3])].append(d)
     seen = set()
+
+    # --- pass 2a: a transient pseudo-class that erases a state nothing puts back.
+    #
+    # `.crewpickc.on { outline: 2px solid #fff }` then `.crewpickc:hover { outline: 1px … }`:
+    # both 0-2-0, neither a subset of the other, so the later wins and a selected swatch under
+    # the pointer looks exactly like an unselected one. `subset_pair()` models extra CLASSES,
+    # so the pair is invisible to the whole of pass 2.
+    #
+    # Narrow on purpose. A hover tint over `.pod.gold1`'s plate is ordinary CSS and reporting
+    # it is how this script gets narrowed until it catches nothing. The defect is that nothing
+    # puts the state BACK: no rule anywhere reaches `X.<state>:<pseudo>` for that property, so
+    # for as long as the pointer rests there the state has no channel left.
+    for prop, rows in sorted(by_prop.items()):
+        for a in rows:
+            st = state_of(a[2])
+            if not st or IMPORTANT_RE.search(a[4]):
+                continue
+            for b in rows:
+                if b is a or bare(a[4]) == bare(b[4]) or b[0] < a[0]:
+                    continue
+                ps = pseudo_of(b[2])
+                if not ps or state_of(b[2]) or not same_base(a[2], b[2]):
+                    continue
+                if specificity(b[2]) < specificity(a[2]):
+                    continue
+                if not covers(b[1], a[1]) and not covers(a[1], b[1]):
+                    continue
+                # Anything that restores the state under that pseudo-class, however written:
+                # `X.on:hover`, or a `:not(.on)` on the pseudo rule itself (which is the fix).
+                #
+                # `same_base` here as well. Without it the restoring rule did not have to be
+                # about the same element -- ANY rule anywhere carrying a `.sel` and a `:hover`
+                # for that property counted, and this file has one, so the planted case that
+                # was supposed to prove the pass fires came back silent.
+                if any(c is not b and family(c[3]) == prop
+                       and state_of(c[2]) & st and pseudo_of(c[2]) & ps
+                       and same_base(a[2], c[2])
+                       for c in rows):
+                    continue
+                if any(q == ":not(." + name + ")" for q in quals_of(compounds(b[2])[-1])
+                       for name in st):
+                    continue
+                key = ("state", prop, a[2], b[2])
+                if key in seen:
+                    continue
+                seen.add(key)
+                bad.append(
+                    f"STATE LOST  {a[2]} | {prop}: {a[4]}  is erased by  {b[2]}: {b[4]}"
+                    f"  and nothing restores it")
+
     for prop, rows in sorted(by_prop.items()):
         for a in rows:
             for b in rows:
