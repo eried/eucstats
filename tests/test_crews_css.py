@@ -37,6 +37,22 @@ TRUNCATE = (".crewtwho i { display: block; font-style: normal; font-size: 11px;"
 KILLS = ".crewtag.kills { color: #ff4fa3; background: rgba(255,79,163,.16); }"
 NL = chr(10)
 
+# All six, because rewriting one is how the attribute-selector case passed for the wrong
+# reason: the checker was exiting 1 on the five chips the case had not touched, and its output
+# never mentioned the one it had.
+CHIPS = ("first", "joins", "kills", "drops", "done", "youpass")
+
+
+def _chips_as(css, shape):
+    """The six chip rules rewritten into another way of saying `.crewtag.<chip>`."""
+    out = css
+    for chip in CHIPS:
+        before = ".crewtag." + chip + " {"
+        after = shape(chip) + " {"
+        assert before in out, before
+        out = out.replace(before, after, 1)
+    return out
+
 
 def _run(checker):
     return subprocess.run([sys.executable, str(checker)], capture_output=True, text=True)
@@ -135,16 +151,84 @@ def _cases():
              + "@media (max-width: 560px) { .crewtag { BACKGROUND: none; } }" + NL, 1),
         ("a statement at-rule that was pushed and never popped",
          '@charset "utf-8";' + NL + css.replace(PHONE_STRIP, "", 1), 1),
+        # --- round thirteen. Three reviewers, nine ways past and four correct files failed.
+        # The decisive shape: ALL SIX chips, not one. With one rewritten the checker was
+        # exiting 1 on the other five and the case passed without ever mentioning the chip it
+        # had changed.
+        ("all six chips painted through attribute selectors",
+         _chips_as(css, lambda c: ".crewtag[data-fam=" + c + "]")
+            .replace(PHONE_STRIP, "", 1), 1),
+        ("all six chips painted through :not()",
+         _chips_as(css, lambda c: ".crewtag:not(.no" + c + ")")
+            .replace(PHONE_STRIP, "", 1), 1),
+        # A rule inside a nested at-rule: the branch read the at-rule's body as declarations
+        # and never recursed, so this parsed as a property literally named `.zzn { background`.
+        ("a rule nested inside a nested at-rule",
+         css + NL + ".crewtrow .zzn.hot { background: #f00; }" + NL
+             + ".crewtrow { @media (max-width: 560px) { .zzn { background: none; } } }" + NL, 1),
+        ("an & rule nested inside a nested at-rule",
+         css + NL + ".zzb.hot { background: #f00; }" + NL
+             + ".zzb { @media (max-width: 560px) { & { background: none; } } }" + NL, 1),
+        # One nested paren defeated the :is() regex, which reopened a hole closed in round nine.
+        (":is() with a paren inside it",
+         css + NL + ".zztagZ.hot { background: #f00; }" + NL
+             + "@media (max-width: 560px) { :is(.zztagZ, .zzo:not(.x))"
+             + " { background: none; } }" + NL, 1),
+        # A brace in a string ran the block matcher past the rule's real closing brace, and
+        # the declaration count went UP, so the counter gave no warning either.
+        ('a brace inside a quoted value',
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + '.zzq::before { content: "{"; }' + NL
+             + "@media (max-width: 560px) { .crewtag { background: none; } }" + NL, 1),
+        # A comment opener in a string fed the comment stripper, which was one regex over the
+        # whole file, so everything to the next `*/` disappeared.
+        ('a comment opener inside a quoted value',
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + '.zzc::before { content: "/*"; }' + NL
+             + "@media (max-width: 560px) { .crewtag { background: none; } }" + NL
+             + '.zzc::after { content: "*/"; }' + NL, 1),
+        # The `covered` hatch matched a string suffix, so one unrelated plausible rule whose
+        # last compound ends in `.kills` silenced all six real reports.
+        ("an unrelated rule whose last compound looks like the narrow one",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { .zlegend .first, .zlegend .joins," + NL
+             + "  .zlegend .kills, .zlegend .drops, .zlegend .done, .zlegend .youpass" + NL
+             + "  { background: #123; padding: 1px; } }" + NL, 1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
                      "  .crewtag { background: none !important; padding: 0 !important; }", 1), 0),
         ("a fix written as a descendant selector",
          css.replace(PHONE_STRIP, "  .crewtrow .crewtag { background: none; padding: 0; }", 1), 0),
+        # --- and four more correct stylesheets round twelve failed
+        # The same descendant fix wrapped in @supports. Strictly a rule inside @supports is
+        # not guaranteed to apply, but five complaints about correct CSS is how a detector
+        # gets narrowed until it catches nothing.
+        ("a correct fix wrapped in @supports",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@supports (display: flex) { @media (max-width: 560px) {" + NL
+             + "  .crewtrow .crewtag { background: none; padding: 0; } } }" + NL, 0),
+        # The same fix written with nesting, which the un-recursed branch swallowed whole and
+        # then reported five times.
+        ("a correct fix written as a nested rule",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + ".crewtrow { @media (max-width: 560px) {" + NL
+             + "  .crewtag { background: none; padding: 0; } } }" + NL, 0),
+        # An earlier !important genuinely wins, and pass 1 was not reading the priority it
+        # strips for its own equality test.
+        ("an earlier !important beaten by a later plain rule",
+         css + NL + "@media (max-width: 560px) { .zzimp { display: inline !important; } }" + NL
+             + ".zzimp { display: block; }" + NL, 0),
+        # A string holding a comment opener, on a file with nothing wrong in it.
+        ("a comment opener in a string, on a correct file",
+         css + NL + '.zzok::before { content: "/*"; }' + NL
+             + '.zzok::after { content: "*/"; }' + NL, 0),
     ]
 
 
-@pytest.mark.parametrize("idx", range(18))
+# len(), not a literal: a nineteenth case added to a `range(18)` never runs, in the one
+# file whose thesis is that a checker which passes is worse than no checker.
+@pytest.mark.parametrize("idx", range(len(_cases())))
 def test_the_checker_is_not_fooled_and_does_not_cry_wolf(idx, tmp_path):
     name, mutated, want = _cases()[idx]
     assert mutated != CSS.read_text(encoding="utf-8"), (

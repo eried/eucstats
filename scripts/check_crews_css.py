@@ -40,92 +40,127 @@ import re
 CSS = pathlib.Path(__file__).resolve().parent.parent / "web" / "static" / "crews.css"
 
 
-def parse(src):
-    """(order, context, selector, property, value) for every declaration, in source order."""
-    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
-    ctx, i, n, buf = [], 0, len(src), ""
-    decls, order = [], 0
+def _strip_comments(src):
+    """Comments out, strings left alone.
+
+    This was `re.sub(r"/\\*.*?\\*/", "", src, flags=re.S)` over the whole file, so a rule
+    saying `content: "/*"` opened a comment that swallowed everything up to the next `*/` --
+    which a reviewer used to silence this script on a stylesheet with a real bug in it.
+    """
+    out, i, n = [], 0, len(src)
     while i < n:
         ch = src[i]
-        if ch == "{":
-            head, buf = buf.strip(), ""
-            if head.startswith("@"):
-                ctx.append(head)
+        if ch in "\"'":
+            j = i + 1
+            while j < n and src[j] != ch:
+                j += 2 if src[j] == "\\" else 1
+            out.append(src[i:min(j + 1, n)])
+            i = j + 1
+            continue
+        if ch == "/" and src.startswith("/*", i):
+            k = src.find("*/", i + 2)
+            i = n if k < 0 else k + 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _blocks(src, i=0):
+    """Parse from `i` to the matching `}`; return (nodes, position after it).
+
+    A node is `("decl", text)` or `("rule", prelude, children)`. One scanner for every level,
+    because the versions that handled one level each were got past one level down, twice in the
+    same round. Quotes are skipped whole, so a brace or a semicolon inside a string is text;
+    parentheses suspend both, so `url(data:…;base64,…)` stays one value.
+    """
+    nodes, buf, depth, n = [], "", 0, len(src)
+    while i < n:
+        ch = src[i]
+        if ch in "\"'":
+            j = i + 1
+            while j < n and src[j] != ch:
+                j += 2 if src[j] == "\\" else 1
+            buf += src[i:min(j + 1, n)]
+            i = j + 1
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            if ch == "{":
+                kids, i = _blocks(src, i + 1)
+                nodes.append(("rule", buf.strip(), kids))
+                buf = ""
+                continue
+            if ch == "}":
+                if buf.strip():
+                    nodes.append(("decl", buf.strip()))
+                return nodes, i + 1
+            if ch == ";":
+                if buf.strip():
+                    nodes.append(("decl", buf.strip()))
+                buf = ""
                 i += 1
                 continue
-            depth, j = 1, i + 1
-            while j < n and depth:
-                if src[j] == "{":
-                    depth += 1
-                elif src[j] == "}":
-                    depth -= 1
-                j += 1
-            body, where = src[i + 1:j - 1], " ".join(ctx)
-            # A nested block is a rule too. The parser used to read a body as declarations and
-            # stop, so anything written with `&` or bare nesting parsed as nothing and was
-            # invisible to both passes. crews.css uses no nesting today, which is the only
-            # reason that was not already shipping.
-            if "{" in body:
-                inner_rules, body = _nested(body)
-                for inner_head, inner_body in inner_rules:
-                    # `@media` inside a rule is a CONTEXT for that rule, not part of its
-                    # selector. Joined on as a selector it produced `.crewtwho @media
-                    # (max-width: 560px)` -- a selector matching nothing, scored for
-                    # specificity, filed at top level -- and whatever bug it held went unseen.
-                    if inner_head.startswith("@"):
-                        inner_where = " ".join(x for x in (where, inner_head) if x)
-                        for sel in expand(head):
-                            for decl in inner_body.split(";"):
-                                if ":" not in decl:
-                                    continue
-                                prop, val = decl.split(":", 1)
-                                prop = prop.strip().lower()
-                                if not prop or prop.startswith("--"):
-                                    continue
-                                order += 1
-                                decls.append((order, inner_where, sel, prop, val.strip()))
-                        continue
-                    for parent in expand(head):
-                        joined = (inner_head.replace("&", parent) if "&" in inner_head
-                                  else parent + " " + inner_head)
-                        for sel in expand(joined):
-                            for decl in inner_body.split(";"):
-                                if ":" not in decl:
-                                    continue
-                                prop, val = decl.split(":", 1)
-                                prop = prop.strip().lower()   # CSS property names are ASCII
-                                if not prop or prop.startswith("--"):   # case-insensitive
-                                    continue
-                                order += 1
-                                decls.append((order, where, sel, prop, val.strip()))
-            for sel in expand(head):
-                for decl in body.split(";"):
-                    if ":" not in decl:
-                        continue
-                    prop, val = decl.split(":", 1)
-                    prop = prop.strip().lower()   # CSS property names are case-insensitive
-                    if not prop or prop.startswith("--"):
-                        continue
-                    order += 1
-                    decls.append((order, where, sel, prop, val.strip()))
-            i = j
-            continue
-        if ch == ";" and buf.strip().startswith("@"):
-            # `@charset "utf-8";` and `@import url(…);` carry no block. Treated like a block
-            # at-rule they were pushed onto the context stack and never popped, so every
-            # later declaration was filed under a context that does not exist -- one such
-            # line silently removed five rules from the analysis.
-            buf = ""
-            i += 1
-            continue
-        if ch == "}":
-            if ctx:
-                ctx.pop()
-            buf = ""
-            i += 1
-            continue
         buf += ch
         i += 1
+    if buf.strip():
+        nodes.append(("decl", buf.strip()))
+    return nodes, i
+
+
+def _join(sels, head):
+    """The selectors a nested rule head stands for, given the ones it is nested inside."""
+    out = []
+    for raw in split_top(head, ","):
+        for parent in (sels or [""]):
+            if "&" in raw:
+                joined = raw.replace("&", parent)
+            elif parent:
+                joined = parent + " " + raw
+            else:
+                joined = raw
+            out.extend(expand(joined))
+    return out
+
+
+def _walk(nodes, sels, ctx, decls, order):
+    for node in nodes:
+        if node[0] == "decl":
+            text = node[1]
+            # `@charset "utf-8";` and `@import url(…);` carry no block, so they arrive here.
+            # Filed as contexts they were pushed on a stack and never popped, and every later
+            # declaration was attributed to a context that does not exist.
+            if text.startswith("@") or ":" not in text:
+                continue
+            prop, val = text.split(":", 1)
+            prop = prop.strip().lower()       # CSS property names are ASCII case-insensitive
+            if not prop or prop.startswith("--"):
+                continue
+            order[0] += 1
+            # " && ", not " ": nesting is conjunction, and the boundary between two
+            # at-rules is the whole of what `clauses()` needs to compare them.
+            where = " && ".join(ctx)
+            for sel in (sels or [""]):
+                decls.append((order[0], where, sel, prop, val.strip()))
+            continue
+        _, head, kids = node
+        # An at-rule is a CONTEXT for what it contains, wherever it is written. Joined on as
+        # part of the selector it produced `.crewtwho @media (max-width: 560px)` -- a selector
+        # matching nothing, scored for specificity, filed at top level.
+        if head.startswith("@"):
+            _walk(kids, sels, ctx + [head], decls, order)
+        else:
+            _walk(kids, _join(sels, head), ctx, decls, order)
+
+
+def parse(src):
+    """(order, context, selector, property, value) for every declaration, in source order."""
+    nodes, _ = _blocks(_strip_comments(src))
+    decls, order = [], [0]
+    _walk(nodes, [], [], decls, order)
     return decls
 
 
@@ -177,41 +212,53 @@ def split_top(text, sep):
     return [x for x in (p.strip() for p in out) if x]
 
 
-IS_RE = re.compile(r":(?:is|where)\(([^()]*)\)")
+def _find_is(sel):
+    """(start, end, inner) for the first `:is(…)`/`:where(…)`, with parens balanced.
 
-
-def _nested(body):
-    """(rules, leftover) -- the rules nested inside a body, and the body's own declarations.
-
-    The leftover matters: a block can hold both, and stripping the nested rules with a regex
-    ate the declarations standing before them, so `.a { padding: 0; &.b { … } }` lost its
-    padding entirely and the rule it was overriding went unnoticed.
+    This was a regex, `:(?:is|where)\\(([^()]*)\\)`, and `:is(.a, .b:not(.x))` has a paren
+    inside it -- so the rule matched nothing, expanded to itself, and both passes walked past
+    it. One nested paren reopened a hole that had already been closed once.
     """
-    rules, leftover, i, n, buf = [], [], 0, len(body), ""
+    for m in re.finditer(r":(?:is|where)\(", sel):
+        i = m.end() - 1
+        depth, j = 0, i
+        while j < len(sel):
+            if sel[j] == "(":
+                depth += 1
+            elif sel[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    return m.start(), j + 1, sel[i + 1:j]
+            j += 1
+    return None
+
+
+# A pseudo-element belongs to the element, not to the qualifiers: `specificity` has always
+# counted it as one, and `.crewtag` does not style `.crewtag::after`'s box.
+PSEUDO_EL_RE = re.compile(r"::[\w-]+")
+# A class, an id, an attribute test, or a pseudo-class with its argument kept whole. The
+# argument is never looked inside, which is the bug: `canon` used to sort the classes of the
+# entire compound and hoisted `.nokills` out of `:not(.nokills)` into a requirement.
+QUAL_RE = re.compile(r"\#[\w-]+|\.[\w-]+|\[[^\]]*\]|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?")
+
+
+def split_compound(part):
+    """(element, [qualifiers]) for one compound selector."""
+    quals, el, i, n = [], "", 0, len(part)
     while i < n:
-        ch = body[i]
-        if ch == "{":
-            depth, j = 1, i + 1
-            while j < n and depth:
-                if body[j] == "{":
-                    depth += 1
-                elif body[j] == "}":
-                    depth -= 1
-                j += 1
-            # whatever stood before this block, minus the block's own selector
-            head = buf.strip()
-            if ";" in head:
-                decls, head = head.rsplit(";", 1)
-                leftover.append(decls)
-            rules.append((head.strip(), body[i + 1:j - 1]))
-            buf = ""
-            i = j
+        m = PSEUDO_EL_RE.match(part, i)
+        if m:
+            el += m.group(0)
+            i = m.end()
             continue
-        buf += ch
+        m = QUAL_RE.match(part, i)
+        if m:
+            quals.append(m.group(0))
+            i = m.end()
+            continue
+        el += part[i]
         i += 1
-    if buf.strip():
-        leftover.append(buf)
-    return rules, ";".join(x for x in leftover if x.strip())
+    return el, quals
 
 
 def expand(head):
@@ -225,12 +272,13 @@ def expand(head):
         todo = [sel]
         while todo:
             cur = todo.pop()
-            m = IS_RE.search(cur)
-            if not m:
+            found = _find_is(cur)
+            if not found:
                 out.append(cur)
                 continue
-            for alt in split_top(m.group(1), ","):
-                todo.append(cur[:m.start()] + alt + cur[m.end():])
+            a, b, inner = found
+            for alt in split_top(inner, ","):
+                todo.append(cur[:a] + alt + cur[b:])
     return out
 
 
@@ -269,9 +317,8 @@ def canon(sel):
         if part in (">", "+", "~") or not part:
             out.append(part)
             continue
-        classes = sorted(re.findall(r"\.[\w-]+", part))
-        rest = re.sub(r"\.[\w-]+", "", part)
-        out.append(rest + "".join(classes))
+        el, quals = split_compound(part)
+        out.append(el + "".join(sorted(quals)))
     return " ".join(x for x in out if x)
 
 
@@ -284,20 +331,29 @@ def bare(val):
     return val.replace("!important", "").strip()
 
 
-def alts(where):
-    """A media context as its set of alternatives. `@media a, b` matches a OR b.
+def clauses(where):
+    """A context as one set of alternatives per at-rule it is nested inside.
 
-    Normalised, because `(max-width:560px)` and `(max-width: 560px)` are the same query and
-    comparing them as raw strings let a reviewer re-create the bug this file's docstring
-    names by deleting one space.
+    `@media a, b` matches a OR b, so one at-rule is a set. Nesting is AND, so a context is a
+    list of them. Flattened into a single string and stripped of whitespace, a context nested
+    two deep became one meaningless alternative and a correct fix wrapped in `@supports` was
+    reported five times.
+
+    The conditions are normalised, because `(max-width:560px)` and `(max-width: 560px)` are
+    the same query and comparing them as raw strings let a reviewer re-create the bug this
+    file's docstring names by deleting one space. `@media` is dropped as noise; `@supports` is
+    kept, so that a support condition is never mistaken for a media one.
     """
-    body = (where or "").replace("@media", " ").lower()
-    out = set()
-    for part in split_top(body, ","):
-        part = re.sub(r"\s+", "", part)
-        if part:
-            out.add(part)
-    return frozenset(out)
+    out = []
+    for rule in (where or "").split(" && "):
+        if not rule.strip():
+            continue
+        body = rule.replace("@media", " ").lower()
+        alt = frozenset(re.sub(r"\s+", "", part) for part in split_top(body, ",")
+                        if part.strip())
+        if alt:
+            out.append(alt)
+    return out
 
 
 def covers(outer, inner):
@@ -310,9 +366,14 @@ def covers(outer, inner):
     phone block, and the phone one legitimately refines it ("thumbs, not cursors"). A later
     rule only cancels an earlier one where it applies everywhere the earlier one does.
     """
-    if not inner:
-        return not outer
-    return alts(inner) <= alts(outer) if outer else False
+    co, ci = clauses(outer), clauses(inner)
+    if not ci:
+        return not co
+    if not co:
+        return False
+    # Every condition the outer rule imposes has to be imposed at least as tightly by the
+    # inner one. A clause is a set of alternatives, so "at least as tightly" is a subset.
+    return all(any(b <= a for b in ci) for a in co)
 
 
 def specificity(sel):
@@ -333,13 +394,19 @@ def compounds(sel):
     return [c for c in re.split(r"[\s>+~]+", canon(sel)) if c]
 
 
-def classes_of(compound):
-    return frozenset(re.findall(r"\.[\w-]+", compound))
+def quals_of(compound):
+    """Everything that narrows the element: classes, ids, attribute tests, pseudo-classes.
+
+    Named for classes when it counted only `.class` substrings, which is why `.crewtag` and
+    `.crewtag[data-fam=kills]` looked like the same set and `.crewtag:not(.nokills)` looked
+    like it REQUIRED `.nokills`.
+    """
+    return frozenset(split_compound(compound)[1])
 
 
 def base_of(compound):
-    """The compound with its classes removed, so `a.b.c` and `a.b` share a base."""
-    return re.sub(r"\.[\w-]+", "", compound)
+    """The element the compound selects, with every qualifier taken off."""
+    return split_compound(compound)[0]
 
 
 def subset_pair(a, b):
@@ -360,7 +427,7 @@ def subset_pair(a, b):
             return False
         if base_of(ca[-1]) != base_of(cb[-1]):
             return False
-        return classes_of(ca[-1]) < classes_of(cb[-1])
+        return quals_of(ca[-1]) < quals_of(cb[-1])
     # b is longer: a describes an ancestor of what b describes. That alone is not a defect --
     # a parent carrying `font-size` and a child carrying its own is ordinary CSS, and flagging
     # it produced five complaints about correct rules. The caller decides, using `relaxes()`.
@@ -385,7 +452,7 @@ def compound_matches(outer, inner):
         return True
     if base_of(outer) and base_of(outer) != base_of(inner):
         return False
-    return classes_of(outer) <= classes_of(inner) and bool(classes_of(outer))
+    return quals_of(outer) <= quals_of(inner) and bool(quals_of(outer))
 
 
 # Values that mean "take the restriction off". An ancestor set to one of these, against a
@@ -414,6 +481,11 @@ def main():
     for (sel, prop), rows in sorted(by_key.items()):
         for a, b in zip(rows, rows[1:]):
             if bare(a[4]) == bare(b[4]):
+                continue
+            # `!important` beats the cascade, so the earlier rule is not being overridden by
+            # anything that lacks it. `bare()` takes the priority off for the equality test
+            # above and nothing was reading it here, so a correct stylesheet was reported.
+            if "!important" in a[4] and "!important" not in b[4]:
                 continue
             if a[1] and not b[1]:
                 bad.append(f"OVERRIDDEN  {sel} | {prop}: {a[4]}  [{a[1]}]"
@@ -465,11 +537,23 @@ def main():
                 if any(c[1] and covers(c[1], a[1]) and family(c[3]) == prop
                        and "!important" in c[4] for c in rows):
                     continue
+                # Anything that reaches b's elements at or above b's specificity, from a
+                # context compatible with a's, is the fix -- however it is written.
+                #
+                # `endswith` used to be in here, twice, and a reviewer silenced all six real
+                # reports with one unrelated rule whose last compound happened to be a string
+                # suffix of the narrow selector. Reaching an element is a question about
+                # compounds; `.crewtag.kills".endswith(".kills")` is a question about letters.
+                #
+                # Either direction on the context, because one direction rejected a correct
+                # fix wrapped in `@supports` and five complaints about correct CSS is how a
+                # detector gets narrowed until it catches nothing.
                 covered = any(
-                    covers(c[1], a[1]) and family(c[3]) == prop and c[2] != a[2]
+                    (covers(c[1], a[1]) or covers(a[1], c[1]))
+                    and family(c[3]) == prop and c[2] != a[2]
                     and specificity(c[2]) >= specificity(b[2])
                     and (subset_pair(c[2], b[2]) or subset_pair(a[2], c[2])
-                         or c[2].endswith(a[2]) or b[2].endswith(c[2].split()[-1]))
+                         or canon(c[2]) == canon(b[2]))
                     for c in rows)
                 if covered:
                     continue
