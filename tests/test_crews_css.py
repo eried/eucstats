@@ -122,6 +122,19 @@ def _cases():
          css + NL + ".crewtrow .zztagW.hot { background: #f00; }" + NL
              + "@media (max-width: 560px) { .crewtrow { :is(.zztagW, .zzother)"
              + " { background: none; } } }" + NL, 1),
+        # --- round twelve: both reviewers found these in one round
+        # the nested block comes FIRST and a later top-level rule beats it everywhere --
+        # the other order is a phone rule legitimately refining a base rule, which is correct
+        # CSS and the checker should stay quiet about it
+        ("a nested at-rule, which parsed as part of the selector",
+         css + NL
+             + ".crewzzA { color: red; @media (max-width: 560px) { display: inline; } }" + NL
+             + ".crewzzA { display: block; }" + NL, 1),
+        ("a property name with one capital letter",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { .crewtag { BACKGROUND: none; } }" + NL, 1),
+        ("a statement at-rule that was pushed and never popped",
+         '@charset "utf-8";' + NL + css.replace(PHONE_STRIP, "", 1), 1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
@@ -131,7 +144,7 @@ def _cases():
     ]
 
 
-@pytest.mark.parametrize("idx", range(15))
+@pytest.mark.parametrize("idx", range(18))
 def test_the_checker_is_not_fooled_and_does_not_cry_wolf(idx, tmp_path):
     name, mutated, want = _cases()[idx]
     assert mutated != CSS.read_text(encoding="utf-8"), (

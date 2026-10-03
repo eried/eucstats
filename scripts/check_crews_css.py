@@ -68,6 +68,23 @@ def parse(src):
             if "{" in body:
                 inner_rules, body = _nested(body)
                 for inner_head, inner_body in inner_rules:
+                    # `@media` inside a rule is a CONTEXT for that rule, not part of its
+                    # selector. Joined on as a selector it produced `.crewtwho @media
+                    # (max-width: 560px)` -- a selector matching nothing, scored for
+                    # specificity, filed at top level -- and whatever bug it held went unseen.
+                    if inner_head.startswith("@"):
+                        inner_where = " ".join(x for x in (where, inner_head) if x)
+                        for sel in expand(head):
+                            for decl in inner_body.split(";"):
+                                if ":" not in decl:
+                                    continue
+                                prop, val = decl.split(":", 1)
+                                prop = prop.strip().lower()
+                                if not prop or prop.startswith("--"):
+                                    continue
+                                order += 1
+                                decls.append((order, inner_where, sel, prop, val.strip()))
+                        continue
                     for parent in expand(head):
                         joined = (inner_head.replace("&", parent) if "&" in inner_head
                                   else parent + " " + inner_head)
@@ -76,8 +93,8 @@ def parse(src):
                                 if ":" not in decl:
                                     continue
                                 prop, val = decl.split(":", 1)
-                                prop = prop.strip()
-                                if not prop or prop.startswith("--"):
+                                prop = prop.strip().lower()   # CSS property names are ASCII
+                                if not prop or prop.startswith("--"):   # case-insensitive
                                     continue
                                 order += 1
                                 decls.append((order, where, sel, prop, val.strip()))
@@ -86,12 +103,20 @@ def parse(src):
                     if ":" not in decl:
                         continue
                     prop, val = decl.split(":", 1)
-                    prop = prop.strip()
+                    prop = prop.strip().lower()   # CSS property names are case-insensitive
                     if not prop or prop.startswith("--"):
                         continue
                     order += 1
                     decls.append((order, where, sel, prop, val.strip()))
             i = j
+            continue
+        if ch == ";" and buf.strip().startswith("@"):
+            # `@charset "utf-8";` and `@import url(…);` carry no block. Treated like a block
+            # at-rule they were pushed onto the context stack and never popped, so every
+            # later declaration was filed under a context that does not exist -- one such
+            # line silently removed five rules from the analysis.
+            buf = ""
+            i += 1
             continue
         if ch == "}":
             if ctx:

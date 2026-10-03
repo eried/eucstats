@@ -394,13 +394,37 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                 # Refusals from the last week, so a leader who changed their mind has
                 # somewhere to do it. crews.decide(accept=True) reopens the request.
                 since = utcnow() - timedelta(days=7)
+                declined_rows = (db.query(ClanMember).filter(
+                    ClanMember.clan_id == clan.clan_id,
+                    ClanMember.status.in_(("declined", "declined_seen")),
+                    ClanMember.left_at >= since).all())
+                dec_ids = sorted({d.store_id for d in declined_rows})
+
+                # Two queries for the whole list rather than two per row. A leader panel with
+                # eighteen refusals cost 35 statements, 27 of them against clan_members: each
+                # row asked whether that rider had since joined somewhere, and whether a
+                # cooldown was running -- and the second question asks the first again.
+                in_crew_ids, left_at = set(), {}
+                if dec_ids:
+                    for row in (db.query(ClanMember)
+                                .filter(ClanMember.store_id.in_(dec_ids),
+                                        ClanMember.left_at.is_(None)).all()):
+                        in_crew_ids.add(row.store_id)
+                    # the most recent walk-out per rider, which is what starts the clock
+                    for row in (db.query(ClanMember)
+                                .filter(ClanMember.store_id.in_(dec_ids),
+                                        ClanMember.status == "active",
+                                        ClanMember.left_at.isnot(None))
+                                .order_by(ClanMember.left_at.asc()).all()):
+                        left_at[row.store_id] = row.left_at
+
+                cool_days = timedelta(days=crews._cooldown_days(db))
+                now = utcnow()
+
                 def _declined(sid):
-                    # Both lookups once per row. Written inline, this ran `membership` and
-                    # `cooldown_until` for `free` and again for `why`, and `cooldown_until`
-                    # calls `membership` itself -- about three and a half queries a row,
-                    # which put back the N+1 that the roster pass above had just taken out.
-                    in_crew = crews.membership(db, sid) is not None
-                    cooling = False if in_crew else bool(crews.cooldown_until(db, sid))
+                    in_crew = sid in in_crew_ids
+                    gone = left_at.get(sid)
+                    cooling = bool(not in_crew and gone and gone + cool_days > now)
                     return {
                         "store_id": _hd(sid), "name": _nm(sid),
                         # Whether letting them in could work. Without it the button is
@@ -412,12 +436,7 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                         # the leader was told they had lost somebody who is back in days.
                         "why": "crew" if in_crew else "cooldown" if cooling else None}
 
-                out["declined"] = [
-                    _declined(p.store_id)
-                    for p in db.query(ClanMember).filter(
-                        ClanMember.clan_id == clan.clan_id,
-                        ClanMember.status.in_(("declined", "declined_seen")),
-                        ClanMember.left_at >= since).all()]
+                out["declined"] = [_declined(d.store_id) for d in declined_rows]
         crews.touch(db, ws.store_id)
     else:
         # Nobody told a rider their request had been turned down; the panel simply went back
