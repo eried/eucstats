@@ -349,6 +349,15 @@ def decide(db, actor: str, clan_id: str, store_id: str, accept: bool) -> None:
     m = (db.query(ClanMember)
          .filter(ClanMember.clan_id == clan_id, ClanMember.store_id == store_id,
                  ClanMember.status == "pending", ClanMember.left_at.is_(None)).first())
+    if m is None and accept:
+        # Reconsidering. A decline was final for both sides: the rider could not re-ask
+        # without a fresh request and the leader could not take it back at all.
+        m = (db.query(ClanMember)
+             .filter(ClanMember.clan_id == clan_id, ClanMember.store_id == store_id,
+                     ClanMember.status.in_(("declined", "declined_seen"))).first())
+        if m is not None:
+            m.left_at = None
+            m.status = "pending"
     if m is None:
         raise CrewError("no_request", "No pending request from that rider.")
     if accept and _full(db, clan_id):
@@ -433,6 +442,46 @@ def set_role(db, actor: str, clan_id: str, store_id: str, role: str) -> None:
         me.role = "officer"
     m.role = role
     db.commit()
+
+
+def remove(db, actor: str, clan_id: str, store_id: str) -> None:
+    """A leader or officer takes somebody off the roster.
+
+    The only leader power that was missing, and its absence made membership write-once: an
+    open crew with a cap could be squatted for ever and the fix was to email an admin.
+    """
+    me = _require_power(db, actor, clan_id)
+    if store_id == actor:
+        raise CrewError("not_yourself", "Use Leave crew for that.")
+    m = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == clan_id, ClanMember.store_id == store_id,
+                 ClanMember.left_at.is_(None)).first())
+    if m is None:
+        raise CrewError("not_member", "Not a member of this crew.")
+    if m.role == "leader" or (m.role == "officer" and me.role != "leader"):
+        raise CrewError("forbidden", "You cannot remove them.")
+    if m.status == "active" and _active_members(db, clan_id) <= 1:
+        raise CrewError("last_member", "There would be nobody left. Disband it instead.")
+    # "removed", not "active": the cooldown is for people who choose to walk out, and this
+    # was not their choice.
+    m.status = "removed"
+    m.left_at = utcnow()
+    db.commit()
+
+
+def last_removal(db, store_id: str) -> dict | None:
+    """Told once, like a decline and like a crew folding under you."""
+    m = (db.query(ClanMember)
+         .filter(ClanMember.store_id == store_id, ClanMember.status == "removed",
+                 ClanMember.left_at.isnot(None),
+                 ClanMember.left_at >= utcnow() - timedelta(days=7))
+         .order_by(ClanMember.left_at.desc()).first())
+    if m is None:
+        return None
+    clan = db.get(Clan, m.clan_id)
+    m.status = "removed_seen"
+    db.commit()
+    return {"crew": clan.name} if clan and clan.disbanded_at is None else None
 
 
 def claim_eligible(db, store_id: str, clan_id: str) -> bool:

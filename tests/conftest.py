@@ -25,6 +25,15 @@ def _clear_ratelimit():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _clear_settings_cache():
+    """The crews config is cached in-process; `db` wipes the table underneath it."""
+    from services import settings
+    settings._invalidate_crews_cache()
+    yield
+    settings._invalidate_crews_cache()
+
+
 @pytest.fixture
 def db():
     # Fresh schema per test — materialized tables (records) use global keys,

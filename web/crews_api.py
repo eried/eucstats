@@ -298,6 +298,10 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
             folded = crews.last_fold(db, ws.store_id)
             if folded:
                 out["folded"] = folded["crew"]
+            else:
+                gone = crews.last_removal(db, ws.store_id)
+                if gone:
+                    out["removed_by"] = gone["crew"]
     return out
 
 
@@ -512,6 +516,19 @@ def decide_member(slug: str, payload: dict, request: Request, db: Session = Depe
         raise _err(e)
     if accept:
         _stamp_recent(db, target, clan.clan_id)
+    return {"ok": True}
+
+
+@router.post("/crews/{slug}/remove")
+def remove_member(slug: str, payload: dict, request: Request, db: Session = Depends(get_db)):
+    """Take somebody off the roster. Leader or officer only; see crews.remove."""
+    _gate(db)
+    ws = _require_session(request, db)
+    clan = _clan_by_slug(db, slug)
+    try:
+        crews.remove(db, ws.store_id, clan.clan_id, (payload.get("store_id") or "").strip())
+    except crews.CrewError as e:
+        raise _err(e)
     return {"ok": True}
 
 

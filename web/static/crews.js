@@ -1348,7 +1348,8 @@
   // Every failure used to arrive as the server's own string: a rider who tried to join a full
   // crew read "crew_full" in a pink box, and the fourteen locales all answered in English.
   var ERRS = {
-    crew_full: "crew.e.full", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
+    crew_full: "crew.e.full", last_member: "crew.e.last_member",
+    not_yourself: "crew.e.not_yourself", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
     not_leader: "crew.e.forbidden", not_paired: "crew.e.pass",
     crews_disabled: "crew.e.off",
     bad_invite: "crew.e.invite", bad_name: "crew.e.name", name_taken: "crew.e.taken",
@@ -1521,7 +1522,10 @@
                 + (x.role === "officer" ? "member" : "officer") + '" data-sid="'
                 + esc(x.store_id || "") + '">'
                 + t(x.role === "officer" ? "crew.roles.demote" : "crew.roles.promote")
-                + "</button>";
+                + "</button>"
+                + '<button class="crewbtn mini ghost" data-kick="'
+                + esc(x.store_id || "") + '" data-name="' + esc(x.name) + '">'
+                + t("crew.roles.remove") + "</button>";
             return '<div class="crewpendr"><span>' + esc(x.name) + mark + "</span>" + btn
               + "</div>";
           }).join("") + "</div>";
@@ -1583,6 +1587,18 @@
       b.onclick = function () {
         api("POST", "/api/v1/crews/" + c.slug + "/decide",
             { store_id: b.dataset.no, accept: false }).then(show);
+      };
+    });
+    document.querySelectorAll("[data-kick]").forEach(function (b) {
+      b.onclick = function () {
+        ask(t("crew.roles.removeq", { name: b.dataset.name }), t("crew.roles.remove"),
+            function () {
+              api("POST", "/api/v1/crews/" + c.slug + "/remove",
+                  { store_id: b.dataset.kick }).then(function (r) {
+                if (r.ok) { reveal(".crewmine-wrap"); show(); }
+                else setStatus(errMsg(r.err), true);
+              });
+            }, b);
       };
     });
     document.querySelectorAll("[data-role]").forEach(function (b) {
@@ -1888,6 +1904,13 @@
           + "<span>" + esc(me.crew.name) + "</span>"
           + '<span class="crewsumrole">' + t("crew.role." + me.role) + "</span></summary>"
           + myCrewHTML(me) + "</details>";
+      } else if (me.removed_by) {
+        h += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
+          + '<p class=hint>' + t("crew.removed.p", { name: esc(me.removed_by) })
+          + "</p></div>"
+          + (me.can_found && me.creation_open && !me.cooldown_until
+             ? createHTML(window.__CREWIDENT__ || null) : "")
+          + joinHTML(all, me);
       } else if (me.folded) {
         h += '<div class="crewcard"><h3>' + t("crew.folded.h") + "</h3>"
           + '<p class=hint>' + t("crew.folded.p", { name: esc(me.folded) }) + "</p></div>"

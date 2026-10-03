@@ -388,3 +388,47 @@ def test_a_name_taken_since_the_fold_blocks_the_restore_with_a_sentence(db):
     crews.create(db, "tk2", "Popular")
     err = crews.unretire(db, c)
     assert err and "taken" in err.lower()
+
+
+def test_a_leader_can_take_somebody_off_the_crew(db):
+    """The last missing leader power. Without it membership was write-once: on an open crew
+    with a cap, anyone who walked in held a seat for good and the fix was to email an admin."""
+    _rider(db, "kk1")
+    _rider(db, "kk2")
+    c = crews.create(db, "kk1", "House Rules", join_policy="open")
+    crews.join(db, "kk2", c.clan_id)
+    crews.remove(db, "kk1", c.clan_id, "kk2")
+    assert crews.membership(db, "kk2") is None
+    assert crews.cooldown_until(db, "kk2") is None, "being removed is not walking out"
+    gone = crews.last_removal(db, "kk2")
+    assert gone and gone["crew"] == "House Rules"
+    assert crews.last_removal(db, "kk2") is None, "told once"
+
+
+def test_removing_cannot_empty_a_crew_or_touch_a_leader(db):
+    _rider(db, "kg1")
+    _rider(db, "kg2")
+    c = crews.create(db, "kg1", "Guards", join_policy="open")
+    with pytest.raises(crews.CrewError) as e:
+        crews.remove(db, "kg1", c.clan_id, "kg1")
+    assert e.value.code == "not_yourself"
+
+    crews.join(db, "kg2", c.clan_id)
+    crews.set_role(db, "kg1", c.clan_id, "kg2", "officer")
+    with pytest.raises(crews.CrewError) as e:
+        crews.remove(db, "kg2", c.clan_id, "kg1")
+    assert e.value.code == "forbidden", "an officer cannot remove the leader"
+
+
+def test_a_leader_can_take_back_a_decline(db):
+    """A declined row was final for both sides: the rider could not re-ask without a fresh
+    request and the leader could not reconsider at all."""
+    _rider(db, "tb1")
+    _rider(db, "tb2")
+    c = crews.create(db, "tb1", "Second Look", join_policy="approval")
+    crews.join(db, "tb2", c.clan_id)
+    crews.decide(db, "tb1", c.clan_id, "tb2", accept=False)
+    assert crews.membership(db, "tb2") is None
+    crews.decide(db, "tb1", c.clan_id, "tb2", accept=True)
+    m = crews.membership(db, "tb2")
+    assert m is not None and m.status == "active"
