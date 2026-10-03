@@ -58,6 +58,12 @@
      card is the only underlined button on screen. */
   text-decoration: none;
 }
+/* These rows are `<div>`s and `<tr>`s with `role="button"`, so they inherit no focus ring
+   of their own. Keyboard only: a mouse press should not draw one. */
+.crewtrow:focus-visible, .crewboard tr.sel:focus-visible, .crewrow:focus-visible {
+  outline: 2px solid var(--sec, #ff8ad8); outline-offset: -2px;
+}
+
 .crewbtn:hover { filter: brightness(1.12); }
 .crewbtn:disabled { opacity: .5; cursor: default; }
 .crewbtn.ghost { background: transparent; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); }
@@ -580,12 +586,18 @@ a.crewqr { display: flex; text-decoration: none; }
 /* what a crew took this week, on its own row of the board */
 /* a mint of our own: #39d98a is the Records button sitting in the same dock */
 /* the space between this and the patch count measured 2.6px, which reads as no gap */
-/* the space between this and the patch count measured 2.6px, which reads as no gap;
-   and `nowrap` because at 390 the podium's first card is 77.5px wide, so "13 new
-   this week" broke after the number and left it stranded at the end of "2 patches"
-   -- on the largest, brightest, centre card in the default phone view */
-.crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; margin-left: 5px;
-  white-space: nowrap; }
+/* the space between this and the patch count measured 2.6px, which reads as no gap */
+.crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; margin-left: 5px; }
+
+/* On the podium these two get a line each. `.psub` is about 78px at 390 and the gain phrase
+   does not fit beside a patch count in ANY locale, so run together they broke after the
+   number -- "2 patches 13" and then "new this week" underneath.
+   Blocks, and not `white-space: nowrap`: the podium cards carry `overflow: hidden` for their
+   shine sweep, so nowrap does not overflow, it CUTS. I shipped that for one round and it
+   removed the last word in eleven of eighteen locales (fr and it are 122px in a 78px box)
+   and cut German mid-word. The card has no fixed height, so a wrap grows it. */
+.crewboard .pod .psub .crewarea,
+.crewboard .pod .psub .crewgain { display: block; margin-left: 0; }
 
 
 

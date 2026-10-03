@@ -36,6 +36,7 @@ TRUNCATE = (".crewtwho i { display: block; font-style: normal; font-size: 11px;"
             " line-height: 1.25; }")
 KILLS = ".crewtag.kills { color: #ff4fa3; background: rgba(255,79,163,.16); }"
 NL = chr(10)
+BS = chr(92)        # CSS identifier escapes, which several cases turn on
 
 # All six, because rewriting one is how the attribute-selector case passed for the wrong
 # reason: the checker was exiting 1 on the five chips the case had not touched, and its output
@@ -232,6 +233,70 @@ def _cases():
          css.replace(PHONE_STRIP, "", 1) + NL
              + '@media (max-width: 560px) { .zzlogo { background-image:'
              + ' url("hero!important.png"); } }' + NL, 1),
+        # --- round fourteen. Two reviewers, ten more ways past.
+        # The media TYPE was left in place, so the commonest spelling of a phone query
+        # normalised to the literal `screenand(max-width:560px)` and related to nothing.
+        ("the media type kept in the query",
+         css + NL + "@media screen and (max-width: 560px)"
+             + " { .crewtat { display: block; } }" + NL, 1),
+        ("only screen",
+         css + NL + "@media only screen and (max-width: 560px)"
+             + " { .crewtat { display: block; } }" + NL, 1),
+        # the other two spellings of the range syntax, same feature, same 2023 baseline
+        ("a range with its operands reversed",
+         css + NL + "@media (560px >= width) { .crewtat { display: block; } }" + NL, 1),
+        ("a range written as an interval",
+         css + NL + "@media (0px <= width <= 560px) { .crewtat { display: block; } }" + NL, 1),
+        # a rem breakpoint is the same 560px, and is the most likely next thing added here
+        ("a breakpoint in rem",
+         css + NL + "@media (max-width: 35rem) { .crewtat { display: block; } }" + NL, 1),
+        ("a length carrying a sign",
+         css + NL + "@media (max-width: +560px) { .crewtat { display: block; } }" + NL, 1),
+        # One extra ancestor satisfies BOTH halves of `fixes()` on its own, so a single
+        # planted rule silenced all six chip reports again. A real fix names ancestors the
+        # stylesheet already uses; `.zzfoo` appears in its own rule and nowhere else.
+        ("a planted ancestor that exists nowhere else",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { .zzfoo .crewtag"
+             + " { background: none; padding: 0; } }" + NL, 1),
+        ("an id ancestor that exists nowhere else",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { #zznothing .crewtag"
+             + " { background: none; padding: 0; } }" + NL, 1),
+        # a chip inside a chip, which no DOM produces
+        ("an ancestor that is the subject itself",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { .crewtag .crewtag"
+             + " { background: none; padding: 0; } }" + NL, 1),
+        # An unlayered declaration beats a layered one whatever its specificity, so a fix
+        # written inside `@layer` does not win -- and the checker took it as the fix.
+        ("a correct-looking fix wrapped in @layer",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@layer zz { @media (max-width: 560px) { .crewtrow .crewtag"
+             + " { background: none; padding: 0; } } }" + NL, 1),
+        # --- round fourteen again: `unescape` lived inside `canon`, so the comparison saw
+        # resolved text and `specificity`, `_find_is` and the priority test did not.
+        ("a hex escape that halves the specificity",
+         _chips_as(css, lambda c: ".crewtag." + BS + "%06x" % ord(c[0]) + c[1:])
+            .replace(PHONE_STRIP, "", 1), 1),
+        # ONE class whose name contains a space -- which no element can carry, so it matches
+        # nothing -- resolved to a real space and read as the descendant selector that
+        # `fixes()` accepts
+        ("an escaped space read as a combinator",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { .crewtrow" + BS + " .crewtag"
+             + " { background: #123; } }" + NL, 1),
+        # `PHYSICAL` knew these pairs and `family()` never asked it
+        ("a logical inset against its physical twin",
+         css + NL + ".zzp.wide { left: 9px; }" + NL
+             + "@media (max-width: 560px) { .zzp { inset-inline-start: 0; } }" + NL, 1),
+        ("a logical border against its physical twin",
+         css + NL + ".zzb2.wide { border-left: 2px solid #f00; }" + NL
+             + "@media (max-width: 560px) { .zzb2 { border-inline-start: 0; } }" + NL, 1),
+        (":is() spelled with an escape",
+         css + NL + ".zztagI.hot { background: #f00; }" + NL
+             + "@media (max-width: 560px) { :i" + BS + "s(.zztagI, .zzother)"
+             + " { background: none; } }" + NL, 1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
@@ -271,6 +336,11 @@ def _cases():
          css.replace(PHONE_STRIP,
                      "  .crewtag { background: none ! important;"
                      " padding: 0 ! important; }", 1), 0),
+        # Chrome honours this as a priority, so reporting it is the cry-wolf half again
+        ("!important spelled with an escape",
+         css.replace(PHONE_STRIP,
+                     "  .crewtag { background: none !im" + BS + "portant;"
+                     " padding: 0 !im" + BS + "portant; }", 1), 0),
     ]
 
 

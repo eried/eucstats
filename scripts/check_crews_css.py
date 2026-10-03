@@ -165,7 +165,10 @@ def _walk(nodes, sels, ctx, decls, order):
 
 def parse(src):
     """(order, context, selector, property, value) for every declaration, in source order."""
-    nodes, _ = _blocks(_strip_comments(src))
+    # Escapes first, before anything is tokenised, so the tokenizer, `canon`, `specificity`,
+    # `_find_is` and the priority test all read the same resolved text. `_resolved` keeps an
+    # escaped brace or space from becoming a brace or a space.
+    nodes, _ = _blocks(_strip_comments(unescape(src)))
     decls, order = [], [0]
     _walk(nodes, [], [], decls, order)
     return decls
@@ -182,6 +185,8 @@ FAMILY = {
     "margin-left": "margin", "margin-right": "margin",
     "margin-top": "margin", "margin-bottom": "margin",
     "border-color": "border", "border-width": "border", "border-style": "border",
+    "border-left": "border", "border-right": "border",
+    "border-top": "border", "border-bottom": "border",
     "font-size": "font", "font-weight": "font", "font-family": "font",
     "overflow-x": "overflow", "overflow-y": "overflow",
     # Logical properties set the same thing as their physical twins, so a rule written one way
@@ -192,7 +197,6 @@ FAMILY = {
     "margin-inline": "margin", "margin-inline-start": "margin",
     "margin-inline-end": "margin", "margin-block": "margin",
     "margin-block-start": "margin", "margin-block-end": "margin",
-    "inset-inline-start": "inset", "inset-inline-end": "inset",
     "border-inline-start": "border", "border-inline-end": "border",
     "flex-grow": "flex", "flex-shrink": "flex", "flex-basis": "flex",
 }
@@ -311,17 +315,28 @@ def physical(prop):
 ESCAPE_RE = re.compile(r"\\(?:([0-9a-fA-F]{1,6})\s?|(.))", re.S)
 
 
-def unescape(sel):
-    r"""`.crewtag.k\ills` is `.crewtag.kills`, and the browser agrees.
+def _resolved(ch):
+    r"""One escaped character, as something that can be compared but never read as structure.
 
-    A backslash before a non-hex character is that character literally, and `\6b ` is the
-    codepoint. A reviewer rewrote all six chip rules this way and got `problems 0` on a
-    stylesheet where every coloured chip keeps the box the rule exists to remove -- the
-    same class as the attribute-selector and `:not()` cases pinned beside it, one
-    backslash away.
+    An identifier character comes back as itself: `.crewtag.k\ills` is `.crewtag.kills`, and
+    the browser agrees. Anything else -- a space, a brace, a comma, a backslash -- becomes a
+    token, because resolving it to the character was a hole of its own: `\ ` became a real
+    space, so `.crewtrow\ .crewtag` (ONE class whose name contains a space, which no element
+    can ever carry) was read as a descendant selector, which is the exact shape `fixes()`
+    accepts as a fix.
+    """
+    return ch if (ch.isalnum() or ch in "_-") else "\ue000%04x\ue001" % ord(ch)
+
+
+def unescape(text):
+    r"""Resolve every CSS escape in `text`.
+
+    Called on the whole source before anything is tokenised, rather than inside `canon()`,
+    because `specificity()`, `_find_is()` and the priority test all read this text too and a
+    resolver that only the comparison sees leaves three readers looking at raw letters.
     """
     return ESCAPE_RE.sub(
-        lambda m: chr(int(m.group(1), 16)) if m.group(1) else m.group(2), sel)
+        lambda m: _resolved(chr(int(m.group(1), 16)) if m.group(1) else m.group(2)), text)
 
 
 def canon(sel):
@@ -333,7 +348,7 @@ def canon(sel):
     too. Whitespace is collapsed, combinators are spaced consistently, and the classes inside
     each compound are sorted.
     """
-    t = re.sub(r"\s*([>+~])\s*", r" \1 ", unescape(sel or "").strip())
+    t = re.sub(r"\s*([>+~])\s*", r" \1 ", (sel or "").strip())
     t = re.sub(r"\s+", " ", t)
     out = []
     for part in t.split(" "):
@@ -346,7 +361,15 @@ def canon(sel):
 
 
 def family(prop):
-    return FAMILY.get(prop, prop)
+    """What this property belongs to, after the logical name has been resolved.
+
+    `PHYSICAL` already knew that `inset-inline-start` is `left` and `border-inline-start` is
+    `border-left`, and `family()` did not ask it -- so pass 2 grouped the padding and margin
+    pairs and let the inset and border ones straight through. Two tables disagreeing about
+    the same facts.
+    """
+    p = physical(prop)
+    return FAMILY.get(p, p)
 
 
 def bare(val):
@@ -354,7 +377,24 @@ def bare(val):
     return IMPORTANT_RE.sub("", val).strip()
 
 
-RANGE_RE = re.compile(r"\(\s*(width|height)\s*(<=|>=|<|>)\s*([\d.]+)px\s*\)")
+# All three spellings the range syntax allows, not just the first one. `(560px >= width)` and
+# `(0px <= width <= 560px)` are the same feature with the same 2023 baseline, and both mean
+# `(max-width: 560px)`.
+# A length is a sign, a number and a unit. Both of these required a bare `px`, so
+# `(max-width: 35rem)` -- the same breakpoint -- was a different string from `(max-width:
+# 560px)` and related to nothing.
+LEN = r"([+-]?[\d.]+)(px|rem|em)"
+ROOT_PX = 16.0        # the page sets no root font-size, so rem and em are 16px here
+
+
+def _px(num, unit):
+    return float(num) * (1.0 if unit == "px" else ROOT_PX)
+
+
+RANGE_RE = re.compile(r"\(\s*(width|height)\s*(<=|>=|<|>)\s*" + LEN + r"\s*\)")
+RANGE_REV_RE = re.compile(r"\(\s*" + LEN + r"\s*(<=|>=|<|>)\s*(width|height)\s*\)")
+RANGE_SPAN_RE = re.compile(
+    r"\(\s*" + LEN + r"\s*(?:<=|<)\s*(width|height)\s*(?:<=|<)\s*" + LEN + r"\s*\)")
 
 
 def _range_syntax(body):
@@ -364,13 +404,26 @@ def _range_syntax(body):
     "a media query differing by one space" went quiet when written this way.
     """
     def one(m):
-        feat, op, px = m.group(1), m.group(2), m.group(3)
+        feat, op = m.group(1), m.group(2)
         side = "max" if op in ("<=", "<") else "min"
-        return "(%s-%s:%spx)" % (side, feat, px)
+        return "(%s-%s:%gpx)" % (side, feat, _px(m.group(3), m.group(4)))
+
+    def rev(m):
+        # `(560px >= width)` is `(width <= 560px)`: the comparison, read the other way round
+        op, feat = m.group(3), m.group(4)
+        side = "max" if op in (">=", ">") else "min"
+        return "(%s-%s:%gpx)" % (side, feat, _px(m.group(1), m.group(2)))
+
+    def span(m):
+        # an interval is two conditions; the upper bound is the one that bounds a phone
+        return "(max-%s:%gpx)" % (m.group(3), _px(m.group(4), m.group(5)))
+
+    body = RANGE_SPAN_RE.sub(span, body)
+    body = RANGE_REV_RE.sub(rev, body)
     return RANGE_RE.sub(one, body)
 
 
-PX_RE = re.compile(r"\((max|min)-(width|height)\s*:\s*([\d.]+)px\)")
+PX_RE = re.compile(r"\((max|min)-(width|height)\s*:\s*" + LEN + r"\)")
 
 
 def _implies(inner, outer):
@@ -386,7 +439,7 @@ def _implies(inner, outer):
     a, b = PX_RE.fullmatch(inner), PX_RE.fullmatch(outer)
     if not a or not b or a.group(1) != b.group(1) or a.group(2) != b.group(2):
         return False
-    lo, hi = float(a.group(3)), float(b.group(3))
+    lo, hi = _px(a.group(3), a.group(4)), _px(b.group(3), b.group(4))
     # a narrower max- is contained by a wider one; min- runs the other way
     return lo <= hi if a.group(1) == "max" else lo >= hi
 
@@ -411,7 +464,16 @@ def clauses(where):
         # lower BEFORE replacing: at-rule names are ASCII case-insensitive, so
         # `@Media (max-width: 560px)` never normalised and a real bug inside one
         # exited 0. Range syntax is folded onto the min-/max- form it means.
-        body = _range_syntax(rule.lower().replace("@media", " "))
+        # The media TYPE goes too. `@media screen and (max-width: 560px)` is the commonest
+        # way to write a phone query and it normalised to the literal
+        # `screenand(max-width:560px)`, which relates to nothing -- four spellings of the same
+        # query slipped past pass 1. `print` is deliberately NOT stripped: a print context
+        # really is different, and folding it into screen would be a false alarm.
+        body = rule.lower().replace("@media", " ")
+        body = re.sub(r"\bonly\b", " ", body)
+        body = re.sub(r"\b(?:screen|all)\s+and\b", " ", body)
+        body = re.sub(r"^\s*(?:screen|all)\s*$", " ", body)
+        body = _range_syntax(body)
         alt = frozenset(re.sub(r"\s+", "", part) for part in split_top(body, ",")
                         if part.strip())
         if alt:
@@ -537,6 +599,23 @@ def compound_matches(outer, inner):
 RELAXERS = {"none", "normal", "visible", "clip", "auto", "initial", "unset", "revert", "0"}
 
 
+# How many distinct selectors each compound appears in. A planted ancestor appears in exactly
+# one -- its own rule -- while the fix this hatch exists for, `.crewtrow .crewtag`, names a
+# compound the stylesheet uses nine times. See fixes().
+SEEN = collections.Counter()
+
+
+def layered(fix_ctx, broad_ctx):
+    """True when the candidate fix sits in a cascade layer and the rule it answers does not.
+
+    An unlayered declaration beats a layered one whatever its specificity or position, so a
+    fix written inside `@layer` does not win -- the unlayered rule it was meant to beat keeps
+    its value. Taken as the fix it silenced every report for that property. Nothing here uses
+    layers yet, which is the right moment to say so.
+    """
+    return "@layer" in (fix_ctx or "") and "@layer" not in (broad_ctx or "")
+
+
 def fixes(a, b, c):
     """True when rule `c` could be the fix for `a` losing to `b`.
 
@@ -557,7 +636,18 @@ def fixes(a, b, c):
         return False
     if canon(c) == canon(b) or subset_pair(c, b):
         return True
-    return subset_pair(a, c) and compound_matches(cc[-1], cb[-1])
+    if not (subset_pair(a, c) and compound_matches(cc[-1], cb[-1])):
+        return False
+    # An extra ancestor satisfies both halves on its own -- `.zzfoo .crewtag` reaches the
+    # chips AND refines `.crewtag` -- so one planted rule silenced all six reports. Two things
+    # separate a real fix from a decoy: its ancestors exist elsewhere in the stylesheet, and
+    # none of them is the subject itself (`.crewtag .crewtag` is a chip inside a chip).
+    for anc in cc[:-1]:
+        if SEEN[anc] < 2:
+            return False
+        if compound_matches(cc[-1], anc) and compound_matches(anc, cc[-1]):
+            return False
+    return True
 
 
 def relaxes(val):
@@ -567,6 +657,11 @@ def relaxes(val):
 def main():
     decls = parse(CSS.read_text(encoding="utf-8"))
     bad = []
+    # one count per compound, over distinct selectors, for fixes()
+    SEEN.clear()
+    for sel in {d[2] for d in decls}:
+        for comp in set(compounds(sel)):
+            SEEN[comp] += 1
 
     # --- pass 1: same selector, a later rule beating an earlier one that it does not narrow
     # Keyed on the literal property, not the family: pass 1 is about one rule restating what
@@ -632,7 +727,7 @@ def main():
                 # subset_pair reported five problems against a stylesheet corrected with a
                 # descendant selector (`.crewtrow .crewtag`), which is a perfectly good fix.
                 if any(c[1] and covers(c[1], a[1]) and family(c[3]) == prop
-                       and IMPORTANT_RE.search(c[4])
+                       and IMPORTANT_RE.search(c[4]) and not layered(c[1], a[1])
                        and fixes(a[2], b[2], c[2]) for c in rows):
                     continue
                 # Anything that reaches b's elements at or above b's specificity, from a
@@ -650,6 +745,7 @@ def main():
                     (covers(c[1], a[1]) or covers(a[1], c[1]))
                     and family(c[3]) == prop and c[2] != a[2]
                     and specificity(c[2]) >= specificity(b[2])
+                    and not layered(c[1], a[1])
                     and fixes(a[2], b[2], c[2])
                     for c in rows)
                 if covered:

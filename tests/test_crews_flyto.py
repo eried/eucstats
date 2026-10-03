@@ -65,10 +65,13 @@ for (const [W, H] of %s) {
   // only make this test harder to pass.
   const topbar = FALLBACK ? rect(W / 2 - 200, 16, 400, H * 0.58)
                           : rect(16, 16, Math.min(W * 0.92, 380), TIGHT ? 48 : 168);
-  // Measured, not guessed: 802px at desktop and 690 below the 880px query that
-  // tightens the buttons. It was modelled at 420 -- half the real obstacle, which is
-  // the wrong direction for a harness to be wrong in.
-  const dockW = Math.min(W - 16, W <= 880 ? 690 : 802);
+  // Measured in Chrome across all nineteen locales, because the dock's width depends on
+  // how long the words are: at 1440 it is 802px in English and 882px in Turkish, at 760 it
+  // is 718px and 798px, and at 390 the labels are gone and it is 319px either way. The
+  // widest is modelled -- a bigger obstacle cannot produce a false "clear", and it is a real
+  // configuration rather than a safety margin. The viewport cap is the stylesheet's own
+  // `max-width: calc(100vw - 16px)`.
+  const dockW = Math.min(W - 16, W <= 560 ? 319 : W <= 880 ? 798 : 882);
   const dock = rect((W - dockW) / 2, H - 70, dockW, 52);
   const boxes = { ".panel": panel, ".topbar": topbar, ".dock": dock };
   global.document = {

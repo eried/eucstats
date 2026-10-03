@@ -476,7 +476,10 @@
       el.title = crew.name + " · " + fmtKm2(crew.km2);
       el.dataset.s = s;
       el.dataset.n = r.n || 1;              // region size, which decides how long it survives
-      el.onclick = function (ev) { ev.stopPropagation(); openCrew(crew.slug); };
+      pressable(el, crew.name, function (ev) {
+        if (ev) ev.stopPropagation();
+        openCrew(crew.slug);
+      });
       var m = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([lon, lat]).addTo(map);
       markers.push(m);
@@ -720,6 +723,34 @@
   function t(key, vars) {
     var out = (H.t ? H.t(key, vars) : key);
     return out;
+  }
+
+  // The row's own columns, joined. `textContent` runs them together -- "a few streets 1.4
+  // kmParis" -- which is the same jam the visible separators were given real text for; the
+  // columns themselves carry no text between them, because the grid does that job on screen.
+  function rowLabel(el) {
+    return Array.prototype.map.call(el.children, function (c) {
+      return c.textContent.replace(/\s+/g, " ").trim();
+    }).filter(Boolean).join(" · ");
+  }
+
+  // A row that can be clicked can be reached. These are `<div>`s and `<tr>`s rather than
+  // buttons -- they carry a grid of their own and a button would fight it -- so they get the
+  // three things a button gets for free: a tab stop, a name for what pressing them does, and
+  // Enter and Space. 35 of the 46 handlers in this panel had none of them, including every
+  // row on the card that says "Pick one to find it".
+  function pressable(el, label, fn) {
+    if (!el) return;
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    if (label) el.setAttribute("aria-label", label);
+    el.onclick = fn;
+    el.onkeydown = function (ev) {
+      if (ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar") return;
+      // Space scrolls the panel otherwise, which moves the thing you were aiming at
+      ev.preventDefault();
+      fn.call(el, ev);
+    };
   }
 
   function esc(s) {
@@ -2132,12 +2163,16 @@
         + (me.status === "pending" ? "" : tgt.html + loseHTML(c.slug))
         + contributorsHTML(r.body.contributors);
       el.querySelectorAll("[data-t]").forEach(function (row) {
-        row.onclick = function () { flyToTile(TARGETS[+row.dataset.t], +row.dataset.t); };
+        pressable(row, rowLabel(row), function () {
+          flyToTile(TARGETS[+row.dataset.t], +row.dataset.t);
+        });
       });
       el.querySelectorAll("[data-l]").forEach(function (row) {
         // no second argument: ground you are losing is already breathing on the map, and
         // redrawing the target rings here only cleared whichever one was marked
-        row.onclick = function () { flyToTile(LOSING[+row.dataset.l]); };
+        pressable(row, rowLabel(row), function () {
+          flyToTile(LOSING[+row.dataset.l]);
+        });
       });
       showTargets(TARGETS);
     });
@@ -2395,10 +2430,10 @@
       doReveal();
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
-        el.onclick = function () {
-          var r = rank[+el.dataset.i];
+        var r = rank[+el.dataset.i];
+        pressable(el, r && r.name, function () {
           if (r) flyToCrew(r.slug);
-        };
+        });
       });
     });
     if (!window.__CREWIDENT__) {

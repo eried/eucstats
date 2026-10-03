@@ -92,7 +92,10 @@ svg.ic{width:18px;height:18px;display:block}
    size cannot un-tighten it, because --panres follows the media query rather than the
    class. So it keeps the dimming, which says there is more here on a bigger screen,
    and drops the cursor and the hover that promise an action it does not have. */
-.topbar.tight .champ{cursor:default}
+/* `renderChampions()` sets `cursor` inline, which beats anything here -- so the rule
+   that used to live here took the pointer off the COLLAPSED badge too, which does
+   have a click handler. It is set with the display, beside the handler that earns
+   it; see renderChampions(). */
 .topbar.collapsed .chead,.topbar.tight .chead{margin:0}
 .topbar.collapsed .chead>span,.topbar.collapsed .cinfo,.topbar.collapsed .ccol,.topbar.collapsed .cline,.topbar.tight .chead>span,.topbar.tight .cinfo,.topbar.tight .ccol,.topbar.tight .cline{display:none}
 .topbar.collapsed .champ::after,.topbar.tight .champ::after{display:none}
@@ -124,8 +127,8 @@ svg.ic{width:18px;height:18px;display:block}
 .rfoot.show{opacity:.4;transition:opacity .35s ease}.rfoot.show:hover{opacity:1}
 .rfoot img{width:18px;height:18px}.rfoot svg{width:14px;height:14px}
 .rfoot .ver{font-family:ui-monospace,monospace;font-size:11px}
-.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;background:var(--surf);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:10px;padding:7px;box-shadow:var(--shadow),0 18px 54px rgba(0,0,0,.55)}
-.dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;max-width:calc(100vw - 16px);background:var(--surf);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:10px;padding:7px;box-shadow:var(--shadow),0 18px 54px rgba(0,0,0,.55)}
+.dock button{display:flex;align-items:center;gap:8px;min-width:0;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}
 .dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}.dock button[data-p=crews]{--sec:#ff8ad8}
@@ -216,6 +219,10 @@ td.sub{color:var(--mut)}
    Tighter rather than wordless -- dropping the labels is what the 560px query below
    is for, and a globe and a wheel glyph alone are hard to tell apart. */
 @media(max-width:880px){.dock button{padding:10px 9px;gap:6px}}
+/* The labels give way before the icons do. Measured at 760px wide: the dock is 718px
+   in English and 798px in Turkish -- 38px wider than the window, clipped on both
+   sides. The round-12 fix for this measured English and stopped. */
+.dock .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 @media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}
 /* phones: size tabs to their label (not a fixed 176px) so 4-5 fit per swipe
    instead of barely 2, and tighten them a touch for density */
@@ -806,7 +813,7 @@ function renderChampions(){
     line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month);
   ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.id===el.dataset.sid);if(c)flyToRider(c);};});
   const tb=document.querySelector(".topbar");
-  const setC=(v)=>{if(tb)tb.classList.toggle("collapsed",v);try{localStorage.setItem("eucstats_champ_collapsed",v?"1":"0");}catch(_){}};
+  const setC=(v)=>{if(tb)tb.classList.toggle("collapsed",v);if(ch)ch.style.cursor=(tb&&tb.classList.contains("tight"))?"default":"pointer";try{localStorage.setItem("eucstats_champ_collapsed",v?"1":"0");}catch(_){}};
   const col=ch.querySelector(".ccol");
   if(col)col.onclick=(e)=>{e.stopPropagation();setC(!(tb&&tb.classList.contains("collapsed")));};
   ch.onclick=()=>{if(tb&&tb.classList.contains("collapsed"))setC(false);};
