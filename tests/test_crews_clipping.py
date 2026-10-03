@@ -91,6 +91,12 @@ REVIEWED = {
     ".crewtip span i":
         "a distance in the hover tip, same.",
     # --- the page's own stylesheet, which this file could not see for one commit
+    ".dock .lbl":
+        "the nav labels. The nowrap is here so `fitDock()` measures the natural single-line "
+        "width: without it CJK wraps between characters, `scrollWidth` returns min-content "
+        "(427px for a Japanese dock that needs 587) and the fit test never fires. There is "
+        "deliberately no ellipsis -- the words are shown whole or the row drops to icons. "
+        "See test_the_dock_can_still_measure_itself.",
     ".chip":
         "the topbar statistics -- `9 Countries`, `9 Länder`. They sit in a `flex-wrap` strip "
         "of four with `flex: 1 1 0`, so a long locale wraps the strip to two rows rather than "
@@ -156,3 +162,31 @@ def test_the_review_list_has_no_entries_for_rules_that_are_gone():
         "REVIEWED names selectors the stylesheet no longer clips; delete them so the list "
         "stays a description of the file rather than of its history:" + NL
         + NL.join("  " + sel for sel in stale))
+
+
+def test_the_dock_can_still_measure_itself():
+    """`fitDock()` is only correct while its labels cannot wrap.
+
+    This is the half a review list cannot carry. The guard above fires on a declaration that
+    CUTS text, and the bug this pins was a DELETION: I removed `white-space: nowrap` from the
+    dock labels along with an ellipsis that deserved to go, and `scrollWidth` -- which
+    `fitDock()` uses to decide whether the words fit -- silently started returning min-content
+    instead of the natural width. In Latin and Cyrillic those are the same number, so five
+    locales measured clean; in Japanese and Chinese a line breaks between any two characters,
+    so the dock reported 427px, never dropped to icons, and rendered seven vertical stacks of
+    one character each from 561px to about 1340px.
+
+    No entry in REVIEWED can fail on a line that is not there, so the assumption is asserted
+    directly: the measurement means what it says only while min-content equals max-content.
+    """
+    inline = _inline_stylesheet()
+    labels = {(prop, val.strip().lower())
+              for _o, _c, sel, prop, val in parse(inline) if canon(sel) == ".dock .lbl"}
+    assert ("white-space", "nowrap") in labels, (
+        "`.dock .lbl` no longer sets `white-space: nowrap`, so `fitDock()`'s `scrollWidth` "
+        "reads the min-content width rather than the natural one. In a script that breaks "
+        "between characters that is one glyph per line, the fit test never fires, and the "
+        "dock renders as a block of vertical characters at every width above 560px.")
+    assert ("text-overflow", "ellipsis") not in labels, (
+        "`.dock .lbl` ellipsises again. A seven-item primary nav should show its words or "
+        "its icons; truncating them cut all seven in English at 700px for one round.")
