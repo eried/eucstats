@@ -61,7 +61,10 @@ def HANDLE(store_id: str) -> str:
     `_handle` now re-mints any handle that contains the store_id it stands for, so a fixture
     producing that shape would be a fixture testing something the code refuses to do.
     """
-    return "h" + hashlib.sha1(store_id.encode()).hexdigest()[:12]
+    # Sixteen hex characters, the shape `secrets.token_hex(8)` makes and the shape `_handle`
+    # now insists on: a fixture that produced anything else would be re-minted on first read,
+    # which is the code doing its job and the test fighting it.
+    return hashlib.sha1(store_id.encode()).hexdigest()[:16]
 
 
 @pytest.fixture(autouse=True)

@@ -10,6 +10,7 @@ import json
 import time
 from datetime import timedelta
 
+import re
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
@@ -38,6 +39,10 @@ def _ip(request: Request) -> str:
     return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
 
 
+# What `secrets.token_hex(8)` produces, which is what every handle in this system is.
+HANDLE_RE = re.compile(r"[0-9a-f]{16}")
+
+
 def _handle(db: Session, store_id: str) -> str:
     """What a roster may publish about a rider.
 
@@ -48,12 +53,16 @@ def _handle(db: Session, store_id: str) -> str:
     r = db.get(Rider, store_id)
     if r is None:
         return ""
-    # A handle has one job: to be publishable where the store_id is not. A row whose handle
-    # IS the store_id, or merely contains it, fails that job while looking fine -- and a
-    # reviewer found exactly such a row on this machine and rode it all the way to a working
-    # session. Both minters produce random hex, so this can only come from data written by
-    # something else; re-mint rather than trust it.
-    if not r.public_id or store_id in r.public_id:
+    # A handle has one job: to be publishable where the store_id is not. Both minters produce
+    # sixteen hex characters, so anything else came from somewhere this code does not control
+    # -- an import, a migration, a stray script -- and is re-minted rather than trusted.
+    #
+    # The first version of this asked only whether the handle contained its own store_id,
+    # which is narrower than the invariant the comment claims. A reviewer got past it twice:
+    # a handle equal to a DIFFERENT rider's store_id, and a case-variant of its own. Both were
+    # published on a browser route and both minted a working session. Checking the shape
+    # instead of the substring is the same one line and actually says what is meant.
+    if not HANDLE_RE.fullmatch(r.public_id or ""):
         r.public_id = secrets.token_hex(8)
         db.commit()
     return r.public_id
@@ -367,7 +376,7 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                     r = who.get(sid)
                     if r is None:
                         return ""
-                    if not r.public_id or sid in r.public_id:
+                    if not HANDLE_RE.fullmatch(r.public_id or ""):
                         return _handle(db, sid)        # mints a clean one; see _handle
                     return r.public_id
 

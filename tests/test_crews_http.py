@@ -9,6 +9,7 @@ service function and never as the field the browser actually reads, which is the
 can break without a single test going red.
 """
 import json
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -505,6 +506,42 @@ def test_the_panel_routes_refuse_to_be_cached(client, db):
         cc = res.headers.get("cache-control", "")
         assert "no-store" in cc and "private" in cc, f"{url} -> {cc!r}"
         assert "Cookie" in res.headers.get("vary", ""), f"{url} vary: {res.headers.get('vary')!r}"
+
+
+@pytest.mark.parametrize("polluted", [
+    "h-mate",          # contains its own store_id: the shape found in the wild
+    "mate",            # IS its own store_id
+    "chief3",          # is ANOTHER rider's store_id
+    "MATE",            # a case variant of its own
+    "not-hex-at-all",
+    "0123456789abcde",   # fifteen hex: nearly right is not right
+])
+def test_a_handle_that_is_not_shaped_like_a_handle_is_replaced(client, db, polluted):
+    """Both minters produce sixteen hex characters, so anything else came from somewhere this
+    code does not control. The first guard asked only whether the handle contained its own
+    store_id, which is narrower than that, and a reviewer got past it twice: a handle equal to
+    another rider's store_id, and a case variant of its own. Both were published on a browser
+    route and both minted a working session."""
+    from web.crews_api import _handle
+    _rider(db, "mate")
+    row = db.query(Rider).filter(Rider.store_id == "mate").one()
+    row.public_id = polluted
+    db.commit()
+
+    h = _handle(db, "mate")
+    assert re.fullmatch(r"[0-9a-f]{16}", h), f"published a handle shaped {h!r}"
+    db.refresh(row)
+    assert row.public_id == h, "the row is repaired, not just the answer"
+
+    # The published handle is not a key to anything. (The polluted VALUE may still be, when it
+    # happens to be a real store_id -- that is what a store_id is for. What matters is that it
+    # is no longer handed to a browser.)
+    me = client.get("/api/v1/crews/me")
+    assert polluted not in me.text or polluted == h
+
+    p = pairing.start(db, purpose="rider")
+    with pytest.raises(pairing.PairError):
+        pairing.confirm(db, p["code"], h)
 
 
 def test_no_roster_row_hands_out_a_guessable_handle(client, db):
