@@ -171,8 +171,17 @@ a.crewqr { display: flex; text-decoration: none; }
    each other for no reason, and first stepped up by a different amount again. */
 .crewboard .podium { gap: 10px; padding: 8px 0 12px; align-items: flex-end; }
 /* flex-end aligns the margin box, and the host hands first place an 18px bottom margin, so
-   the gold card floated while second and third agreed to two pixels. */
-.crewboard .pod.p1 { margin-bottom: 0; }
+   the gold card floated while second and third agreed to two pixels. Zeroing it lined the
+   three up and took away the only thing that said first place was first, so the step comes
+   back as height rather than as a margin: all three sit on one baseline and the winner's
+   card is taller. */
+.crewboard .pod.p1 { margin-bottom: 0; padding-top: 20px; }
+
+/* The figure, not its unit. "122" and "squares" were set at one size, so a third of the pink
+   on the podium was a word the card heading already implies, and every hero wrapped. */
+.crewboard .pod .km { font-size: 11px; letter-spacing: .2px; }
+.crewboard .pod .crewpodn { font-size: 26px; font-weight: 700; display: block;
+  line-height: 1.05; letter-spacing: 0; }
 .crewboard .pod { max-width: none; flex: 1 1 0; }
 
 /* Your own crew is folded away once you have one: you know what crew you are in, and the
@@ -562,10 +571,12 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewboard .podic { width: 30px; height: 30px; }
   /* 122 and "squares" were set at the same size, in a 78px column, so every card wrapped and
      the unit ended up shouting louder than the number it belongs to. */
-  /* 18px still ran "squares" past the card edge: the word is seven characters of Orbitron
-     in a 78px column. 15 fits it, and the number stays the biggest thing on the card. */
-  .crewboard .pod .km { font-size: 15px; line-height: 1.15; white-space: normal;
+  /* "squares" is seven characters of Orbitron and the column is 78px, so the unit wraps
+     under the figure rather than running past the card's edge. */
+  .crewboard .pod .km { font-size: 10px; line-height: 1.2; white-space: normal;
     overflow-wrap: anywhere; }
+  .crewboard .pod .crewpodn { font-size: 22px; }
+  .crewboard .pod.p1 { padding-top: 14px; }
   .crewboard .pod .psub { font-size: 10px; line-height: 1.2; }
   .crewboard .pod { padding: 8px 6px; }
   .crewboard .podium { padding: 4px 0 8px; }
@@ -663,6 +674,16 @@ a.crewqr { display: flex; text-decoration: none; }
 /* Tapped rather than hovered: it has to survive the finger coming off, so it gets a shadow
    deep enough to sit above the fill and room enough to read at arm's length. */
 .crewtip.tap { font-size: 13px; padding: 9px 11px; box-shadow: 0 6px 22px rgba(0,0,0,.6); }
+/* The line naming the move was the smallest of the three, because .crewtip b is pinned at
+   12px and the tapped tip is 13. */
+.crewtip.tap b { font-size: 14px; }
+/* and a tail, because on a grid of identical squares a box with nothing joining it to one of
+   them is ambiguous about which one it means */
+.crewtip.tap::after { content: ""; position: absolute; left: -6px; top: 50%;
+  margin-top: -6px; border: 6px solid transparent; border-right-color: #11141f;
+  border-left-width: 0; }
+.crewtip.tap.left::after { left: auto; right: -6px; border-right-width: 0;
+  border-right-color: transparent; border-left-width: 6px; border-left-color: #11141f; }
 
 /* The neighbourhood, under the bearing. Small and quiet: it answers "where" for somebody who
    knows the city, and costs nothing to skip for somebody who does not. */
@@ -671,3 +692,26 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* the neighbourhood, at the top of the tip the ring opens */
 .crewtipat { display: block; font-weight: 600; opacity: .8; margin-bottom: 1px; }
+
+/* Disband cannot be undone and sat in the same ghost styling as Leave, which can. The only
+   irreversible control in the panel says so before it is pressed, not only in its confirm. */
+.crewbtn.danger { color: #ff7a9c; border-color: rgba(255,122,156,.42); }
+.crewbtn.danger:hover { background: rgba(255,122,156,.12);
+  border-color: rgba(255,122,156,.7); }
+
+/* An empty ring beside a name reads as an image that failed to load, three times over, on
+   the one chart in the feature. */
+.crewcrow .av:empty { background: rgba(255,255,255,.07);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+
+/* The bearing is 11px against a 13px phrase and was top-aligned, so it read as a superscript
+   on every row at both widths. */
+.crewtdir { align-self: baseline; }
+
+/* `display: flex` on this summary drops the browser's marker and the replacement only
+   covered the other two, so the one disclosure people open most had no triangle anywhere. */
+.crewmine-wrap > summary::before {
+  content: ""; flex: 0 0 auto; width: 0; height: 0; margin-right: 7px;
+  border: 4px solid transparent; border-left-color: currentColor;
+  transition: transform .15s ease;
+}

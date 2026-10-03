@@ -636,7 +636,10 @@
             ? t("crew.targets.taken", { name: row.held_name })
             : row.held_by ? t("crew.targets.takenby")
             : t("crew.tile.free")) + "</span>"
-        + (row.kills ? "<span><em>" + esc(t("crew.targets.kills")) + "</em></span>" : "")
+        // with its count: this printed the literal "{n}" on the map, on the one square the
+        // whole card is shouting about
+        + (row.kills ? "<span><em>"
+           + esc(t("crew.targets.kills", { n: row.lost || 0 })) + "</em></span>" : "")
         + (row.first ? "<span><em>" + esc(t("crew.targets.first")) + "</em></span>" : "");
       map.getCanvasContainer().appendChild(el);
       el.style.left = px.x + "px";
@@ -799,7 +802,11 @@
       // of riding everywhere. The area sits underneath, where it informs without ranking.
       val: function (e) {
         var n = e.best_tiles || e.tiles;
-        return short(e) ? n.toLocaleString() : tiles(n);
+        if (short(e)) return n.toLocaleString();
+        // The figure big, its unit quiet. One string from the translator, so the digits are
+        // found wherever the locale puts them rather than split on a space.
+        return esc(tiles(n)).replace(/(\d[\d.,  ]*)/,
+                                     '<b class="crewpodn">$1</b>');
       },
       sub: function (e) {
         var gained = FRESH[e.slug] || 0;
@@ -1377,6 +1384,13 @@
 
   var statusTimer;
 
+  // Any write that comes back unauthorised repaints to the sign-in card, because every
+  // control still on screen belongs to a session that no longer exists.
+  function onWrite(r) {
+    if (r && r.status === 401) { ME = null; show(); return true; }
+    return false;
+  }
+
   function setStatus(msg, bad) {
     var el = document.getElementById("crewstatus");
     if (!el) return;
@@ -1482,7 +1496,7 @@
       }).then(function (r) {
         go.disabled = false;
         if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-        else setStatus(errMsg(r.err), true);
+        else if (!onWrite(r)) setStatus(errMsg(r.err), true);
       });
     };
   }
@@ -1510,7 +1524,11 @@
     // Leaving is blocked for a leader with members until somebody else can run the crew, and
     // there was no control anywhere to make that somebody. The endpoint existed; the button
     // did not, so a two-person crew's leader was stuck for good.
-    if (me.roster && me.roster.length > 1 && me.role === "leader") {
+    // Officers hold these powers on the server and were shown none of them, so an officer's
+    // only way to use a power they have was to craft the request by hand. Promoting to leader
+    // stays a leader's call, and the server enforces that.
+    if (me.roster && me.roster.length > 1
+        && (me.role === "leader" || me.role === "officer")) {
       h += '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
         + me.roster.map(function (x) {
             var mark = x.role === "leader" ? " " + ROLEIC.leader
@@ -1565,7 +1583,8 @@
       // disband and claim-leadership were endpoints with no buttons. A solo leader who walks
       // out used to leave a crew with no riders on the board that nobody could clear up.
       + (me.role === "leader"
-         ? '<button class="crewbtn ghost" id="cm-disband">' + t("crew.mine.disband") + "</button>"
+         ? '<button class="crewbtn ghost danger" id="cm-disband">' + t("crew.mine.disband")
+           + "</button>"
          : "")
       + (me.role !== "leader" && me.leader_stale && me.can_claim
          ? '<button class="crewbtn ghost" id="cm-claim">' + t("crew.mine.claim") + "</button>"
@@ -1596,7 +1615,7 @@
               api("POST", "/api/v1/crews/" + c.slug + "/remove",
                   { store_id: b.dataset.kick }).then(function (r) {
                 if (r.ok) { reveal(".crewmine-wrap"); show(); }
-                else setStatus(errMsg(r.err), true);
+                else if (!onWrite(r)) setStatus(errMsg(r.err), true);
               });
             }, b);
       };
@@ -1606,7 +1625,7 @@
         api("POST", "/api/v1/crews/" + c.slug + "/role",
             { store_id: b.dataset.sid, role: b.dataset.role }).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else setStatus(errMsg(r.err), true);
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
         });
       };
     });
@@ -1617,7 +1636,7 @@
           t(pending ? "crew.mine.cancel" : "crew.mine.leave"), function () {
         api("POST", "/api/v1/crews/leave", {}).then(function (r) {
           if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
-          else setStatus(errMsg(r.err), true);
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
         });
       }, leave);
     };
@@ -1626,7 +1645,7 @@
       ask(t("crew.mine.disbandq", { name: c.name }), t("crew.mine.disband"), function () {
         api("POST", "/api/v1/crews/" + c.slug + "/disband", {}).then(function (r) {
           if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
-          else setStatus(errMsg(r.err), true);
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
         });
       }, dis);
     };
@@ -1636,7 +1655,7 @@
           t("crew.mine.claim"), function () {
         api("POST", "/api/v1/crews/" + c.slug + "/claim", {}).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else setStatus(errMsg(r.err), true);
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
         });
       }, claim);
     };
@@ -1656,7 +1675,7 @@
       }).then(function (r) {
         save.disabled = false;
         if (r.ok) { show(); reloadTerritory(); }
-        else setStatus(errMsg(r.err), true);
+        else if (!onWrite(r)) setStatus(errMsg(r.err), true);
       });
     };
     var logo = document.getElementById("ce-logo");
@@ -1784,7 +1803,7 @@
         function send(body) {
           api("POST", "/api/v1/crews/" + b.dataset.join + "/join", body).then(function (r) {
             if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
-            else setStatus(errMsg(r.err), true);
+            else if (!onWrite(r)) setStatus(errMsg(r.err), true);
           });
         }
         if (b.dataset.pol === "invite") {
@@ -1865,6 +1884,10 @@
       // A failure is not the same as not being signed in. The gate returns crews_disabled,
       // and mapping that onto {paired:false} put a signed-in rider in front of a sign-in
       // form, a pairing spinner and a dead QR before anything mentioned the real reason.
+      // A dead pass is not a failed request: the panel went on showing a crew card and a
+      // form that could not work, under a pink line telling you to grab a new pass with
+      // nothing on screen to grab one with.
+      if (res[0].status === 401 && ME) { ME = null; }
       var off = !res[0].ok && (res[0].err || {}).detail === "crews_disabled";
       if (off) {
         clearLayers();

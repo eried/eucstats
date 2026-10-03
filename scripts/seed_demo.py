@@ -120,7 +120,11 @@ def main() -> int:
                 continue
             name, desc, policy = spec
             leader = group[0]
-            ident = crews.suggest_identity(db)
+            # where this crew will ride, so its colour is picked against its neighbours'
+            # rather than against the whole world's
+            here = (leader.get("lat"), leader.get("lon"))
+            ident = crews.suggest_identity(
+                db, near=here if here[0] is not None and here[1] is not None else None)
             try:
                 clan = crews.create(db, leader["store_id"], name=name, description=desc,
                                     colour=ident["colour"], pattern=ident["pattern"],

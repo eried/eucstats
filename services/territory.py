@@ -539,6 +539,42 @@ def _close_holes(kept: dict[str, set]) -> dict[str, set]:
     return out
 
 
+def _name_lookup(acc: dict, kept: dict, clans: dict, zoom: int) -> dict:
+    """(x, y) -> neighbourhood, for every square a card could point at.
+
+    Built before the cards, because `targets_for` deduplicates on the place: stamping names
+    afterwards left the dedupe keying on None and treating two squares in different
+    neighbourhoods as the same row. One batched offline call for the whole world.
+
+    The candidate set is every square anybody holds plus its neighbours, plus everywhere a
+    crew has ridden. That is a superset of what any card can offer and still one lookup.
+    """
+    want = set()
+    for pts in kept.values():
+        for (x, y) in pts:
+            want.add((x, y))
+            want.update(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    for tile in acc:
+        pt = T.parse(tile)
+        if pt:
+            want.add((pt[1], pt[2]))
+    if not want:
+        return {}
+    want = sorted(want)
+    coords = []
+    for (x, y) in want:
+        b = T.bounds(f"{zoom}/{x}/{y}")
+        coords.append(((b[1] + b[3]) / 2, (b[0] + b[2]) / 2) if b else (0.0, 0.0))
+    try:
+        from ingest.geo import places_for
+        names = places_for(coords)
+    except Exception:
+        # a card without place names is the card we had; a rebuild that dies here is not
+        _log.exception("place lookup failed")
+        return {}
+    return {xy: n for xy, n in zip(want, names) if n}
+
+
 def _name_targets(targets_json: dict, zoom: int) -> None:
     """Put a place name on every target row, in one batched offline lookup.
 
@@ -745,7 +781,7 @@ def _one_square_short(pts: set, seed: int = SEED) -> bool:
 
 def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                 limit: int = 8, seed: int = SEED, holder_of: dict | None = None,
-                mine: set | None = None, leads: set | None = None,
+                mine: set | None = None, leads: set | None = None, names: dict | None = None,
                 patches: list | None = None, buckets: dict | None = None) -> list[dict]:
     """The ground this crew could take next, and what taking it would do.
 
@@ -874,6 +910,9 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         # across sixteen crews fired on nothing, ever.
         first = (x, y) in block
         out.append({"x": x, "y": y, "need": need,
+                    # the neighbourhood, so the dedupe below can tell two rides apart and the
+                    # card can say where rather than only which way
+                    "at": (names or {}).get((x, y)),
                     "held_by": holder_of.get((x, y)),
                     "dir": _bearing(round(x - cx), round(y - cy)),
                     "first": first,
@@ -883,6 +922,11 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                     "blocked": need <= 0.0 and km > 0.0})
 
     def rank(t):
+        # While a crew has no ground, only the block it is being sent to can be kept: seeded()
+        # drops everything else and award withdraws the claim outright. A cheap square ten
+        # squares away is not a cheaper option, it is a wasted evening.
+        if block and not t["first"]:
+            return 10
         if t["blocked"]:
             return 9                          # nothing you ride today changes it
         if t["first"]:
@@ -899,6 +943,10 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         return 4 if t["grows"] else 5
 
     out.sort(key=lambda t: (rank(t), t["need"], t["x"], t["y"]))
+    if block:
+        # Four squares, one move, nothing else on the card: anything past the block is ground
+        # this crew cannot hold yet, and it is cheaper, so it was sorting to the top.
+        out = [t for t in out if t["first"]] or out
 
     # Would taking it break the holder's seed? Only asked of the rows that made the cut, so a
     # crew pays for `limit` flood fills, not one per candidate.
@@ -1070,6 +1118,10 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             pt = T.parse(tile)
             if pt:
                 leads_by_clan.setdefault(w[0], set()).add((pt[1], pt[2]))
+    # Names first, because the dedupe inside targets_for keys on them: stamped afterwards,
+    # `at` was always None by the time the quota read it and two squares in different
+    # neighbourhoods counted as the same row.
+    names_for = _name_lookup(acc, kept, clans, zoom)
     targets_json = {}
     for clan_id in clans:
         try:
@@ -1077,13 +1129,13 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                 acc, kept, clan_id, won, zoom, seed=seed,
                 holder_of=holder_of, mine=mine_by_clan.get(clan_id, set()),
                 leads=leads_by_clan.get(clan_id),
-                patches=patches_by_clan.get(clan_id, []), buckets=buckets))
+                patches=patches_by_clan.get(clan_id, []), buckets=buckets,
+                names=names_for))
         except Exception:
             # A silent failure here empties every crew's list and then tells crews that hold
             # ground that they hold none, which is the opposite of the truth.
             _log.exception("targets_for failed for %s", clan_id)
             targets_json[clan_id] = None
-    _name_targets(targets_json, zoom)
 
     # --- ClanCell rows: the admin view and the ranking read these
     db.query(ClanCell).delete()
@@ -1132,10 +1184,13 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             got = first_led.get((tile, clan_id)) or won_at.get(tile)
             # nothing is news on the very first rebuild: there is no previous state for it to
             # be different from, and marking all of it new says the opposite of what it means
-            if prev and got and (now - got).days < FRESH_DAYS:
-                band += 5
+            # Before the bump, like the rival two lines up. Ground taken this week comes out
+            # as band 6, 7 or 8, the client folds it back with `band % 5`, and these are the
+            # rows that sort to the top of the losing card.
             if band in (1, 2, 3):
                 losable.append((len(cells_flat) // 5, x, y))
+            if prev and got and (now - got).days < FRESH_DAYS:
+                band += 5
             cells_flat.extend((idx, x, y, band, need))
         comps = patches_by_clan[clan_id]          # worked out once, above
         best_km2 = 0.0

@@ -97,22 +97,40 @@ def neighbour_colours(db, lat: float | None, lon: float | None,
     if lat is None or lon is None:
         return set()
     from services import tiles as T
-    out = set()
-    seen = set()
+
+    def near(cy, cx):
+        dy = (cy - lat) * 111.32
+        dx = (cx - lon) * 111.32 * math.cos(math.radians(lat))
+        return dx * dx + dy * dy <= km * km
+
+    out, seen = set(), set()
     for tile, clan_id in db.query(ClanCell.tile, ClanCell.clan_id).all():
         if clan_id in seen:
             continue
         b = T.bounds(tile)
-        if not b:
-            continue
-        cy, cx = (b[1] + b[3]) / 2, (b[0] + b[2]) / 2
-        dy = (cy - lat) * 111.32
-        dx = (cx - lon) * 111.32 * math.cos(math.radians(lat))
-        if dx * dx + dy * dy <= km * km:
+        if b and near((b[1] + b[3]) / 2, (b[0] + b[2]) / 2):
             seen.add(clan_id)
             c = db.get(Clan, clan_id)
             if c is not None and c.disbanded_at is None:
                 out.add(c.colour)
+
+    # Ground is written by the hourly rebuild, so a crew founded in the last hour -- which is
+    # exactly when the next crew in that city is being founded, and the whole of a seeding
+    # run -- holds no cells and would look like it is nowhere. Where its riders ride is the
+    # same answer and is there straight away.
+    rows = (db.query(ClanMember.clan_id, Trip.start_lat, Trip.start_lon)
+            .join(Trip, Trip.rider_store_id == ClanMember.store_id)
+            .filter(ClanMember.left_at.is_(None), ClanMember.status == "active",
+                    Trip.validation_status == "validated",
+                    Trip.start_lat.isnot(None))
+            .all())
+    for clan_id, tlat, tlon in rows:
+        if clan_id in seen or not near(tlat, tlon):
+            continue
+        seen.add(clan_id)
+        c = db.get(Clan, clan_id)
+        if c is not None and c.disbanded_at is None:
+            out.add(c.colour)
     return out
 
 
@@ -356,6 +374,14 @@ def decide(db, actor: str, clan_id: str, store_id: str, accept: bool) -> None:
              .filter(ClanMember.clan_id == clan_id, ClanMember.store_id == store_id,
                      ClanMember.status.in_(("declined", "declined_seen"))).first())
         if m is not None:
+            # The same two gates the front door has. Without them a leader's Accept put a
+            # rider into a second crew while they were still in a first -- two active rows,
+            # both rosters listing them, one Leave silently dropping them into the other --
+            # and walked them past a cooldown their own join had just been refused for.
+            if membership(db, store_id):
+                raise CrewError("already_in_crew", "They are in another crew.")
+            if cooldown_until(db, store_id):
+                raise CrewError("cooldown", "They are still cooling off from their last crew.")
             m.left_at = None
             m.status = "pending"
     if m is None:
@@ -381,6 +407,9 @@ def last_fold(db, store_id: str) -> dict | None:
     """
     m = (db.query(ClanMember)
          .filter(ClanMember.store_id == store_id, ClanMember.status == "disbanded",
+                 # not the leader who pressed the button: they were shown a confirm dialog
+                 # describing exactly this and then told about it as if it were news
+                 ClanMember.role != "leader",
                  ClanMember.left_at.isnot(None),
                  ClanMember.left_at >= utcnow() - timedelta(days=7))
          .order_by(ClanMember.left_at.desc()).first())
@@ -460,8 +489,13 @@ def remove(db, actor: str, clan_id: str, store_id: str) -> None:
         raise CrewError("not_member", "Not a member of this crew.")
     if m.role == "leader" or (m.role == "officer" and me.role != "leader"):
         raise CrewError("forbidden", "You cannot remove them.")
-    if m.status == "active" and _active_members(db, clan_id) <= 1:
-        raise CrewError("last_member", "There would be nobody left. Disband it instead.")
+    if m.status != "active":
+        # They were never on the crew. Turning a waiting rider down is decide(accept=False),
+        # which tells them the truth; this would have told them they were taken off a crew
+        # they had not joined.
+        raise CrewError("not_member", "They have not joined yet. Decline the request instead.")
+    # No last_member guard: _require_power already needs an active actor and removing
+    # yourself is refused above, so an active target can never be the only one left.
     # "removed", not "active": the cooldown is for people who choose to walk out, and this
     # was not their choice.
     m.status = "removed"
@@ -606,8 +640,12 @@ def unretire(db, clan) -> str | None:
         slug = free_slug(db, name)
     clan.name, clan.slug, clan.disbanded_at = name, slug, None
     back = 0
-    for m in db.query(ClanMember).filter(ClanMember.clan_id == clan.clan_id,
-                                         ClanMember.status == "disbanded").all():
+    # `disbanded_seen` too: last_fold rewrites the mark the moment the rider reads their
+    # notification, so anybody who had looked at their own fold card was being dropped from
+    # the restored crew under a flash saying "restored with its riders".
+    for m in db.query(ClanMember).filter(
+            ClanMember.clan_id == clan.clan_id,
+            ClanMember.status.in_(("disbanded", "disbanded_seen"))).all():
         m.status = "active"
         m.left_at = None
         back += 1
