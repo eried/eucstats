@@ -124,6 +124,8 @@ EN: dict[str, str] = {
     "crew.drawn.soon": "Rode one of these already? The map is redrawing any minute.",
     "crew.targets.takenby": "somebody holds it",
     "crew.targets.drops": "drops them to {n}",
+    "crew.targets.passes": "puts them behind {name}",
+    "crew.targets.youpass": "takes you past them",
     "crew.targets.flips": "comes off {name} when the block lands",
     "crew.targets.got": "done",
     "crew.targets.p0one": "One square to go. Ride {v} inside the marked one and you are on the map.",

@@ -433,6 +433,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} fra {v}",
   "crew.rank.level": "lige med {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "sætter dem bag {name}",
+  "crew.targets.youpass": "sætter jer foran dem",
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -865,6 +867,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} hinter {v}",
   "crew.rank.level": "gleichauf mit {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "setzt sie hinter {name}",
+  "crew.targets.youpass": "bringt euch an ihnen vorbei",
  },
  "es": {
   "dock.riders": "Riders",
@@ -1297,6 +1301,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} de {v}",
   "crew.rank.level": "empatados con {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "los deja detrás de {name}",
+  "crew.targets.youpass": "os pone por delante",
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1729,6 +1735,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} de {v}",
   "crew.rank.level": "empatados con {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "los deja atrás de {name}",
+  "crew.targets.youpass": "los pone por delante",
  },
  "fr": {
   "dock.riders": "Riders",
@@ -2161,6 +2169,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} de {v}",
   "crew.rank.level": "à égalité avec {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "les fait passer derrière {name}",
+  "crew.targets.youpass": "vous fait passer devant",
  },
  "it": {
   "dock.riders": "Rider",
@@ -2593,6 +2603,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} da {v}",
   "crew.rank.level": "pari con {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "li manda dietro a {name}",
+  "crew.targets.youpass": "vi porta davanti a loro",
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -3025,6 +3037,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{v}まで{n}",
   "crew.rank.level": "{v}と同じ",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "{name}の下に落とす",
+  "crew.targets.youpass": "相手を抜く",
  },
  "ko": {
   "dock.riders": "라이더",
@@ -3457,6 +3471,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{v}까지 {n}",
   "crew.rank.level": "{v}와 동률",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "{name} 아래로 떨어뜨린다",
+  "crew.targets.youpass": "그들을 제친다",
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -3889,6 +3905,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} van {v}",
   "crew.rank.level": "gelijk met {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "zet ze achter {name}",
+  "crew.targets.youpass": "zet je voor ze",
  },
  "no": {
   "dock.riders": "Førere",
@@ -4321,6 +4339,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} fra {v}",
   "crew.rank.level": "likt med {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "setter dem bak {name}",
+  "crew.targets.youpass": "setter dere foran dem",
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -4753,6 +4773,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} do {v}",
   "crew.rank.level": "na równi z {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "spycha ich za {name}",
+  "crew.targets.youpass": "wysuwa was przed nich",
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -5185,6 +5207,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} do {v}",
   "crew.rank.level": "empatado com {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "joga eles atrás do {name}",
+  "crew.targets.youpass": "põe vocês na frente",
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -5617,6 +5641,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} до {v}",
   "crew.rank.level": "вровень с {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "отбрасывает их за {name}",
+  "crew.targets.youpass": "выводит вас вперёд",
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -6049,6 +6075,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} från {v}",
   "crew.rank.level": "jämnt med {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "sätter dem bakom {name}",
+  "crew.targets.youpass": "sätter er före dem",
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -6481,6 +6509,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{v}'ye {n}",
   "crew.rank.level": "{v} ile başa baş",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "onları {name}'in gerisine düşürür",
+  "crew.targets.youpass": "sizi onların önüne geçirir",
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -6913,6 +6943,8 @@ TRANSLATIONS = {
   "crew.rank.off": "{n} до {v}",
   "crew.rank.level": "нарівні з {v}",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "відкидає їх за {name}",
+  "crew.targets.youpass": "виводить вас уперед",
  },
  "zh": {
   "dock.riders": "骑友",
@@ -7345,6 +7377,8 @@ TRANSLATIONS = {
   "crew.rank.off": "距 {v} 还差 {n}",
   "crew.rank.level": "与 {v} 持平",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "把他们挤到 {name} 后面",
+  "crew.targets.youpass": "让你们超过他们",
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -7777,5 +7811,7 @@ TRANSLATIONS = {
   "crew.rank.off": "距 {v} 還差 {n}",
   "crew.rank.level": "與 {v} 持平",
   "crew.who.share": "{n}%",
+  "crew.targets.passes": "把他們擠到 {name} 後面",
+  "crew.targets.youpass": "讓你們超過他們",
  },
 }

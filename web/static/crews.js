@@ -1019,6 +1019,27 @@
   // The squares this crew could take next. Until this existed the mode could say a tile was
   // contested but never where to go, which is the one thing a map mode about choosing routes
   // has to do.
+  // Who the holder would fall behind if this square went. The board is sorted and carries
+  // `best_tiles` on every entry, so this is arithmetic on what the browser already has.
+  function myName() {
+    return ME && ME.crew ? ME.crew.name : null;
+  }
+
+  function passes(x) {
+    if (!TERR || !TERR.crews || !x.held_name || !(x.ranked_was > x.ranked_now)) return null;
+    var board = TERR.crews.slice().sort(function (a, b) {
+      return (b.best_tiles || 0) - (a.best_tiles || 0);
+    });
+    var i = -1;
+    board.forEach(function (c, n) { if (c.name === x.held_name) i = n; });
+    if (i < 0) return null;
+    for (var k = i + 1; k < board.length; k++) {
+      var below = board[k].best_tiles || 0;
+      if (x.ranked_now < below) return board[k].name;   // they fall behind this one
+    }
+    return null;
+  }
+
   function targetsHTML(rows) {
     TARGETS = rows || [];
     TARGETSEL = -1;
@@ -1053,10 +1074,16 @@
             // Below the three-square bar, say what their number becomes. One square off the
             // patch the board ranks them on is true of every border square and is the only
             // thing on the card shaped like catching somebody.
-            // The row already names them, so the tag does not. And only when the board would
-            // actually move: taking a square off a detached outpost costs them tiles and
-            // nothing on the ladder.
-            : x.ranked_was > x.ranked_now
+            // Only when it changes something. Every border square costs a rival one, so
+            // printing that on all eight rows is a badge nobody reads -- the mistake the
+            // kill badge made before it. Worth a line when the square costs them more than
+            // one, or when it drops them past somebody on the board.
+            : passes(x)
+              ? '<span class="crewtag ' + (passes(x) === myName() ? "kills" : "drops") + '">'
+                + (passes(x) === myName()
+                   ? t("crew.targets.youpass")
+                   : t("crew.targets.passes", { name: esc(passes(x)) })) + "</span>"
+            : x.ranked_was - x.ranked_now > 1
               ? '<span class="crewtag drops">'
                 + t("crew.targets.drops", { n: x.ranked_now }) + "</span>"
             : "";
