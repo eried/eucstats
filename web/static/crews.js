@@ -1179,6 +1179,11 @@
                 && !saidGrow[x.grown]
               ? ((saidGrow[x.grown] = 1), '<span class="crewtag joins">'
                 + t("crew.targets.grows", { n: x.grown }) + "</span>")
+            // Below the stray mark, not above it. A square that links two patches but leaves
+            // the ranked number where it was got "2 to link up", which implies the opposite
+            // of the one true thing about it.
+            : typeof x.grown === "number" && x.grown <= (x.own_now || 0)
+              ? '<span class="crewtquiet">' + t("crew.targets.stray") + "</span>"
             : x.links && !saidLink[x.links]
               ? ((saidLink[x.links] = 1), '<span class="crewtag joins">'
                 + t("crew.targets.links", { n: x.links }) + "</span>")
@@ -1287,10 +1292,15 @@
   function widest(rows) {
     var n = 7;
     (rows || []).forEach(function (x) {
-      var w = (x.blocked ? "" : effort(x.need, x.y) + " " + fmtKm(x.need)).length;
+      // Blocked rows too. They render `crew.targets.blocked` into this very column, and
+      // measuring them as empty made the column too narrow for the one string that is
+      // longest: 36 characters in Danish, past the cap in eight locales, two rows of six
+      // standing at double height on a list whose whole job is to be scannable.
+      var w = (x.blocked ? t(x.first ? "crew.targets.got" : "crew.targets.blocked")
+                         : effort(x.need, x.y) + " " + fmtKm(x.need)).length;
       if (w > n) n = w;
     });
-    return Math.min(n + 1, 26);
+    return Math.min(n + 1, 38);
   }
 
   // The other half of the game. Every band and every shortfall is already in TERR.cells, so
