@@ -11,6 +11,8 @@ sys.path.insert(0, str(ROOT))
 os.environ["EUCSTATS_DATA_DIR"] = tempfile.mkdtemp(prefix="eucstats-test-")
 os.environ.setdefault("EUCSTATS_ATTESTATION_MODE", "stub")
 
+import hashlib
+
 import pytest
 
 
@@ -50,8 +52,16 @@ def db():
 
 
 def HANDLE(store_id: str) -> str:
-    """The handle a test rider gets. Readable, and never the store_id itself."""
-    return f"h-{store_id}"
+    """The handle a test rider gets: deterministic, and containing nothing of the store_id.
+
+    This was `h-{store_id}`, which a reviewer's finding showed to be the wrong shape. They
+    found a real row on the dev machine whose handle was exactly that -- written there by a
+    stray script running this fixture against the real database -- read the handle out of the
+    API, guessed the store_id by stripping the prefix, and minted a working session with it.
+    `_handle` now re-mints any handle that contains the store_id it stands for, so a fixture
+    producing that shape would be a fixture testing something the code refuses to do.
+    """
+    return "h" + hashlib.sha1(store_id.encode()).hexdigest()[:12]
 
 
 @pytest.fixture(autouse=True)

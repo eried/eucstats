@@ -503,6 +503,14 @@ def set_role(db, actor: str, clan_id: str, store_id: str, role: str) -> None:
                  ClanMember.left_at.is_(None)).first())
     if m is None:
         raise CrewError("not_member", "Not a member of this crew.")
+    # The same guard `remove()` carries, which this did not: without it an officer could set
+    # the leader's role to member and walk away from a crew with nobody in charge -- the
+    # leaderless shell leave() and disband() are written to prevent, reachable by anybody the
+    # leader had handed a badge to. An officer may still stand down themselves.
+    if m.role == "leader" and me.role != "leader":
+        raise CrewError("forbidden", "Only the leader can do that.")
+    if m.role == "officer" and me.role != "leader" and store_id != actor:
+        raise CrewError("forbidden", "Only the leader can do that.")
     if role == "leader":
         me.role = "officer"
     m.role = role

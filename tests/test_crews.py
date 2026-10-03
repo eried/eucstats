@@ -543,3 +543,60 @@ def test_the_last_one_out_still_closes_the_crew_behind_them(db):
     assert c.disbanded_at is not None, "nobody is in it; it does not stay in the join list"
     told = crews.last_fold(db, "lo2")
     assert told and told["crew"] == "Lights Out", "the rider waiting has to hear about it"
+
+
+def test_an_officer_cannot_depose_the_leader(db):
+    """`remove()` has carried this guard since it was written; `set_role` never had it. An
+    officer could set the leader's role to member and walk away from a crew with nobody in
+    charge -- the leaderless shell leave() and disband() exist to prevent, reachable by
+    anybody the leader had trusted with a badge."""
+    _rider(db, "ld")
+    _rider(db, "of")
+    c = crews.create(db, "ld", "Chain Of Command", join_policy="open")
+    crews.join(db, "of", c.clan_id)
+    crews.set_role(db, "ld", c.clan_id, "of", "officer")
+
+    with pytest.raises(crews.CrewError) as e:
+        crews.set_role(db, "of", c.clan_id, "ld", "member")
+    assert e.value.code == "forbidden"
+
+    lead = (db.query(ClanMember)
+            .filter(ClanMember.clan_id == c.clan_id, ClanMember.role == "leader",
+                    ClanMember.left_at.is_(None)).all())
+    assert len(lead) == 1 and lead[0].store_id == "ld", "somebody is still in charge"
+
+
+def test_an_officer_cannot_demote_a_fellow_officer(db):
+    """The panel offered the button and the server refused it, rendering "Only a leader or
+    officer can do that" at somebody who is one. Only the leader outranks an officer."""
+    _rider(db, "o1")
+    _rider(db, "o2")
+    _rider(db, "boss")
+    c = crews.create(db, "boss", "Two Badges", join_policy="open")
+    for sid in ("o1", "o2"):
+        crews.join(db, sid, c.clan_id)
+        crews.set_role(db, "boss", c.clan_id, sid, "officer")
+
+    with pytest.raises(crews.CrewError) as e:
+        crews.set_role(db, "o1", c.clan_id, "o2", "member")
+    assert e.value.code == "forbidden"
+    # but standing down yourself is still yours to do
+    crews.set_role(db, "o1", c.clan_id, "o1", "member")
+    assert crews.membership(db, "o1").role == "member"
+    # and the leader can still do either
+    crews.set_role(db, "boss", c.clan_id, "o2", "member")
+    assert crews.membership(db, "o2").role == "member"
+
+
+def test_a_rider_waiting_to_be_let_in_is_not_riding_for_that_crew(db):
+    """The panel badged a pending rider MEMBER and told them "you ride for them", while this
+    function -- the one that decides what a trip is stamped with -- requires an active
+    membership. A week of riding for nobody, with the card saying it counted."""
+    _rider(db, "wait")
+    _rider(db, "chief")
+    c = crews.create(db, "chief", "Picky Two", join_policy="approval")
+    crews.join(db, "wait", c.clan_id)
+    assert crews.membership(db, "wait").status == "pending"
+    assert crews.current_clan_id(db, "wait") is None, "their rides are stamped with no crew"
+    crews.decide(db, "chief", c.clan_id, "wait", accept=True)
+    assert crews.current_clan_id(db, "wait") == c.clan_id

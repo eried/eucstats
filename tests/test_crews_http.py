@@ -455,3 +455,33 @@ def test_an_officer_is_not_offered_buttons_aimed_at_themselves(client, db):
     assert me["role"] == "officer"
     mine = [x for x in me["roster"] if x["store_id"] == me["handle"]]
     assert len(mine) == 1, "the reader has to be findable in their own roster"
+
+
+def test_an_admin_pass_is_refused_at_the_rider_door(client, db):
+    """The strip that keeps `store_id` out of the poll body sat inside the branch that mints a
+    rider session. An admin pairing returns no session, so it fell straight past -- and the
+    public, unauthenticated rider route answered with the raw store_id and consumed the
+    pairing doing it."""
+    _rider(db, "chief2")
+    p = pairing.start(db, purpose="admin")
+    pairing.confirm(db, p["code"], "chief2")
+    r = client.get("/api/v1/pair/poll", params={"token": p["token"]})
+    assert r.status_code == 410, r.text
+    assert "chief2" not in r.text
+
+
+def test_a_handle_that_echoes_the_store_id_is_replaced(client, db):
+    """A handle has one job: to be publishable where the store_id is not. A row whose handle
+    contains the store_id fails that job while looking fine, and a reviewer found such a row
+    and rode it to a working session -- read the handle, strip the prefix, confirm a pairing.
+    Both minters make random hex, so a row like that can only come from something else."""
+    from web.crews_api import _handle
+    _rider(db, "echo")
+    r = db.query(Rider).filter(Rider.store_id == "echo").one()
+    r.public_id = "h-echo"          # the shape the reviewer found in the wild
+    db.commit()
+
+    h = _handle(db, "echo")
+    assert "echo" not in h, f"the handle still gives the store_id away: {h}"
+    db.refresh(r)
+    assert r.public_id == h, "and the row is fixed, not just the answer"

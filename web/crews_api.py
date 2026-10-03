@@ -48,11 +48,12 @@ def _handle(db: Session, store_id: str) -> str:
     r = db.get(Rider, store_id)
     if r is None:
         return ""
-    if not r.public_id:
-        # Both the insert listener and the startup backfill should have made this impossible,
-        # which is exactly why falling back to the store_id was the one leak nobody would
-        # ever see fire. Mint the handle instead: the caller gets something publishable and
-        # the row is fixed for good.
+    # A handle has one job: to be publishable where the store_id is not. A row whose handle
+    # IS the store_id, or merely contains it, fails that job while looking fine -- and a
+    # reviewer found exactly such a row on this machine and rode it all the way to a working
+    # session. Both minters produce random hex, so this can only come from data written by
+    # something else; re-mint rather than trust it.
+    if not r.public_id or store_id in r.public_id:
         r.public_id = secrets.token_hex(8)
         db.commit()
     return r.public_id
@@ -153,6 +154,12 @@ def pair_poll(token: str, response: Response, db: Session = Depends(get_db)):
         res = pairing.poll(db, token)
     except pairing.PairError as e:
         raise _perr(410, e)
+    # An admin pass does not belong on the rider's door at all. The branch that mints one
+    # returns no `session`, so it fell straight past the strip below and handed the raw
+    # store_id to an unauthenticated browser route -- and burned the pairing doing it.
+    if res.get("scope") == "admin":
+        raise _perr(410, pairing.PairError(
+            "wrong_screen", "That code is for the admin screen, not this one."))
     if res.get("session"):
         # `store_id` goes no further than this function for the same reason `session` does
         # not: the browser can replay either one into `pair/confirm`.
@@ -356,19 +363,26 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                 # Refusals from the last week, so a leader who changed their mind has
                 # somewhere to do it. crews.decide(accept=True) reopens the request.
                 since = utcnow() - timedelta(days=7)
+                def _declined(sid):
+                    # Both lookups once per row. Written inline, this ran `membership` and
+                    # `cooldown_until` for `free` and again for `why`, and `cooldown_until`
+                    # calls `membership` itself -- about three and a half queries a row,
+                    # which put back the N+1 that the roster pass above had just taken out.
+                    in_crew = crews.membership(db, sid) is not None
+                    cooling = False if in_crew else bool(crews.cooldown_until(db, sid))
+                    return {
+                        "store_id": _hd(sid), "name": _nm(sid),
+                        # Whether letting them in could work. Without it the button is
+                        # offered every day for a week to a rider who has since joined
+                        # elsewhere, and fails identically every time.
+                        "free": not in_crew and not cooling,
+                        # Which of the two, because the row printed "in another crew now"
+                        # for a rider who had joined nobody and is simply on a cooldown --
+                        # the leader was told they had lost somebody who is back in days.
+                        "why": "crew" if in_crew else "cooldown" if cooling else None}
+
                 out["declined"] = [
-                    {"store_id": _hd(p.store_id), "name": _nm(p.store_id),
-                     # Whether letting them in could work. Without it the button is offered
-                     # every day for a week to a rider who has since joined elsewhere, and
-                     # fails identically every time.
-                     "free": not crews.membership(db, p.store_id)
-                             and not crews.cooldown_until(db, p.store_id),
-                     # Which of the two, because the row was printing "in another crew now"
-                     # for a rider who had joined nobody and is simply on a cooldown -- the
-                     # leader was told they had lost somebody who is back in a few days.
-                     "why": ("crew" if crews.membership(db, p.store_id)
-                             else "cooldown" if crews.cooldown_until(db, p.store_id)
-                             else None)}
+                    _declined(p.store_id)
                     for p in db.query(ClanMember).filter(
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status.in_(("declined", "declined_seen")),

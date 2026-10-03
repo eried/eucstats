@@ -1148,8 +1148,13 @@
             + '<span class="crewtwho">'
             + (x.at && !onePlace ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
             + '<i class="' + (rw ? "rpt" : "") + '">' + who
-            + (stand && !rw ? ' <u>' + esc(ordinal(stand.place)) + " \u00b7 "
-                        + esc(t("crew.tiles", { n: stand.tiles })) + "</u>" : "")
+            // `tiles()` and not `t("crew.tiles")`, so Russian, Polish and Ukrainian get
+            // their own plural forms; and "in one piece", because this number is the
+            // biggest patch the board ranks on, while the hero two lines up uses the
+            // bare phrase for the total. One card said "N squares" about two things.
+            + (stand && !rw ? ' <u>' + esc(ordinal(stand.place)) + " · "
+                        + esc(tiles(stand.tiles)) + " " + esc(t("crew.mine.ao"))
+                        + "</u>" : "")
             + "</i></span>"
             + tag + "</div>";
         }).join("");
@@ -1639,7 +1644,15 @@
       var pod = H.t("pod." + n);
       if (pod && pod.indexOf("pod.") !== 0) return pod.toLowerCase();
     }
-    return t("crew.rank.nth", { n: n });
+    var s = t("crew.rank.nth", { n: n });
+    // English is the only locale whose suffix is irregular, and the only one whose template
+    // ends in "th" -- every other table carries its own correct form ("{n}.", "{n}e",
+    // "{n}位"). Without this the board read "21th", "22th", "31th" past the podium.
+    if (/th$/.test(s) && !(n % 100 >= 11 && n % 100 <= 13)) {
+      var tail = { 1: "st", 2: "nd", 3: "rd" }[n % 10];
+      if (tail) return s.slice(0, -2) + tail;
+    }
+    return s;
   }
 
   // Where the crew holding a square stands, so a row says what the prize is worth. Six rows
@@ -1668,9 +1681,15 @@
       + '<div class="crewhead">'
       + '<img class="crewlogo" src="' + c.emblem + '" alt=""/>'
       + "<div><h3>" + esc(c.name) + "</h3>"
-      + '<div class="crewmeta">' + standing(c.slug) + riders(c.members) + " · "
-      + t(me.role === "leader" ? "crew.mine.youare"
-          : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember")
+      + '<div class="crewmeta">' + standing(c.slug) + riders(c.members)
+      // Nothing about your standing in a crew that has not answered you yet.
+      // `me.role` is "member" for a pending row, so this badged them MEMBER and said
+      // "you ride for them" -- while current_clan_id requires an active membership, so
+      // every trip they uploaded was stamped with no crew at all. A week of riding for
+      // nobody, with the card saying it counted.
+      + (me.status === "pending" ? ""
+         : " · " + t(me.role === "leader" ? "crew.mine.youare"
+             : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember"))
       + "</div></div></div>";
     if (me.status === "pending") {
       h += '<div class="crewmsg">' + t("crew.join.pending") + "</div>";
@@ -1712,8 +1731,12 @@
             // Your own row. Remove answered 400 `not_yourself` on every press, and Stand
             // down worked -- it stripped the clicker's own powers and took the roster panel
             // with it. There is a way to step back further down the card; it is not this.
+            // Nothing an officer presses on another officer can work: the server
+            // refuses both, and the refusal it renders reads "Only a leader or officer
+            // can do that" at somebody who is one. Only the leader outranks an officer.
             var btn = x.store_id && x.store_id === me.handle ? ""
               : x.role === "leader" ? ""
+              : x.role === "officer" && me.role !== "leader" ? ""
               : '<button class="crewbtn mini ghost" data-role="'
                 + (x.role === "officer" ? "member" : "officer") + '" data-sid="'
                 + esc(x.store_id || "") + '">'
