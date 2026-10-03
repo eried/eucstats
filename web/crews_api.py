@@ -273,8 +273,17 @@ def _rebuild_every(db) -> int:
 
 
 @router.get("/crews/me")
-def crews_me(request: Request, db: Session = Depends(get_db)):
-    """The state the crew panel renders from: session, membership, and what it may do."""
+def crews_me(request: Request, response: Response, db: Session = Depends(get_db)):
+    """The state the crew panel renders from: session, membership, and what it may do.
+
+    Never cached, anywhere. This answer depends on a cookie and carries the rider's handle,
+    their crew's invite code, the roster, who is waiting to be let in and who has been turned
+    away. `/territory` beside it sets `public, max-age=60` because it is the same for
+    everybody; this one is the same for nobody, and a shared cache in front of it would hand
+    one rider another crew's panel.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
     cfg = _gate(db)
     ws = _me(request, db)
     if ws is None:
@@ -513,7 +522,13 @@ def _clan_by_slug(db: Session, slug: str) -> Clan:
 
 
 @router.get("/crews/{slug}")
-def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
+def crew_detail(slug: str, request: Request, response: Response,
+                db: Session = Depends(get_db)):
+    # Same reason as `/crews/me`: what comes back depends on whether the reader is in this
+    # crew, and for a member it includes `targets` -- which the comment further down calls a
+    # crew's plan for its own week, and not a thing the site hands out.
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
     _gate(db)
     clan = _clan_by_slug(db, slug)
     out = _crew_brief(db, clan)

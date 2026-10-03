@@ -1235,8 +1235,16 @@
     rows.sort(function (a, b) {
       return (urgency[a.band] - urgency[b.band]) || (a.need - b.need);
     });
-    var hidden = Math.max(0, rows.length - 5);
-    LOSING = rows.slice(0, 5);
+    // Never hide a square somebody is actually riding. At a flat cut of five, a crew with
+    // seventeen losable squares had twelve hidden behind "and 12 more going quiet" -- and six
+    // of those twelve had a named rival closing in on them. A leader who trusts that line
+    // does not defend them. Everything in band 1 or 2 is shown; only ground going cold on its
+    // own is ever folded into the count, which is the one thing that sentence can truthfully
+    // describe.
+    var urgent = rows.filter(function (r) { return r.band !== 3; });
+    var cold = rows.filter(function (r) { return r.band === 3; });
+    LOSING = urgent.concat(cold.slice(0, Math.max(0, 5 - urgent.length)));
+    var hidden = rows.length - LOSING.length;
     // bearings from the middle of everything the crew holds, not from the middle of the five
     // rows: with one row those are the same point and the direction comes out empty
     var cx = 0, cy = 0;
@@ -1548,8 +1556,12 @@
     return '<div class="crewcard">'
       + "<h3>" + t("crew.new.h") + "</h3>"
       + '<p class=hint>' + t("crew.new.p") + "</p>"
-      + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28" placeholder="Nordlys Collective"></label>'
-      + "<label>" + t("crew.new.desc") + '<input id="cf-desc" maxlength="280" placeholder="Oslo, mostly after dark."></label>'
+      // No ghost text. It was "Nordlys Collective" and "Oslo, mostly after dark." --
+      // hardcoded English in all eighteen locales, and the name and description of
+      // crew #8 on the board, visible in the join list directly under this form. A
+      // rider who took the hint got `name_taken`.
+      + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28">' + "</label>"
+      + "<label>" + t("crew.new.desc") + '<input id="cf-desc" maxlength="280">' + "</label>"
       + '<div class="crewidentrow">'
       + '<div class="crewpreview">' + swatch(ident.colour, ident.pattern, 62) + "</div>"
       + "<div class=crewpickwrap><div class=crewidentl>" + t("crew.new.colours") + "</div>"
@@ -2238,11 +2250,23 @@
     // marking nothing left you on a map with no way to tell which square you were sent to
     showTargets(TARGETS, i == null ? x : null);
     if (window.innerWidth <= 560) H.closePanel && H.closePanel();
+    // On a phone the panel is gone by now and the centre is the centre. On a desktop it is
+    // still there, roughly the middle half of the window, so flying the square to dead centre
+    // put it behind the card that had just said "Tap it to find it". Shift the camera by half
+    // the panel so the square lands in the free part of the map.
+    var pane = document.querySelector(".panel, .pbody");
+    var off = [0, 0];
+    if (window.innerWidth > 560 && pane) {
+      var r = pane.getBoundingClientRect();
+      if (r.width > 0 && r.width < window.innerWidth - 80) {
+        off = [(r.left + r.right) / 2 - window.innerWidth / 2, 0];
+      }
+    }
     // Close enough to find the street, far enough to still see it against the crew's own
     // ground. Flying to 13.2 put one square across the whole screen, which answers "where is
     // it" with a picture of nowhere. A reader already zoomed in keeps their zoom.
     map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 11.8),
-                duration: 1600, essential: true });
+                offset: off, duration: 1600, essential: true });
   }
 
   // The same squares, marked on the ground. A list of distances is a table; a ring around the

@@ -485,3 +485,23 @@ def test_a_handle_that_echoes_the_store_id_is_replaced(client, db):
     assert "echo" not in h, f"the handle still gives the store_id away: {h}"
     db.refresh(r)
     assert r.public_id == h, "and the row is fixed, not just the answer"
+
+
+def test_the_panel_routes_refuse_to_be_cached(client, db):
+    """Both answers depend on a cookie. `/crews/me` carries the rider's handle, their crew's
+    invite code, the roster, who is waiting and who was turned away; `/crews/{slug}` carries
+    `targets`, which this module calls a crew's plan for its own week. `/territory` beside
+    them is `public, max-age=60` because it is the same for everybody. A shared cache in front
+    of these two would hand one rider another crew's panel."""
+    _rider(db, "cc1")
+    _signed_in(client, db, "cc1")
+    r = client.post("/api/v1/crews", json={"name": "No Cache", "join_policy": "open"})
+    assert r.status_code == 200, r.text
+    clan = db.query(Clan).filter(Clan.name == "No Cache").one()
+
+    for url in ("/api/v1/crews/me", f"/api/v1/crews/{clan.slug}"):
+        res = client.get(url)
+        assert res.status_code == 200, res.text
+        cc = res.headers.get("cache-control", "")
+        assert "no-store" in cc and "private" in cc, f"{url} -> {cc!r}"
+        assert "Cookie" in res.headers.get("vary", ""), f"{url} vary: {res.headers.get('vary')!r}"

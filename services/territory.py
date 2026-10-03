@@ -943,11 +943,17 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         lost = len(theirs) - len(left)
         # Measured over every held square of every crew in the demo world: 520 squares, of
         # which 59 (11.3%) cost their holder two or more and 31 (6.0%) cost three or more.
-        # With the one-per-victim rule below and the ranked-move gate the card applies, the
-        # bar at 3 fired once in the whole world, which is a feature nobody meets. At 2 it is
-        # the exception rather than the rule and a rider actually runs into one. Rebuild the
-        # same world with the commands in scripts/seed_demo.py's docstring if you want to
-        # re-measure before moving it again.
+        # At 3, with the one-per-victim rule below, this fired once in the whole world, which
+        # is a feature nobody meets. Rebuild the same world with the commands in
+        # scripts/seed_demo.py's docstring if you want to re-measure before moving it again.
+        #
+        # The gate below is the other half, and it used to live only in a comment: an earlier
+        # version of this one claimed the card refused to print the badge unless the board
+        # moved. The card does that for `drops` and never did it for `kills`, so one row in
+        # six announced BREAKS THEIR BLOCK beside a standing line advertising the victim as
+        # 1st with 91 squares -- and 91 was also what they had afterwards. Breaking a
+        # detached outpost takes squares off a crew without touching the number anybody is
+        # ranked on, and the badge is about the ranking.
         t["kills"] = lost >= 2
         # What the board would actually show them afterwards. `lost` counts every square they
         # drop anywhere, and the board ranks the biggest single patch, so a square taken off
@@ -958,6 +964,10 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         t["lost"] = lost
         t["ranked_now"] = after
         t["ranked_was"] = before
+        # Said plainly here rather than trusted to the card: if the board does not move, this
+        # is not the move the badge says it is.
+        if before <= after:
+            t["kills"] = False
     # a square that takes a crew off the map outranks everything except being on the map
     # yourself, which is the same move from the other side
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
