@@ -362,7 +362,13 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                      # every day for a week to a rider who has since joined elsewhere, and
                      # fails identically every time.
                      "free": not crews.membership(db, p.store_id)
-                             and not crews.cooldown_until(db, p.store_id)}
+                             and not crews.cooldown_until(db, p.store_id),
+                     # Which of the two, because the row was printing "in another crew now"
+                     # for a rider who had joined nobody and is simply on a cooldown -- the
+                     # leader was told they had lost somebody who is back in a few days.
+                     "why": ("crew" if crews.membership(db, p.store_id)
+                             else "cooldown" if crews.cooldown_until(db, p.store_id)
+                             else None)}
                     for p in db.query(ClanMember).filter(
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status.in_(("declined", "declined_seen")),
@@ -543,15 +549,16 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
                 # Living crews only. A folded crew keeps its row and carries a retirement
                 # tag in its name, which was being printed at riders as
                 # "Spree Shift (folded a1b2c3) has it".
-                rows = (db.query(Clan.clan_id, Clan.name, Clan.terr_best_tiles)
+                rows = (db.query(Clan.clan_id, Clan.name)
                         .filter(Clan.clan_id.in_(ids),
                                 Clan.disbanded_at.is_(None)).all())
-                names = {r[0]: (r[1], r[2] or 0) for r in rows}
+                names = {r[0]: (r[1],) for r in rows}
                 for t in out["targets"]:
                     hit = names.get(t.get("held_by"))
                     t["held_name"] = hit[0] if hit else None
-                    # what their ranked number becomes if this square goes
-                    t["held_tiles"] = hit[1] if hit else 0
+                    # `held_tiles` used to ride along here with the holder's ranked number.
+                    # The card gets both that and their place from the board it already has,
+                    # so this was the same number shipped twice, once per target.
             for t in out["targets"]:
                 t["held_by"] = bool(t.get("held_by"))
     return out

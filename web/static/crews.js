@@ -1644,17 +1644,22 @@
 
   // Where the crew holding a square stands, so a row says what the prize is worth. Six rows
   // naming one rival and nothing about them is a list of errands.
+  // Worked out once per board rather than once per row: this sorted the whole crew list on
+  // every row it rendered to answer the same question eight times.
+  var STAND = null, STAND_FOR = null;
+
   function holderStanding(name) {
     if (!TERR || !TERR.crews || !name) return null;
-    var board = TERR.crews.slice().sort(function (a, b) {
-      return (b.best_tiles || 0) - (a.best_tiles || 0);
-    });
-    for (var i = 0; i < board.length; i++) {
-      if (board[i].name === name) {
-        return { place: i + 1, tiles: board[i].best_tiles || 0 };
-      }
+    if (STAND_FOR !== TERR.crews) {
+      STAND = {};
+      TERR.crews.slice().sort(function (a, b) {
+        return (b.best_tiles || 0) - (a.best_tiles || 0);
+      }).forEach(function (c, i) {
+        if (c.name && !STAND[c.name]) STAND[c.name] = { place: i + 1, tiles: c.best_tiles || 0 };
+      });
+      STAND_FOR = TERR.crews;
     }
-    return null;
+    return STAND[name] || null;
   }
 
   function myCrewHTML(me) {
@@ -1684,7 +1689,9 @@
               + (x.free
                  ? '<button class="crewbtn mini ghost" data-undecline="'
                    + esc(x.store_id || "") + '">' + t("crew.decl.undo") + "</button>"
-                 : '<span class="crewgone">' + t("crew.decl.gone") + "</span>")
+                 : '<span class="crewgone">'
+                   + t(x.why === "cooldown" ? "crew.join.wait.h" : "crew.decl.gone")
+                   + "</span>")
               + "</div>";
           }).join("") + "</div>";
     }
