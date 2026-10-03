@@ -212,7 +212,11 @@ a.crewqr { display: flex; text-decoration: none; }
 /* a bar rather than a second number: the shape of who carries the crew reads at a glance */
 .crewcbar { flex: 1; height: 5px; background: rgba(255,255,255,.07); min-width: 24px; }
 .crewcbar i { display: block; height: 100%; background: var(--sec, #ff8ad8); }
-.crewckm { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--mut, #9aa6c8); }
+/* A fixed width, so the bar beside it is the same length on every row. Sized to its own
+   text, "419 km 41%" and "31 km 3%" gave four contributor tracks of 238, 238, 234 and
+   249px -- four different 100% reference lines and a 15px ragged right edge. */
+.crewckm { flex: 0 0 9.5ch; text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--mut, #9aa6c8); }
 .crewrole { margin-left: 5px; font-size: 11px; }
 .crewrole.lead { color: #ffd24a; }
 .crewrole.off { color: #8ef0c0; }
@@ -520,7 +524,11 @@ a.crewqr { display: flex; text-decoration: none; }
    phone there is no hover to bring it back. */
 /* An explicit colour rather than a second opacity: on a `done` row the two multiplied down
    to 2.5:1 against the card, which is below any threshold worth naming. */
-.crewtrow .rpt { color: color-mix(in srgb, var(--mut, #9aa6c8) 78%, transparent); }
+/* 78% of the muted colour was a step nobody could see: a reviewer could not tell row 1's
+   holder line from row 2's in their own screenshot, so eight identical sentences still
+   read as eight. Far enough back now that the eye skips it and goes to the row that
+   says something new. */
+.crewtrow .rpt { color: color-mix(in srgb, var(--mut, #9aa6c8) 45%, transparent); }
 .crewtrow:hover .rpt { color: var(--mut, #9aa6c8); }
 
 
@@ -766,3 +774,14 @@ a.crewqr { display: flex; text-decoration: none; }
 /* Where the crew holding this square stands. Quiet, because it is context for the name
    beside it rather than a third fact competing with the two above. */
 .crewtwho u { text-decoration: none; opacity: .72; }
+
+/* Worth one square: the same sentence the chip carries, without the box or the colour, so a
+   row that has a small reason says it and the chips go on meaning something. */
+.crewtquiet { flex: 0 1 auto; margin-left: auto; max-width: 38%; font-size: 11px;
+  text-align: right; line-height: 1.25; color: var(--mut, #9aa6c8); opacity: .8; }
+@media (max-width: 560px) {
+  .crewtquiet { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }
+}
+/* A name and its role mark are one thing; the phone was wrapping the diamond onto its own
+   line under the name. */
+.crewpendr > span { white-space: nowrap; }

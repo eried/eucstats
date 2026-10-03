@@ -807,6 +807,20 @@
     return '<p class="hint crewdrawn">' + t("crew.drawn.in", { n: mins }) + "</p>";
   }
 
+  // The board's markup is chosen from the width when it is built -- "13 squares" and "1 new
+  // this week" on a desktop, "13" and "+1" on a phone -- and nothing rebuilt it when the
+  // window changed. Narrow a desktop window, or rotate a phone, and the desktop strings stayed
+  // in a phone-width card: names wrapped to three lines and the last column printed past the
+  // card's own border onto the panel background. Only on a crossing, so a drag does not
+  // re-render on every pixel.
+  var LASTTIGHT = null;
+  window.addEventListener("resize", function () {
+    var now = window.innerWidth <= 560;
+    if (LASTTIGHT === null || now === LASTTIGHT) { LASTTIGHT = now; return; }
+    LASTTIGHT = now;
+    if (document.querySelector(".crewboard")) show();
+  });
+
   function rankingHTML(rows) {
     if (!rows || !rows.length) {
       return '<div class="empty">' + t("crew.empty") + "</div>";
@@ -1070,11 +1084,42 @@
     var allFirst = TARGETS.every(function (x) { return x.first; });
     // Four rows of one block are four squares of one neighbourhood, and printing its name
     // four times is the ditto problem in a card that bypasses the dedupe.
-    var onePlace = allFirst && TARGETS.length > 1
+    // It was gated on `allFirst`, so it only ever fired on a first-block card -- and the Oslo
+    // card printed "Oslo" down six of its eight rows. One neighbourhood is one neighbourhood
+    // whatever else the card is saying.
+    var onePlace = TARGETS.length > 1
       && TARGETS.every(function (x) { return x.at && x.at === TARGETS[0].at; });
     var seenWho = {};
+    var seenAt = {};
     var saidPass = {};
     var body = TARGETS.map(function (x, i) {
+          // Worked out before the tag chain, not after it. The chain asks whether this
+          // rival's name has already appeared on the card, and `var` hoisting handed it
+          // `undefined` every time, so the one-per-rival rule never fired and the quiet
+          // reason printed on all seven rows of the sparse card.
+          // contradiction, when what it means is that it comes off them the moment the block
+          // lands.
+          var who = x.first && x.blocked && x.held_by && x.held_name
+            ? t("crew.targets.flips", { name: esc(x.held_name) })
+            : x.held_by && x.held_name
+            ? t("crew.targets.taken", { name: esc(x.held_name) })
+            : x.held_by ? t("crew.targets.takenby")
+            : t("crew.tile.free");
+          // Nothing goes in the number column on a square whose shortfall is zero: riding it
+          // again does nothing, and a word there wore the styling meant for a distance.
+          // A square the crew already leads has nothing to ride, and printed an empty
+          // column: on a first-block card that was three rows in four saying nothing.
+          var km = x.blocked ? t(x.first ? "crew.targets.got" : "crew.targets.blocked")
+                             : effort(x.need, x.y);
+          // only the holder: rows are deduplicated on effort, place and holder -- not the
+          // bearing, which differs without anything differing -- so two rows can share an
+          // effort word and still be different places, and a ditto there would be a mistake.
+          // The holder's standing, printed only where their name is new below: five rows
+          // about one rival printed "1st, 91 squares" five times, which is the same ditto
+          // problem the dimmed repeat beside it already solves.
+          var stand = x.held_name ? holderStanding(x.held_name) : null;
+          var rw = seenWho[who] ? " rpt" : "";
+          seenWho[who] = 1;
           var tag = x.first && !allFirst
             ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
             : x.kills ? '<span class="crewtag kills">'
@@ -1106,6 +1151,14 @@
             : x.ranked_was - x.ranked_now > 1
               ? '<span class="crewtag drops">'
                 + t("crew.targets.drops", { n: x.ranked_now }) + "</span>"
+            // Worth one square. True of most border squares, which is why printing it as a
+            // chip on every row turned it into furniture the round it was introduced -- but
+            // deleting it left 36 rows naming a rival and saying nothing about them at all.
+            // Same sentence, no box, no colour: a reason for the rows that have a small one,
+            // and the chips keep meaning something.
+            : x.held_by && x.ranked_was - x.ranked_now === 1 && !rw
+              ? '<span class="crewtquiet">'
+                + t("crew.targets.drops", { n: x.ranked_now }) + "</span>"
             : "";
           // Not part of the chain above: a square can be the best move in the game AND more
           // than the crew can physically bank, and being told only the first is how somebody
@@ -1116,29 +1169,6 @@
           // A crew that folded between the rebuild and this view has no name to print, and
           // the row came out as " has it" with a leading space and nobody in it.
           // A block square the crew already out-rides: "done" over "they have it" reads as a
-          // contradiction, when what it means is that it comes off them the moment the block
-          // lands.
-          var who = x.first && x.blocked && x.held_by && x.held_name
-            ? t("crew.targets.flips", { name: esc(x.held_name) })
-            : x.held_by && x.held_name
-            ? t("crew.targets.taken", { name: esc(x.held_name) })
-            : x.held_by ? t("crew.targets.takenby")
-            : t("crew.tile.free");
-          // Nothing goes in the number column on a square whose shortfall is zero: riding it
-          // again does nothing, and a word there wore the styling meant for a distance.
-          // A square the crew already leads has nothing to ride, and printed an empty
-          // column: on a first-block card that was three rows in four saying nothing.
-          var km = x.blocked ? t(x.first ? "crew.targets.got" : "crew.targets.blocked")
-                             : effort(x.need, x.y);
-          // only the holder: rows are deduplicated on effort, place and holder -- not the
-          // bearing, which differs without anything differing -- so two rows can share an
-          // effort word and still be different places, and a ditto there would be a mistake.
-          // The holder's standing, printed only where their name is new below: five rows
-          // about one rival printed "1st, 91 squares" five times, which is the same ditto
-          // problem the dimmed repeat beside it already solves.
-          var stand = x.held_name ? holderStanding(x.held_name) : null;
-          var rw = seenWho[who] ? " rpt" : "";
-          seenWho[who] = 1;
           return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
             + '<span class="crewtkm">' + km
             + (x.blocked ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
@@ -1146,7 +1176,8 @@
             // Where, not only which way. A compass bearing from the middle of your own
             // ground is not how anyone reads a map of the city they live in.
             + '<span class="crewtwho">'
-            + (x.at && !onePlace ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
+            + (x.at && !onePlace && !seenAt[x.at]
+               ? ((seenAt[x.at] = 1), '<b class="crewtat">' + esc(x.at) + "</b>") : "")
             + '<i class="' + (rw ? "rpt" : "") + '">' + who
             // `tiles()` and not `t("crew.tiles")`, so Russian, Polish and Ukrainian get
             // their own plural forms; and "in one piece", because this number is the
@@ -1284,7 +1315,11 @@
           seenState[state] = 1;
           return '<div class="crewtrow sel" data-l="' + i + '">'
             + '<span class="crewtkm">' + gap
-            + (x.band === 3 ? "" : ' <i>' + fmtKm(x.need) + "</i>") + "</span>"
+            // Not "0.0 km". A gap under 50 m prints as 0.0 and that is a number saying
+            // nothing, in the most urgent slot in the feature; the phrase beside it ("one lap
+            // and it's theirs") already carries it.
+            + (x.band === 3 || x.need < 0.05 ? "" : ' <i>' + fmtKm(x.need) + "</i>")
+            + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
             + '<span class="crewtwho">'
             + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
@@ -1932,14 +1967,23 @@
         return;
       }
       var terr = r.body.territory || {};     // not `t`: that is the translator
+      // Built before the hero line, because the hero line asks whether the first target is a
+      // first-block square -- and `TARGETS` is assigned inside targetsHTML, which used to be
+      // concatenated on the next line. It was answering from the previous card's array, and
+      // from an empty one the first time the panel opened.
+      var tgt = { html: "", first: false };
+      if (me.status !== "pending") {
+        tgt.html = targetsHTML(r.body.targets);
+        tgt.first = !!(TARGETS.length && TARGETS[0].first);
+      }
       el.innerHTML = '<div class="crewbig">' + tiles(terr.best_tiles || terr.tiles || 0)
         + " <span>" + t("crew.mine.ao") + "</span></div>"
         + '<div class="crewsub">' + fmtKm2(terr.best_km2)
         + (terr.regions > 1 ? " · " + plural(null, "crew.patches.few", "crew.patches", terr.regions) : "")
         + (terr.tiles && terr.tiles !== (terr.best_tiles || terr.tiles)
             ? " · " + t("crew.inall", { v: tiles(terr.tiles) }) : "")
-        + (terr.tiles ? "" : " · " + (TARGETS.length && TARGETS[0].first ? "" : t("crew.mine.start", { n: SEED }))) + "</div>"
-        + (me.status === "pending" ? "" : targetsHTML(r.body.targets) + loseHTML(c.slug))
+        + (terr.tiles ? "" : " · " + (tgt.first ? "" : t("crew.mine.start", { n: SEED }))) + "</div>"
+        + (me.status === "pending" ? "" : tgt.html + loseHTML(c.slug))
         + contributorsHTML(r.body.contributors);
       el.querySelectorAll("[data-t]").forEach(function (row) {
         row.onclick = function () { flyToTile(TARGETS[+row.dataset.t], +row.dataset.t); };
