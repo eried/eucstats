@@ -30,6 +30,9 @@ from i18n import EN                            # noqa: E402
 NL = chr(10)
 JS = (ROOT / "web" / "static" / "crews.js").read_text(encoding="utf-8")
 PUBLIC = (ROOT / "web" / "public.py").read_text(encoding="utf-8")
+# The pairing page a scanned QR lands on lives here, and was hard-coded English in all
+# nineteen locales for as long as this scan read only the two files above.
+API = (ROOT / "web" / "crews_api.py").read_text(encoding="utf-8")
 
 # Keys that may take a bare `{n}`, because nothing in them agrees with it. Each one was read
 # in the locales that inflect -- Russian, Polish, Ukrainian -- before being written down.
@@ -42,13 +45,23 @@ NO_AGREEMENT = {
     "crew.drawn.in": "`{n} min` -- every locale abbreviates the unit, so nothing inflects",
     "crew.who.share": "`{n}%`",
     "crew.rank.nth": "the ordinal template itself, which is what `ordinal()` formats",
+    # the two a ternary key hid from this scan until it stopped requiring a literal
+    "crew.rank.off": "`{n} off {v}` -- read in ru, uk and pl: `на {n} меньше`, `{n} do`, "
+                     "`{n} hinter`. The number is followed by a preposition in every one.",
+    "crew.rank.level": "`level with {v}` -- the count is not in this string at all; it is "
+                       "passed alongside its sibling by one ternary call.",
+    "crew.targets.p": "`{n}x{n}` again, the seed dimension",
+    "crew.targets.p0": "the same dimension",
 }
 
 # A formatted count, rather than a bare one: these produce the agreeing noun themselves.
 FORMATTERS = ("tiles(", "riders(", "days(", "plural(", "fmtKm", "heldFor(", "effort(",
               "fadesIn(", "ordinal(", "daysUntil(")
 
-CALL = re.compile(r"""t\(\s*["'](crew\.[a-zA-Z0-9_.]+)["']\s*,\s*\{([^{}]*)\}""")
+# The whole first argument, not just a literal key: `t(cond ? "a" : "b", {...})` is an
+# ordinary call and sixteen of them were invisible to a pattern that required a quoted string.
+CALL = re.compile(r"""t\(([^(){}]*?),\s*\{([^{}]*)\}""")
+KEY = re.compile(r"""["'](crew\.[a-zA-Z0-9_.]+)["']""")
 
 
 def test_a_count_only_goes_in_bare_where_nothing_agrees_with_it():
@@ -60,17 +73,19 @@ def test_a_count_only_goes_in_bare_where_nothing_agrees_with_it():
     for m in CALL.finditer(JS):
         if a <= m.start() <= b:
             continue
-        key, args = m.group(1), m.group(2)
+        keys, args = KEY.findall(m.group(1)), m.group(2)
+        if not keys:
+            continue                       # not a crews string
         n_arg = re.search(r"\bn\s*:\s*([^,}]+)", args)
         if not n_arg:
             continue
         value = n_arg.group(1).strip()
         if any(f in value for f in FORMATTERS):
             continue                       # already a formatted phrase
-        if key in NO_AGREEMENT:
-            continue
         line = JS[:m.start()].count(NL) + 1
-        loose.append(f"  crews.js:{line}  {key}  n: {value}")
+        for key in keys:                   # a ternary offers two, and both get the count
+            if key not in NO_AGREEMENT:
+                loose.append(f"  crews.js:{line}  {key}  n: {value}")
 
     assert not loose, (
         f"{len(loose)} call(s) pass a bare count into a string whose next word may have to "
@@ -97,7 +112,7 @@ HOOK = {"title": "data-i18n-title", "aria-label": "data-i18n-aria", "alt": "data
 
 def test_no_attribute_carries_english_that_the_tables_cannot_reach():
     bare = []
-    for name, src in (("crews.js", JS), ("public.py", PUBLIC)):
+    for name, src in (("crews.js", JS), ("public.py", PUBLIC), ("crews_api.py", API)):
         for m in ATTR.finditer(src):
             attr, value = m.group(1), m.group(3)
             if not value.strip() or not WORDS.search(value):
@@ -117,3 +132,30 @@ def test_no_attribute_carries_english_that_the_tables_cannot_reach():
         f"These are the strings that never appear on screen, which is exactly why they stay "
         f"English: give them a `data-i18n-*` hook and a key, or name them in RAW_ATTRS with "
         f"the reason they cannot have one." + NL + NL.join(bare))
+
+
+def test_no_i18n_hook_is_written_where_nothing_will_read_it():
+    """A `data-i18n-*` attribute inside a script is a promise `applyI18n()` cannot keep.
+
+    `applyI18n()` walks the served document with `querySelectorAll` at boot and on a language
+    change. A hook written inside a JS string literal is interpolated into panel HTML long
+    after that pass has run, so the node is never visited -- which is how the anonymous-country
+    globe carried `data-i18n-aria="flag.hidden"`, shipped eighteen translations, and went on
+    saying "Country hidden" in every one of them. The attribute test above cannot catch it,
+    because a static check cannot tell whether the pass ever reaches the node.
+
+    Markup that is built at render time names itself at render time: call `t()` there, the way
+    `roleMark()` and `globeSvg()` do.
+    """
+    inside = []
+    for name, src in (("public.py", PUBLIC), ("crews_api.py", API)):
+        for m in re.finditer(r"<script[^>]*>", src):
+            end = src.find("</script>", m.end())
+            body = src[m.end():end if end > 0 else len(src)]
+            for h in re.finditer(r"data-i18n(?:-title|-aria|-alt)?\s*=", body):
+                line = src[:m.end() + h.start()].count(NL) + 1
+                inside.append(f"  {name}:{line}  {body[h.start():h.start() + 40].strip()!r}")
+    assert not inside, (
+        f"{len(inside)} i18n hook(s) are written inside a script, where `applyI18n()`'s pass "
+        f"over the served document will never reach them. Build the markup with a `t()` call "
+        f"instead:" + NL + NL.join(inside))

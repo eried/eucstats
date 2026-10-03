@@ -132,7 +132,7 @@ svg.ic{width:18px;height:18px;display:block}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}
 .dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}.dock button[data-p=crews]{--sec:#ff8ad8}
-.panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:min(76dvh,calc(100dvh - var(--panres)));max-height:760px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
+.panel{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(150%);opacity:0;visibility:hidden;z-index:550;width:min(94vw,720px);height:min(76dvh,calc(100dvh - var(--panres)));max-height:760px;overflow:clip;display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.65);transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .26s}
 .panel.open{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
 .panel{transform-origin:50% 100%;border-top-width:2px;border-top-color:color-mix(in srgb,var(--sec,var(--acc)) 62%,transparent);box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 0 70px -52px var(--sec,transparent)}
 .panel[data-sec=riders]{--sec:#2ea8ff}.panel[data-sec=crews]{--sec:#ff8ad8}.panel[data-sec=countries]{--sec:#ff6b6b}.panel[data-sec=wheels]{--sec:#ffd24a}.panel[data-sec=brands]{--sec:#ff9f43}.panel[data-sec=records]{--sec:#39d98a}.panel[data-sec=tech]{--sec:#a78bfa}
@@ -353,15 +353,20 @@ function dazzle(mark){
 // line up. Inline SVG rather than an emoji: .flag is sized and shadowed for an <img>,
 // so a glyph in that box gets clipped into a rectangle, and 🌐 is missing from some
 // system fonts entirely. No country colours, by design.
-const GLOBE='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" data-i18n-aria="flag.hidden" aria-label="Country hidden">'
+/* A template and a call, not a const with a hook on it: this is interpolated into
+   panel HTML at render time, and applyI18n() runs at boot and on a language change,
+   both before the panel re-renders -- so its querySelectorAll never met this node and
+   the hook shipped eighteen translations that could not reach anybody. */
+const GLOBE_TPL='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" aria-label="__A__">'
   +'<rect width="20" height="15" rx="2" fill="#252d4d"/>'
   +'<circle cx="10" cy="7.5" r="4.3" fill="none" stroke="#9aa6c8" stroke-width="1.1"/>'
   +'<path d="M5.7 7.5h8.6M10 3.2c1.85 2.2 1.85 6.4 0 8.6M10 3.2c-1.85 2.2-1.85 6.4 0 8.6" fill="none" stroke="#9aa6c8" stroke-width="1.1" stroke-linecap="round"/>'
   +'</svg>';
+const GLOBE=()=>GLOBE_TPL.replace("__A__",t("flag.hidden").replace(/"/g,"&quot;"));
 const anonName=e=>e.alias||e.name||"Rider";
 const av=(id,has,e)=>anonView(e)?`<img class="av anonav" alt="" src="${dazzle(e.mark)}"/>`
   :(has===false?'<span class="av avph"></span>':`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
-const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
+const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE():cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
 const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v3a2 2 0 0 1-2 2H4M20 9h-3a2 2 0 0 1-2-2V4M4 15h3a2 2 0 0 1 2 2v3M15 20v-3a2 2 0 0 1 2-2h3"/></svg>';
@@ -692,7 +697,7 @@ function brandLogo(name){const mono=(name||"?").replace(/[^A-Za-z0-9]/g,"").slic
   return `<span class="blogo"><span class="bmono">${mono}</span><img alt="" src="/static/brands/${BRANDSLUG(name)}.png" onerror="this.remove()"></span>`;}
 function podList(rows,cfg){
   if(!rows||!rows.length) return '<div class="empty">'+t("empty.nodata")+'</div>';
-  const o=[1,0,2],rkn=[t("pod.1"),t("pod.2"),t("pod.3")],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>anonView(e)?GLOBE:(cfg.flag?cc(cfg.flag(e)):'');
+  const o=[1,0,2],rkn=[t("pod.1"),t("pod.2"),t("pod.3")],cls=["gold1","silv","brnz"],top=rows.slice(0,3),fl=e=>anonView(e)?GLOBE():(cfg.flag?cc(cfg.flag(e)):'');
   const pod=`<div class="podium">`+o.filter(i=>top[i]).map(i=>{const e=top[i];return `<div class="pod p${i+1} ${cls[i]}" data-i="${i}" style="animation:rowin .55s both;animation-delay:${i*90}ms"><div class="rkn">${rkn[i]}</div>${cfg.av?av(e.id,e.has_avatar,e):(cfg.iconFn?`<div class="podic">${cfg.iconFn(e)}</div>`:(cfg.icon?`<div class="podic">${cfg.icon}</div>`:''))}<div class="pname">${fl(e)} ${cfg.label(e)}</div><div class="km">${cfg.val(e)}</div>${cfg.sub?`<div class="psub">${cfg.sub(e)}</div>`:''}</div>`;}).join("")+`</div>`;
   const rest=rows.slice(3);let list='';
   if(rest.length) list=`<table><tbody>`+rest.map((e,i)=>`<tr class="${cfg.click?'sel':''}" data-i="${i+3}" style="animation:rowin .5s both;animation-delay:${i*45}ms"><td class=rk>${i+4}</td><td><span class="celln">${cfg.av?av(e.id,e.has_avatar,e):''}${fl(e)}<span>${cfg.label(e)}</span></span></td><td class=val>${cfg.val(e)}</td>${cfg.sub?`<td class="val sub">${cfg.sub(e)}</td>`:''}</tr>`).join("")+`</tbody></table>`;
@@ -765,13 +770,13 @@ function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WH
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
   const recs=orderBy((await j("/records")).filter(r=>r.value!=null&&(isAdminView()||!HIDE.records.includes(r.key))),ORDER.records,r=>r.key);
-  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${anonView(r.rider)?GLOBE:cc(r.rider.flag)}${av(r.rider.id,r.rider.has_avatar,r.rider)}<span>${anonView(r.rider)?anonName(r.rider):(r.rider.name||'rider')}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
+  setPanel("records",t("title.records"),`<div class="recs">${recs.map((r,i)=>`<div class="rec sel${HIDE.records.includes(r.key)?' peek':''}" data-i="${i}" style="animation:rowin .5s both;animation-delay:${i*60}ms"><div class="recmed">${MEDAL}</div><div class="recmain"><div class="reclbl">${t("rec."+r.key)}</div><div class="recrider">${anonView(r.rider)?GLOBE():cc(r.rider.flag)}${av(r.rider.id,r.rider.has_avatar,r.rider)}<span>${anonView(r.rider)?anonName(r.rider):(r.rider.name||'rider')}</span></div></div><div class="recval">${recval(r.key,r.value)}</div></div>`).join("")||'<div class="empty">'+t("empty.norecords")+'</div>'}</div>`);
   pbody.querySelectorAll(".rec.sel").forEach(el=>el.onclick=()=>flyToRider(recs[+el.dataset.i].rider));
 }
 async function showTech(){
   const d=await j("/stats/versions");
   const fn=e=>`${cc(e.country)} ${cname(e.country)}`;
-  const rl=e=>`<span class="celln">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE:cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
+  const rl=e=>`<span class="celln">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE():cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
   const sec=(key,t,h)=>{var hid=HIDE.app.includes(key);if(hid&&!isAdminView())return "";return `<div class="vsec${hid?' peek':''}"><div class="vtitle">${t}</div>${h}</div>`;};
   const tbl=(arr,lab,val)=>`<table>${(arr||[]).slice(0,8).map((e,i)=>`<tr><td class=rk>${i+1}</td><td>${lab(e)}</td><td class=val>${val(e)}</td></tr>`).join("")||'<tr><td class=mut>'+t("empty.nodata")+'</td></tr>'}</table>`;
   const bars=(arr,lab)=>{const a=(arr||[]).slice(0,8),tot=a.reduce((s,e)=>s+(e.riders||0),0)||1;return a.length?`<div class=blist>${a.map((e,i)=>{const pct=Math.round(100*(e.riders||0)/tot);return `<div class=brow><span class=bfill style="width:${pct}%"></span><span class=brk>${i+1}</span><span class=blab>${lab(e)}</span><span class=bpct>${pct}%</span></div>`;}).join("")}</div>`:'<p class=mut>'+t("empty.nodata")+'</p>';};

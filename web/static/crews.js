@@ -1690,6 +1690,9 @@
     crew_full: "crew.e.full", not_yourself: "crew.e.not_yourself", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
     not_leader: "crew.e.forbidden", not_paired: "crew.e.pass",
     crews_disabled: "crew.e.off",
+    // the server says which screen the code belongs to; without this the panel printed the
+    // generic failure over the top of a sentence that answers the question
+    wrong_screen: "crew.e.wrongscreen",
     bad_invite: "crew.e.invite", bad_name: "crew.e.name", name_taken: "crew.e.taken",
     already_in_crew: "crew.e.increw", no_trips: "crew.e.notrips", cooldown: "crew.e.cooldown",
     bad_identity: "crew.e.identity", identity_taken: "crew.e.identity",
@@ -2469,8 +2472,10 @@
       doReveal();
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
-        var r = rank[+el.dataset.i];
-        pressable(el, r && r.name, function () {
+        var i = +el.dataset.i, r = rank[i];
+        // The name alone left a screen reader with "Polar Night Riders, button" -- no rank,
+        // on the three biggest targets on the board.
+        pressable(el, r && (ordinal(i + 1) + " · " + r.name), function () {
           if (r) flyToCrew(r.slug);
         });
       });

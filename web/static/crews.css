@@ -230,6 +230,11 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewmine-wrap > summary {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer;
   font-size: 13px;
+  /* The containing block for `.crewsumsep` below. Without it that separator resolves against
+     `#panel` and lands 348px past its bottom edge, which gives the panel a phantom scroll
+     range -- and `reveal()`'s scrollIntoView then slices the top off the panel title and the
+     close button, with no scrollbar to put it back. */
+  position: relative;
 }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }

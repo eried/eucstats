@@ -6,6 +6,7 @@ writes are small and rare. Nothing in this module walks the trips table on a pag
 """
 from __future__ import annotations
 
+from html import escape
 import json
 import time
 from datetime import timedelta
@@ -947,9 +948,9 @@ def territory_at(lat: float, lon: float, db: Session = Depends(get_db)):
 
 # --- the deep link the QR actually carries ------------------------------------------------
 
-_PAIR_PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
+_PAIR_PAGE = """<!doctype html><html lang=__LANG__><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Crew Pass</title><style>
+<title>__H__</title><style>
 :root{color-scheme:dark}
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
  background:#070b16;color:#dce6f7;font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -959,14 +960,12 @@ a.btn{display:block;margin:20px 0 8px;padding:13px;background:#2ea8ff;color:#061
  font-weight:700;text-decoration:none}
 p{color:#8c99bb;font-size:13.5px}b{color:#dce6f7}
 </style></head><body><div class=w>
-<h1 style="font-size:19px;margin:0">Crew Pass</h1>
-<p>Say yes in <b>EUC Planet</b> and that browser can fly your colours.</p>
+<h1 style="font-size:19px;margin:0">__H__</h1>
+<p>__P__</p>
 <div class=code>__CODE__</div>
-<a class=btn href="eucplanet://pair?code=__CODE__&amp;host=__HOST__">Open EUC Planet</a>
-<p>App did not open? Start it yourself, go to <b>Crews</b>, and punch in the code above.</p>
-<p style="margin-top:22px;font-size:12px">Only say yes to a code you asked for. A pass lets a
-browser act for you in crews: start one, join one, leave one. It can't send up rides,
-rename you, or delete anything.</p>
+<a class=btn href="eucplanet://pair?code=__CODE__&amp;host=__HOST__">__OPEN__</a>
+<p>__NOAPP__</p>
+<p style="margin-top:22px;font-size:12px">__SAFE__</p>
 </div></body></html>"""
 
 
@@ -984,7 +983,30 @@ def pair_landing(code: str, request: Request, db: Session = Depends(get_db)):
     A human who scans it with a plain camera app gets this page instead of a dead link.
     """
     from fastapi.responses import HTMLResponse
+    from web import i18n
     _gate(db)
     safe = "".join(ch for ch in (code or "").upper() if ch.isalnum())[:12]
     host = str(request.base_url).rstrip("/")
-    return HTMLResponse(_PAIR_PAGE.replace("__CODE__", safe).replace("__HOST__", host))
+    # The rider scanned this with a camera app, so there is no stored preference to read and
+    # no script to run -- only the header. `i18n.pick` is the same negotiation the public page
+    # uses. Two of these strings already existed: the button is the sign-in card's own, and
+    # the section name is the dock's.
+    loc = i18n.pick(request.headers.get("accept-language", ""))
+
+    def t(key, **vars):
+        text = i18n.TRANSLATIONS.get(loc, {}).get(key) or i18n.EN.get(key, key)
+        for name, value in vars.items():
+            text = text.replace("{" + name + "}", value)
+        return escape(text)
+
+    app_name = "<b>EUC Planet</b>"
+    crews_name = "<b>" + escape(t("dock.crews")) + "</b>"
+    page = (_PAIR_PAGE
+            .replace("__LANG__", escape(loc))
+            .replace("__H__", t("pair.h"))
+            .replace("__P__", t("pair.p", app=app_name))
+            .replace("__OPEN__", t("crew.signin.open"))
+            .replace("__NOAPP__", t("pair.noapp", crews=crews_name))
+            .replace("__SAFE__", t("pair.safe"))
+            .replace("__CODE__", safe).replace("__HOST__", host))
+    return HTMLResponse(page)

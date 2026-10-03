@@ -44,6 +44,13 @@ EN: dict[str, str] = {
     # beside a sibling that already used data-i18n-title.
     # the anonymous-country globe, which a screen reader reads aloud
     "flag.hidden": "Country hidden",
+    # The page a scanned QR lands on, served from crews_api by Accept-Language. It
+    # was hard-coded English in all nineteen, including the notice that says what a
+    # pass can and cannot do -- which is the one string on it that matters.
+    "pair.h": "Crew Pass",
+    "pair.p": "Say yes in {app} and that browser can fly your colours.",
+    "pair.noapp": "App did not open? Start it yourself, go to {crews}, and punch in the code above.",
+    "pair.safe": "Only say yes to a code you asked for. A pass lets a browser act for you in crews: start one, join one, leave one. It can't send up rides, rename you, or delete anything.",
     "panel.close": "Close",
     "panel.peek": "Preview as a normal visitor",
     "crew.wip": "Not open for public testing yet. Anything you build here can be wiped without warning.",
@@ -168,6 +175,9 @@ EN: dict[str, str] = {
     "crew.roles.removeq": "Take {name} off the crew? Their old rides stay on the map.",
     "crew.removed.h": "You are out",
     "crew.removed.p": "{name} took you off the crew. No waiting, join another whenever you like.",
+    # the server has written the better sentence since this code existed; the
+    # panel was printing the generic failure over the top of it
+    "crew.e.wrongscreen": "That code is for the admin screen, not this one.",
     "crew.e.expired": "That code has run out. Here is a fresh one.",
     "crew.e.norider": "The app has not sent us a ride yet. Upload one and try again.",
     "crew.e.busy": "Too many people pairing at once. Try again in a minute.",
