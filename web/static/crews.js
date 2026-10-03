@@ -1084,13 +1084,16 @@
     var allFirst = TARGETS.every(function (x) { return x.first; });
     // Four rows of one block are four squares of one neighbourhood, and printing its name
     // four times is the ditto problem in a card that bypasses the dedupe.
-    // It was gated on `allFirst`, so it only ever fired on a first-block card -- and the Oslo
-    // card printed "Oslo" down six of its eight rows. One neighbourhood is one neighbourhood
-    // whatever else the card is saying.
-    var onePlace = TARGETS.length > 1
-      && TARGETS.every(function (x) { return x.at && x.at === TARGETS[0].at; });
+    // A ditto is a comparison with the line above. Written as a set of everything seen so
+    // far, a blank row inherited the last DISTINCT place instead: the Oslo card printed Oslo,
+    // then Kjenn on row 3, and rows 4-7 were Oslo sitting blank under "Kjenn" -- thirty rows
+    // across twelve crews filed under the wrong neighbourhood. `onePlace` is gone with it: it
+    // deleted the place from every row of a single-place card, and nothing else on the card
+    // named it, so the second crew on the board got a card that said where to ride without
+    // ever saying where.
+    var prevAt = null;
     var seenWho = {};
-    var seenAt = {};
+    var saidQuiet = {};
     var saidPass = {};
     var body = TARGETS.map(function (x, i) {
           // Worked out before the tag chain, not after it. The chain asks whether this
@@ -1156,9 +1159,9 @@
             // deleting it left 36 rows naming a rival and saying nothing about them at all.
             // Same sentence, no box, no colour: a reason for the rows that have a small one,
             // and the chips keep meaning something.
-            : x.held_by && x.ranked_was - x.ranked_now === 1 && !rw
-              ? '<span class="crewtquiet">'
-                + t("crew.targets.drops", { n: x.ranked_now }) + "</span>"
+            : x.held_by && x.ranked_was - x.ranked_now === 1 && !saidQuiet[who]
+              ? ((saidQuiet[who] = 1), '<span class="crewtquiet">'
+                + t("crew.targets.drops", { n: x.ranked_now }) + "</span>")
             : "";
           // Not part of the chain above: a square can be the best move in the game AND more
           // than the crew can physically bank, and being told only the first is how somebody
@@ -1176,8 +1179,8 @@
             // Where, not only which way. A compass bearing from the middle of your own
             // ground is not how anyone reads a map of the city they live in.
             + '<span class="crewtwho">'
-            + (x.at && !onePlace && !seenAt[x.at]
-               ? ((seenAt[x.at] = 1), '<b class="crewtat">' + esc(x.at) + "</b>") : "")
+            + (x.at && x.at !== prevAt
+               ? ((prevAt = x.at), '<b class="crewtat">' + esc(x.at) + "</b>") : "")
             + '<i class="' + (rw ? "rpt" : "") + '">' + who
             // `tiles()` and not `t("crew.tiles")`, so Russian, Polish and Ukrainian get
             // their own plural forms; and "in one piece", because this number is the
@@ -2295,15 +2298,21 @@
     showTargets(TARGETS, i == null ? x : null);
     if (window.innerWidth <= 560) H.closePanel && H.closePanel();
     // On a phone the panel is gone by now and the centre is the centre. On a desktop it is
-    // still there, roughly the middle half of the window, so flying the square to dead centre
-    // put it behind the card that had just said "Tap it to find it". Shift the camera by half
-    // the panel so the square lands in the free part of the map.
-    var pane = document.querySelector(".panel, .pbody");
+    // still there and the square was flying to dead centre, behind the card that had just
+    // said "Tap it to find it".
+    // The first attempt at this shifted the camera by the panel's own centre, which is
+    // identically zero: `.panel` is `left: 50%` with `translateX(-50%)`, so its centre is the
+    // window's centre at every width. What is actually free is the margin beside it, so the
+    // square is put in the middle of whichever margin is wider.
+    var pane = document.querySelector(".panel");
     var off = [0, 0];
     if (window.innerWidth > 560 && pane) {
       var r = pane.getBoundingClientRect();
-      if (r.width > 0 && r.width < window.innerWidth - 80) {
-        off = [(r.left + r.right) / 2 - window.innerWidth / 2, 0];
+      var right = window.innerWidth - r.right, left = r.left;
+      var gap = Math.max(right, left);
+      if (gap > 180) {
+        var centre = right >= left ? (r.right + window.innerWidth) / 2 : left / 2;
+        off = [centre - window.innerWidth / 2, 0];
       }
     }
     // Close enough to find the street, far enough to still see it against the crew's own

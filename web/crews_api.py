@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Clan, ClanMember, Rider, Trip, WebSession, utcnow
+from models import Clan, ClanMember, PairToken, Rider, Trip, WebSession, utcnow
 from services import crews, pairing, ratelimit, settings, territory
 from services import tiles as T
 
@@ -150,6 +150,14 @@ def pair_start(request: Request, db: Session = Depends(get_db)):
 def pair_poll(token: str, response: Response, db: Session = Depends(get_db)):
     """The browser waits here. On success the session lands in an HttpOnly cookie."""
     _gate(db)
+    # Read before `poll` is allowed to consume it. Refusing an admin pass afterwards closed
+    # the leak but still burned the pairing, so an admin who polled the wrong screen once had
+    # to start the whole thing again -- and the second attempt answered "unknown" rather than
+    # saying why. `db.get` is the same lookup poll makes and changes nothing.
+    peek = db.get(PairToken, token)
+    if peek is not None and peek.purpose == "admin":
+        raise _perr(410, pairing.PairError(
+            "wrong_screen", "That code is for the admin screen, not this one."))
     try:
         res = pairing.poll(db, token)
     except pairing.PairError as e:
@@ -348,11 +356,17 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                     return r.display_name if r is not None else "?"
 
                 def _hd(sid):
+                    # Through `_handle` whenever the row fails its invariant, not just when
+                    # the handle is missing. `_handle` guards the reader's own handle; this
+                    # publishes everybody else's -- the whole roster, every pending request
+                    # and every refusal -- so the containment check matters more here, and
+                    # this was the one place it was skipped. A reviewer read a polluted
+                    # handle out of a roster, stripped the prefix and minted a session.
                     r = who.get(sid)
                     if r is None:
                         return ""
-                    if not r.public_id:
-                        return _handle(db, sid)        # mints one; see _handle
+                    if not r.public_id or sid in r.public_id:
+                        return _handle(db, sid)        # mints a clean one; see _handle
                     return r.public_id
 
                 out["roster"] = [

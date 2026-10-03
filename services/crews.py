@@ -498,9 +498,15 @@ def set_role(db, actor: str, clan_id: str, store_id: str, role: str) -> None:
     # disband() are written to prevent. Handing over is role="leader" on somebody else.
     if store_id == actor and me.role == "leader" and role != "leader":
         raise CrewError("promote_first", "Hand the crew to somebody else first.")
+    # `status == "active"` matters as much as the rest: a rider who has only asked to join
+    # matches on clan, store_id and left_at, so a leader could hand the crew to somebody who
+    # had not joined it. That rider then holds the title with none of the powers --
+    # `_require_power` needs an active row -- the old leader is an officer, `claim` refuses
+    # for ninety days because the crew looks led, and nobody can disband. One call, from the
+    # leader's own panel, on a handle that panel published.
     m = (db.query(ClanMember)
          .filter(ClanMember.clan_id == clan_id, ClanMember.store_id == store_id,
-                 ClanMember.left_at.is_(None)).first())
+                 ClanMember.status == "active", ClanMember.left_at.is_(None)).first())
     if m is None:
         raise CrewError("not_member", "Not a member of this crew.")
     # The same guard `remove()` carries, which this did not: without it an officer could set
@@ -753,8 +759,12 @@ def _active_members(db, clan_id: str) -> int:
 
 
 def _officers(db, clan_id: str) -> int:
+    # Active ones. This counts towards the guard that lets a leader leave, and a rider who has
+    # only asked to join can hold the role without being able to use it -- so a crew could be
+    # left in the hands of somebody with no powers at all.
     return (db.query(ClanMember)
             .filter(ClanMember.clan_id == clan_id, ClanMember.role == "officer",
+                    ClanMember.status == "active",
                     ClanMember.left_at.is_(None)).count())
 
 

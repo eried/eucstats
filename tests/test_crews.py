@@ -600,3 +600,48 @@ def test_a_rider_waiting_to_be_let_in_is_not_riding_for_that_crew(db):
     assert crews.current_clan_id(db, "wait") is None, "their rides are stamped with no crew"
     crews.decide(db, "chief", c.clan_id, "wait", accept=True)
     assert crews.current_clan_id(db, "wait") == c.clan_id
+
+
+def test_a_crew_cannot_be_handed_to_somebody_who_has_not_joined(db):
+    """`set_role` matched on clan, store_id and left_at but not status, and a rider who has
+    only asked to join matches all three. Promoting them to leader demoted the real leader to
+    officer and handed the title to somebody `_require_power` refuses to act for: claim then
+    refused for ninety days because the crew looked led, and nobody could disband it. One call
+    from the leader's own panel, on a handle that panel published."""
+    _rider(db, "boss2")
+    _rider(db, "asker")
+    c = crews.create(db, "boss2", "Not Yours Yet", join_policy="approval")
+    crews.join(db, "asker", c.clan_id)
+    assert crews.membership(db, "asker").status == "pending"
+
+    for role in ("leader", "officer", "member"):
+        with pytest.raises(crews.CrewError) as e:
+            crews.set_role(db, "boss2", c.clan_id, "asker", role)
+        assert e.value.code == "not_member"
+
+    still = crews.membership(db, "boss2")
+    assert still.role == "leader", "the leader still runs the crew"
+    assert crews.membership(db, "asker").role != "leader"
+
+
+def test_a_waiting_rider_does_not_count_as_an_officer(db):
+    """`_officers` counts towards the guard that lets a leader walk out. A pending `officer`
+    satisfied it, so a leader could leave a crew whose only officer had no powers at all."""
+    _rider(db, "ld2")
+    _rider(db, "wait2")
+    c = crews.create(db, "ld2", "Paper Officer", join_policy="approval")
+    crews.join(db, "wait2", c.clan_id)
+    # force the shape the old code allowed, then check the guard still holds
+    row = crews.membership(db, "wait2")
+    row.role = "officer"
+    db.commit()
+
+    assert crews._officers(db, c.clan_id) == 0, "a rider who has not joined is not an officer"
+
+    # And so the leader is the last ACTIVE member: leaving folds the crew and tells the rider
+    # who was still waiting, rather than handing it to somebody who cannot run it.
+    crews.leave(db, "ld2")
+    db.refresh(c)
+    assert c.disbanded_at is not None
+    told = crews.last_fold(db, "wait2")
+    assert told and told["crew"] == "Paper Officer"

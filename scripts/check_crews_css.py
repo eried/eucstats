@@ -84,6 +84,53 @@ def parse(src):
     return decls
 
 
+# A shorthand and the longhand it sets are the same declaration as far as the cascade is
+# concerned, and keying on the literal property name meant `background: rgba(...)` and
+# `background-color: transparent` were never compared. Only the families this stylesheet
+# actually uses; a general table would be mostly dead weight.
+FAMILY = {
+    "background-color": "background", "background-image": "background",
+    "padding-left": "padding", "padding-right": "padding",
+    "padding-top": "padding", "padding-bottom": "padding",
+    "margin-left": "margin", "margin-right": "margin",
+    "margin-top": "margin", "margin-bottom": "margin",
+    "border-color": "border", "border-width": "border", "border-style": "border",
+    "font-size": "font", "font-weight": "font", "font-family": "font",
+    "overflow-x": "overflow", "overflow-y": "overflow",
+    "flex-grow": "flex", "flex-shrink": "flex", "flex-basis": "flex",
+}
+
+
+def family(prop):
+    return FAMILY.get(prop, prop)
+
+
+def bare(val):
+    """The value without its priority, so `none` and `none !important` are not a cancellation."""
+    return val.replace("!important", "").strip()
+
+
+def alts(where):
+    """A media context as its set of alternatives. `@media a, b` matches a OR b."""
+    body = (where or "").replace("@media", " ")
+    return frozenset(x.strip() for x in body.split(",") if x.strip())
+
+
+def covers(outer, inner):
+    """True when `outer` applies everywhere `inner` does.
+
+    Raw string equality missed a reviewer's bypass: they re-created a bug this docstring names
+    by appending `@media (max-width: 560px), (hover: none) and (pointer: coarse)`, a different
+    string matching the same phone. Comparing every narrow-screen block to every other was the
+    wrong correction though -- this file deliberately carries a wide touch block and a narrower
+    phone block, and the phone one legitimately refines it ("thumbs, not cursors"). A later
+    rule only cancels an earlier one where it applies everywhere the earlier one does.
+    """
+    if not inner:
+        return not outer
+    return alts(inner) <= alts(outer) if outer else False
+
+
 def specificity(sel):
     """(ids, classes+attrs+pseudo-classes, elements). Good enough for this file's selectors."""
     s = re.sub(r"::[\w-]+", " ", sel)                  # pseudo-elements count as elements
@@ -109,17 +156,42 @@ def base_of(compound):
 
 
 def subset_pair(a, b):
-    """True when every element matching b also matches a, by the common pattern in this file:
-    identical selector structure, and b's final compound carries all of a's classes and more."""
+    """True when every element matching b also matches a.
+
+    Two shapes, both of which this stylesheet uses:
+      1. the same structure, where b's final compound carries all of a's classes and more
+         (`.crewtag` vs `.crewtag.kills`);
+      2. b is a's selector plus further descendant steps (`.crewtwho` vs `.crewtwho i`) --
+         which was not compared at all, and is why a rule painting 62px outside its own card
+         passed this script clean.
+    """
     ca, cb = compounds(a), compounds(b)
-    if len(ca) != len(cb) or not ca:
+    if not ca or not cb:
         return False
-    if ca[:-1] != cb[:-1]:
-        return False
-    if base_of(ca[-1]) != base_of(cb[-1]):
-        return False
-    sa, sb = classes_of(ca[-1]), classes_of(cb[-1])
-    return sa < sb
+    if len(ca) == len(cb):
+        if ca[:-1] != cb[:-1]:
+            return False
+        if base_of(ca[-1]) != base_of(cb[-1]):
+            return False
+        return classes_of(ca[-1]) < classes_of(cb[-1])
+    # b is longer: a describes an ancestor of what b describes. That alone is not a defect --
+    # a parent carrying `font-size` and a child carrying its own is ordinary CSS, and flagging
+    # it produced five complaints about correct rules. The caller decides, using `relaxes()`.
+    if len(cb) > len(ca) and cb[:len(ca)] == ca:
+        return True
+    return False
+
+
+# Values that mean "take the restriction off". An ancestor set to one of these, against a
+# descendant set to something else, is somebody trying to undo a child's rule from the parent
+# -- which the cascade never does. That is the whole of the bug a reviewer found: a phone rule
+# relaxing `.crewtwho` while `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`
+# sat on `.crewtwho i`, so the text ran 62px outside its own card and nothing noticed.
+RELAXERS = {"none", "normal", "visible", "clip", "auto", "initial", "unset", "revert", "0"}
+
+
+def relaxes(val):
+    return val.strip().lower() in RELAXERS
 
 
 def main():
@@ -127,17 +199,20 @@ def main():
     bad = []
 
     # --- pass 1: same selector, a later rule beating an earlier one that it does not narrow
+    # Keyed on the literal property, not the family: pass 1 is about one rule restating what
+    # an earlier one said, and `padding-left: 0` after `padding: 2px 6px` is a narrowing, not
+    # a cancellation. The family grouping belongs to pass 2, which is about specificity.
     by_key = collections.defaultdict(list)
     for d in decls:
         by_key[(d[2], d[3])].append(d)
     for (sel, prop), rows in sorted(by_key.items()):
         for a, b in zip(rows, rows[1:]):
-            if a[4] == b[4]:
+            if bare(a[4]) == bare(b[4]):
                 continue
             if a[1] and not b[1]:
                 bad.append(f"OVERRIDDEN  {sel} | {prop}: {a[4]}  [{a[1]}]"
                            f"  ->  {b[4]}  [top level]")
-            elif a[1] == b[1]:
+            elif covers(b[1], a[1]):
                 bad.append(f"SELF-CANCEL {sel} | {prop}: {a[4]} -> {b[4]}"
                            f"  [{a[1] or 'top level'}]")
 
@@ -145,14 +220,24 @@ def main():
     # Grouped by property, because that is the granularity at which one rule beats another.
     by_prop = collections.defaultdict(list)
     for d in decls:
-        by_prop[d[3]].append(d)
+        by_prop[family(d[3])].append(d)
     seen = set()
     for prop, rows in sorted(by_prop.items()):
         for a in rows:
             for b in rows:
                 if a is b or a[4] == b[4]:
                     continue
+                # `!important` beats specificity outright, so a rule carrying it is not losing
+                # to anything here. The script reported six problems against a stylesheet that
+                # was correct.
+                if "!important" in a[4]:
+                    continue
                 if not subset_pair(a[2], b[2]):
+                    continue
+                # An ancestor/descendant pair only matters when the ancestor is trying to lift
+                # a restriction the descendant sets; anything else is a parent and a child
+                # legitimately holding different values.
+                if len(compounds(b[2])) > len(compounds(a[2])) and not relaxes(a[4]):
                     continue
                 # `a` is the broad rule, `b` the narrow one. `a` only wins on b's elements
                 # if it is at least as specific, which (media queries adding nothing) it is
@@ -167,10 +252,18 @@ def main():
                     continue
                 # Unless something inside a's own context restates it at b's specificity --
                 # which is exactly what the fix for this looks like.
+                # Anything in a's own context that reaches b's elements at or above b's
+                # specificity is the fix, however it is written. Requiring it to look like a
+                # subset_pair reported five problems against a stylesheet corrected with a
+                # descendant selector (`.crewtrow .crewtag`), which is a perfectly good fix.
+                if any(c[1] and covers(c[1], a[1]) and family(c[3]) == prop
+                       and "!important" in c[4] for c in rows):
+                    continue
                 covered = any(
-                    c[1] == a[1] and c[3] == prop and c[2] != a[2]
-                    and subset_pair(a[2], c[2]) and classes_of(compounds(c[2])[-1])
-                    >= classes_of(compounds(b[2])[-1])
+                    covers(c[1], a[1]) and family(c[3]) == prop and c[2] != a[2]
+                    and specificity(c[2]) >= specificity(b[2])
+                    and (subset_pair(c[2], b[2]) or subset_pair(a[2], c[2])
+                         or c[2].endswith(a[2]) or b[2].endswith(c[2].split()[-1]))
                     for c in rows)
                 if covered:
                     continue

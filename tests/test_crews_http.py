@@ -505,3 +505,52 @@ def test_the_panel_routes_refuse_to_be_cached(client, db):
         cc = res.headers.get("cache-control", "")
         assert "no-store" in cc and "private" in cc, f"{url} -> {cc!r}"
         assert "Cookie" in res.headers.get("vary", ""), f"{url} vary: {res.headers.get('vary')!r}"
+
+
+def test_no_roster_row_hands_out_a_guessable_handle(client, db):
+    """`_handle` guards the reader's own handle; `_hd` publishes everybody else's -- the whole
+    roster, every pending request and every refusal -- and skipped the containment check. A
+    reviewer read a polluted handle out of a leader's own roster, stripped the prefix and
+    minted a working session as that rider. The guard had been added to the one place that
+    needed it least."""
+    _rider(db, "chief3")
+    _signed_in(client, db, "chief3")
+    r = client.post("/api/v1/crews", json={"name": "Open Doors", "join_policy": "open"})
+    assert r.status_code == 200, r.text
+    clan = db.query(Clan).filter(Clan.name == "Open Doors").one()
+
+    _rider(db, "mate")
+    _signed_in(client, db, "mate")
+    client.post(f"/api/v1/crews/{clan.slug}/join", json={})
+
+    # a row written by something that did not go through either minter
+    row = db.query(Rider).filter(Rider.store_id == "mate").one()
+    row.public_id = "h-mate"
+    db.commit()
+
+    _signed_in(client, db, "chief3")
+    me = client.get("/api/v1/crews/me").json()
+    published = [x["store_id"] for x in me.get("roster", [])]
+    assert published, "the leader should see a roster"
+    for h in published:
+        assert "mate" not in h and "chief3" not in h, f"roster hands out {h}"
+    db.refresh(row)
+    assert "mate" not in (row.public_id or ""), "and the row is repaired, not just the answer"
+
+
+def test_an_admin_pass_is_refused_without_being_spent(client, db):
+    """Refusing the admin pass after `poll` had already deleted the token closed the leak but
+    still burned the pairing: an admin who polled the wrong screen once had to start over, and
+    the second attempt said "unknown" instead of saying why."""
+    _rider(db, "chief4")
+    p = pairing.start(db, purpose="admin")
+    pairing.confirm(db, p["code"], "chief4")
+
+    first = client.get("/api/v1/pair/poll", params={"token": p["token"]})
+    assert first.status_code == 410, first.text
+    assert "chief4" not in first.text
+    assert "wrong_screen" in first.text
+
+    again = client.get("/api/v1/pair/poll", params={"token": p["token"]})
+    assert again.status_code == 410
+    assert "wrong_screen" in again.text, "the pairing survives, and still says why"

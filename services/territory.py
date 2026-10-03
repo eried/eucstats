@@ -824,7 +824,20 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
             if nb not in held:
                 cand.add(nb)
-    cand |= mine - held                       # anywhere we already ride
+    # Anywhere we already ride -- but only near ground the crew actually holds. `_rivals_near`
+    # is bounded to REACH for exactly this reason and this line was not bounded at all, so an
+    # Oslo crew whose riders had been to Paris was offered a square in Aubervilliers, 1,335 km
+    # away, in the same "how much more you have to ride" column as a square two streets over.
+    # The cheapest-looking row on the card sent somebody to another country.
+    if held:
+        near = set()
+        for (x, y) in held:
+            near.add((x // REACH, y // REACH))
+        cand |= {q for q in (mine - held)
+                 if any((q[0] // REACH + dx, q[1] // REACH + dy) in near
+                        for dx in (-1, 0, 1) for dy in (-1, 0, 1))}
+    else:
+        cand |= mine - held
 
     # A crew holding nothing needs one block, not eight singles: see _first_block.
     block = _first_block(acc, clan_id, won, zoom, mine, seed) if not held else set()
@@ -1338,9 +1351,14 @@ def contributors(db, clan_id: str, window_days: int = WINDOW_DAYS, limit: int = 
         return []
     ids = [r[0] for r in rows]
     riders = {r.store_id: r for r in db.query(Rider).filter(Rider.store_id.in_(ids)).all()}
+    # Only riders who are still in the crew. Without this a leader who walked out kept their
+    # star on the contributors list for the whole ninety-day window, so the card showed a crew
+    # with a leader while `/crews/me` beside it said there was none -- and `ROLEIC.past`, the
+    # mark written for exactly this rider, was unreachable code.
     roles = {m.store_id: m.role for m in
              db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
-                                         ClanMember.store_id.in_(ids)).all()}
+                                         ClanMember.store_id.in_(ids),
+                                         ClanMember.left_at.is_(None)).all()}
     out = []
     for store_id, km, n in rows:
         r = riders.get(store_id)

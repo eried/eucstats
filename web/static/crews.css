@@ -441,9 +441,13 @@ a.crewqr { display: flex; text-decoration: none; }
 /* min-width:0 or a long crew name in a long locale pushes the badge off a 390px screen */
 /* 1 rather than 0 on the grow, so a long neighbourhood takes the slack the phrase column
    leaves instead of pushing itself onto a second line. */
+/* Wraps at every width. `nowrap` here was inherited by the `i` inside it, so removing the
+   ellipsis from the child was not enough: at 1440 the holder line still ran 35px past its own
+   box and over the chip beside it, and the row carrying the card's loudest news was the one
+   that got cut. The column holds a rival's name and what taking the square is worth; both are
+   the point of the row, so it takes the height it needs. */
 .crewtwho {
   flex: 1 1 auto; min-width: 0; color: var(--mut, #9aa6c8); font-size: 12px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* nothing to ride here today: present, legible, and plainly not the thing to do next */
 .crewtrow.done { opacity: .72; }
@@ -528,7 +532,7 @@ a.crewqr { display: flex; text-decoration: none; }
    holder line from row 2's in their own screenshot, so eight identical sentences still
    read as eight. Far enough back now that the eye skips it and goes to the row that
    says something new. */
-.crewtrow .rpt { color: color-mix(in srgb, var(--mut, #9aa6c8) 45%, transparent); }
+.crewtrow .rpt { color: color-mix(in srgb, var(--mut, #9aa6c8) 62%, transparent); }
 .crewtrow:hover .rpt { color: var(--mut, #9aa6c8); }
 
 
@@ -548,8 +552,12 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtat { display: block; font-weight: 600; letter-spacing: 0; color: var(--ink, #eef1fb);
   text-transform: none; line-height: 1.25; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }
-.crewtwho i { display: block; font-style: normal; font-size: 11px; line-height: 1.25;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* No ellipsis. This held one short phrase when it was written and now carries the holder's
+   name AND their standing, which overran it: 62px outside the card at 390 with no scrollbar
+   to reveal it, and "…13 squares in o…" on row 1 at 1440. The file already says a few lines
+   down that truncating a crew's name is indefensible in a feature about naming your crew;
+   the same goes for the number telling you what taking it is worth. It wraps. */
+.crewtwho i { display: block; font-style: normal; font-size: 11px; line-height: 1.25; }
 .crewtdir { line-height: 1.25; }
 
 /* Hit areas, on their own trigger. These used to sit inside the width block while the pass
@@ -662,7 +670,6 @@ a.crewqr { display: flex; text-decoration: none; }
   /* The place, the holder and the holder's standing do not fit on one phone line, and the
      one that was being cut mid-word is the rival's name -- the thing the row is about.
      It wraps here instead; the row is already more than one line. */
-  .crewtwho { white-space: normal; overflow: visible; text-overflow: clip; }
   .crewboard table .val.sub { font-size: 11px; text-align: right; width: 1%; }
   .crewboard table .val.sub .crewarea { display: none; }
 }
@@ -765,7 +772,7 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* Where you stand and how far off the crew above, on the card that used to say neither. */
 .crewgap { color: #ffd24a; font-weight: 600; margin-right: 7px; }
-.crewgap.top { color: #ffd24a; }
+
 
 /* the share of the crew's riding, beside the distance it is a share of */
 .crewckm i { font-style: normal; font-size: 11px; color: var(--mut, #9aa6c8); margin-left: 5px;
