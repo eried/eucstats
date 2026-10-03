@@ -18,6 +18,12 @@ def _set_sqlite_pragma(dbapi_conn, _connection_record):
     cur.execute("PRAGMA journal_mode=WAL")
     cur.execute("PRAGMA foreign_keys=ON")
     cur.execute("PRAGMA synchronous=NORMAL")
+    # WAL lets readers run during a write, but writers still take turns, and the territory
+    # rebuild holds one transaction from the moment it clears the old cells to the moment it
+    # commits the new ones. Python's default is to give up after five seconds, which would
+    # turn "a rebuild is running" into a failed trip upload for a rider who was simply
+    # unlucky with the timing. Thirty seconds of waiting is invisible; a lost upload is not.
+    cur.execute("PRAGMA busy_timeout=30000")
     cur.close()
 
 
