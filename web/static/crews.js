@@ -813,10 +813,15 @@
   // in a phone-width card: names wrapped to three lines and the last column printed past the
   // card's own border onto the panel background. Only on a crossing, so a drag does not
   // re-render on every pixel.
-  var LASTTIGHT = null;
+  // Seeded from the width at load, not from the first event. Starting at null meant the
+  // first resize was swallowed AND recorded, and a phone rotation fires exactly one resize
+  // event -- so the case this listener exists for was the one case it never handled. A
+  // reviewer measured the board still holding its desktop strings and painting 41px outside
+  // its own card after a single rotation.
+  var LASTTIGHT = window.innerWidth <= 560;
   window.addEventListener("resize", function () {
     var now = window.innerWidth <= 560;
-    if (LASTTIGHT === null || now === LASTTIGHT) { LASTTIGHT = now; return; }
+    if (now === LASTTIGHT) return;
     LASTTIGHT = now;
     if (document.querySelector(".crewboard")) show();
   });

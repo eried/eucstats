@@ -552,8 +552,8 @@ a.crewqr { display: flex; text-decoration: none; }
 /* The neighbourhood leads the last column and the holder sits under it, so a long name
    cannot widen the two-letter bearing beside it. */
 .crewtat { display: block; font-weight: 600; letter-spacing: 0; color: var(--ink, #eef1fb);
-  text-transform: none; line-height: 1.25; white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; }
+ text-transform: none; line-height: 1.25; 
+  }
 /* No ellipsis. This held one short phrase when it was written and now carries the holder's
    name AND their standing, which overran it: 62px outside the card at 390 with no scrollbar
    to reveal it, and "…13 squares in o…" on row 1 at 1440. The file already says a few lines
@@ -794,6 +794,3 @@ a.crewqr { display: flex; text-decoration: none; }
 /* A name and its role mark are one thing; the phone was wrapping the diamond onto its own
    line under the name. */
 .crewpendr > span { white-space: nowrap; }
-
-/* The one true sentence about a card nobody is contesting. Above the rows, not on them. */
-.crewclear { margin: 0 0 8px; }
