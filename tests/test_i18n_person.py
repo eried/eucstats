@@ -36,11 +36,12 @@ are deliberately not listed: `Fahrt` is a 2PL imperative and also a noun, and Ge
 the `-t` ending, so a list of ordinary verbs produces exactly the false alarms that get a
 detector narrowed until it catches nothing.
 
-**Imperatives disagreeing with each other.** Which needs no vocabulary at all, and is the half
-that closes the open class: on one card, two strings whose first word shares a stem but differs
-by a plural ending are the defect itself -- `Fahr` beside `Fahrt`, `Roule` beside `Roulez`,
-`Проедь` beside `Проедьте`. Imperatives are clause-initial in all of these languages, and
-requiring a stem-matched PAIR inside one card means no noun can trigger it.
+**An inventory of the words a crew card actually opens its clauses with.** Which needs no
+vocabulary of any language, and is the half that closes the open class. A stem-matched rule
+was tried first and found three false alarms and no real defects; the list of known-wrong
+forms that replaced it let 14 of 18 one-word regressions through, because a list of mistakes
+cannot be finished. The list of words that are THERE can: 39 to 54 per locale. New copy fails
+until somebody adds its word, which is the review this file wants.
 
 The last test is about usage rather than wording, and comes from a fourth finding: the data was
 right and the rendering was not. `crew.join.wait.h` -- the join card's heading, which addresses
@@ -147,8 +148,8 @@ SINGULAR = {
     "da": r"\b(du|din|dit|dine|dig)\b",
     "no": r"\b(du|din|ditt|dine|deg)\b",
     # Chinese marks it with one character, and was absent entirely.
-    "zh": r"你(?!们)",
-    "zh-Hant": r"你(?!們)",
+    "zh": r"你(?!们)|您",
+    "zh-Hant": r"你(?!們)|您",
     # Turkish marks person by suffix, so this does too. Only the verb endings: the bare
     # possessive `-in` is two letters and would match half the language.
     "tr": r"\b(sen|seni|sana|senin)\b|\b\w{3,}(?:sin|sın|sun|sün)\b",
@@ -264,50 +265,72 @@ def test_each_card_addresses_the_person_it_declares(loc):
 # So it is a floor and not a ceiling: it holds the 28 forms two audits found, and genuinely new
 # copy on this card still needs a translator. Every replacement was a form the same card
 # already used elsewhere -- Spanish said `Rodad` in one string and `Rueda` in another.
-# An imperative opens its clause in every one of these languages but one, and that is what
-# tells it apart from the third person it is spelled like: `Nadie más rueda por aquí` means
-# nobody rides here, while `. Rueda un bloque` is an order. Matching the bare verb reported
-# all three of those correct strings.
+# Every word that currently opens a clause on a card belonging to the crew -- the inventory,
+# not a list of the mistakes two audits happened to find. A reviewer mutated one word per
+# string and 14 of 18 survived the blacklist that used to be here: `Wählt eines aus` ->
+# `Wähl eines aus`, `Elegid` -> `Elige`, `Выберите` -> `Выбери`. "Pick one" had never been
+# audited in any language, and a list of what is WRONG can never be finished.
 #
-# Turkish is verb-final, so its forms are matched at the END of a clause instead -- `blok
-# sür,` against `blok sürün,`. It was already the language whose two defects an audit by
-# hand missed, and a start-of-clause rule would have made it silent here as well.
-START_OF_CLAUSE = r"(?:^|[.,;:!?]\s+)"
-END_OF_CLAUSE = r"(?=[.,;:!?]|$)"
-
-SINGULAR_ORDERS = {
-    "de": START_OF_CLAUSE + r"(fahr|nimm)\b",
-    "es": START_OF_CLAUSE + r"(rueda|coge)\b",
-    "es-419": START_OF_CLAUSE + r"(rueda|agarra)\b",
-    "fr": START_OF_CLAUSE + r"(roule|prends)\b",
-    "it": START_OF_CLAUSE + r"(fai|gira|prendi)\b",
-    "pl": START_OF_CLAUSE + r"(przejedź|weź|dotknij)\b",
-    "pt-BR": START_OF_CLAUSE + r"(roda|pega|toca)\b",
-    "ru": START_OF_CLAUSE + r"(проедь|бери|нажми)\b",
-    "tr": r"\b(sür|al)" + END_OF_CLAUSE,
-    "uk": START_OF_CLAUSE + r"(проїдь|бери|натисни)\b",
+# This one can: 39 to 54 words per locale. New copy fails until its word is added, which is
+# the moment to read it -- and no vocabulary of any language is needed to maintain it.
+#
+# Turkish freezes the clause TAIL rather than its head, because Turkish puts the verb last.
+CREW_WORDS = {
+    "da": {"alle", "binder", "bliver", "bryder", "de", "del", "den", "det", "er", "giver", "hvad", "hver", "hvor", "i", "ikke", "ingen", "jeres", "klaret", "kryber", "kør", "kørt", "men", "n", "name", "nogen", "nv", "nø", "og", "ryger", "s", "sender", "sv", "så", "sætter", "sø", "tag", "taget", "uden", "v", "vælg", "ét", "ø"},
+    "de": {"aber", "alle", "ausgefahren", "bricht", "bringt", "dann", "den", "der", "die", "diese", "drückt", "er", "erledigt", "es", "euer", "fahrt", "geht", "ihr", "ist", "jedes", "jemand", "kommt", "n", "name", "nehmt", "niemand", "no", "noch", "nw", "o", "s", "setzt", "so", "sobald", "sonst", "sw", "teil", "um", "und", "v", "verbindet", "vorerst", "w", "was", "wie", "wird", "wohin", "wählt"},
+    "es": {"alguien", "aparece", "cada", "caen", "coged", "cuánto", "dónde", "e", "el", "elegid", "esta", "están", "fuera", "hecho", "la", "las", "les", "lo", "los", "n", "nada", "nadie", "name", "ne", "no", "o", "os", "parte", "pero", "queda", "quedan", "recorredlas", "rodad", "s", "se", "simplemente", "so", "suma", "todavía", "tomado", "une", "v", "volved", "vuestro", "y", "ya"},
+    "es-419": {"agarren", "alguien", "aparece", "cada", "caen", "cuánto", "dónde", "e", "el", "elijan", "esta", "están", "fuera", "la", "las", "les", "listo", "lo", "los", "n", "nada", "nadie", "name", "ne", "no", "o", "parte", "pero", "queda", "quedan", "recórranlas", "rueden", "s", "se", "simplemente", "so", "su", "suma", "todavía", "tomado", "une", "v", "vuelvan", "y", "ya"},
+    "fr": {"ajoute", "casse", "ce", "celui", "cette", "chacune", "choisissez-en", "combien", "déjà", "e", "encore", "et", "fait", "hors", "il", "ils", "le", "les", "mais", "n", "name", "ne", "no", "o", "où", "personne", "plus", "prenez", "pris", "quelqu", "refroidit", "relie", "repassez", "rien", "roulez", "roulez-les", "s", "se", "so", "une", "v", "votre", "vous", "ça", "échappe"},
+    "it": {"aggiunge", "avete", "cadono", "ce", "compare", "cosa", "dove", "e", "fate", "fatto", "fuori", "girate", "già", "gli", "il", "le", "li", "ma", "manca", "mancano", "n", "name", "ne", "nessuno", "niente", "no", "non", "o", "ognuna", "parte", "passa", "passatele", "prendete", "preso", "qualcuno", "quanto", "quello", "questa", "ripassateci", "s", "scegliete", "se", "si", "so", "sono", "unisce", "v", "vi"},
+    "ja": {"1マス増えるが、ブロックは増えない", "2つのエリアをつなぐ", "n", "name", "あと", "あと一マス。印のついたマスを", "じわじわ来ている", "それぞれのマスであと何キロ走ればいいか。選ぶと場所が出る。", "だれかが持っている", "つなぐまであと", "ほかに", "まだ地図に載っていない。印のついたマスで", "まだ狙う先がない。どこかで", "ブロックが", "ブロックが決まれば", "ブロックは走り終えた。次の描き直しで出てくる。", "今は手が届かない", "今週", "今週取った", "北", "北東", "北西", "南", "南東", "南西", "取られる寸前。もう一度流しておこう。", "失いそうなところ", "息をしているのは自分たちの土地。ほかのクランのものは動かない。", "放っておくと冷める", "最初のブロックの一部", "東", "次はここを走ろう", "済み", "相手のブロックを割る、", "相手を抜く", "西", "誰かに取られているのではない。ただ来なくなっただけ。", "走り切った、隣を取れ", "近くを走っているクランは他にいない。どれを取ってもブロックが1マス増える。"},
+    "ko": {"n", "name", "s", "v", "가장", "각", "고르면", "그냥", "그들을", "근처에", "남", "남동", "남서", "남의", "누가", "누군가", "다", "다가오는", "다시", "다음", "다음은", "동", "두", "북", "북동", "북서", "블록은", "블록이", "뺏기기", "상대", "서", "숨", "아무", "아직", "어느", "옆", "완료", "이번", "잃을", "잇기까지", "전부", "지금은", "첫", "표시된", "한"},
+    "nl": {"breekt", "dat", "de", "deel", "deze", "drukt", "elk", "en", "er", "ga", "gaat", "het", "hoeveel", "iemand", "jullie", "kies", "klaar", "koelt", "komt", "levert", "maar", "n", "name", "niemand", "no", "nog", "nw", "o", "pak", "rijd", "uitgereden", "v", "verbindt", "voorlopig", "w", "waar", "wat", "z", "ze", "zet", "zo", "zw"},
+    "no": {"alle", "binder", "blir", "blokka", "bryter", "de", "del", "den", "denne", "dere", "det", "ferdig", "gir", "hva", "hver", "hvor", "ingen", "ingenting", "kjør", "kjørt", "men", "n", "name", "noen", "nv", "nærmer", "nø", "og", "ryker", "s", "sender", "setter", "sv", "så", "sø", "ta", "tatt", "utenfor", "v", "velg", "én", "ø"},
+    "pl": {"a", "ale", "co", "cudze", "część", "daje", "e", "gdy", "gdzie", "i", "ile", "jaki", "jest", "każde", "ktoś", "leci", "ma", "n", "na", "najtańszy", "name", "ne", "nie", "nikt", "nw", "odchodzi", "po", "pojawi", "przejechane", "przejedźcie", "razem", "rozbija", "s", "samo", "se", "spycha", "sw", "są", "to", "v", "w", "wasz", "weźcie", "wybierzcie", "wysuwa", "wzięte", "zaznaczone", "zbliża", "zostało", "zrobione", "zrzuca", "łączy", "żeby"},
+    "pt-BR": {"alguém", "aparece", "cada", "caem", "chegando", "derruba", "e", "escolham", "esfria", "esta", "estão", "falta", "faltam", "feito", "fora", "joga", "junta", "já", "l", "mas", "n", "nada", "name", "ne", "ninguém", "no", "o", "onde", "os", "parte", "passem", "peguem", "põe", "quanto", "quebra", "rodem", "s", "sai", "se", "so", "soma", "tomado", "v", "vocês"},
+    "ru": {"n", "name", "v", "берите", "в", "вас", "ваш", "взято", "вы", "выберите", "выводит", "готово", "даст", "дышит", "её", "з", "и", "их", "каждая", "как", "куда", "ломает", "на", "наезжено", "но", "они", "осталась", "осталось", "отбрасывает", "отмеченные", "подбираются", "пока", "появится", "проедьте", "проедьтесь", "рядом", "с", "самый", "сбивает", "св", "сз", "сколько", "соединяет", "ставит", "стынет", "уйдёт", "уходит", "часть", "что", "чтобы", "чужое", "ю", "юв", "юз"},
+    "sv": {"alla", "binder", "bryter", "de", "del", "den", "det", "en", "ert", "färdigkörd", "ger", "går", "hur", "ingen", "inget", "kallnar", "klart", "kör", "men", "n", "name", "ni", "no", "nv", "närmar", "någon", "o", "och", "pressar", "s", "so", "sv", "sätter", "så", "ta", "taget", "utom", "v", "vad", "var", "vart", "välj"},
+    "tr": {"almıyor", "alın", "alındı", "alıyor", "b", "birinde", "birleştirir", "bitmiş", "blok", "bıraktınız", "d", "değil", "değilsiniz", "dolar", "duruyor", "düşürür", "ekler", "g", "gb", "gd", "gerektiği", "geçin", "geçirir", "gider", "girersiniz", "hafta", "haritadasınız", "k", "kaldı", "kare", "katar", "kaybedebilecekleriniz", "kb", "kd", "kırar", "olur", "parçası", "sessizleşiyor", "seçin", "soğuyor", "sürmüyor", "sürüldü", "sürün", "tamam", "topraklarınız", "tutuyor", "ucuzu", "ulaşılmaz", "v", "var", "yaklaşıyor", "yok", "çıkar"},
+    "uk": {"n", "name", "v", "але", "беріть", "вас", "ваш", "взято", "ви", "виберіть", "виводить", "вони", "відкидає", "готово", "дасть", "дихає", "з", "зʼявиться", "збиває", "кожна", "куди", "ламає", "лишилась", "лишилось", "найдешевший", "наїжджено", "пд", "пдз", "пдс", "пн", "пнз", "пнс", "позначені", "поки", "поряд", "проїдьте", "проїдьтесь", "підбираються", "піде", "с", "скільки", "ставить", "холоне", "цього", "частина", "чуже", "що", "щоб", "щойно", "і", "іде", "їх", "її"},
+    "zh": {"name", "下一趟骑哪里", "东", "东北", "东南", "他们马上就要拿走了。再过去压一遍。", "会呼吸的是你们自己的地盘。别人的不动。", "你们的方块升到", "你们的方块已经骑完了。下次重画就会出现。", "你们第一个方块的一部分", "你们还没上地图。标记的格子正好是一个", "再", "北", "南", "可能会丢的", "多一格，但不算进方块", "已完成", "打断他们的方块，掉", "把他们压到", "把他们挤到", "方块一成就从", "暂时够不着", "暂时没什么可盯的。随便找地方骑出一个", "有人占着", "本周", "本周拿下的", "正在逼近", "每个格子里还得再骑多少。选一个就能找到。", "没人在抢这些。是你们自己不去了。", "自己在变凉", "西", "西北", "西南", "让你们超过", "让你们超过他们", "还差", "还差一格。在标记的那格里骑", "还有", "连起两块地盘", "附近没有别的战队在骑。每一格都给你们的方块加一格。", "骑够了，去拿旁边那个"},
+    "zh-Hant": {"name", "下一趟騎哪裡", "他們馬上就要拿走了。再過去壓一遍。", "你們的方塊升到", "你們的方塊已經騎完了。下次重畫就會出現。", "你們第一個方塊的一部分", "你們還沒上地圖。標記的格子正好是一個", "再", "北", "南", "可能會丟的", "多一格，但不算進方塊", "已完成", "打斷他們的方塊，掉", "把他們壓到", "把他們擠到", "方塊一成就從", "暫時搆不著", "暫時沒什麼可盯的。隨便找地方騎出一個", "會呼吸的是你們自己的地盤。別人的不動。", "有人占著", "本週", "本週拿下的", "東", "東北", "東南", "正在逼近", "每個格子裡還得再騎多少。選一個就能找到。", "沒人在搶這些。是你們自己不去了。", "自己在變涼", "西", "西北", "西南", "讓你們超過", "讓你們超過他們", "連起兩塊地盤", "還差", "還差一格。在標記的那格裡騎", "還有", "附近沒有別的戰隊在騎。每一格都給你們的方塊加一格。", "騎夠了，去拿旁邊那個"},
 }
 
+TAIL_FIRST = {"tr"}        # verb-final: the word that carries person is the last one
 
-@pytest.mark.parametrize("loc", sorted(SINGULAR_ORDERS))
-def test_the_crews_plan_is_not_ordered_about_one_rider(loc):
-    """The imperatives on the targets card, which the pronouns were fixed without.
 
-    Round eleven made this card's pronouns plural and left its orders singular, so one
-    sentence read `Fahr {v} darin und ihr seid auf der Karte` -- told to one person, said
-    about a group -- while `Fahrt sie alle` sat four strings away.
+def clause_heads(value, loc):
+    """The word that opens each clause, or closes it where the verb goes last."""
+    out = []
+    for clause in re.split(r"[.,;:!?]+", value):
+        words = re.findall(r"[^\s.,;:!?\"'()\[\]{}\u00b7]+", clause)
+        if words:
+            out.append((words[-1] if loc in TAIL_FIRST else words[0]).lower())
+    return out
+
+
+@pytest.mark.parametrize("loc", sorted(CREW_WORDS))
+def test_a_crew_card_opens_its_clauses_with_words_somebody_has_read(loc):
+    """The crew's own cards, held by an inventory rather than by a list of known mistakes.
+
+    Person lives in open-class verbs in most of these languages and they cannot be recognised
+    in general -- German `Fahrt` is a 2PL imperative and also a noun, and 3SG takes the same
+    `-t`. A stem-matched rule found three false alarms and no real defects, and a blacklist
+    let 14 of 18 one-word regressions through. What is left is the words that are there.
     """
-    rx = re.compile(SINGULAR_ORDERS[loc], re.I)
-    # Every card CARDS declares "crew", not just the targets one. No live defect on the
-    # others -- the Scandinavian imperatives are person-neutral and the Romance and Slavic
-    # ones are already plural -- but a rule scoped to the card where the bug happened to be
-    # found is how the last three of these stayed open.
     crew_cards = tuple(c for c, who in CARDS.items() if who == "crew")
-    bad = [(k, v) for k, v in TRANSLATIONS[loc].items()
-           if k.startswith(crew_cards) and isinstance(v, str) and rx.search(v)]
-    assert not bad, (
-        f"{loc}: {len(bad)} strings on a card that belongs to the crew give a singular order:" + NL
-        + NL.join(f"  {k}: {v}" for k, v in bad))
+    unknown = []
+    for key, value in sorted(TRANSLATIONS[loc].items()):
+        if not key.startswith(crew_cards) or not isinstance(value, str):
+            continue
+        for word in clause_heads(value, loc):
+            if word not in CREW_WORDS[loc]:
+                unknown.append(f"  {key}: {word!r}")
+    assert not unknown, (
+        f"{loc}: {len(unknown)} clauses on a crew card open with a word this locale has not "
+        f"used there before. If the copy changed on purpose, read it and add the word to "
+        f"CREW_WORDS; if it did not, somebody has just addressed the crew as one rider." + NL
+        + NL.join(sorted(set(unknown))[:12]))
 
 
 # Where a key may be rendered. A key's card is a claim about who is being spoken to, and the

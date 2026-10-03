@@ -41,7 +41,9 @@ def fingerprint(text: str) -> str:
 def main() -> int:
     import i18n
 
-    keys = sorted(k for k in i18n.EN if k.startswith("crew.") or k.startswith("pod."))
+    # Every key. The prefix filter let two keys added for a Crews control fall outside
+    # the guard that exists to catch exactly that.
+    keys = sorted(i18n.EN)
     lines = [
         '"""Auto-generated. The English each translation in i18n_data.py was made from.',
         "",

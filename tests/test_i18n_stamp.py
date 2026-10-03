@@ -38,7 +38,14 @@ except ImportError:                            # pragma: no cover
 
 
 def _keys():
-    return sorted(k for k in i18n.EN if k.startswith("crew.") or k.startswith("pod."))
+    """Every key, not two prefixes.
+
+    This filtered to `crew.` and `pod.`, so the two keys added last round to serve a Crews
+    control -- `panel.close` and `panel.peek` -- fell outside the Crews guard and shipped in
+    English only, the only two untranslated keys out of 442. A guard scoped to a prefix is a
+    guard somebody can step around by naming a key well.
+    """
+    return sorted(i18n.EN)
 
 
 def test_the_stamp_exists():

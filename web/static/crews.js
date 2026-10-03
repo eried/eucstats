@@ -34,7 +34,12 @@
 
   // "1 days" is not a thing
   function fadesIn(n) {
-    return n <= 1 ? t("crew.tile.day1") : t("crew.tile.days", { n: n });
+    // The `ago.days` family, not `days`: this reads "fades in …", a duration, and German
+    // wants the dative there (`in 3 Tagen`, not `in 3 Tage`) -- which is the whole
+    // difference between the two families. `heldFor()` uses the same one. n is never 1
+    // here, so the absent singular cannot be reached.
+    return n <= 1 ? t("crew.tile.day1")
+      : t("crew.tile.days", { v: plural(null, "crew.ago.days.few", "crew.ago.days", n) });
   }
 
   // With the cooldown switched off there is no waiting to describe, so the sentence changes
@@ -668,7 +673,7 @@
         // with its count: this printed the literal "{n}" on the map, on the one square the
         // whole card is shouting about
         + (row.kills ? "<span><em>"
-           + esc(t("crew.targets.kills", { n: row.lost || 0 })) + "</em></span>" : "")
+           + esc(t("crew.targets.kills", { v: tiles(row.lost || 0) })) + "</em></span>" : "")
         + (row.first ? "<span><em>" + esc(t("crew.targets.first")) + "</em></span>" : "");
       map.getCanvasContainer().appendChild(el);
       el.style.left = px.x + "px";
@@ -1218,7 +1223,7 @@
           var tag = x.first && !allFirst
             ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
             : x.kills ? '<span class="crewtag kills">'
-              + t("crew.targets.kills", { n: x.lost || 0 }) + "</span>"
+              + t("crew.targets.kills", { v: tiles(x.lost || 0) }) + "</span>"
             // Above the link chips, because a gain of more than one only happens when
             // patches merge: the number says everything "joins two patches" says, and how
             // big. Four rows in the world take a crew up seven and two take one up
@@ -1335,7 +1340,10 @@
       ? (left.length === 0
          ? t("crew.targets.p0done")
          : t(left.length === 1 ? "crew.targets.p0one" : "crew.targets.p0n",
-             { n: left.length, v: fmtKm(Math.round(togo * 10) / 10) }))
+             // `tiles()`, not a bare count with the noun baked into the sentence: the
+             // squares left in a block are 2, 3 or 4 far more often than anything else,
+             // which is exactly where Russian, Ukrainian and Polish need their own form.
+             { s: tiles(left.length), v: fmtKm(Math.round(togo * 10) / 10) }))
       : t(nothing ? "crew.targets.p0" : "crew.targets.p", { n: SEED });
     return head + '<p class=hint>' + lead + "</p>"
       + body + drawnLine() + "</div>";
@@ -1851,12 +1859,20 @@
       if (pod && pod.indexOf("pod.") !== 0) return pod.toLowerCase();
     }
     var s = t("crew.rank.nth", { n: n });
-    // English is the only locale whose suffix is irregular, and the only one whose template
+    // English and Swedish are the two locales whose suffix is irregular; English is the
+    // only one whose template
     // ends in "th" -- every other table carries its own correct form ("{n}.", "{n}e",
     // "{n}位"). Without this the board read "21th", "22th", "31th" past the podium.
     if (/th$/.test(s) && !(n % 100 >= 11 && n % 100 <= 13)) {
       var tail = { 1: "st", 2: "nd", 3: "rd" }[n % 10];
       if (tail) return s.slice(0, -2) + tail;
+    }
+    // Swedish is the second, and the comment above used to say there was only one. `{n}:a`
+    // is right for 1, 2, 21 and 22 and wrong for everything else -- 3:e, 4:e, 11:e, 13:e --
+    // so the board printed "8:a" for eighth while this locale's own `pod.3` showed "3:e".
+    if (/:a$/.test(s)) {
+      var d = n % 10, h = n % 100;
+      if (!((d === 1 || d === 2) && h !== 11 && h !== 12)) return s.slice(0, -1) + "e";
     }
     return s;
   }
