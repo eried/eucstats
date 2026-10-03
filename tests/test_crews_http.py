@@ -326,3 +326,62 @@ def test_a_rider_is_told_their_crew_folded(client, db):
     me = client.get("/api/v1/crews/me").json()
     assert me.get("folded") == "Here Today"
     assert client.get("/api/v1/crews/me").json().get("folded") is None
+
+
+def test_a_roster_never_publishes_a_riders_store_id(client, db):
+    """A store_id is the only thing `POST /pair/confirm` needs, so printing one into a
+    leader's panel hands them a session as that rider. A reviewer did exactly that and left
+    the victim's crew for them. `Rider.public_id` exists for this and is what every other
+    public surface uses."""
+    _rider(db, "boss")
+    # conftest pins public_id to store_id so board assertions read well, which would hide the
+    # very thing this test is for. These two get real handles.
+    for sid, h in (("boss", "pub-boss-9f2a"), ("victim", "pub-victim-4c81")):
+        r = db.query(Rider).filter(Rider.store_id == sid).first()
+        if r is not None:
+            r.public_id = h
+    db.commit()
+    _signed_in(client, db, "boss")
+    client.post("/api/v1/crews", json={"name": "The Firm", "join_policy": "open"})
+    clan = db.query(Clan).filter(Clan.name == "The Firm").one()
+    leader = client.cookies.get(pairing.COOKIE)
+
+    _rider(db, "victim")
+    v = db.query(Rider).filter(Rider.store_id == "victim").one()
+    v.public_id = "pub-victim-4c81"
+    db.commit()
+    _signed_in(client, db, "victim")
+    client.post(f"/api/v1/crews/{clan.slug}/join", json={})
+
+    client.cookies.clear()
+    client.cookies.set(pairing.COOKIE, leader)
+    me = client.get("/api/v1/crews/me").json()
+    ids = [m["store_id"] for m in me["roster"]]
+    assert ids, "the roster has to list somebody"
+    assert "victim" not in ids and "boss" not in ids, (
+        f"a real store_id reached the panel: {ids}")
+
+    # and the published handle is useless for minting a session
+    with pytest.raises(pairing.PairError):
+        p = pairing.start(db, purpose="rider")
+        pairing.confirm(db, p["code"], ids[0])
+
+
+def test_the_published_handle_still_addresses_the_right_rider(client, db):
+    _rider(db, "cap")
+    _signed_in(client, db, "cap")
+    client.post("/api/v1/crews", json={"name": "Handles", "join_policy": "open"})
+    clan = db.query(Clan).filter(Clan.name == "Handles").one()
+    leader = client.cookies.get(pairing.COOKIE)
+
+    _rider(db, "crew")
+    _signed_in(client, db, "crew")
+    client.post(f"/api/v1/crews/{clan.slug}/join", json={})
+
+    client.cookies.clear()
+    client.cookies.set(pairing.COOKIE, leader)
+    handle = db.query(Rider).filter(Rider.store_id == "crew").one().public_id
+    r = client.post(f"/api/v1/crews/{clan.slug}/role",
+                    json={"store_id": handle, "role": "officer"})
+    assert r.status_code == 200, r.text
+    assert crews.membership(db, "crew").role == "officer"

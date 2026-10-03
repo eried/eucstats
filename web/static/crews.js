@@ -628,7 +628,8 @@
         + "<b>" + esc(losing
             ? (row.band === 3 ? fadesIn(Math.round(row.need * 10))
                : t("crew.lose.gap", { v: effort(row.need, row.y) }))
-            : row.blocked ? t("crew.targets.blocked") : effort(row.need, row.y)) + "</b>"
+            : row.blocked ? t(row.first ? "crew.targets.got" : "crew.targets.blocked")
+            : effort(row.need, row.y)) + "</b>"
         + "<span>" + esc(losing
             ? t(row.band === 3 ? "crew.lose.cold"
                 : row.band === 2 ? "crew.lose.now" : "crew.lose.soon")
@@ -1018,6 +1019,10 @@
     // When every row is the block, the hint above has already said so and the badge is on
     // all four, which makes it furniture rather than a mark.
     var allFirst = TARGETS.every(function (x) { return x.first; });
+    // Four rows of one block are four squares of one neighbourhood, and printing its name
+    // four times is the ditto problem in a card that bypasses the dedupe.
+    var onePlace = allFirst && TARGETS.length > 1
+      && TARGETS.every(function (x) { return x.at && x.at === TARGETS[0].at; });
     var seenWho = {};
     var body = TARGETS.map(function (x, i) {
           var tag = x.first && !allFirst
@@ -1029,6 +1034,15 @@
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
             : x.blocked && !x.first
               ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
+            // Below the three-square bar, say what their number becomes. One square off the
+            // patch the board ranks them on is true of every border square and is the only
+            // thing on the card shaped like catching somebody.
+            // The row already names them, so the tag does not. And only when the board would
+            // actually move: taking a square off a detached outpost costs them tiles and
+            // nothing on the ladder.
+            : x.ranked_was > x.ranked_now
+              ? '<span class="crewtag drops">'
+                + t("crew.targets.drops", { n: x.ranked_now }) + "</span>"
             : "";
           // Not part of the chain above: a square can be the best move in the game AND more
           // than the crew can physically bank, and being told only the first is how somebody
@@ -1038,7 +1052,12 @@
           }
           // A crew that folded between the rebuild and this view has no name to print, and
           // the row came out as " has it" with a leading space and nobody in it.
-          var who = x.held_by && x.held_name
+          // A block square the crew already out-rides: "done" over "they have it" reads as a
+          // contradiction, when what it means is that it comes off them the moment the block
+          // lands.
+          var who = x.first && x.blocked && x.held_by && x.held_name
+            ? t("crew.targets.flips", { name: esc(x.held_name) })
+            : x.held_by && x.held_name
             ? t("crew.targets.taken", { name: esc(x.held_name) })
             : x.held_by ? t("crew.targets.takenby")
             : t("crew.tile.free");
@@ -1060,7 +1079,7 @@
             // Where, not only which way. A compass bearing from the middle of your own
             // ground is not how anyone reads a map of the city they live in.
             + '<span class="crewtwho">'
-            + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
+            + (x.at && !onePlace ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
             + '<i class="' + (rw ? "rpt" : "") + '">' + who + "</i></span>"
             + tag + "</div>";
         }).join("");
@@ -1373,8 +1392,7 @@
   var ERRS = {
     expired: "crew.e.expired", unknown: "crew.e.expired", used: "crew.e.expired",
     no_rider: "crew.e.norider", busy: "crew.e.busy",
-    crew_full: "crew.e.full", last_member: "crew.e.last_member",
-    not_yourself: "crew.e.not_yourself", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
+    crew_full: "crew.e.full", not_yourself: "crew.e.not_yourself", creation_closed: "crew.e.closed", forbidden: "crew.e.forbidden",
     not_leader: "crew.e.forbidden", not_paired: "crew.e.pass",
     crews_disabled: "crew.e.off",
     bad_invite: "crew.e.invite", bad_name: "crew.e.name", name_taken: "crew.e.taken",
@@ -1519,13 +1537,36 @@
     };
   }
 
+  // Where this crew sits and how far off the one above, from the board the browser already
+  // holds. Nothing on the crew card said either.
+  function standing(slug) {
+    if (!TERR || !TERR.crews) return "";
+    var rows = TERR.crews.slice().sort(function (a, b) {
+      return (b.best_tiles || 0) - (a.best_tiles || 0);
+    });
+    var i = -1;
+    rows.forEach(function (c, n) { if (c.slug === slug) i = n; });
+    if (i < 0) return "";
+    if (i === 0) return '<span class="crewgap top">' + t("crew.rank.top") + "</span>";
+    var gap = (rows[i - 1].best_tiles || 0) - (rows[i].best_tiles || 0);
+    return '<span class="crewgap">'
+      + t(gap === 0 ? "crew.rank.level" : "crew.rank.off",
+          { n: gap, v: ordinal(i) }) + "</span>";
+  }
+
+  // 1st, 2nd, 3rd... in whatever the reader's language does with them. The host already has
+  // the three podium words; past that it is the bare number, which every locale accepts.
+  function ordinal(n) {
+    return t("crew.rank.nth", { n: n });
+  }
+
   function myCrewHTML(me) {
     var c = me.crew, lead = me.role === "leader" || me.role === "officer";
     var h = '<div class="crewcard crewmine">'
       + '<div class="crewhead">'
       + '<img class="crewlogo" src="' + c.emblem + '" alt=""/>'
       + "<div><h3>" + esc(c.name) + "</h3>"
-      + '<div class="crewmeta">' + riders(c.members) + " · "
+      + '<div class="crewmeta">' + standing(c.slug) + riders(c.members) + " · "
       + t(me.role === "leader" ? "crew.mine.youare"
           : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember")
       + "</div></div></div>";
@@ -1543,8 +1584,11 @@
       h += '<div class="crewpend"><h4>' + t("crew.decl.h") + "</h4>"
         + me.declined.map(function (x) {
             return '<div class="crewpendr"><span>' + esc(x.name) + "</span>"
-              + '<button class="crewbtn mini ghost" data-undecline="'
-              + esc(x.store_id || "") + '">' + t("crew.decl.undo") + "</button></div>";
+              + (x.free
+                 ? '<button class="crewbtn mini ghost" data-undecline="'
+                   + esc(x.store_id || "") + '">' + t("crew.decl.undo") + "</button>"
+                 : '<span class="crewgone">' + t("crew.decl.gone") + "</span>")
+              + "</div>";
           }).join("") + "</div>";
     }
     // Leaving is blocked for a leader with members until somebody else can run the crew, and
@@ -1751,7 +1795,7 @@
         + (terr.regions > 1 ? " · " + plural(null, "crew.patches.few", "crew.patches", terr.regions) : "")
         + (terr.tiles && terr.tiles !== (terr.best_tiles || terr.tiles)
             ? " · " + t("crew.inall", { v: tiles(terr.tiles) }) : "")
-        + (terr.tiles ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
+        + (terr.tiles ? "" : " · " + (TARGETS.length && TARGETS[0].first ? "" : t("crew.mine.start", { n: SEED }))) + "</div>"
         + (me.status === "pending" ? "" : targetsHTML(r.body.targets) + loseHTML(c.slug))
         + contributorsHTML(r.body.contributors);
       el.querySelectorAll("[data-t]").forEach(function (row) {

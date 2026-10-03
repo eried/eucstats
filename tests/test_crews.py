@@ -432,3 +432,85 @@ def test_a_leader_can_take_back_a_decline(db):
     crews.decide(db, "tb1", c.clan_id, "tb2", accept=True)
     m = crews.membership(db, "tb2")
     assert m is not None and m.status == "active"
+
+
+def test_a_leader_cannot_demote_themselves_out_of_the_job(db):
+    """Found while verifying something else: nothing stopped a leader setting their own role
+    to member, which leaves the crew with nobody in charge -- the exact state leave() and
+    disband() are written to prevent. Handing over is role="leader" on somebody else."""
+    _rider(db, "sd1")
+    _rider(db, "sd2")
+    c = crews.create(db, "sd1", "Captain Goes Down", join_policy="open")
+    crews.join(db, "sd2", c.clan_id)
+    with pytest.raises(crews.CrewError) as e:
+        crews.set_role(db, "sd1", c.clan_id, "sd1", "member")
+    assert e.value.code == "promote_first"
+    assert crews.membership(db, "sd1").role == "leader"
+    # handing over properly still works, and the old leader steps down to officer
+    crews.set_role(db, "sd1", c.clan_id, "sd2", "leader")
+    assert crews.membership(db, "sd2").role == "leader"
+    assert crews.membership(db, "sd1").role == "officer"
+
+
+def test_accepting_a_rider_who_has_since_joined_elsewhere_is_refused(db):
+    """The reconsider path revived a declined row with none of the guards the front door has,
+    so a leader's Accept could put somebody in two crews at once."""
+    _rider(db, "tw1")
+    _rider(db, "tw2")
+    _rider(db, "tw3")
+    a = crews.create(db, "tw1", "First Choice", join_policy="approval")
+    b = crews.create(db, "tw3", "Second Choice", join_policy="open")
+    crews.join(db, "tw2", a.clan_id)
+    crews.decide(db, "tw1", a.clan_id, "tw2", accept=False)
+    crews.join(db, "tw2", b.clan_id)
+
+    with pytest.raises(crews.CrewError) as e:
+        crews.decide(db, "tw1", a.clan_id, "tw2", accept=True)
+    assert e.value.code == "already_in_crew"
+    assert crews.membership(db, "tw2").clan_id == b.clan_id, "and nothing was written"
+
+
+def test_restoring_does_not_put_somebody_in_two_crews(db):
+    """`unretire` revived every disbanded row regardless, so an admin's restore could land a
+    rider in a crew they had already left for another -- two Leaves and a week's cooldown to
+    get out of something they had no part in."""
+    _rider(db, "dm1")
+    _rider(db, "dm2")
+    _rider(db, "dm3")
+    folded = crews.create(db, "dm1", "Gone Fishing", join_policy="open")
+    crews.join(db, "dm2", folded.clan_id)
+    crews.disband(db, "dm1", folded.clan_id)
+
+    other = crews.create(db, "dm3", "Still Going", join_policy="open")
+    crews.join(db, "dm2", other.clan_id)
+
+    assert crews.unretire(db, folded) is None
+    db.commit()
+    assert crews.membership(db, "dm2").clan_id == other.clan_id
+    rows = (db.query(ClanMember)
+            .filter(ClanMember.store_id == "dm2", ClanMember.left_at.is_(None)).count())
+    assert rows == 1, "one live membership, not two"
+
+
+def test_an_admin_folded_crews_leader_is_told_too(db):
+    """`last_fold` skipped anyone whose role was leader, to spare the person who pressed
+    Disband. An admin's fold writes the same mark, so the one person who pressed nothing and
+    most needs the explanation got none."""
+    _rider(db, "af1")
+    c = crews.create(db, "af1", "Admin Folded", join_policy="open")
+    # what web/admin_crews.py does: mark the members, retire the crew, no actor
+    for m in db.query(ClanMember).filter(ClanMember.clan_id == c.clan_id,
+                                         ClanMember.left_at.is_(None)).all():
+        m.left_at = utcnow()
+        m.status = "disbanded"
+    crews._retire(c)
+    db.commit()
+    told = crews.last_fold(db, "af1")
+    assert told and told["crew"] == "Admin Folded"
+
+
+def test_the_leader_who_folded_their_own_crew_is_not_told_about_it(db):
+    _rider(db, "ow1")
+    c = crews.create(db, "ow1", "My Own Doing", join_policy="open")
+    crews.disband(db, "ow1", c.clan_id)
+    assert crews.last_fold(db, "ow1") is None, "they read the confirm dialog"

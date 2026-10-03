@@ -429,9 +429,6 @@ def last_fold(db, store_id: str) -> dict | None:
     """
     m = (db.query(ClanMember)
          .filter(ClanMember.store_id == store_id, ClanMember.status == "disbanded",
-                 # not the leader who pressed the button: they were shown a confirm dialog
-                 # describing exactly this and then told about it as if it were news
-                 ClanMember.role != "leader",
                  ClanMember.left_at.isnot(None),
                  ClanMember.left_at >= utcnow() - timedelta(days=7))
          .order_by(ClanMember.left_at.desc()).first())
@@ -484,6 +481,11 @@ def set_role(db, actor: str, clan_id: str, store_id: str, role: str) -> None:
         raise CrewError("bad_role", "Unknown role.")
     if role == "leader" and me.role != "leader":
         raise CrewError("not_leader", "Only the leader can hand over leadership.")
+    # Found while checking something else: nothing stopped a leader setting their own role to
+    # member, which leaves the crew with nobody in charge -- the exact state leave() and
+    # disband() are written to prevent. Handing over is role="leader" on somebody else.
+    if store_id == actor and me.role == "leader" and role != "leader":
+        raise CrewError("promote_first", "Hand the crew to somebody else first.")
     m = (db.query(ClanMember)
          .filter(ClanMember.clan_id == clan_id, ClanMember.store_id == store_id,
                  ClanMember.left_at.is_(None)).first())
@@ -623,7 +625,10 @@ def disband(db, actor: str, clan_id: str) -> None:
         # Nobody here walked out. The cooldown exists to stop crew-hopping, and having your
         # crew folded underneath you is not hopping: the members took no action at all, and
         # were being benched a week and shown "You just walked out of one".
-        mm.status = "disbanded"
+        # The one who pressed the button is marked as having seen it, because they have: they
+        # read a confirm dialog describing exactly this. Marking it by role instead meant an
+        # admin-folded crew's leader -- who pressed nothing -- was told nothing either.
+        mm.status = "disbanded_seen" if mm.store_id == actor else "disbanded"
     # The admin's disband clears these and the leader's did not, so the same action left two
     # different maps standing for up to a rebuild interval.
     db.query(ClanCell).filter(ClanCell.clan_id == clan_id).delete()
@@ -668,6 +673,11 @@ def unretire(db, clan) -> str | None:
     for m in db.query(ClanMember).filter(
             ClanMember.clan_id == clan.clan_id,
             ClanMember.status.in_(("disbanded", "disbanded_seen"))).all():
+        # Not somebody who has joined somewhere else since. Reviving them regardless put a
+        # rider in two crews at once, with two Leaves and a week's cooldown as the only way
+        # out of a state they had no part in creating.
+        if membership(db, m.store_id):
+            continue
         m.status = "active"
         m.left_at = None
         back += 1

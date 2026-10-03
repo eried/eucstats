@@ -19,7 +19,8 @@ later declaration overrides an earlier one in a context that does not narrow it.
 """
 import re, pathlib, collections
 
-src = pathlib.Path("D:/GitHub/eucstats/web/static/crews.css").read_text(encoding="utf-8")
+CSS = pathlib.Path(__file__).resolve().parent.parent / "web" / "static" / "crews.css"
+src = CSS.read_text(encoding="utf-8")
 src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
 
 ctx, i, n, buf = [], 0, len(src), ""

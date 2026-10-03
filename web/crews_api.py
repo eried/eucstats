@@ -36,6 +36,26 @@ def _ip(request: Request) -> str:
     return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
 
 
+def _handle(db: Session, store_id: str) -> str:
+    """What a roster may publish about a rider.
+
+    Never the store_id: `pair/confirm` treats it as proof of identity, so printing one into
+    a leader's panel hands them a session as that rider. The public handle is what every
+    other public surface uses.
+    """
+    r = db.get(Rider, store_id)
+    return (r.public_id if r is not None and r.public_id else store_id)
+
+
+def _by_handle(db: Session, handle: str) -> str:
+    """Back the other way, for a route acting on somebody the panel named."""
+    h = (handle or "").strip()
+    if not h:
+        return ""
+    r = db.query(Rider).filter(Rider.public_id == h).first()
+    return r.store_id if r is not None else ""
+
+
 def _living(db: Session, clan_id: str):
     """A crew that still exists. A folded one keeps its row and carries a retirement tag in
     its name, which a public endpoint has no business handing out."""
@@ -278,7 +298,7 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
                 out["roster"] = [
-                    {"store_id": x.store_id, "role": x.role,
+                    {"store_id": _handle(db, x.store_id), "role": x.role,
                      "name": (db.get(Rider, x.store_id).display_name
                               if db.get(Rider, x.store_id) else "?")}
                     for x in db.query(ClanMember).filter(
@@ -287,7 +307,7 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                         ClanMember.left_at.is_(None))
                     .order_by(ClanMember.joined_at.asc()).all()]
                 out["pending"] = [
-                    {"store_id": p.store_id,
+                    {"store_id": _handle(db, p.store_id),
                      "name": (db.get(Rider, p.store_id).display_name
                               if db.get(Rider, p.store_id) else "?")}
                     for p in db.query(ClanMember).filter(
@@ -298,9 +318,14 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                 # somewhere to do it. crews.decide(accept=True) reopens the request.
                 since = utcnow() - timedelta(days=7)
                 out["declined"] = [
-                    {"store_id": p.store_id,
+                    {"store_id": _handle(db, p.store_id),
                      "name": (db.get(Rider, p.store_id).display_name
-                              if db.get(Rider, p.store_id) else "?")}
+                              if db.get(Rider, p.store_id) else "?"),
+                     # Whether letting them in could work. Without it the button is offered
+                     # every day for a week to a rider who has since joined elsewhere, and
+                     # fails identically every time.
+                     "free": not crews.membership(db, p.store_id)
+                             and not crews.cooldown_until(db, p.store_id)}
                     for p in db.query(ClanMember).filter(
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status.in_(("declined", "declined_seen")),
@@ -481,11 +506,15 @@ def crew_detail(slug: str, request: Request, db: Session = Depends(get_db)):
                 # Living crews only. A folded crew keeps its row and carries a retirement
                 # tag in its name, which was being printed at riders as
                 # "Spree Shift (folded a1b2c3) has it".
-                names = dict(db.query(Clan.clan_id, Clan.name)
-                             .filter(Clan.clan_id.in_(ids),
-                                     Clan.disbanded_at.is_(None)).all())
+                rows = (db.query(Clan.clan_id, Clan.name, Clan.terr_best_tiles)
+                        .filter(Clan.clan_id.in_(ids),
+                                Clan.disbanded_at.is_(None)).all())
+                names = {r[0]: (r[1], r[2] or 0) for r in rows}
                 for t in out["targets"]:
-                    t["held_name"] = names.get(t.get("held_by"))
+                    hit = names.get(t.get("held_by"))
+                    t["held_name"] = hit[0] if hit else None
+                    # what their ranked number becomes if this square goes
+                    t["held_tiles"] = hit[1] if hit else 0
             for t in out["targets"]:
                 t["held_by"] = bool(t.get("held_by"))
     return out
@@ -529,7 +558,7 @@ def decide_member(slug: str, payload: dict, request: Request, db: Session = Depe
     _gate(db)
     ws = _require_session(request, db)
     clan = _clan_by_slug(db, slug)
-    target = (payload.get("store_id") or "").strip()
+    target = _by_handle(db, payload.get("store_id"))
     accept = bool(payload.get("accept"))
     try:
         crews.decide(db, ws.store_id, clan.clan_id, target, accept)
@@ -547,7 +576,8 @@ def remove_member(slug: str, payload: dict, request: Request, db: Session = Depe
     ws = _require_session(request, db)
     clan = _clan_by_slug(db, slug)
     try:
-        crews.remove(db, ws.store_id, clan.clan_id, (payload.get("store_id") or "").strip())
+        crews.remove(db, ws.store_id, clan.clan_id,
+                     _by_handle(db, payload.get("store_id")))
     except crews.CrewError as e:
         raise _err(e)
     return {"ok": True}
@@ -560,7 +590,7 @@ def set_member_role(slug: str, payload: dict, request: Request, db: Session = De
     clan = _clan_by_slug(db, slug)
     try:
         crews.set_role(db, ws.store_id, clan.clan_id,
-                       (payload.get("store_id") or "").strip(),
+                       _by_handle(db, payload.get("store_id")),
                        (payload.get("role") or "").strip())
     except crews.CrewError as e:
         raise _err(e)

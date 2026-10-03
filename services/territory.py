@@ -981,7 +981,15 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         # are, and the row carries the number so it argues for itself.
         lost = len(theirs) - len(left)
         t["kills"] = lost >= 3
-        t["lost"] = lost if lost >= 3 else 0
+        # What the board would actually show them afterwards. `lost` counts every square they
+        # drop anywhere, and the board ranks the biggest single patch, so a square taken off
+        # a detached outpost cost them four tiles and nothing at all on the ladder -- the row
+        # said "drops to 12" while their ranked number stayed 16.
+        before = max((len(c) for c in regions(seeded(theirs, seed))), default=0)
+        after = max((len(c) for c in regions(left)), default=0)
+        t["lost"] = lost
+        t["ranked_now"] = after
+        t["ranked_was"] = before
     # a square that takes a crew off the map outranks everything except being on the map
     # yourself, which is the same move from the other side
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
