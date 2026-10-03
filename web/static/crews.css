@@ -101,7 +101,11 @@
 .crewpendr span { flex: 1; }
 
 .crewlist { margin-top: 6px; }
-.crewrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(255,255,255,.05); }
+/* Top, not centre. A 46px emblem centred against a three-line text block lined up with the
+   distance rather than with the crew's name; the button stays centred, because a button level
+   with a name's cap height reads as belonging to the name. */
+.crewrow { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(255,255,255,.05); }
+.crewrow > .crewbtn { align-self: center; }
 /* `display: flex` above is author CSS and `[hidden]`'s `display: none` comes from the user
    agent, so the author rule wins and a hidden row went on taking its 44px. Fifteen of the
    twenty-one rows in this list are hidden until you ask for them, so the toggle appeared to
@@ -987,3 +991,21 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    -- in German "Zum Offizier machen" and "Entfernen" leave 45px of a 292px row, so three
    roster rows read `S14·Fj…`, `SIM·V…`, `S14·K…` beside a button that removes somebody. */
 .crewpendr > span .crewrole { white-space: nowrap; }
+
+/* A SHORT screen, which this file had no rule for: `@media` appeared only at 560px wide, for
+   hover and for reduced motion. At 360x640 the panel body is 288px tall, so the podium -- the
+   tallest thing in the panel and the first -- was cut through the middle of its own figures,
+   with pink half-glyphs bleeding into the dock below. The three places still read as three
+   places; they just stop being a monument. */
+@media (max-height: 700px) {
+  .crewboard .podium { align-items: stretch; }
+  /* `.pod.p1` carries the gold plinth's own `padding-top: 20px` at top level, which is more
+     specific than this, so without naming it the winner stayed tall while the other two
+     shrank. */
+  .crewboard .pod, .crewboard .pod.p1 { padding-top: 8px; padding-bottom: 8px; }
+  .crewboard .pod .crewpodn { font-size: 18px; }
+  .crewboard .pod .av, .crewboard .pod .podic { width: 30px; height: 30px; margin-bottom: 4px; }
+  /* The patch count and the gain line are the two things a 288px window cannot afford, and
+     both are in the table two rows below. */
+  .crewboard .pod .psub { display: none; }
+}

@@ -157,7 +157,7 @@ tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:7
 .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
 .mut{color:var(--mut)}.rider{display:flex;align-items:center;gap:9px}
 .anonav{box-shadow:0 0 0 1.5px rgba(154,166,200,.55),0 1px 5px rgba(0,0,0,.5);image-rendering:pixelated}.anonflag{opacity:.9}.anonrow>span:last-child{color:var(--mut)}.av{width:24px;height:24px;border-radius:50%;background:#1b2240;object-fit:cover;flex:0 0 auto;vertical-align:middle;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 1px 5px rgba(0,0,0,.5)}
-.avph{background:linear-gradient(135deg,#2a3566,#141a30)}
+.avph{background:linear-gradient(135deg,#2a3566,#141a30);display:inline-flex;align-items:center;justify-content:center;font:700 11px/1 Orbitron,ui-sans-serif,sans-serif;color:#9aa6c8;letter-spacing:0}
 .flag{width:20px;height:15px;border-radius:2px;object-fit:cover;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.45);flex:0 0 auto}
 tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tabs{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:140px;gap:6px;margin-bottom:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
@@ -374,7 +374,9 @@ const GLOBE_TPL='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" aria-
 const GLOBE=()=>GLOBE_TPL.replace("__A__",t("flag.hidden").replace(/"/g,"&quot;"));
 const anonName=e=>e.alias||e.name||"Rider";
 const av=(id,has,e)=>anonView(e)?`<img class="av anonav" alt="" src="${dazzle(e.mark)}"/>`
-  :(has===false?'<span class="av avph"></span>':`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
+  // An initial, not an empty disc. Four of these stacked in "who rode for it" read as four
+  // broken images; the same circle with a letter in it reads as four people.
+  :(has===false?`<span class="av avph">${esc((anonView(e)?anonName(e):(e&&e.name)||"?").trim().slice(0,1).toUpperCase())}</span>`:`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
 const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE():cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';

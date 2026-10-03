@@ -210,7 +210,19 @@
 
   function startPulse(any) {
     stopPulse();
-    if (CALM || !any) return;         // nothing happening, or a reader who asked for stillness
+    if (!any) return;                 // nothing happening
+    // A reader who asked for stillness gets stillness, not blankness. Both layers are
+    // declared at opacity 0 and only `beat()` ever gives them a value, so returning here
+    // left them invisible for good -- and one of them is the only warning that somebody is
+    // taking a square off your own crew. Lower than the pulse's peak for danger: a steady
+    // white wash reads louder than a breathing one.
+    if (CALM) {
+      try {
+        map.setPaintProperty("crew-pulse-danger", "fill-opacity", 0.18);
+        map.setPaintProperty("crew-pulse-fresh", "fill-opacity", 0.26);
+      } catch (e) {}
+      return;
+    }
     beat();
     pulseTimer = setInterval(function () {
       if (document.hidden) return;    // a hidden tab does not need a heartbeat
@@ -941,7 +953,10 @@
       + (myInk()[0] ? ' style="background:' + esc(myInk()[0]) + '"' : "")
       + (myInk()[1] ? ' data-p="' + esc(myInk()[1]) + '"' : "") + "></i>"
       + t("crew.legend.fresh") + "</span>"
-      + '<p class="crewlegnote">' + t("crew.legend.note") + "</p>"
+      // The note described the breathing, which is exactly what is not happening for a
+      // reader who asked for stillness.
+      + '<p class="crewlegnote">' + t(CALM ? "crew.legend.note.calm" : "crew.legend.note")
+      + "</p>"
       + "</div>";
   }
 
@@ -1013,7 +1028,10 @@
   // "0.4 mi", not a kilometre figure with a mile label on it.
   function fmtKm(v) {
     var n = (v == null ? 0 : v) * (H.mph && H.mph() ? MI_PER_KM : 1);
-    var u = H.mph && H.mph() ? " mi" : " km";
+    // A non-breaking space. The join list broke `137 km²` across two lines on five of its
+    // eight rows, and `nowrap` is the wrong tool twice over in this file: once it cut text in
+    // eleven locales, once removing it made a measurement lie in CJK.
+    var u = H.mph && H.mph() ? "\u00a0mi" : "\u00a0km";
     // one decimal while it matters, none once it does not: "0.4 mi" and "137 km"
     return (n < 10 ? n.toFixed(1) : Math.round(n).toLocaleString()) + u;
   }
@@ -1070,9 +1088,9 @@
   function fmtKm2(v) {
     var n = v == null ? 0 : v;
     if (H.mph && H.mph()) {
-      return Math.round(n * MI2_PER_KM2).toLocaleString() + " mi²";
+      return Math.round(n * MI2_PER_KM2).toLocaleString() + "\u00a0mi²";
     }
-    return Math.round(n).toLocaleString() + " km²";
+    return Math.round(n).toLocaleString() + "\u00a0km²";
   }
 
   // A function rather than a constant: this was built at load time, before the host hands

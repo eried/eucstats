@@ -452,6 +452,23 @@ def _cases():
         ("a state rule standing after the hover rule it answers",
          css + NL + ".zzrow:hover { background: rgba(255,255,255,.04); }" + NL
              + ".zzrow.open { background: rgba(255,138,216,.3); }" + NL, 0),
+        # `display: none` on an ancestor is the one value a descendant cannot answer: the box
+        # is not generated, so it has no children in the layout tree and their `display` is
+        # never read. Hiding a container on a short screen is correct CSS.
+        ("an ancestor hidden outright, with descendants that set display",
+         css + NL + ".zzwrap .zzkid { display: block; }" + NL
+             + "@media (max-height: 700px) { .zzwrap { display: none; } }" + NL, 0),
+        # `visibility` is the contrast, and it runs the other way: a descendant CAN set
+        # `visibility: visible` and come back, so an ancestor hiding one is relaxing nothing
+        # and nothing is wrong here either.
+        ("an ancestor hidden by visibility, with a descendant that shows itself",
+         css + NL + ".zzwrap .zzkid { visibility: visible; }" + NL
+             + "@media (max-height: 700px) { .zzwrap { visibility: hidden; } }" + NL, 0),
+        # What IS wrong is the reverse: a parent cannot reveal a child that hid itself, which
+        # is the branch this whole distinction lives in, still working.
+        ("an ancestor made visible over a descendant that hid itself",
+         css + NL + ".zzwrap .zzkid { visibility: hidden; }" + NL
+             + "@media (max-height: 700px) { .zzwrap { visibility: visible; } }" + NL, 1),
         # Chrome honours this as a priority, so reporting it is the cry-wolf half again
         ("!important spelled with an escape",
          css.replace(PHONE_STRIP,

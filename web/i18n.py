@@ -161,6 +161,9 @@ EN: dict[str, str] = {
     "crew.ago.year": "over a year",
     "crew.board.gained": "+{v} this week",
     "crew.legend.note": "The breathing is your own ground. Everyone else's sits still.",
+    # The same distinction for a reader who asked for stillness. The old sentence told them
+    # to look for a cue that, for them, is not drawn at all.
+    "crew.legend.note.calm": "What is marked brighter is your own. Everyone else's sits plain.",
     "crew.targets.links": "{n} to link up",
     "crew.legend.fresh": "Taken this week",
     "crew.drawn.in": "Rode one of these already? The map redraws in about {n} min.",

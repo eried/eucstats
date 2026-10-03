@@ -797,7 +797,7 @@ def same_base(a, b):
     return strip(ca[-1]) == strip(cb[-1])
 
 
-def relaxes(val, against=None):
+def relaxes(val, against=None, prop=None):
     """Whether this value lifts a restriction the descendant sets.
 
     A reviewer wrote the shipped ellipsis bug with `white-space: pre-wrap` instead of `normal`
@@ -810,6 +810,16 @@ def relaxes(val, against=None):
     `padding: 12px` and a file input inside it with `padding: 7px 10px` is a parent and a
     child legitimately disagreeing, which is most of CSS.
     """
+    # The one value a descendant cannot answer. `none` belongs in the list for `background`,
+    # `overflow` and `border`, but a box with `display: none` generates no box at all, so it has
+    # no children in the layout tree and a descendant's `display: block` is never consulted --
+    # not outranked, never read. I hid a podium's sub-line on a short screen and this reported
+    # the two descendant rules it was hiding: correct CSS, two complaints.
+    #
+    # `visibility: hidden` is deliberately NOT here: a descendant really can set
+    # `visibility: visible` and come back, so an ancestor setting it IS relaxing something.
+    if prop is not None and physical(prop) == "display" and bare(val).strip().lower() == "none":
+        return False
     return val.strip().lower() in RELAXERS
 
 
@@ -946,7 +956,7 @@ def main():
                 # a restriction the descendant sets; anything else is a parent and a child
                 # legitimately holding different values.
                 if len(compounds(b[2])) > len(compounds(a[2])) \
-                        and not relaxes(a[4], b[4]):
+                        and not relaxes(a[4], b[4], a[3]):
                     continue
                 # `a` is the broad rule, `b` the narrow one. `a` only wins on b's elements
                 # if it is at least as specific, which (media queries adding nothing) it is
