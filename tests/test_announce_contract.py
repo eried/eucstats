@@ -66,22 +66,39 @@ def _seed(db):
     db.commit()
 
 
-def _keys_read_from_an_entry():
-    """Every key the announcer pulls out of a board or group entry, read from its source.
+ENTRY_KEY = re.compile(r"""(?:entries\[0\]|top)(?:\.get\(|\[)["']([a-z_]+)["']""")
 
-    Deliberately scanned rather than listed: a list here would be a second copy of the same
-    agreement, free to fall behind in the same way.
+# The announcer reads board entries under the first comment and group entries under the
+# second; everything after the third is message-building, where the keys are optional and read
+# with `.get()`.
+BOARD_SECTION = "# individual rider leaderboards"
+GROUP_SECTION = "# group standings"
+MESSAGE_SECTION = "# group a rider's simultaneous new #1s"
+
+
+def _keys_read_from_an_entry():
+    """What the announcer requires of a board entry and of a group entry, from its source.
+
+    Scanned rather than listed, and -- this is the part that was missing -- actually used. The
+    first version of this scanned the keys, asserted the scan was non-empty, interpolated it
+    into a failure message and then checked a hardcoded `{"id"}` instead: the second copy its
+    own docstring warned against, three lines below the warning. Renaming the gate left it
+    green.
     """
     src = TELEGRAM_PY.read_text(encoding="utf-8")
-    pat = re.compile(r"""(?:entries\[0\]|top)(?:\.get\(|\[)["']([a-z_]+)["']""")
-    return sorted(set(pat.findall(src)))
+    i, j, k = (src.index(BOARD_SECTION), src.index(GROUP_SECTION),
+               src.index(MESSAGE_SECTION))
+    return (sorted(set(ENTRY_KEY.findall(src[i:j]))),
+            sorted(set(ENTRY_KEY.findall(src[j:k]))))
 
 
 def test_the_announcer_reads_keys_the_boards_actually_publish(db):
     """The gate that went quiet, and anything else shaped like it."""
     _seed(db)
-    wanted = _keys_read_from_an_entry()
-    assert wanted, "found no entry keys in telegram.py; the scan's shape has moved"
+    board_keys, group_keys = _keys_read_from_an_entry()
+    assert board_keys and group_keys, (
+        "found no entry keys in telegram.py; the scan's shape has moved, and a scan that "
+        "finds nothing is a test that checks nothing")
 
     # every rider board, plus the three group standings the announcer tracks
     sources = {("board", name): fn for name, fn in stats.BOARDS.items()}
@@ -99,19 +116,18 @@ def test_the_announcer_reads_keys_the_boards_actually_publish(db):
             continue
         checked += 1
         got = set(rows[0])
-        # A rider board is identified by `id`; a group standing by `name`. `brand` and `flag`
-        # are read behind `.get()` where they are optional, so only the identity keys are
-        # required of every source.
-        need = {"id"} if kind == "board" else {"name"}
-        for key in sorted(need):
+        # The keys THIS SECTION of the announcer reads, not a second copy of them written
+        # here. Rename either side and the other goes red naming the field.
+        for key in (board_keys if kind == "board" else group_keys):
             if key not in got:
-                missing.append(f"  {kind} {name} publishes {sorted(got)} -- no {key!r}")
+                missing.append(
+                    f"  {kind} {name} publishes {sorted(got)} -- telegram.py reads {key!r}")
     assert checked >= 6, (
         f"only {checked} sources produced an entry, so this checked almost nothing")
     assert not missing, (
-        "telegram.py reads " + repr(wanted) + " out of these entries, and the identity key is"
-        " absent, so the gate falls through and no announcement can ever be sent:" + NL
-        + NL.join(missing))
+        f"telegram.py reads {board_keys} out of a board entry and {group_keys} out of a group"
+        f" entry. A key it reads is not published, so the gate falls through and no"
+        f" announcement can ever be sent:" + NL + NL.join(missing))
 
 
 def test_a_takeover_actually_produces_a_message(db, monkeypatch):

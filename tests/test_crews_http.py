@@ -680,3 +680,59 @@ def test_a_declines_row_does_not_offer_a_button_a_full_crew_will_refuse(client, 
     assert row["free"] is False, "the crew is full and the row still offers to let them in"
     assert row["why"] == "full", (
         f"the row would read 'in another crew now' about a rider who joined nobody: {row}")
+
+
+def test_the_panel_costs_the_same_number_of_queries_whatever_the_crew_holds(client, db):
+    """The N+1 has been taken out of this endpoint twice and measured by reviewers twice.
+
+    Both times it was a list the panel walks -- the roster, then the declines -- asking one
+    question per row. Nothing has ever held the line, and a defect fixed twice with no test is
+    a defect that comes back. The number itself is not the point and is not asserted; what is
+    asserted is that it does not MOVE when the crew gets bigger.
+    """
+    from sqlalchemy import event
+
+    _set_crews(db, max_members=0)
+    _rider(db, "lead", "Leader")
+    _signed_in(client, db, "lead")
+    client.post("/api/v1/crews", json={"name": "Counting House", "join_policy": "approval"})
+    slug = db.query(Clan).filter(Clan.name == "Counting House").one().slug
+
+    def grow(n, tag):
+        """n more members, n more waiting, n more turned away."""
+        for i in range(n):
+            for role in ("in", "wait", "no"):
+                sid = f"{tag}-{role}-{i}"
+                _rider(db, sid, f"{tag}{role}{i}")
+                _signed_in(client, db, sid)
+                client.post(f"/api/v1/crews/{slug}/join", json={})
+                if role != "wait":
+                    _signed_in(client, db, "lead")
+                    client.post(f"/api/v1/crews/{slug}/decide",
+                                json={"store_id": HANDLE(sid), "accept": role == "in"})
+        _signed_in(client, db, "lead")
+
+    def count():
+        from database import engine
+        seen = []
+        def before(conn, cur, statement, params, ctx, many):
+            seen.append(statement)
+        event.listen(engine, "before_cursor_execute", before)
+        try:
+            r = client.get("/api/v1/crews/me")
+            assert r.status_code == 200, r.text
+            return len(seen)
+        finally:
+            event.remove(engine, "before_cursor_execute", before)
+
+    grow(2, "a")
+    small = count()
+    grow(6, "b")
+    large = count()
+
+    me = client.get("/api/v1/crews/me").json()
+    assert me["crew"]["members"] >= 8 and len(me["roster"]) >= 8 and len(me["declined"]) >= 8, (
+        "the crew did not actually grow, so this proves nothing")
+    assert small == large, (
+        f"the panel cost {small} statements with a small crew and {large} with a crew four "
+        f"times the size: something in it is asking one question per row again")

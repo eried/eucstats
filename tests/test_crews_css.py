@@ -194,6 +194,44 @@ def _cases():
              + "@media (max-width: 560px) { .zlegend .first, .zlegend .joins," + NL
              + "  .zlegend .kills, .zlegend .drops, .zlegend .done, .zlegend .youpass" + NL
              + "  { background: #123; padding: 1px; } }" + NL, 1),
+        # --- round thirteen. Two reviewers, six more ways past and two correct files
+        # reported. Four of the six are one assumption: CSS is case-insensitive about
+        # at-rule names, pseudo-class names and `!important`, and round twelve lowercased
+        # property names and stopped there.
+        ("an at-rule name in another case",
+         css + NL + "@Media (max-width: 560px) { .crewtat { display: block; } }" + NL, 1),
+        ("a pseudo-class name in another case",
+         css + NL + ".zztagU.hot { background: #f00; }" + NL
+             + "@media (max-width: 560px) { :IS(.zztagU, .zzother)"
+             + " { background: none; } }" + NL, 1),
+        # the round-six bug with a tablet breakpoint instead of top level, which is the most
+        # likely next thing to be added to this stylesheet
+        ("a wider media query beating a narrower one",
+         css + NL + "@media (max-width: 560px) { .zzw { display: inline; } }" + NL
+             + "@media (max-width: 1200px) { .zzw { display: block; } }" + NL, 1),
+        # baseline in every browser since 2023, and invisible while conditions were strings
+        ("a media query written in range syntax",
+         css + NL + "@media (width <= 560px) { .crewtat { display: block; } }" + NL, 1),
+        # a backslash before a non-hex character is that character: same class as the
+        # attribute-selector and `:not()` cases above, one keystroke away
+        ("all six chips written with identifier escapes",
+         _chips_as(css, lambda c: ".crewtag." + c[0] + chr(92) + c[1:])
+            .replace(PHONE_STRIP, "", 1), 1),
+        # Both escape hatches in pass 2 asked "is there some rule nearby?" and never "does it
+        # reach the elements that are winning?", so ONE planted rule silenced all six reports.
+        ("a planted !important that reaches nothing",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { .zzfoot { background: #000 !important; } }"
+             + NL, 1),
+        ("a planted rule narrower than the broad one but reaching no chip",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 560px) { .crewtag.zzcompact { background: #123; } }"
+             + NL, 1),
+        # `"!important" in value` is a substring test, and a filename is a string
+        ("!important inside a url()",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + '@media (max-width: 560px) { .zzlogo { background-image:'
+             + ' url("hero!important.png"); } }' + NL, 1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
@@ -223,6 +261,16 @@ def _cases():
         ("a comment opener in a string, on a correct file",
          css + NL + '.zzok::before { content: "/*"; }' + NL
              + '.zzok::after { content: "*/"; }' + NL, 0),
+        # `!important` is case-insensitive and may carry a space. Both of these genuinely win,
+        # and reporting them is the cry-wolf half of this file's own thesis.
+        ("!important spelled in another case",
+         css.replace(PHONE_STRIP,
+                     "  .crewtag { background: none !IMPORTANT; padding: 0 !IMPORTANT; }",
+                     1), 0),
+        ("!important with a space after the bang",
+         css.replace(PHONE_STRIP,
+                     "  .crewtag { background: none ! important;"
+                     " padding: 0 ! important; }", 1), 0),
     ]
 
 

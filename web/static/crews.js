@@ -1415,8 +1415,15 @@
       + LOSING.map(function (x, i) {
           // their gap, not your effort, and the third column carries urgency rather than
           // restating the heading. Band 3 has no rival, so its number is days left.
-          var gap = x.band === 3 ? fadesIn(Math.round(x.need * 10))
-                                 : t("crew.lose.gap", { v: effort(x.need, x.y) });
+          // The km goes INSIDE {v}, with the phrase it qualifies. Appended after the
+          // whole string it landed past "and it's theirs", so eleven rows read "a few
+          // streets and it's theirs 1.0 km" and the eye attached the number to "theirs".
+          // The targets card above does it this way and the two are built as the same read.
+          var reach = x.band === 3 || x.need < 0.05 ? null : fmtKm(x.need);
+          var gap = x.band === 3
+            ? fadesIn(Math.round(x.need * 10))
+            : t("crew.lose.gap", { v: effort(x.need, x.y)
+                                      + (reach ? ' <i>' + reach + "</i>" : "") });
           // "creeping up" twice told you nothing about who. The attacking card has named its
           // victim since the first round; this one named nobody, so there was no grudge in a
           // game that runs on them.
@@ -1429,12 +1436,10 @@
           var rs = seenState[state] ? " rpt" : "";
           seenState[state] = 1;
           return '<div class="crewtrow sel" data-l="' + i + '">'
-            + '<span class="crewtkm">' + gap
             // Not "0.0 km". A gap under 50 m prints as 0.0 and that is a number saying
-            // nothing, in the most urgent slot in the feature; the phrase beside it ("one lap
-            // and it's theirs") already carries it.
-            + (x.band === 3 || x.need < 0.05 ? "" : ' <i>' + fmtKm(x.need) + "</i>")
-            + "</span>"
+            // nothing, in the most urgent slot in the feature; the phrase ("one lap and it's
+            // theirs") already carries it. See `reach` above, which is where it is decided.
+            + '<span class="crewtkm">' + gap + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
             + '<span class="crewtwho">'
             + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" + '<span class="crewtsep"> &middot; </span>' : "")
@@ -1800,7 +1805,9 @@
     if (i < 0) return "";
     if (i === 0) return '<span class="crewgap top">' + t("crew.rank.top") + "</span>";
     var gap = (rows[i - 1].best_tiles || 0) - (rows[i].best_tiles || 0);
-    return '<span class="crewgap">'
+    // Your own place first. `crew.rank.off` names the crew ABOVE you -- "1 off 7th" when you
+    // are eighth -- and it was the only ordinal on your own card, so it read as your rank.
+    return '<span class="crewgap">' + esc(ordinal(i + 1)) + " &middot; "
       + t(gap === 0 ? "crew.rank.level" : "crew.rank.off",
           { n: gap, v: ordinal(i) }) + "</span>";
   }

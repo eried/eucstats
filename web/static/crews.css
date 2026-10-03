@@ -227,8 +227,19 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
 .crewsumemb { width: 26px; height: 26px; flex: 0 0 26px; }
+/* Shut, this is what identifies the crew. Open, the card's own 52px emblem is 50px below it
+   and they are the same picture twice -- the duplicated NAME was taken out of the card for
+   this reason and the emblem was one element along. */
+.crewmine-wrap[open] > summary .crewsumemb { display: none; }
 /* this one is wanted at every width: the name and the role share one line */
-.crewsumsep { color: var(--mut, #9aa6c8); }
+/* For the text layer only. The name span is `flex: 1`, so a visible separator is dragged
+   to the far right and reads as an orphan bullet in front of the role -- measured 440px from
+   the word it separates. The flex gap already does the job on screen; this keeps a screen
+   reader and a copy-paste from getting "Peripheriqueleader". */
+.crewsumsep {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
 .crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-transform: uppercase; letter-spacing: .5px; }
 .crewmine-wrap .crewcard { border: 0; border-left: 2px solid var(--sec, #ff8ad8); margin: 0; }
 
@@ -569,7 +580,12 @@ a.crewqr { display: flex; text-decoration: none; }
 /* what a crew took this week, on its own row of the board */
 /* a mint of our own: #39d98a is the Records button sitting in the same dock */
 /* the space between this and the patch count measured 2.6px, which reads as no gap */
-.crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; margin-left: 5px; }
+/* the space between this and the patch count measured 2.6px, which reads as no gap;
+   and `nowrap` because at 390 the podium's first card is 77.5px wide, so "13 new
+   this week" broke after the number and left it stranded at the end of "2 patches"
+   -- on the largest, brightest, centre card in the default phone view */
+.crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; margin-left: 5px;
+  white-space: nowrap; }
 
 
 

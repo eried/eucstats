@@ -129,50 +129,82 @@ SINGULAR = {
           r"|bist|hast|kannst|musst|darfst|sollst|willst|wirst|würdest|hättest)\b",
     "fr": r"\b(tu|ton|ta|tes|toi"
           r"|es|as|peux|dois|veux|vas|seras|auras|pourras)\b",
-    "es": r"\b(tú|tu|tus"
-          r"|eres|estás|tienes|puedes|debes|vas|serás|tendrás|podrás)\b",
+    "es": r"\b(tú|tu|tus|eres|estás|estés|tienes|tengas|puedes|puedas|debes|vas"
+          r"|aguantas|serás|tendrás|podrás)\b",
     "es-419": r"\b(tú|tu|tus"
               r"|eres|estás|tienes|tenés|puedes|podés|debes|vas|serás|tendrás)\b",
     "it": r"\b(tu|tuo|tua|tuoi|tue"
-          r"|sei|hai|puoi|devi|vuoi|vai|sarai|avrai|potrai)\b",
+          r"|sei|sia|hai|abbia|puoi|devi|vuoi|tieni|vai|sarai|avrai|potrai)\b",
     "nl": r"\b(je|jouw|jij)\b",
     "pl": r"\b(twój|twoje|twoja|twoim|twojego|ty"
-          r"|jesteś|masz|możesz|musisz|chcesz|będziesz)\b",
+          r"|jesteś|masz|możesz|musisz|chcesz|będziesz|przejechałeś|zatrzymasz)\b",
     "pt-BR": r"\b(você|seu|sua|seus|suas)\b",
-    "ru": r"\b(ты|твой|твоя|твои|твоего|тебя|тебе"
+    "ru": r"\b(ты|твой|твоя|твоё|твои|твоего|твою|твоим|твоих|тебя|тебе"
           r"|можешь|хочешь|должен|будешь|имеешь)\b",
-    "uk": r"\b(ти|твій|твоя|твої|тебе|тобі"
+    "uk": r"\b(ти|твій|твоя|твоє|твої|твого|твою|твоїм|твоїх|тебе|тобі"
           r"|можеш|хочеш|мусиш|будеш)\b",
     "sv": r"\b(du|din|ditt|dina|dig)\b",
     "da": r"\b(du|din|dit|dine|dig)\b",
     "no": r"\b(du|din|ditt|dine|deg)\b",
+    # Chinese marks it with one character, and was absent entirely.
+    "zh": r"你(?!们)",
+    "zh-Hant": r"你(?!們)",
+    # Turkish marks person by suffix, so this does too. Only the verb endings: the bare
+    # possessive `-in` is two letters and would match half the language.
+    "tr": r"\b(sen|seni|sana|senin)\b|\b\w{3,}(?:sin|sın|sun|sün)\b",
 }
 
 # Plural markers, only where they cannot be a third person.
+#
+# Endings where an ending is genuinely unambiguous, and a closed list where it is not. Every
+# candidate below was run over all 219 keys in all 18 locales and kept only when everything it
+# matched on a card declared "crew" really was second-person plural and it reported nothing
+# correct elsewhere. What that test REJECTED is the useful half:
+#
+#   * es-419 `(?:en|an)` and pt-BR `(?:em|am)` collide with the third person plural -- 16
+#     correct strings reported between them;
+#   * German `-t` collides with the third person singular (`geht`, `holt`) and with the noun
+#     `Fahrt`;
+#   * Polish `-cie` collides with ordinary nouns -- `Wyjście`, `szczycie`.
+#
+# Those four keep lists. The rest earn an ending.
 PLURAL = {
     # not bare `ihr`: also "its". `seid`/`habt`/`könnt` cannot be anything else.
     "de": r"\b(euch|euer|eure|eurem|euren|eurer"
           r"|seid|habt|werdet|könnt|müsst|dürft|sollt|wollt|möchtet|hättet)\b",
     "fr": r"\b(vous|votre|vos"
           r"|êtes|avez|pouvez|devez|voulez|allez|serez|aurez|pourrez)\b",
-    "es": r"\b(vosotros|vuestro|vuestra|vuestros|vuestras"
-          r"|sois|estáis|tenéis|podéis|debéis|habéis|vais|seréis|tendréis)\b",
-    # not `su`/`sus`: also "its". `tienen`/`pueden` are 3PL too, and were already here.
+    "es": r"\b(vosotros|vuestro|vuestra|vuestros|vuestras|os)\b"
+          r"|\b\w{3,}(?:áis|éis|ís)\b",
+    # `tienen`/`pueden` are third person too, and were already here; `-en`/`-an` as an ending
+    # reported sixteen correct strings, so this one stays a list.
     "es-419": r"\b(ustedes|tienen|pueden)\b",
-    "it": r"\b(voi|vostro|vostra|vostri|vostre"
-          r"|siete|avete|potete|dovete|volete|andate|sarete|avrete|potrete)\b",
+    "it": r"\b(voi|vostro|vostra|vostri|vostre)\b|\b\w{3,}(?:ate|ete|ite)\b",
     "nl": r"\b(jullie)\b",
-    "pl": r"\b(wasz|wasze|wasza|waszego|was|wam"
-          r"|jesteście|macie|możecie|musicie|chcecie|będziecie)\b",
+    "pl": r"\b(wasz|wasze|wasza|waszego|was|wam|jesteście|macie|możecie|musicie|chcecie"
+          r"|będziecie|zatrzymacie|przejechaliście|wybierzcie|przejedźcie|dotknijcie"
+          r"|weźcie)\b",
     "pt-BR": r"\b(vocês)\b",
-    "ru": r"\b(вы|ваш|ваша|ваши|вашего|вас|вам"
-          r"|можете|хотите|должны|будете|имеете)\b",
-    "uk": r"\b(ви|ваш|ваша|ваші|вас|вам"
-          r"|можете|хочете|мусите|будете)\b",
-    "sv": r"\b(ni|ert|era)\b",                            # not `er`: also "their"
-    "da": r"\b(jer|jeres)\b",                             # not `De/Deres`: also formal "they"
-    "no": r"\b(dere)\b",                                  # not `deres`: also "theirs"
+    # `(?:ете|ите|йте|ьте)` and not a bare `те`, which also matched `карте`, the dative of
+    # "map". Ukrainian is safe from its own third person `вицвіте`/`росте` because Ukrainian
+    # spells that vowel `і` and the ending here is the Russian `и`.
+    "ru": r"\b(вы|ваш|ваша|ваше|ваши|вашу|вашего|вашим|ваших|вас|вам)\b"
+          r"|\b\w{3,}(?:ете|ите|йте|ьте)\b",
+    "uk": r"\b(ви|ваш|ваша|ваше|ваші|вашу|вашого|вашим|ваших|вас|вам)\b"
+          r"|\b\w{3,}(?:ете|ите|йте|ьте)\b",
+    # Swedish "their" is `deras`. `er/ert/era` is unambiguously 2PL and excluding it as
+    # ambiguous hid two strings -- the exclusion was wrong, not cautious.
+    "sv": r"\b(ni|er|ert|era)\b",
+    # `I` is the pronoun and `i` the preposition. It was missing only because every pattern
+    # here compiles with re.I, which a scoped case-sensitive group settles.
+    "da": r"\b(jer|jeres)\b|(?-i:(?<![\wæøå])I(?![\wæøå]))",
+    "no": r"\b(dere)\b",                                 # not `deres`: also "theirs"
+    "zh": r"你们",
+    "zh-Hant": r"你們",
+    "tr": r"\b(siz|sizi|size|sizin)\b"
+          r"|\b\w{3,}(?:iniz|ınız|unuz|ünüz|siniz|sınız|sunuz|sünüz)\b",
 }
+
 
 def card_of(key):
     """The longest declared prefix that matches, so `crew.board.sub` beats `crew.board`."""
@@ -266,10 +298,15 @@ def test_the_crews_plan_is_not_ordered_about_one_rider(loc):
     about a group -- while `Fahrt sie alle` sat four strings away.
     """
     rx = re.compile(SINGULAR_ORDERS[loc], re.I)
+    # Every card CARDS declares "crew", not just the targets one. No live defect on the
+    # others -- the Scandinavian imperatives are person-neutral and the Romance and Slavic
+    # ones are already plural -- but a rule scoped to the card where the bug happened to be
+    # found is how the last three of these stayed open.
+    crew_cards = tuple(c for c, who in CARDS.items() if who == "crew")
     bad = [(k, v) for k, v in TRANSLATIONS[loc].items()
-           if k.startswith("crew.targets.") and isinstance(v, str) and rx.search(v)]
+           if k.startswith(crew_cards) and isinstance(v, str) and rx.search(v)]
     assert not bad, (
-        f"{loc}: {len(bad)} strings on the crew's own card give a singular order:" + NL
+        f"{loc}: {len(bad)} strings on a card that belongs to the crew give a singular order:" + NL
         + NL.join(f"  {k}: {v}" for k, v in bad))
 
 

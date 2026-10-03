@@ -65,7 +65,11 @@ for (const [W, H] of %s) {
   // only make this test harder to pass.
   const topbar = FALLBACK ? rect(W / 2 - 200, 16, 400, H * 0.58)
                           : rect(16, 16, Math.min(W * 0.92, 380), TIGHT ? 48 : 168);
-  const dock = rect((W - 420) / 2, H - 70, 420, 52);
+  // Measured, not guessed: 802px at desktop and 690 below the 880px query that
+  // tightens the buttons. It was modelled at 420 -- half the real obstacle, which is
+  // the wrong direction for a harness to be wrong in.
+  const dockW = Math.min(W - 16, W <= 880 ? 690 : 802);
+  const dock = rect((W - dockW) / 2, H - 70, dockW, 52);
   const boxes = { ".panel": panel, ".topbar": topbar, ".dock": dock };
   global.document = {
     querySelector: (s) => (boxes[s] ? { getBoundingClientRect: () => boxes[s] } : null) };

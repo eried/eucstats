@@ -40,6 +40,13 @@ import re
 CSS = pathlib.Path(__file__).resolve().parent.parent / "web" / "static" / "crews.css"
 
 
+# The priority, not the letters. `"!important" in value` is a substring test: it misses
+# `! important` and `!IMPORTANT`, which are both valid and which Chrome honours -- reporting
+# correct CSS -- and it counts `url("hero!important.png")` as a priority, which silences every
+# report for that property family.
+IMPORTANT_RE = re.compile(r"!\s*important\s*$", re.I)
+
+
 def _strip_comments(src):
     """Comments out, strings left alone.
 
@@ -219,7 +226,7 @@ def _find_is(sel):
     inside it -- so the rule matched nothing, expanded to itself, and both passes walked past
     it. One nested paren reopened a hole that had already been closed once.
     """
-    for m in re.finditer(r":(?:is|where)\(", sel):
+    for m in re.finditer(r":(?:is|where)\(", sel, re.I):
         i = m.end() - 1
         depth, j = 0, i
         while j < len(sel):
@@ -301,6 +308,22 @@ def physical(prop):
     return PHYSICAL.get(prop, prop)
 
 
+ESCAPE_RE = re.compile(r"\\(?:([0-9a-fA-F]{1,6})\s?|(.))", re.S)
+
+
+def unescape(sel):
+    r"""`.crewtag.k\ills` is `.crewtag.kills`, and the browser agrees.
+
+    A backslash before a non-hex character is that character literally, and `\6b ` is the
+    codepoint. A reviewer rewrote all six chip rules this way and got `problems 0` on a
+    stylesheet where every coloured chip keeps the box the rule exists to remove -- the
+    same class as the attribute-selector and `:not()` cases pinned beside it, one
+    backslash away.
+    """
+    return ESCAPE_RE.sub(
+        lambda m: chr(int(m.group(1), 16)) if m.group(1) else m.group(2), sel)
+
+
 def canon(sel):
     """One selector, written one way.
 
@@ -310,7 +333,7 @@ def canon(sel):
     too. Whitespace is collapsed, combinators are spaced consistently, and the classes inside
     each compound are sorted.
     """
-    t = re.sub(r"\s*([>+~])\s*", r" \1 ", (sel or "").strip())
+    t = re.sub(r"\s*([>+~])\s*", r" \1 ", unescape(sel or "").strip())
     t = re.sub(r"\s+", " ", t)
     out = []
     for part in t.split(" "):
@@ -328,7 +351,44 @@ def family(prop):
 
 def bare(val):
     """The value without its priority, so `none` and `none !important` are not a cancellation."""
-    return val.replace("!important", "").strip()
+    return IMPORTANT_RE.sub("", val).strip()
+
+
+RANGE_RE = re.compile(r"\(\s*(width|height)\s*(<=|>=|<|>)\s*([\d.]+)px\s*\)")
+
+
+def _range_syntax(body):
+    """`(width <= 560px)` is `(max-width: 560px)`. Baseline in every browser since 2023.
+
+    Invisible here until now, because conditions were compared as strings: the pinned case
+    "a media query differing by one space" went quiet when written this way.
+    """
+    def one(m):
+        feat, op, px = m.group(1), m.group(2), m.group(3)
+        side = "max" if op in ("<=", "<") else "min"
+        return "(%s-%s:%spx)" % (side, feat, px)
+    return RANGE_RE.sub(one, body)
+
+
+PX_RE = re.compile(r"\((max|min)-(width|height)\s*:\s*([\d.]+)px\)")
+
+
+def _implies(inner, outer):
+    """True when `inner` holding guarantees `outer` holds.
+
+    String equality had no notion of one query containing another, so a later rule in
+    `(max-width: 1200px)` beating an earlier one in `(max-width: 560px)` -- which it does, on
+    every phone -- was not a cancellation as far as this file was concerned. That is the
+    round-six bug with a tablet breakpoint in place of top level.
+    """
+    if inner == outer:
+        return True
+    a, b = PX_RE.fullmatch(inner), PX_RE.fullmatch(outer)
+    if not a or not b or a.group(1) != b.group(1) or a.group(2) != b.group(2):
+        return False
+    lo, hi = float(a.group(3)), float(b.group(3))
+    # a narrower max- is contained by a wider one; min- runs the other way
+    return lo <= hi if a.group(1) == "max" else lo >= hi
 
 
 def clauses(where):
@@ -348,7 +408,10 @@ def clauses(where):
     for rule in (where or "").split(" && "):
         if not rule.strip():
             continue
-        body = rule.replace("@media", " ").lower()
+        # lower BEFORE replacing: at-rule names are ASCII case-insensitive, so
+        # `@Media (max-width: 560px)` never normalised and a real bug inside one
+        # exited 0. Range syntax is folded onto the min-/max- form it means.
+        body = _range_syntax(rule.lower().replace("@media", " "))
         alt = frozenset(re.sub(r"\s+", "", part) for part in split_top(body, ",")
                         if part.strip())
         if alt:
@@ -372,14 +435,25 @@ def covers(outer, inner):
     if not co:
         return False
     # Every condition the outer rule imposes has to be imposed at least as tightly by the
-    # inner one. A clause is a set of alternatives, so "at least as tightly" is a subset.
-    return all(any(b <= a for b in ci) for a in co)
+    # inner one. A clause is a set of alternatives, so "at least as tightly" means every
+    # alternative the inner one allows implies one the outer one allows -- by NUMBER where
+    # both are lengths, not by spelling.
+    def covered_clause(a, b):
+        return all(any(_implies(x, y) for y in a) for x in b)
+    return all(any(covered_clause(a, b) for b in ci) for a in co)
 
 
 def specificity(sel):
     """(ids, classes+attrs+pseudo-classes, elements). Good enough for this file's selectors."""
     s = re.sub(r"::[\w-]+", " ", sel)                  # pseudo-elements count as elements
     ids = len(re.findall(r"#[\w-]+", s))
+    # `:not(.a, .b)` contributes its MOST SPECIFIC argument, not the sum of them. Counting
+    # all of them over-scores, which pushes toward false alarms rather than silence -- but it
+    # is still wrong, and a multi-argument `:not()` is ordinary CSS.
+    def one_not(m):
+        alts = split_top(m.group(1), ",")
+        return max(alts, key=lambda x: len(re.findall(r"[.\[#:]", x))) if alts else ""
+    s = re.sub(r":not\(([^()]*)\)", one_not, s, flags=re.I)
     cls = len(re.findall(r"\.[\w-]+", s)) + len(re.findall(r"\[[^\]]*\]", s)) \
         + len(re.findall(r":(?!not\b)[\w-]+", s))
     els = len(re.findall(r"(?:^|[\s>+~])([a-zA-Z][\w-]*)", s))
@@ -463,6 +537,29 @@ def compound_matches(outer, inner):
 RELAXERS = {"none", "normal", "visible", "clip", "auto", "initial", "unset", "revert", "0"}
 
 
+def fixes(a, b, c):
+    """True when rule `c` could be the fix for `a` losing to `b`.
+
+    Two questions, and both hatches used to accept either answer on its own:
+
+      * does `c` REACH b's elements? b's subject is its last compound, so `c` reaches it when
+        c's own subject demands nothing b's subject lacks.
+      * is `c` a refinement of `a` -- the same rule written more specifically?
+
+    The descendant fix this hatch exists for (`.crewtrow .crewtag`) answers both. A rule
+    merely narrower than `a` (`.crewtag.zzcompact`) answers only the second and touches no
+    `.crewtag.kills` at all; a rule merely ending in the right class (`.zlegend .kills`)
+    answers only the first. A reviewer silenced all six chip reports with one planted rule of
+    each shape, five ways in total, on a stylesheet with the live bug still in it.
+    """
+    cc, cb = compounds(c), compounds(b)
+    if not cc or not cb:
+        return False
+    if canon(c) == canon(b) or subset_pair(c, b):
+        return True
+    return subset_pair(a, c) and compound_matches(cc[-1], cb[-1])
+
+
 def relaxes(val):
     return val.strip().lower() in RELAXERS
 
@@ -485,7 +582,7 @@ def main():
             # `!important` beats the cascade, so the earlier rule is not being overridden by
             # anything that lacks it. `bare()` takes the priority off for the equality test
             # above and nothing was reading it here, so a correct stylesheet was reported.
-            if "!important" in a[4] and "!important" not in b[4]:
+            if IMPORTANT_RE.search(a[4]) and not IMPORTANT_RE.search(b[4]):
                 continue
             if a[1] and not b[1]:
                 bad.append(f"OVERRIDDEN  {sel} | {prop}: {a[4]}  [{a[1]}]"
@@ -508,7 +605,7 @@ def main():
                 # `!important` beats specificity outright, so a rule carrying it is not losing
                 # to anything here. The script reported six problems against a stylesheet that
                 # was correct.
-                if "!important" in a[4]:
+                if IMPORTANT_RE.search(a[4]):
                     continue
                 if not subset_pair(a[2], b[2]):
                     continue
@@ -535,7 +632,8 @@ def main():
                 # subset_pair reported five problems against a stylesheet corrected with a
                 # descendant selector (`.crewtrow .crewtag`), which is a perfectly good fix.
                 if any(c[1] and covers(c[1], a[1]) and family(c[3]) == prop
-                       and "!important" in c[4] for c in rows):
+                       and IMPORTANT_RE.search(c[4])
+                       and fixes(a[2], b[2], c[2]) for c in rows):
                     continue
                 # Anything that reaches b's elements at or above b's specificity, from a
                 # context compatible with a's, is the fix -- however it is written.
@@ -552,8 +650,7 @@ def main():
                     (covers(c[1], a[1]) or covers(a[1], c[1]))
                     and family(c[3]) == prop and c[2] != a[2]
                     and specificity(c[2]) >= specificity(b[2])
-                    and (subset_pair(c[2], b[2]) or subset_pair(a[2], c[2])
-                         or canon(c[2]) == canon(b[2]))
+                    and fixes(a[2], b[2], c[2])
                     for c in rows)
                 if covered:
                     continue
