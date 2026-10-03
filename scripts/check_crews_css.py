@@ -61,7 +61,7 @@ def parse(src):
                     depth -= 1
                 j += 1
             body, where = src[i + 1:j - 1], " ".join(ctx)
-            for sel in [x.strip() for x in head.split(",") if x.strip()]:
+            for sel in expand(head):
                 for decl in body.split(";"):
                     if ":" not in decl:
                         continue
@@ -97,8 +97,62 @@ FAMILY = {
     "border-color": "border", "border-width": "border", "border-style": "border",
     "font-size": "font", "font-weight": "font", "font-family": "font",
     "overflow-x": "overflow", "overflow-y": "overflow",
+    # Logical properties set the same thing as their physical twins, so a rule written one way
+    # competes with a rule written the other and the two were never compared.
+    "padding-inline": "padding", "padding-inline-start": "padding",
+    "padding-inline-end": "padding", "padding-block": "padding",
+    "padding-block-start": "padding", "padding-block-end": "padding",
+    "margin-inline": "margin", "margin-inline-start": "margin",
+    "margin-inline-end": "margin", "margin-block": "margin",
+    "margin-block-start": "margin", "margin-block-end": "margin",
+    "inset-inline-start": "inset", "inset-inline-end": "inset",
+    "border-inline-start": "border", "border-inline-end": "border",
     "flex-grow": "flex", "flex-shrink": "flex", "flex-basis": "flex",
 }
+
+
+def split_top(text, sep):
+    """Split on `sep`, ignoring any that sit inside brackets.
+
+    The selector head was split on every comma, so `:is(.a, .b)` became two selectors matching
+    nothing at all and the rule was invisible to both passes.
+    """
+    out, depth, cur = [], 0, ""
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth = max(0, depth - 1)
+        if ch == sep and depth == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur)
+    return [x for x in (p.strip() for p in out) if x]
+
+
+IS_RE = re.compile(r":(?:is|where)\(([^()]*)\)")
+
+
+def expand(head):
+    """Every selector a rule head stands for, with `:is()` and `:where()` written out.
+
+    `:is(.a, .b) { … }` is two rules as far as the cascade is concerned. Left folded up, the
+    whole rule became one selector matching nothing and both passes walked past it.
+    """
+    out = []
+    for sel in split_top(head, ","):
+        todo = [sel]
+        while todo:
+            cur = todo.pop()
+            m = IS_RE.search(cur)
+            if not m:
+                out.append(cur)
+                continue
+            for alt in split_top(m.group(1), ","):
+                todo.append(cur[:m.start()] + alt + cur[m.end():])
+    return out
 
 
 def family(prop):
@@ -111,9 +165,19 @@ def bare(val):
 
 
 def alts(where):
-    """A media context as its set of alternatives. `@media a, b` matches a OR b."""
-    body = (where or "").replace("@media", " ")
-    return frozenset(x.strip() for x in body.split(",") if x.strip())
+    """A media context as its set of alternatives. `@media a, b` matches a OR b.
+
+    Normalised, because `(max-width:560px)` and `(max-width: 560px)` are the same query and
+    comparing them as raw strings let a reviewer re-create the bug this file's docstring
+    names by deleting one space.
+    """
+    body = (where or "").replace("@media", " ").lower()
+    out = set()
+    for part in split_top(body, ","):
+        part = re.sub(r"\s+", "", part)
+        if part:
+            out.add(part)
+    return frozenset(out)
 
 
 def covers(outer, inner):
@@ -177,9 +241,28 @@ def subset_pair(a, b):
     # b is longer: a describes an ancestor of what b describes. That alone is not a defect --
     # a parent carrying `font-size` and a child carrying its own is ordinary CSS, and flagging
     # it produced five complaints about correct rules. The caller decides, using `relaxes()`.
-    if len(cb) > len(ca) and cb[:len(ca)] == ca:
-        return True
+    #
+    # `a` counts as describing an ancestor when its compounds appear IN ORDER inside b's, which
+    # is neither a prefix nor a tail. An exact prefix was the first attempt and one extra
+    # ancestor step defeated it -- `.crewcard .crewtwho i` against a rule on `.crewtwho` is
+    # the ellipsis bug that shipped, invisible to the script that exists to catch it.
+    if len(cb) > len(ca):
+        i = 0
+        for comp in cb:
+            if i < len(ca) and compound_matches(ca[i], comp):
+                i += 1
+        if i == len(ca):
+            return True
     return False
+
+
+def compound_matches(outer, inner):
+    """Would `outer` select an element that `inner` also selects?"""
+    if outer == inner:
+        return True
+    if base_of(outer) and base_of(outer) != base_of(inner):
+        return False
+    return classes_of(outer) <= classes_of(inner) and bool(classes_of(outer))
 
 
 # Values that mean "take the restriction off". An ancestor set to one of these, against a

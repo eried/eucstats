@@ -87,6 +87,22 @@ def _cases():
             + NL + "@media (max-width: 560px) {" + NL
             + "  .crewtwho { white-space: normal; overflow: visible; text-overflow: clip; }"
             + NL + "}" + NL, 1),
+        # --- four more a reviewer got past it with, in the third round running
+        ("a media query differing by one space",
+         css + NL + "@media (max-width:560px) { .crewtat { display: block; } }" + NL, 1),
+        ("one ancestor step on the narrow selector",
+         css.replace(TRUNCATE,
+                     ".crewcard .crewtwho i { display: block; white-space: nowrap;" + NL
+                     + "  overflow: hidden; text-overflow: ellipsis; }", 1)
+            + NL + "@media (max-width: 560px) {" + NL
+            + "  .crewtwho { white-space: normal; overflow: visible; }" + NL + "}" + NL, 1),
+        ("a logical property against its physical twin",
+         css + NL + ".zzrow.wide { padding-left: 9px; }" + NL
+             + "@media (max-width: 560px) { .zzrow { padding-inline-start: 0; } }" + NL, 1),
+        (":is() hiding a selector from the parser",
+         css + NL + ".zztag.hot { background: #f00; }" + NL
+             + "@media (max-width: 560px) { :is(.zztag, .zzother) { background: none; } }" + NL,
+         1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
@@ -96,7 +112,7 @@ def _cases():
     ]
 
 
-@pytest.mark.parametrize("idx", range(7))
+@pytest.mark.parametrize("idx", range(11))
 def test_the_checker_is_not_fooled_and_does_not_cry_wolf(idx, tmp_path):
     name, mutated, want = _cases()[idx]
     assert mutated != CSS.read_text(encoding="utf-8"), (
