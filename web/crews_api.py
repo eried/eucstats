@@ -295,7 +295,8 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
     cfg = _gate(db)
     ws = _me(request, db)
     if ws is None:
-        return {"paired": False, "creation_open": cfg["creation_open"]}
+        return {"paired": False, "creation_open": cfg["creation_open"],
+                "test_notice": cfg["test_notice"]}
     rider = db.get(Rider, ws.store_id)
     m = crews.membership(db, ws.store_id)
     # The handle, never `ws.store_id`: `pair/confirm` takes a store_id as proof of identity,
@@ -306,6 +307,7 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
            "flag": rider.flag if rider else None,
            "can_found": crews.can_found(db, ws.store_id),
            "creation_open": cfg["creation_open"],
+           "test_notice": cfg["test_notice"],
            "cooldown_until": None, "crew": None, "role": None, "status": None}
     until = crews.cooldown_until(db, ws.store_id)
     if until:

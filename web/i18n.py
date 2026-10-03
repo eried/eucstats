@@ -33,6 +33,7 @@ EN: dict[str, str] = {
     "crew.patches": "{n} patches",
     "crew.inall": "{v} all told",
     # signing in
+    "crew.signin.wip": "Not finished yet. Anything you build here can be wiped without warning.",
     "crew.signin.h": "Get your pass",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",
     "crew.signin.scan": "Scan it with EUC Planet, or type the code in. Good for 3 minutes.",

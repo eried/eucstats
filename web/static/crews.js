@@ -1365,6 +1365,10 @@
     // the one awkward case in the whole flow is a tap. The QR itself is the same link, so on
     // a phone the image is tappable too.
     return '<div class="crewcard crewsign">'
+      // Above the heading, because it is the thing to read before deciding to join, and a
+      // rider who scrolls past the QR has already decided.
+      + (ME && ME.test_notice === false ? ""
+         : '<div class="crewmsg warn">' + t("crew.signin.wip") + "</div>")
       + "<h3>" + t("crew.signin.h") + "</h3>"
       + '<p class=hint>' + t("crew.signin.p") + "</p>"
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
