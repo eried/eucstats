@@ -1278,8 +1278,13 @@
             // Where, not only which way. A compass bearing from the middle of your own
             // ground is not how anyone reads a map of the city they live in.
             + '<span class="crewtwho">'
+            // The separator is TEXT, not `::before`. Generated content exists for the
+            // renderer and nothing else, so the page read back `OsloHolmenkollen Climb hat
+            // es` to a screen reader, a copy-paste and a find-in-page alike. CSS still
+            // decides whether it is seen -- see `.crewtsep`.
             + (x.at && x.at !== prevAt
-               ? ((prevAt = x.at), '<b class="crewtat">' + esc(x.at) + "</b>") : "")
+               ? ((prevAt = x.at), '<b class="crewtat">' + esc(x.at) + "</b>"
+                  + '<span class="crewtsep"> &middot; </span>') : "")
             + '<i class="' + (rw ? "rpt" : "") + '">' + who
             // `tiles()` and not `t("crew.tiles")`, so Russian, Polish and Ukrainian get
             // their own plural forms; and "in one piece", because this number is the
@@ -1431,7 +1436,7 @@
             + "</span>"
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
             + '<span class="crewtwho">'
-            + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
+            + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" + '<span class="crewtsep"> &middot; </span>' : "")
             + '<i class="' + (rs ? "rpt" : "") + '">' + state + "</i></span></div>";
         }).join("")
       // 85 squares are losable across the world and 45 were shown, with nothing saying so
@@ -1843,7 +1848,9 @@
       + '<div class="crewhead">'
       + '<img class="crewlogo" src="' + c.emblem + '" alt=""/>'
       + "<div><h3>" + esc(c.name) + "</h3>"
-      + '<div class="crewmeta">' + standing(c.slug) + riders(c.members)
+      // A literal " · " here as well: the rest of this line already uses one, and without
+      // it the line read back as "6 off 8th4 riders · you run it".
+      + '<div class="crewmeta">' + standing(c.slug) + " &middot; " + riders(c.members)
       // Nothing about your standing in a crew that has not answered you yet.
       // `me.role` is "member" for a pending row, so this badged them MEMBER and said
       // "you ride for them" -- while current_clan_id requires an active membership, so
@@ -1941,8 +1948,13 @@
         + '<label class="crewfile">' + t("crew.mine.emblem")
         + '<input type="file" id="ce-logo" accept="image/*"></label>'
         + '<p class=hint>' + t("crew.mine.emblemp") + "</p>" 
-        + '<button class="crewbtn" id="ce-save">' + t("crew.mine.save") + "</button>" 
-        + '<button class="crewbtn ghost" id="ce-clearlogo">' + t("crew.mine.generated") + "</button>"
+        // `.crewacts`, like every other button row in this card. Emitted as bare
+        // siblings these two had no horizontal spacing at all -- measured 0.00px apart --
+        // so Save and "Use the drawn one" read as a single merged control.
+        + '<div class="crewacts">'
+        + '<button class="crewbtn" id="ce-save">' + t("crew.mine.save") + "</button>"
+        + '<button class="crewbtn ghost" id="ce-clearlogo">' + t("crew.mine.generated")
+        + "</button></div>"
         + "</details>";
     }
     h += '<div class="crewacts">'
@@ -2320,6 +2332,8 @@
         h += '<details class="crewmine-wrap" open'
           + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
           + "<span>" + esc(me.crew.name) + "</span>"
+          // read back as "Harbour Bridge Bombersleader" without this
+          + '<span class="crewsumsep"> &middot; </span>'
           + '<span class="crewsumrole">' + t("crew.role." + me.role) + "</span></summary>"
           + myCrewHTML(me) + "</details>";
       } else if (me.removed_by) {

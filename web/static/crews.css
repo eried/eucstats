@@ -25,12 +25,38 @@
   background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055); color: inherit;
   font: inherit; font-size: 13px; border-radius: 0;
 }
+/* The one native control in the feature. Without this the browser draws its own grey
+   "Choose File" button, in Arial, inside a dark themed card -- `input[type=file]` is excluded
+   from the field rule above on purpose, so it had no box of its own at all.
+
+   This sits BEFORE the focus rule below deliberately. `.crewcard input:focus` and
+   `.crewcard input[type=file]` have the same specificity and neither selects a subset of the
+   other, so whichever comes last wins: written afterwards, this `border` shorthand would have
+   cancelled the focus ring's `border-color` on this field only. */
+.crewcard input[type=file] {
+  display: block; width: 100%; margin-top: 4px; padding: 7px 10px;
+  background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055);
+  color: var(--mut, #9aa6c8); font: inherit; font-size: 12px; border-radius: 0;
+}
+/* the platform's button, wearing `.crewbtn.ghost`'s clothes */
+.crewcard input[type=file]::file-selector-button {
+  margin-right: 10px; padding: 5px 11px; background: transparent;
+  color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055);
+  font: inherit; font-weight: 700; font-size: 12px; letter-spacing: .3px;
+  cursor: pointer; border-radius: 7px;
+}
+.crewcard input[type=file]::file-selector-button:hover {
+  color: #fff; border-color: var(--sec, #ff8ad8);
+}
 .crewcard input:focus, .crewcard select:focus { outline: none; border-color: var(--sec, #ff8ad8); }
 
 .crewbtn {
   margin-top: 12px; padding: 9px 16px; background: var(--sec, #ff8ad8); color: #061020;
   border: 0; font: inherit; font-weight: 700; font-size: 13px; letter-spacing: .3px;
   cursor: pointer; border-radius: 7px;
+  /* `.crewopen` is an <a>, not a <button>: without this, the primary action on the sign-in
+     card is the only underlined button on screen. */
+  text-decoration: none;
 }
 .crewbtn:hover { filter: brightness(1.12); }
 .crewbtn:disabled { opacity: .5; cursor: default; }
@@ -201,6 +227,8 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
 .crewsumemb { width: 26px; height: 26px; flex: 0 0 26px; }
+/* this one is wanted at every width: the name and the role share one line */
+.crewsumsep { color: var(--mut, #9aa6c8); }
 .crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-transform: uppercase; letter-spacing: .5px; }
 .crewmine-wrap .crewcard { border: 0; border-left: 2px solid var(--sec, #ff8ad8); margin: 0; }
 
@@ -540,7 +568,8 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* what a crew took this week, on its own row of the board */
 /* a mint of our own: #39d98a is the Records button sitting in the same dock */
-.crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; }
+/* the space between this and the patch count measured 2.6px, which reads as no gap */
+.crewgain { color: #8ef0c0; font-variant-numeric: tabular-nums; margin-left: 5px; }
 
 
 
@@ -551,6 +580,13 @@ a.crewqr { display: flex; text-decoration: none; }
    deliberately overriding it, which had happened three times in here. */
 /* The neighbourhood leads the last column and the holder sits under it, so a long name
    cannot widen the two-letter bearing beside it. */
+/* Hidden, not absent. On a wide screen the place name is a block and the line break
+   already separates it from what is happening there, so the dot would be noise -- but it
+   stays in the text layer at every width, because that is what a screen reader, a
+   copy-paste and a find-in-page read. It was `.crewtat + i::before`, which none of them
+   can see: the page read back `OsloHolmenkollen Climb hat es`. */
+.crewtsep { display: none; }
+
 .crewtat { display: block; font-weight: 600; letter-spacing: 0; color: var(--ink, #eef1fb);
  text-transform: none; line-height: 1.25; 
   }
@@ -655,7 +691,7 @@ a.crewqr { display: flex; text-decoration: none; }
   .crewtat, .crewtwho i { display: inline; }
   /* the two facts on that line are different kinds of fact, so they are separated rather
      than run together */
-  .crewtat + i::before { content: " · "; opacity: .85; }
+  .crewtsep { display: inline; opacity: .85; }
   .crewtargets.nums { --kmc: 52px; }
   .crewtrow { flex-wrap: wrap; row-gap: 3px; }
   /* Its own line and no box. `flex-basis: 100%` sizes the chip, not just its position, so
