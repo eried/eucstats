@@ -2380,6 +2380,53 @@
     }
   }
 
+  // Where on screen there is room to put the marked square.
+  //
+  // Three versions of this aimed at a named direction and each was defeated by a size nobody
+  // had measured: the panel's own centre (identically zero, the panel is centred), the wider
+  // margin (there is none between 561 and 1080), and the region above the panel (which is
+  // where the topbar lives -- a reviewer measured the ring completely hidden under it at
+  // 600x800 and back behind the panel at phone-landscape). The obstacles are on screen and
+  // measurable, so this asks where there is room instead of assuming.
+  function freeOffset() {
+    var W = window.innerWidth, H = window.innerHeight;
+    var boxes = [];
+    [".panel", ".topbar", ".dock"].forEach(function (sel) {
+      var el = document.querySelector(sel);
+      if (!el) return;
+      var r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) boxes.push(r);
+    });
+    if (!boxes.length) return [0, 0];
+
+    // How far a point sits from the nearest obstacle, and from the edges of the window.
+    function clearance(x, y) {
+      var best = Math.min(x, y, W - x, H - y);
+      for (var i = 0; i < boxes.length; i++) {
+        var b = boxes[i];
+        var dx = Math.max(b.left - x, 0, x - b.right);
+        var dy = Math.max(b.top - y, 0, y - b.bottom);
+        var d = (dx === 0 && dy === 0) ? -1 : Math.sqrt(dx * dx + dy * dy);
+        if (d < best) best = d;
+      }
+      return best;
+    }
+
+    var step = 24, bx = W / 2, by = H / 2, bs = clearance(bx, by);
+    for (var x = step; x < W; x += step) {
+      for (var y = step; y < H; y += step) {
+        var c = clearance(x, y);
+        if (c > bs) { bs = c; bx = x; by = y; }
+      }
+    }
+    // Nowhere with elbow room at all. A phone held sideways is the real case: the panel is
+    // 94vw by 76dvh and there is no corner of the map left to fly to. Saying so lets the
+    // caller do what the portrait phone already does and move the panel out of the way,
+    // which is the only honest answer when the screen is full.
+    if (bs < 40) return null;
+    return [bx - W / 2, by - H / 2];
+  }
+
   function flyToTile(x, i) {
     if (!x || !TERR) return;
     var lon = (tileLon(x.x, TERR.z) + tileLon(x.x + 1, TERR.z)) / 2;
@@ -2398,23 +2445,12 @@
     // identically zero: `.panel` is `left: 50%` with `translateX(-50%)`, so its centre is the
     // window's centre at every width. What is actually free is the margin beside it, so the
     // square is put in the middle of whichever margin is wider.
-    var pane = document.querySelector(".panel");
-    var off = [0, 0];
-    if (window.innerWidth > 560 && pane) {
-      var r = pane.getBoundingClientRect();
-      var right = window.innerWidth - r.right, left = r.left;
-      var gap = Math.max(right, left);
-      if (gap > 180) {
-        var centre = right >= left ? (r.right + window.innerWidth) / 2 : left / 2;
-        off = [centre - window.innerWidth / 2, 0];
-      } else if (r.top > 140) {
-        // A centred panel of `min(94vw, 720px)` leaves no usable margin beside it between
-        // 561 and 1080 px, so the offset came out zero and the square flew to dead centre,
-        // behind the card that had just said "Tap it to find it". Measured at 1024x768: the
-        // target projected to (512, 384) inside a panel spanning 152-872 by 223-684. There is
-        // clear map above it, so the square goes there instead.
-        off = [0, r.top / 2 - window.innerHeight / 2];
-      }
+    var off = window.innerWidth <= 560 ? [0, 0] : freeOffset();
+    // No room anywhere, so the panel goes rather than the flight landing under it. The
+    // portrait phone already closes it for the same reason; this is the same screen, turned.
+    if (off === null) {
+      if (H.closePanel) H.closePanel();
+      off = [0, 0];
     }
     // Close enough to find the street, far enough to still see it against the crew's own
     // ground. Flying to 13.2 put one square across the whole screen, which answers "where is
