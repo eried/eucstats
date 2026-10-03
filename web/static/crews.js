@@ -1163,8 +1163,6 @@
           // rival's name has already appeared on the card, and `var` hoisting handed it
           // `undefined` every time, so the one-per-rival rule never fired and the quiet
           // reason printed on all seven rows of the sparse card.
-          // contradiction, when what it means is that it comes off them the moment the block
-          // lands.
           var who = x.first && x.blocked && x.held_by && x.held_name
             ? t("crew.targets.flips", { name: esc(x.held_name) })
             : x.held_by && x.held_name
@@ -1290,9 +1288,12 @@
             // their own plural forms; and "in one piece", because this number is the
             // biggest patch the board ranks on, while the hero two lines up uses the
             // bare phrase for the total. One card said "N squares" about two things.
-            + (stand && !rw ? ' <u>' + esc(ordinal(stand.place)) + " · "
+            // `<span>`, not `<u>`: the underline is reset in the stylesheet anyway, so the
+            // only thing the tag was still doing was telling a screen reader that a crew's
+            // standing is underlined for emphasis, which is a layout choice.
+            + (stand && !rw ? ' <span class="crewtst">' + esc(ordinal(stand.place)) + " · "
                         + esc(tiles(stand.tiles)) + " " + esc(t("crew.mine.ao"))
-                        + "</u>" : "")
+                        + "</span>" : "")
             + "</i></span>"
             + tag + "</div>";
         }).join("");
@@ -1847,7 +1848,10 @@
     var h = '<div class="crewcard crewmine">'
       + '<div class="crewhead">'
       + '<img class="crewlogo" src="' + c.emblem + '" alt=""/>'
-      + "<div><h3>" + esc(c.name) + "</h3>"
+      // No <h3> with the name in it. This card only ever renders inside the accordion whose
+      // summary names the crew eighteen pixels above it, so the panel said "Peripherique"
+      // and then "PERIPHERIQUE". The summary is the title; this is what is true about it.
+      + "<div>"
       // A literal " · " here as well: the rest of this line already uses one, and without
       // it the line read back as "6 off 8th4 riders · you run it".
       + '<div class="crewmeta">' + standing(c.slug) + " &middot; " + riders(c.members)
@@ -1881,11 +1885,12 @@
                  ? '<button class="crewbtn mini ghost" data-undecline="'
                    + esc(x.store_id || "") + '">' + t("crew.decl.undo") + "</button>"
                  : '<span class="crewgone">'
-                   // `crew.decl.cooling`, not the join card's heading: that one addresses
-                   // the rider it is shown to, so next to somebody else's name it told the
-                   // leader to cool down. It was a Title-case heading in a column of
-                   // lowercase fragments, too.
-                   + t(x.why === "cooldown" ? "crew.decl.cooling" : "crew.decl.gone")
+                   // All three reasons, in this column's own third-person register.
+                   // `crew.join.wait.h` used to stand in for the cooldown, which addresses
+                   // the rider it is shown to -- next to somebody else's name it told the
+                   // leader to cool down, in Title case among lowercase fragments.
+                   + t(x.why === "cooldown" ? "crew.decl.cooling"
+                       : x.why === "full" ? "crew.decl.full" : "crew.decl.gone")
                    + "</span>")
               + "</div>";
           }).join("") + "</div>";
@@ -2304,15 +2309,15 @@
       var rank = res[1].ok ? res[1].body.crews || [] : [];
       var all = res[2].ok ? res[2].body.crews || [] : [];
       MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
-      // Standings first and always: the mode is a competition, and a visitor who is not in a
-      // crew should land on the board rather than on a sign-in form. The rider's own crew
-      // sits under it, folded away once they have one — they already know what it is.
+      // The board is the mode: it is a competition, and a rider who already has a crew came
+      // back to see where they stand, so it leads and their own card sits under it.
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
         + '<p class="hint crewboardsub">' + t("crew.board.sub") + "</p>"
         + firstRunNote()
         + (TERR && TERR.pending && !rank.length ? "" : rankingHTML(rank)) + "</div>";
-      // Signed out, the only thing you can act on goes first and the board follows. Signed
-      // in, the board leads because that is what you came back to look at.
+      // Signed out is the one exception, and it is about acting rather than reading: there
+      // is exactly one thing a visitor can do on this panel, so it goes above the board
+      // rather than below twenty-five rows of it.
       var h = me.paired ? board : signInHTML() + board;
       // Above all of it, for everyone. On the sign-in card this reached nobody who had
       // already paired -- and nobody at all on a public map, which is the whole panel for a

@@ -818,7 +818,10 @@ a.crewqr { display: flex; text-decoration: none; }
 
 /* Where the crew holding this square stands. Quiet, because it is context for the name
    beside it rather than a third fact competing with the two above. */
-.crewtwho u { text-decoration: none; opacity: .72; }
+/* was `.crewtwho u`, with the underline turned straight back off: the only thing the
+   tag was still doing was telling a screen reader that a crew's standing is
+   underlined for emphasis, which is a layout choice. */
+.crewtwho .crewtst { opacity: .72; }
 
 /* Worth one square: the same sentence the chip carries, without the box or the colour, so a
    row that has a small reason says it and the chips go on meaning something. */

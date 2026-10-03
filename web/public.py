@@ -206,6 +206,11 @@ td.sub{color:var(--mut)}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:3px}
 .seg button{background:transparent;border:0;color:var(--mut);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer}
 .seg button.on{background:var(--acc);color:#04101f;font-weight:700}
+/* Seven labelled buttons do not fit a tablet: measured 802px of dock in a 760px
+   window, clipped on both sides, with the Riders icon and the App label cut off.
+   Tighter rather than wordless -- dropping the labels is what the 560px query below
+   is for, and a globe and a wheel glyph alone are hard to tell apart. */
+@media(max-width:880px){.dock button{padding:10px 9px;gap:6px}}
 @media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}
 /* phones: size tabs to their label (not a fixed 176px) so 4-5 fit per swipe
    instead of barely 2, and tighten them a touch for density */

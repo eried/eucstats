@@ -1,10 +1,11 @@
 """Public-site localization.
 
 `EN` is the canonical English source — the single source of truth and the
-fallback for any missing key. `TRANSLATIONS` holds the other 14 locales
-supported by eucplanet (da, de, es, es-419, fr, it, nl, no, pl, pt-BR, ru,
-sv, uk, zh). `langs_payload()` returns {locale: {key: text}} for injection
-into the public page as window.__I18N__; the client picks a locale (browser
+fallback for any missing key. `TRANSLATIONS` holds the other 18 locales
+supported by eucplanet (da, de, es, es-419, fr, it, ja, ko, nl, no, pl,
+pt-BR, ru, sv, tr, uk, zh, zh-Hant). `langs_payload()` returns
+{locale: {key: text}} for injection into the public page as
+window.__I18N__; the client picks a locale (browser
 auto-detect or the saved cogwheel choice) and falls back to EN per key.
 
 Admin is intentionally NOT localized. The big red banner stays in its
@@ -73,7 +74,7 @@ EN: dict[str, str] = {
     "crew.mine.start": "Ride a {n}x{n} block and you're on the map",
     "crew.mine.who": "Who rode for it",
     "crew.targets.h": "Where to ride next",
-    "crew.targets.p": "How much more you have to ride inside each one. Tap it to find it.",
+    "crew.targets.p": "How much more you have to ride inside each one. Pick one to find it.",
     "crew.targets.first": "part of your first block",
     "crew.take.1": "one lap",
     "crew.take.2": "a short ride",
@@ -145,6 +146,10 @@ EN: dict[str, str] = {
     # used to borrow the join card's heading, which addresses the rider it is
     # talking to -- so a leader was told to cool down about somebody else.
     "crew.decl.cooling": "cooling off now",
+    # The third reason letting somebody in can fail, and the one the row used
+    # to leave out: without it `why` fell through to "in another crew now"
+    # about a rider who had joined nobody.
+    "crew.decl.full": "no room right now",
     "crew.who.share": "{n}%",
     "crew.rank.top": "top of the board",
     "crew.rank.nth": "{n}th",

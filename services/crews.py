@@ -420,7 +420,7 @@ def decide(db, actor: str, clan_id: str, store_id: str, accept: bool) -> None:
             m.status = "pending"
     if m is None:
         raise CrewError("no_request", "No pending request from that rider.")
-    if accept and _full(db, clan_id):
+    if accept and is_full(db, clan_id):
         # The cap is enforced when a rider walks in and was not when a leader waved one in,
         # so a crew could sit over the line while its own row said "Full".
         raise CrewError("crew_full", "That crew is full.")
@@ -456,7 +456,9 @@ def last_fold(db, store_id: str) -> dict | None:
     return {"crew": name}
 
 
-def _full(db, clan_id: str) -> bool:
+def is_full(db, clan_id: str) -> bool:
+    """Whether the cap is reached. Public because the panel has to ask it too:
+    a row that offers to let somebody in is making a claim about this."""
     from services import settings
     try:
         cap = int(settings.get_crews(db)["max_members"])

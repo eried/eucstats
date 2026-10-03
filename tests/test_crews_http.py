@@ -635,3 +635,48 @@ def test_a_malformed_handle_is_repaired_at_startup_not_on_first_read(db):
     fixed = db.query(Rider).filter(Rider.store_id == "stale1").one().public_id
     assert publishable_handle(fixed), fixed
     assert "stale1" not in fixed
+
+
+def test_a_declines_row_does_not_offer_a_button_a_full_crew_will_refuse(client, db):
+    """Three gates stop `decide(accept=True)`; the row modelled two of them.
+
+    A reviewer measured `free` and `why` against the gates the endpoint actually enforces over
+    nine shapes and found them right -- for the two it knew about. The third, `crew_full`, was
+    not in the list: a leader whose crew was at its cap was still offered "Let them in", and
+    pressing it got an error about their own crew. Worse without its own wording, `why` would
+    fall through to "in another crew now" about a rider who had joined nobody, which is the
+    exact failure `why` exists to stop.
+    """
+    _set_crews(db, max_members=2, cooldown_days=7)
+    _rider(db, "lead", "Leader")
+    _signed_in(client, db, "lead")
+    client.post("/api/v1/crews", json={"name": "Two Seats", "join_policy": "approval"})
+    slug = db.query(Clan).filter(Clan.name == "Two Seats").one().slug
+
+    # somebody asks, and is turned down
+    _rider(db, "spare", "Spare")
+    _signed_in(client, db, "spare")
+    assert client.post(f"/api/v1/crews/{slug}/join", json={}).status_code == 200
+    _signed_in(client, db, "lead")
+    assert client.post(f"/api/v1/crews/{slug}/decide",
+                       json={"store_id": HANDLE("spare"), "accept": False}
+                       ).status_code == 200
+
+    # with a seat free, the row offers to reconsider
+    me = client.get("/api/v1/crews/me").json()
+    row = next(d for d in me["declined"] if d["name"] == "Spare")
+    assert row["free"] is True and row["why"] is None, row
+
+    # fill the second seat, and the offer has to go -- with a reason that is true
+    _rider(db, "filler", "Filler")
+    _signed_in(client, db, "filler")
+    client.post(f"/api/v1/crews/{slug}/join", json={})
+    _signed_in(client, db, "lead")
+    client.post(f"/api/v1/crews/{slug}/decide",
+                json={"store_id": HANDLE("filler"), "accept": True})
+
+    me = client.get("/api/v1/crews/me").json()
+    row = next(d for d in me["declined"] if d["name"] == "Spare")
+    assert row["free"] is False, "the crew is full and the row still offers to let them in"
+    assert row["why"] == "full", (
+        f"the row would read 'in another crew now' about a rider who joined nobody: {row}")

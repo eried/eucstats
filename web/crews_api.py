@@ -425,6 +425,10 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                 # every panel load, declines or none.
                 cool_days = timedelta(days=cfg["cooldown_days"])
                 now = utcnow()
+                # The third gate `decide(accept=True)` enforces, and the one this row left
+                # out: a full crew refuses with `crew_full` while "Let them in" was still
+                # being offered. One query for the whole list, not one per row.
+                crew_full = crews.is_full(db, clan.clan_id)
 
                 def _declined(sid):
                     in_crew = sid in in_crew_ids
@@ -435,11 +439,12 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                         # Whether letting them in could work. Without it the button is
                         # offered every day for a week to a rider who has since joined
                         # elsewhere, and fails identically every time.
-                        "free": not in_crew and not cooling,
+                        "free": not in_crew and not cooling and not crew_full,
                         # Which of the two, because the row printed "in another crew now"
                         # for a rider who had joined nobody and is simply on a cooldown --
                         # the leader was told they had lost somebody who is back in days.
-                        "why": "crew" if in_crew else "cooldown" if cooling else None}
+                        "why": ("crew" if in_crew else "cooldown" if cooling
+                                else "full" if crew_full else None)}
 
                 out["declined"] = [_declined(d.store_id) for d in declined_rows]
         crews.touch(db, ws.store_id)
