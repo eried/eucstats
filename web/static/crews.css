@@ -727,6 +727,12 @@ a.crewqr { display: flex; text-decoration: none; }
      them stacked above a row separator at 5% white: four rows read as seven bands. The
      three families are already told apart by hue, so on a phone they are simply coloured
      text under the row they belong to. */
+  /* `background: none; padding: 0` here is outranked by the six-family rule below and in
+     that sense does nothing -- a reviewer checked the live DOM and found no bare `.crewtag`
+     at all. It stays because it is the INTENT ("no box on a phone") that the rule below
+     carries out, and because sixteen pinned cases in tests/test_crews_css.py use it as the
+     broad rule whose defeat is the round-six bug. Deleting it makes the checker unable to
+     demonstrate the thing it exists for. */
   .crewtag { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left;
     background: none; padding: 0; font-size: 11px; }
   /* One class cannot strip what two classes painted: every coloured family kept its tinted
