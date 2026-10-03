@@ -651,6 +651,10 @@ a.crewqr { display: flex; text-decoration: none; }
      box here, which is the 294px bar this rule exists to abolish. */
   .crewtag.first, .crewtag.joins, .crewtag.kills, .crewtag.drops,
   .crewtag.done, .crewtag.youpass { background: none; padding: 0; }
+  /* The place, the holder and the holder's standing do not fit on one phone line, and the
+     one that was being cut mid-word is the rival's name -- the thing the row is about.
+     It wraps here instead; the row is already more than one line. */
+  .crewtwho { white-space: normal; overflow: visible; text-overflow: clip; }
   .crewboard table .val.sub { font-size: 11px; text-align: right; width: 1%; }
   .crewboard table .val.sub .crewarea { display: none; }
 }

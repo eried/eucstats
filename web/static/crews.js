@@ -1073,7 +1073,7 @@
     var onePlace = allFirst && TARGETS.length > 1
       && TARGETS.every(function (x) { return x.at && x.at === TARGETS[0].at; });
     var seenWho = {};
-    var saidPass = false;
+    var saidPass = {};
     var body = TARGETS.map(function (x, i) {
           var tag = x.first && !allFirst
             ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
@@ -1094,8 +1094,11 @@
             // Its own colour, not the hot pink reserved for breaking a crew's block, and
             // once per card: five rows saying the same thing about the same board is one
             // piece of news printed five times in the loudest ink in the panel.
-            : passes(x) && !(passes(x) === myName() && saidPass)
-              ? ((passes(x) === myName() ? (saidPass = true) : 0),
+            // Its own colour, not the hot pink reserved for breaking a crew's block, and
+            // once per crew named: three rows saying "puts them behind Harbour Loop" is one
+            // piece of news about one board, printed three times.
+            : passes(x) && !saidPass[passes(x)]
+              ? ((saidPass[passes(x)] = 1),
                  '<span class="crewtag ' + (passes(x) === myName() ? "youpass" : "drops")
                  + '">' + (passes(x) === myName()
                    ? t("crew.targets.youpass")
@@ -1130,6 +1133,9 @@
           // only the holder: rows are deduplicated on effort, place and holder -- not the
           // bearing, which differs without anything differing -- so two rows can share an
           // effort word and still be different places, and a ditto there would be a mistake.
+          // The holder's standing, printed only where their name is new below: five rows
+          // about one rival printed "1st, 91 squares" five times, which is the same ditto
+          // problem the dimmed repeat beside it already solves.
           var stand = x.held_name ? holderStanding(x.held_name) : null;
           var rw = seenWho[who] ? " rpt" : "";
           seenWho[who] = 1;
@@ -1142,7 +1148,7 @@
             + '<span class="crewtwho">'
             + (x.at && !onePlace ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
             + '<i class="' + (rw ? "rpt" : "") + '">' + who
-            + (stand ? ' <u>' + esc(ordinal(stand.place)) + " \u00b7 "
+            + (stand && !rw ? ' <u>' + esc(ordinal(stand.place)) + " \u00b7 "
                         + esc(t("crew.tiles", { n: stand.tiles })) + "</u>" : "")
             + "</i></span>"
             + tag + "</div>";

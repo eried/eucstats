@@ -10,6 +10,28 @@ takeover-by-distance rule has somewhere to show itself.
 
 Run it after scripts/sim_fleet.py with the same --riders and --seed, so the crews it builds
 match the fleet that exists.
+
+The whole world, from an empty database, which is what the reviews and the measurements in
+services/territory.py were taken against. The server has to be running, and the per-IP limits
+have to come up for the duration or most of the fleet is refused as a flood:
+
+    python scripts/sim_fleet.py --riders 14 --seed 7
+    python scripts/sim_fleet.py --city Oslo       --riders 6 --seed 11 --prefix S11
+    python scripts/sim_fleet.py --city Berlin     --riders 6 --seed 12 --prefix S12
+    python scripts/sim_fleet.py --city Copenhagen --riders 6 --seed 13 --prefix S13
+    python scripts/sim_fleet.py --city Paris      --riders 6 --seed 14 --prefix S14
+    python scripts/seed_demo.py --riders 14 --seed 7 --extra 11:6:Oslo
+        --extra 12:6:Berlin --extra 13:6:Copenhagen --extra 14:6:Paris
+
+(that last one is a single command; it is wrapped here only to fit)
+
+A seed per contested city, not one seed reused: the store_ids and the trip uuids are derived
+from the seed alone and not from the city, so running the same seed against four cities
+registers the same six riders four times and every upload after the first is refused as a
+duplicate. The prefix only keeps the display names apart.
+
+That lands 39 riders, ~440 validated trips, 15 crews and ~520 held squares, with Oslo, Berlin,
+Copenhagen and Paris genuinely contested.
 """
 from __future__ import annotations
 

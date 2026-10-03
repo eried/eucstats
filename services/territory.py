@@ -941,12 +941,13 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         # times too often to never firing at all. Three squares is a real hole whoever you
         # are, and the row carries the number so it argues for itself.
         lost = len(theirs) - len(left)
-        # Measured over every held square of every crew in the demo world: 468 squares, of
-        # which 29 (6.2%) cost their holder two or more and only 12 (2.6%) cost three or
-        # more. With the one-per-victim rule below and the ranked-move gate the card applies,
-        # the bar at 3 fired once in the whole world, which is a feature nobody meets. At 2 a
-        # ranked drop of two or more covers 5.8% of held ground: still the exception, and now
-        # something a rider actually runs into.
+        # Measured over every held square of every crew in the demo world: 520 squares, of
+        # which 59 (11.3%) cost their holder two or more and 31 (6.0%) cost three or more.
+        # With the one-per-victim rule below and the ranked-move gate the card applies, the
+        # bar at 3 fired once in the whole world, which is a feature nobody meets. At 2 it is
+        # the exception rather than the rule and a rider actually runs into one. Rebuild the
+        # same world with the commands in scripts/seed_demo.py's docstring if you want to
+        # re-measure before moving it again.
         t["kills"] = lost >= 2
         # What the board would actually show them afterwards. `lost` counts every square they
         # drop anywhere, and the board ranks the biggest single patch, so a square taken off
