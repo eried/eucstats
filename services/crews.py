@@ -298,7 +298,14 @@ def create(db, store_id: str, name: str, description: str = "", colour: str | No
     if db.query(Clan).filter(Clan.name == name.strip()).first():
         raise CrewError("name_taken", "That name is taken.")
 
-    sug = suggest_identity(db)
+    # Where this founder rides, so a colour is chosen against the crews next door and not
+    # only against the world. The API path passes this already; a client posting no colour
+    # was falling back to the global answer.
+    t = (db.query(Trip.start_lat, Trip.start_lon)
+         .filter(Trip.rider_store_id == store_id, Trip.validation_status == "validated",
+                 Trip.start_lat.isnot(None))
+         .order_by(Trip.start_utc.desc()).first())
+    sug = suggest_identity(db, near=(t[0], t[1]) if t else None)
     colour = colour or sug["colour"]
     pattern = pattern or sug["pattern"]
     if colour not in PALETTE or pattern not in PATTERNS:

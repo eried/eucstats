@@ -318,18 +318,19 @@
         properties: { c: crew.colour, i: idx },
         geometry: { type: "MultiLineString", coordinates: outline(cells, z) }
       });
-      // one dashed ring around the ground under pressure, not a box per tile
-      var pressed = cells.filter(function (t) {
-        var b = t[2] || 0;
-        return b === 1 || b === 2;        // a rival; fading ground is not under attack
-      });
-      if (pressed.length) {
+      // One ring around the ground under pressure, not a box per tile -- and two rings, not
+      // one: "about to flip" is the most urgent state there is and was sharing a mark with
+      // "somebody is riding it", which is also why the key had to invent shapes for them.
+      [[1, "pushed"], [2, "flipping"]].forEach(function (pair) {
+        var band = pair[0];
+        var pressed = cells.filter(function (t) { return (t[2] || 0) === band; });
+        if (!pressed.length) return;        // fading ground is not under attack
         hot.features.push({
           type: "Feature",
-          properties: { c: crew.colour, i: idx },
+          properties: { c: crew.colour, i: idx, kind: pair[1] },
           geometry: { type: "MultiLineString", coordinates: outline(pressed, z) }
         });
-      }
+      });
     });
 
     map.addSource("crew-cells", { type: "geojson", data: fills });
@@ -372,9 +373,20 @@
     // afterwards; a dashed edge is something you see.
     map.addLayer({
       id: "crew-contested", type: "line", source: "crew-hot",
+      filter: ["==", ["get", "kind"], "pushed"],
       paint: { "line-color": "#ffffff",
                "line-dasharray": [2, 1.6],
                "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1.4, 14, 2.4],
+               "line-opacity": 0,
+               "line-opacity-transition": { duration: 600 } }
+    });
+    map.addLayer({
+      // About to flip: solid and thicker than the dashed ring beside it, because a square
+      // changing hands this week is not the same news as one somebody is riding.
+      id: "crew-flipping", type: "line", source: "crew-hot",
+      filter: ["==", ["get", "kind"], "flipping"],
+      paint: { "line-color": "#ffffff",
+               "line-width": ["interpolate", ["linear"], ["zoom"], 8, 2, 14, 3.4],
                "line-opacity": 0,
                "line-opacity-transition": { duration: 600 } }
     });
@@ -404,6 +416,7 @@
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
+      map.setPaintProperty("crew-flipping", "line-opacity", 0.95);
       scopePulse();
       startPulse(pulse.features.length);
       // The basemap picker calls setStyle, style.load fires, and this runs again from
@@ -853,8 +866,11 @@
       + band(4, "crew.tile.ringed")
       + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
       + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
+      // the same ink and pattern as every other chip: this was the one square in the key
+      // with no hatch on it, so a crew saw its own colour flat where the map shows it woven
       + '<span class="bf"><i'
-      + (myInk()[0] ? ' style="background:' + esc(myInk()[0]) + '"' : "") + "></i>"
+      + (myInk()[0] ? ' style="background:' + esc(myInk()[0]) + '"' : "")
+      + (myInk()[1] ? ' data-p="' + esc(myInk()[1]) + '"' : "") + "></i>"
       + t("crew.legend.fresh") + "</span>"
       + '<p class="crewlegnote">' + t("crew.legend.note") + "</p>"
       + "</div>";
@@ -1217,14 +1233,22 @@
   function contributorsHTML(rows) {
     if (!rows || !rows.length) return "";
     var top = rows[0].km || 1;
+    // From zero, because a bar from anywhere else is not a bar. Scaling from the quietest
+    // rider made 103 km out of 111 draw as a stub, which says "did nothing" about somebody
+    // who did almost exactly as much as the leader.
+    var total = rows.reduce(function (a, r) { return a + (r.km || 0); }, 0) || 1;
     return '<div class="crewcontrib"><h4>' + t("crew.mine.who") + "</h4>" + rows.map(function (c) {
       var pct = Math.max(3, Math.round((c.km / top) * 100));
+      // The share, which is the thing three near-equal bars cannot tell you and the thing
+      // the card is actually asking: who carries this crew.
+      var share = Math.round((c.km / total) * 100);
       return '<div class="crewcrow">'
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
         + (H.cc && c.flag ? H.cc(c.flag) : "")
         + '<span class="crewcname">' + esc(c.name) + (ROLEIC[c.role] || "") + "</span>"
         + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
-        + '<span class="crewckm">' + fmtKm(c.km) + "</span></div>";
+        + '<span class="crewckm">' + fmtKm(c.km)
+        + ' <i>' + t("crew.who.share", { n: share }) + "</i></span></div>";
     }).join("") + "</div>";
   }
 

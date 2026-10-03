@@ -579,45 +579,6 @@ def _name_lookup(acc: dict, kept: dict, clans: dict, zoom: int) -> dict:
     return {xy: n for xy, n in zip(want, names) if n}
 
 
-def _name_targets(targets_json: dict, zoom: int) -> None:
-    """Put a place name on every target row, in one batched offline lookup.
-
-    Mutates the json strings in place because that is where they are already serialised; the
-    alternative is threading a name through targets_for, which has eight parameters already
-    and no business knowing what a city is.
-    """
-    rows, coords = [], []
-    for clan_id, blob in targets_json.items():
-        if not blob:
-            continue
-        try:
-            parsed = json.loads(blob)
-        except ValueError:
-            continue
-        for r in parsed:
-            b = T.bounds(f"{zoom}/{r['x']}/{r['y']}")
-            if not b:
-                continue
-            rows.append((clan_id, parsed, r))
-            coords.append(((b[1] + b[3]) / 2, (b[0] + b[2]) / 2))
-    if not coords:
-        return
-    try:
-        from ingest.geo import places_for
-        names = places_for(coords)
-    except Exception:
-        # A map with no place names is the map we had; a rebuild that dies here is not.
-        _log.exception("place lookup failed")
-        return
-    touched = {}
-    for (clan_id, parsed, r), name in zip(rows, names):
-        if name:
-            r["at"] = name
-        touched[clan_id] = parsed
-    for clan_id, parsed in touched.items():
-        targets_json[clan_id] = json.dumps(parsed)
-
-
 def _first_block(acc: dict, clan_id: str, won: dict, zoom: int, mine: set,
                  seed: int = SEED) -> set:
     """The cheapest SEED x SEED block a crew with no ground can complete.

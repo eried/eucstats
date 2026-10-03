@@ -432,6 +432,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}.",
   "crew.rank.off": "{n} fra {v}",
   "crew.rank.level": "lige med {v}",
+  "crew.who.share": "{n}%",
  },
  "de": {
   "dock.riders": "Fahrer",
@@ -863,6 +864,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}.",
   "crew.rank.off": "{n} hinter {v}",
   "crew.rank.level": "gleichauf mit {v}",
+  "crew.who.share": "{n}%",
  },
  "es": {
   "dock.riders": "Riders",
@@ -1294,6 +1296,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}º",
   "crew.rank.off": "{n} de {v}",
   "crew.rank.level": "empatados con {v}",
+  "crew.who.share": "{n}%",
  },
  "es-419": {
   "dock.riders": "Riders",
@@ -1725,6 +1728,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}º",
   "crew.rank.off": "{n} de {v}",
   "crew.rank.level": "empatados con {v}",
+  "crew.who.share": "{n}%",
  },
  "fr": {
   "dock.riders": "Riders",
@@ -2156,6 +2160,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}e",
   "crew.rank.off": "{n} de {v}",
   "crew.rank.level": "à égalité avec {v}",
+  "crew.who.share": "{n}%",
  },
  "it": {
   "dock.riders": "Rider",
@@ -2587,6 +2592,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}º",
   "crew.rank.off": "{n} da {v}",
   "crew.rank.level": "pari con {v}",
+  "crew.who.share": "{n}%",
  },
  "ja": {
   "dock.riders": "ライダー",
@@ -3018,6 +3024,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}位",
   "crew.rank.off": "{v}まで{n}",
   "crew.rank.level": "{v}と同じ",
+  "crew.who.share": "{n}%",
  },
  "ko": {
   "dock.riders": "라이더",
@@ -3449,6 +3456,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}위",
   "crew.rank.off": "{v}까지 {n}",
   "crew.rank.level": "{v}와 동률",
+  "crew.who.share": "{n}%",
  },
  "nl": {
   "dock.riders": "Rijders",
@@ -3880,6 +3888,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}e",
   "crew.rank.off": "{n} van {v}",
   "crew.rank.level": "gelijk met {v}",
+  "crew.who.share": "{n}%",
  },
  "no": {
   "dock.riders": "Førere",
@@ -4311,6 +4320,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}.",
   "crew.rank.off": "{n} fra {v}",
   "crew.rank.level": "likt med {v}",
+  "crew.who.share": "{n}%",
  },
  "pl": {
   "dock.riders": "Riderzy",
@@ -4742,6 +4752,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}.",
   "crew.rank.off": "{n} do {v}",
   "crew.rank.level": "na równi z {v}",
+  "crew.who.share": "{n}%",
  },
  "pt-BR": {
   "dock.riders": "Riders",
@@ -5173,6 +5184,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}º",
   "crew.rank.off": "{n} do {v}",
   "crew.rank.level": "empatado com {v}",
+  "crew.who.share": "{n}%",
  },
  "ru": {
   "dock.riders": "Райдеры",
@@ -5604,6 +5616,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}-е",
   "crew.rank.off": "{n} до {v}",
   "crew.rank.level": "вровень с {v}",
+  "crew.who.share": "{n}%",
  },
  "sv": {
   "dock.riders": "Åkare",
@@ -6035,6 +6048,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}:a",
   "crew.rank.off": "{n} från {v}",
   "crew.rank.level": "jämnt med {v}",
+  "crew.who.share": "{n}%",
  },
  "tr": {
   "dock.riders": "Sürücüler",
@@ -6466,6 +6480,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}.",
   "crew.rank.off": "{v}'ye {n}",
   "crew.rank.level": "{v} ile başa baş",
+  "crew.who.share": "{n}%",
  },
  "uk": {
   "dock.riders": "Райдери",
@@ -6897,6 +6912,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "{n}-е",
   "crew.rank.off": "{n} до {v}",
   "crew.rank.level": "нарівні з {v}",
+  "crew.who.share": "{n}%",
  },
  "zh": {
   "dock.riders": "骑友",
@@ -7328,6 +7344,7 @@ TRANSLATIONS = {
   "crew.rank.nth": "第 {n} 名",
   "crew.rank.off": "距 {v} 还差 {n}",
   "crew.rank.level": "与 {v} 持平",
+  "crew.who.share": "{n}%",
  },
  "zh-Hant": {
   "dock.riders": "車友",
@@ -7759,5 +7776,6 @@ TRANSLATIONS = {
   "crew.rank.nth": "第 {n} 名",
   "crew.rank.off": "距 {v} 還差 {n}",
   "crew.rank.level": "與 {v} 持平",
+  "crew.who.share": "{n}%",
  },
 }

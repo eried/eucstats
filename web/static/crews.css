@@ -294,22 +294,25 @@ a.crewqr { display: flex; text-decoration: none; }
 /* The white wash, not the shade. `opacity` is written inline from the same array the map
    paints from, and a running animation outranks inline style, so animating opacity here threw
    that ladder away and made bands 1 and 2 identical. */
-/* A second channel, because the first one does not survive sixteen pixels. The comment two
-   rules up says a ten per cent opacity step is invisible at this size, and then four chips
-   were told apart by exactly that: `Held`, `Someone else is riding it`, `About to flip` and
-   `Going cold` were four identical hatched squares. Band 1 keeps the full square, band 2 is
-   cut in half the way a square about to change hands is, band 3 is reduced to a corner. */
-.crewlegend .b1 i, .crewlegend .b2 i { border-style: dashed; border-color: #fff;
+/* Each chip is the mark the map draws for that band, and nothing else. Four of these used to
+   be one hatched square told apart by a ten per cent opacity step, which the comment two
+   rules up correctly calls invisible at sixteen pixels; the answer was shapes the map has
+   never drawn, so a rider learned a half-square and a corner wedge and went looking for them
+   on ground that has neither. The map draws the two rings instead, and the key shows them.
+     band 1  somebody is riding it   dashed white, as crew-contested paints
+     band 2  about to flip           solid white and thicker, as crew-flipping paints
+     band 3  going cold              no ring: nobody is taking it, it is fading on its own
+     band 4  ringed off              an inner loop, which is how it was won */
+.crewlegend .b1 i, .crewlegend .b2 i { border-color: #fff;
   animation: crewwash 5.2s ease-in-out infinite; }
-.crewlegend .b2 i { clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%); }
-.crewlegend .b3 i { clip-path: polygon(0 0, 100% 0, 0 100%); }
-/* ringed: the same solid square as band 0 with the loop that won it drawn on top */
+.crewlegend .b1 i { border-style: dashed; }
+.crewlegend .b2 i { border-style: solid; border-width: 3px; }
+.crewlegend .b3 i { border-color: rgba(255,255,255,.1); }
 .crewlegend .b4 i { box-shadow: inset 0 0 0 3px rgba(255,255,255,.55); }
 @keyframes crewwash {
   0%, 100% { box-shadow: inset 0 0 0 16px rgba(255,255,255,0); }
   50% { box-shadow: inset 0 0 0 16px rgba(255,255,255,.26); }
 }
-.crewlegend .b3 i { border-color: rgba(255,255,255,.18); }
 /* solid, because the line on the map is solid */
 .crewlegend .bt i { background: transparent; border: 2px solid #ffd24a;
   box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
@@ -317,7 +320,7 @@ a.crewqr { display: flex; text-decoration: none; }
    colour spectrum, so shape is the only channel a mark can keep to itself */
 .crewlegend .bl i { background: transparent; border: 2px dotted #ff9f6b; }
 /* 5.2s and half a cycle apart, which is what the map actually does */
-.crewlegend .bf i { background: var(--sec, #ff8ad8); opacity: .55;
+.crewlegend .bf i { opacity: .55;
   animation: crewbreathe 5.2s ease-in-out infinite; animation-delay: -2.6s; }
 
 
@@ -741,3 +744,7 @@ a.crewqr { display: flex; text-decoration: none; }
 /* Where you stand and how far off the crew above, on the card that used to say neither. */
 .crewgap { color: #ffd24a; font-weight: 600; margin-right: 7px; }
 .crewgap.top { color: #ffd24a; }
+
+/* the share of the crew's riding, beside the distance it is a share of */
+.crewckm i { font-style: normal; font-size: 11px; color: var(--mut, #9aa6c8); margin-left: 5px;
+  font-variant-numeric: tabular-nums; }

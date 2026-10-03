@@ -133,6 +133,7 @@ EN: dict[str, str] = {
     "crew.decl.h": "Turned down lately",
     "crew.decl.undo": "Let them in",
     "crew.decl.gone": "in another crew now",
+    "crew.who.share": "{n}%",
     "crew.rank.top": "top of the board",
     "crew.rank.nth": "{n}th",
     "crew.rank.off": "{n} off {v}",
