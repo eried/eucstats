@@ -314,6 +314,39 @@ def _cases():
         # `background` and `background-color` were two keys and never met
         ("a longhand cancelling a shorthand from top level",
          css + NL + ".crewtag { background-color: rgba(255,79,163,.16); }" + NL, 1),
+        # --- round sixteen
+        # The OVERRIDDEN branch read the raw context while `clauses()` already knew that
+        # `screen`, `all` and `only screen` normalise away -- my own round-14 fix, not asked
+        # a second time, so a `@media screen {}` wrapper silenced every case in it.
+        ("@media screen around the winning rule",
+         css + NL + "@media screen { .crewtag { background-color: rgba(255,79,163,.16); } }"
+             + NL, 1),
+        ("@media all around the winning rule",
+         css + NL + "@media all { .crewtat { display: block; } }" + NL, 1),
+        # Position is irrelevant to the cascade when the broad rule is conditional and the
+        # narrow one is not -- and a seventh chip family is the likeliest edit this file will
+        # ever see.
+        ("a seventh chip family appended at the end",
+         css + NL + ".crewtag.late { color: #b48cff; background: rgba(180,140,255,.14); }"
+             + NL, 1),
+        # a fix that only applies below 380px does not answer a rule that applies below 560
+        ("a fix in a context narrower than the rule it answers",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@media (max-width: 380px) { .crewtag.first, .crewtag.joins, .crewtag.kills,"
+             + " .crewtag.drops, .crewtag.done, .crewtag.youpass"
+             + " { background: none; padding: 0; } }" + NL, 1),
+        # pass 1 compared adjacent rows, so one same-value line hid the pair that mattered
+        ("a same-value line standing between a rule and its cancellation",
+         css + NL + ".crewtag { background-image: none; }" + NL
+             + ".crewtag { background-color: rgba(255,79,163,.16); }" + NL, 1),
+        # `RELAXERS` was a whitelist, and this is the shipped ellipsis bug in another spelling
+        ("a parent relaxing a child with pre-wrap rather than normal",
+         css.replace(TRUNCATE,
+                     ".crewtwho i { display: block; font-style: normal; font-size: 11px;" + NL
+                     + "  line-height: 1.25; white-space: nowrap; overflow: hidden;" + NL
+                     + "  text-overflow: ellipsis; }", 1)
+            + NL + "@media (max-width: 560px) {" + NL
+            + "  .crewtwho { white-space: pre-wrap; }" + NL + "}" + NL, 1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
@@ -368,6 +401,17 @@ def _cases():
         # `:where()` as if it carried its contents reported five problems against it.
         ("the chips themselves written with :where()",
          _chips_as(css, lambda c: ".crewtag:where(." + c + ")"), 0),
+        # The four shapes that would cry wolf if the position guard were simply dropped.
+        # Each is a narrow rule that legitimately refines a broad one, and each must stay
+        # silent: a state is a condition, not a member of a family.
+        ("a hover state on a chip",
+         css + NL + ".crewtag:hover { background: rgba(255,255,255,.06); }" + NL, 0),
+        ("a focus-within state on a row",
+         css + NL + ".crewtrow:focus-within { background: rgba(255,255,255,.04); }" + NL, 0),
+        ("a selected variant of a row",
+         css + NL + ".crewtrow.sel { background: rgba(255,138,216,.08); }" + NL, 0),
+        ("a modifier class on a card",
+         css + NL + ".crewcard.tight { padding: 8px 10px; }" + NL, 0),
         # Chrome honours this as a priority, so reporting it is the cry-wolf half again
         ("!important spelled with an escape",
          css.replace(PHONE_STRIP,
@@ -391,30 +435,37 @@ def test_the_checker_is_not_fooled_and_does_not_cry_wolf(idx, tmp_path):
         assert r.returncode == 0, name + ": correct CSS reported as broken" + NL + r.stdout
 
 
-@pytest.mark.xfail(strict=True, reason="needs DOM knowledge the stylesheet does not contain")
 def test_a_planted_ancestor_that_can_never_contain_the_subject(tmp_path):
-    """The limit, stated as a limit rather than left to be rediscovered.
+    """`.crewpick .crewtag` looks exactly like the fix this hatch exists for, and reaches
+    nothing: `.crewpick` only ever holds the two swatch grids.
 
-    `fixes()` accepts a rule that refines the broad one and still reaches the narrow one's
-    subject, which is what the legitimate descendant fix (`.crewtrow .crewtag`) looks like.
-    `.crewpick .crewtag` looks identical and reaches nothing: `.crewpick` only ever contains
-    the two swatch buttons. Nothing in CSS distinguishes them -- both are "the same rule
-    written more specifically" -- so telling them apart needs to know what the markup nests
-    inside what, which this script does not read.
+    This was a strict xfail for a round, with three narrowings tried and rejected on evidence.
+    All three inferred containment FROM THE STYLESHEET, which does not contain it: requiring
+    the ancestor to appear in another selector is defeated by writing the decoy twice, and
+    `.crewtrow .crewtag` is not attested in crews.css either, so it failed the legitimate case;
+    requiring the fix to restate the broad rule's value reported the shipped file and broke ten
+    cases; dropping the refinement branch fails the descendant fix the hatch is for.
 
-    Three narrowings were tried and rejected on evidence. Requiring the ancestor to appear in
-    another selector is defeated by writing the decoy twice, and `.crewtrow .crewtag` is not
-    attested anywhere in crews.css either, so it would fail the legitimate case. Requiring the
-    fix to restate the broad rule's VALUE reported the shipped stylesheet (`.crewboard .pod`
-    padding) and broke ten pinned cases. Dropping the refinement branch entirely fails the
-    descendant fix this hatch exists for.
+    A reviewer's fourth way was to stop inferring. The REPO has the answer even though the
+    stylesheet does not -- crews.js emits both halves -- so `CONTAINS` in the checker declares
+    it, one entry, auditable against the markup in half a minute. A wrong entry is a sentence
+    somebody can be wrong about out loud, which a heuristic never is.
 
-    So it stays open, and stays visible. The threat model that remains is "did the developer's
-    fix work", not "is somebody planting rules that do nothing" -- and this test goes red the
-    day somebody closes it, which is the point of writing it down.
+    The same table rejects `.crewtrow + .crewtag`, a chip that is the next SIBLING of a row:
+    `compounds()` threw the combinator away, so a sibling and a descendant were the same
+    string.
     """
-    bug = CSS.read_text(encoding="utf-8").replace(PHONE_STRIP, "", 1) + NL + (
-        "@media (max-width: 560px) { .crewpick .crewtag"
-        " { background: #10131a; padding: 0; } }" + NL)
-    r = _run(_point_at(tmp_path, bug))
-    assert r.returncode == 1, "the planted ancestor no longer hides the bug" + NL + r.stdout
+    css = CSS.read_text(encoding="utf-8")
+    for name, planted in (
+            ("an ancestor that holds no chips",
+             "@media (max-width: 560px) { .crewpick .crewtag"
+             " { background: #10131a; padding: 0; } }"),
+            ("a sibling rather than an ancestor",
+             "@media (max-width: 560px) { .crewtrow + .crewtag"
+             " { background: none; padding: 0; } }"),
+            ("a general sibling",
+             "@media (max-width: 560px) { .crewtrow ~ .crewtag"
+             " { background: none; padding: 0; } }")):
+        bug = css.replace(PHONE_STRIP, "", 1) + NL + planted + NL
+        r = _run(_point_at(tmp_path, bug))
+        assert r.returncode == 1, name + ": still hides the bug" + NL + r.stdout
