@@ -1072,11 +1072,20 @@
   // cell ordinal -> the crew taking it. Sparse: only the squares somebody else is riding.
   var RIVALS = {};
 
+  // cell ordinal -> neighbourhood, for the squares a crew can lose
+  var PLACES = {};
+
   function indexRivals() {
     RIVALS = {};
+    PLACES = {};
     var r = TERR && TERR.rivals;
-    if (!r) return;
-    for (var i = 0; i + 1 < r.length; i += 2) RIVALS[r[i]] = r[i + 1];
+    if (r) {
+      for (var i = 0; i + 1 < r.length; i += 2) RIVALS[r[i]] = r[i + 1];
+    }
+    var p = TERR && TERR.places, names = (TERR && TERR.placenames) || [];
+    if (p) {
+      for (var j = 0; j + 1 < p.length; j += 2) PLACES[p[j]] = names[p[j + 1]];
+    }
   }
 
   function loseHTML(slug) {
@@ -1095,11 +1104,11 @@
       // show up, and skipping it left ten crews out of twelve with an empty card while thirty
       // of their squares were quietly going cold.
       if (band !== 1 && band !== 2 && band !== 3) continue;   // 4 cannot be lost
-      var tx = TERR.cells[i + 1], ty = TERR.cells[i + 2], at = null;
-      for (var k = 0; k < TARGETS.length; k++) {
-        if (TARGETS[k].x === tx && TARGETS[k].y === ty) { at = TARGETS[k].at; break; }
-      }
-      rows.push({ x: tx, y: ty, band: band, at: at,
+      // The name comes from the payload, not from TARGETS: targets_for excludes every square
+      // the crew holds and this list iterates only squares it holds, so the lookup that used
+      // to scan TARGETS could never match anything.
+      rows.push({ x: TERR.cells[i + 1], y: TERR.cells[i + 2], band: band,
+                  at: PLACES[i / 5],
                   need: TERR.cells[i + 4] / 10, rival: RIVALS[i / 5] });
     }
     LOSING = [];

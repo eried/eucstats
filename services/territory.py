@@ -953,33 +953,35 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         r = t["need"] / f
         step = (1 if r <= 0.4 else 2 if r <= 1 else 3 if r <= 2.5
                 else 4 if r <= 5 else 5 if r <= 10 else 6)
-        # the place, where there is one, because two squares in different neighbourhoods are
-        # two different rides however alike the numbers look
-        return (step, t["dir"], t["held_by"], t.get("at"))
+        # Not the bearing. A compass letter is the one thing on a row that differs without
+        # anything differing: eight squares around one crew's ground read as eight rows and
+        # one decision, which is exactly what this key exists to stop. The place is in, because
+        # two squares in different neighbourhoods are two different rides however alike the
+        # numbers look.
+        return (step, t["held_by"], t.get("at"))
 
     order = {id(t): i for i, t in enumerate(out)}
-    seen, picked = set(), []
+    # How many rows may share a face. Two on the card a rider actually sees, more when a
+    # caller asks for a long list and wants the tail.
+    quota = max(2, limit // 4)
+    taken_face: dict = {}
+    picked = []
     # A block is one move and only works whole; halving it tells a new crew to ride half a
-    # block, which puts them on no map at all.
+    # block, which puts them on no map at all. The roadtrip is rare enough to be exempt too.
     for t in out:
-        if t.get("first"):
-            seen.add(face(t))
+        if t.get("first") or t.get("links") or t.get("joins"):
+            taken_face[face(t)] = taken_face.get(face(t), 0) + 1
             picked.append(t)
-    for t in out:                       # best first, one of each face
+    for t in out:                       # best first, a few of each face
         if len(picked) >= limit:
             break
-        if t.get("first"):
+        if t.get("first") or t.get("links") or t.get("joins"):
             continue
-        if face(t) not in seen:
-            seen.add(face(t))
-            picked.append(t)
-    if len(picked) < limit:             # top up rather than show a short card
-        chosen = {id(t) for t in picked}
-        for t in out:
-            if len(picked) >= limit:
-                break
-            if id(t) not in chosen:
-                picked.append(t)
+        k = face(t)
+        if taken_face.get(k, 0) >= quota:
+            continue
+        taken_face[k] = taken_face.get(k, 0) + 1
+        picked.append(t)
     # back into rank order: preferring a distinct row must not promote a worse one above a
     # better one, only decide which of two equally good ones gets the slot
     picked.sort(key=lambda t: order[id(t)])
@@ -1095,6 +1097,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     cells_flat: list[int] = []
     # [cell ordinal, crew index, ...] for the squares somebody else is riding
     rivals_flat: list[int] = []
+    losable: list[tuple[int, int, int]] = []   # (cell ordinal, x, y) for bands 1, 2 and 3
     idx_of = {cid: i for i, cid in enumerate(order)}
     regions_out = []
     for idx, clan_id in enumerate(order):
@@ -1131,6 +1134,8 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # be different from, and marking all of it new says the opposite of what it means
             if prev and got and (now - got).days < FRESH_DAYS:
                 band += 5
+            if band in (1, 2, 3):
+                losable.append((len(cells_flat) // 5, x, y))
             cells_flat.extend((idx, x, y, band, need))
         comps = patches_by_clan[clan_id]          # worked out once, above
         best_km2 = 0.0
@@ -1159,6 +1164,31 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         })
     db.commit()
 
+    # One lookup for the whole world's losable ground, shared through an index because a
+    # neighbourhood names several squares and the payload is the one file every visitor
+    # downloads.
+    places_flat: list[int] = []
+    placenames: list[str] = []
+    if losable:
+        try:
+            from ingest.geo import places_for
+            coords = []
+            for _ord, x, y in losable:
+                b = T.bounds(f"{zoom}/{x}/{y}")
+                coords.append(((b[1] + b[3]) / 2, (b[0] + b[2]) / 2) if b else (0.0, 0.0))
+            at = {}
+            for (cell, _x, _y), name in zip(losable, places_for(coords)):
+                if not name:
+                    continue
+                if name not in at:
+                    at[name] = len(placenames)
+                    placenames.append(name)
+                places_flat.extend((cell, at[name]))
+        except Exception:
+            # a card without place names is the card we had; a rebuild that dies here is not
+            _log.exception("place lookup failed for losable ground")
+            places_flat, placenames = [], []
+
     payload = {
         "z": zoom, "generated": now.isoformat() + "Z", "window_days": window_days,
         "seed": seed,
@@ -1171,6 +1201,11 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         "cells": cells_flat,
         # [cell ordinal, crew index] pairs: who is taking the square, where there is a who
         "rivals": rivals_flat,
+        # [cell ordinal, name index] pairs for the squares a crew can lose, so the defending
+        # card can say where as well as who. Sparse and shared, because the same neighbourhood
+        # names several squares.
+        "places": places_flat,
+        "placenames": placenames,
         "regions": regions_out,
     }
     # `crews` is sorted for display but `cells` indexes the unsorted order, so the indices are

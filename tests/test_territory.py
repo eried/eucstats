@@ -305,7 +305,11 @@ def test_growing_the_ranked_patch_beats_growing_a_spare_one():
     spare = {(40, 40), (41, 40), (40, 41), (41, 41)}
     out = targets_for(acc={}, kept={"A": big | spare}, clan_id="A", won={}, zoom=14, limit=40)
     assert "grows" not in out[0], "sort key, not payload"
-    first_spare = next(i for i, t in enumerate(out) if t["x"] > 10)
+    # Written as "the first spare appears no earlier than row 8". The per-face quota can now
+    # fill the whole list from the ranked patch and return no spare rows at all, which is the
+    # same statement with nothing after the comma.
+    spares = [i for i, t in enumerate(out) if t["x"] > 10]
+    first_spare = spares[0] if spares else len(out)
     assert all(t["x"] < 10 for t in out[:first_spare]), out[:first_spare]
     assert first_spare >= 8, "the ranked patch has twenty neighbours; they all come first"
 
@@ -652,3 +656,24 @@ def test_the_weekly_cap_still_pays_for_honest_riding(db):
     # decay bites the older ride, so this is a floor rather than an equality
     assert got > CAP * 1.5, (
         f"two rides eight days apart banked only {got:.2f} km: the window is too wide")
+
+
+def test_a_card_does_not_fill_itself_with_the_same_decision():
+    """Eight rows reading "a short ride" around one crew's ground, one per compass point, is
+    a full card containing one choice. The bearing was counting as variety: it is the one
+    thing on a row that differs without anything differing. Two rows of a kind, no more,
+    scaled up only when a caller asks for a long list."""
+    from services.territory import targets_for
+    held = {(x, y) for x in range(4) for y in range(4)}      # twelve bare neighbours
+    out = targets_for(acc={}, kept={"A": held}, clan_id="A", won={}, zoom=14, limit=8)
+    assert out, "there is plenty of adjacent ground"
+    # nothing distinguishes these squares but their bearing, so the card must stay short
+    assert len(out) <= 2, f"{len(out)} rows of one decision: {[(t['x'], t['y']) for t in out]}"
+
+
+def test_a_long_list_still_gets_its_tail():
+    """The quota scales: a caller asking for forty wants the long tail, not two rows."""
+    from services.territory import targets_for
+    held = {(x, y) for x in range(4) for y in range(4)}
+    out = targets_for(acc={}, kept={"A": held}, clan_id="A", won={}, zoom=14, limit=40)
+    assert len(out) >= 8, f"a long request should not be capped at a card's worth: {len(out)}"

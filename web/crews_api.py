@@ -325,14 +325,26 @@ def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
 
 
 @router.get("/crews/identity")
-def crew_identity(db: Session = Depends(get_db)):
+def crew_identity(request: Request, db: Session = Depends(get_db)):
     """A suggested colour and pattern: one of the least-used combinations.
 
     Nobody is shown ninety-six swatches. The least-used pair spreads the palette across the
     map on its own, and a founder who does not care never has to think about it.
     """
     _gate(db)
-    return crews.suggest_identity(db)
+    # Where this rider rides, so the suggestion can avoid the colours already on the ground
+    # around them rather than only the ones rare worldwide.
+    near = None
+    ws = _me(request, db)
+    if ws is not None:
+        t = (db.query(Trip.start_lat, Trip.start_lon)
+             .filter(Trip.rider_store_id == ws.store_id,
+                     Trip.validation_status == "validated",
+                     Trip.start_lat.isnot(None))
+             .order_by(Trip.start_utc.desc()).first())
+        if t:
+            near = (t[0], t[1])
+    return crews.suggest_identity(db, near=near)
 
 
 @router.post("/crews")

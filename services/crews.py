@@ -7,6 +7,7 @@ label is not.
 from __future__ import annotations
 
 import hashlib
+import math
 import random
 import re
 import uuid
@@ -71,13 +72,59 @@ def free_slug(db, name: str) -> str:
 
 # --- identity -----------------------------------------------------------------------------
 
-def suggest_identity(db) -> dict:
-    """A random one of the LEAST-used (colour, pattern) pairs.
+def _hue(hex_colour: str) -> float:
+    """Degrees around the wheel, for telling two colours apart at a glance."""
+    h = (hex_colour or "").lstrip("#")
+    if len(h) != 6:
+        return 0.0
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    import colorsys
+    return colorsys.rgb_to_hsv(r, g, b)[0] * 360.0
+
+
+def _hue_gap(a: str, b: str) -> float:
+    d = abs(_hue(a) - _hue(b)) % 360.0
+    return min(d, 360.0 - d)
+
+
+def neighbour_colours(db, lat: float | None, lon: float | None,
+                      km: float = 60.0) -> set[str]:
+    """Colours already on the ground near a point.
+
+    A crew's ground is its cells; the cheapest usable position for each crew is the first
+    cell it holds, which is enough to answer "is this crew in my city" at sixty kilometres.
+    """
+    if lat is None or lon is None:
+        return set()
+    from services import tiles as T
+    out = set()
+    seen = set()
+    for tile, clan_id in db.query(ClanCell.tile, ClanCell.clan_id).all():
+        if clan_id in seen:
+            continue
+        b = T.bounds(tile)
+        if not b:
+            continue
+        cy, cx = (b[1] + b[3]) / 2, (b[0] + b[2]) / 2
+        dy = (cy - lat) * 111.32
+        dx = (cx - lon) * 111.32 * math.cos(math.radians(lat))
+        if dx * dx + dy * dy <= km * km:
+            seen.add(clan_id)
+            c = db.get(Clan, clan_id)
+            if c is not None and c.disbanded_at is None:
+                out.add(c.colour)
+    return out
+
+
+def suggest_identity(db, near: tuple[float, float] | None = None) -> dict:
+    """A random one of the LEAST-used (colour, pattern) pairs, biased away from the neighbours.
 
     Nobody is shown a grid of ninety-six swatches to pick from. Counting how many crews hold
     each combination and offering one of the rarest keeps the map spread across the palette
     without any founder having to think about it, and it is one GROUP BY over a table with one
-    row per crew.
+    row per crew. That is a global answer to a local question, though: two crews sharing a
+    city border in two shades of magenta are one wash at the opacity the map draws, so when
+    the caller knows where the founder rides, anything close in hue to a neighbour is dropped.
     """
     taken: dict[tuple[str, str], int] = {}
     by_colour: dict[str, int] = {}
@@ -92,6 +139,12 @@ def suggest_identity(db) -> dict:
     combos = [k for k in combos if by_colour.get(k[0], 0) == fewest_c]
     fewest = min(taken.get(k, 0) for k in combos)
     pool = [k for k in combos if taken.get(k, 0) == fewest]
+    if near:
+        nearby = neighbour_colours(db, near[0], near[1])
+        if nearby:
+            far = [k for k in pool if all(_hue_gap(k[0], n) >= 60 for n in nearby)]
+            # only if it leaves anything: a crowded city must not block a founder entirely
+            pool = far or pool
     colour, pattern = random.choice(pool)
     return {"colour": colour, "pattern": pattern, "free": len(pool), "used": len(taken)}
 
