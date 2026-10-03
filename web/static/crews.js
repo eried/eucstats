@@ -1227,11 +1227,7 @@
                 + t("crew.targets.youpassname", { name: esc(youPass(x)) }) + "</span>")
             // A square that adds a tile the ranked number cannot see. Three rows in the world,
             // which is exactly why it is worth marking: riding one moves nothing.
-            // No `held_by` test. It had one, and every stray in the world is held by
-            // somebody, so the explanation was deleted on exactly the rows it was written
-            // for: the cheapest ride on the card sits at the bottom and nothing says why.
-            : typeof x.grown === "number" && x.grown <= (x.own_now || 0)
-              ? '<span class="crewtquiet">' + t("crew.targets.stray") + "</span>"
+
             : x.held_by && x.ranked_was - x.ranked_now === 1 && !saidQuiet[who]
               ? ((saidQuiet[who] = 1), '<span class="crewtquiet">'
                 + t("crew.targets.drops", { n: x.ranked_now }) + "</span>")
@@ -2416,6 +2412,11 @@
       return best;
     }
 
+    // Half the ring the map draws, plus a little air. The first version scored a POINT and
+    // accepted 40px of clearance, so a "clear" centre still hung 56px of gold square over the
+    // panel or off the edge of the window -- four viewports in twelve, which the reviewer
+    // measured in Chrome while my own harness called them all clean.
+    var RING = 56, need = RING + 12;
     var step = 24, bx = W / 2, by = H / 2, bs = clearance(bx, by);
     for (var x = step; x < W; x += step) {
       for (var y = step; y < H; y += step) {
@@ -2427,8 +2428,22 @@
     // 94vw by 76dvh and there is no corner of the map left to fly to. Saying so lets the
     // caller do what the portrait phone already does and move the panel out of the way,
     // which is the only honest answer when the screen is full.
-    if (bs < 40) return null;
+    if (bs < need) return null;
     return [bx - W / 2, by - H / 2];
+  }
+
+  // The whole decision, in one place a test can reach. It lived inside flyToTile, so a
+  // harness could only re-implement it -- and a re-implementation agrees with itself by
+  // construction, which is how the harness went on passing while the shipped caller threw
+  // freeOffset()'s answer away and flew to dead centre.
+  function offsetForFlight() {
+    var off = window.innerWidth <= 560 ? [0, 0] : freeOffset();
+    if (off !== null) return off;
+    // Closing the panel changes the obstacle set, which is the entire premise of
+    // freeOffset(), so ask again rather than hardcode the centre: measured at 844x390 the
+    // ring came down 11% under the topbar with the panel already gone and half the map free.
+    if (H.closePanel) H.closePanel();
+    return freeOffset() || [0, 0];
   }
 
   function flyToTile(x, i) {
@@ -2449,13 +2464,7 @@
     // identically zero: `.panel` is `left: 50%` with `translateX(-50%)`, so its centre is the
     // window's centre at every width. What is actually free is the margin beside it, so the
     // square is put in the middle of whichever margin is wider.
-    var off = window.innerWidth <= 560 ? [0, 0] : freeOffset();
-    // No room anywhere, so the panel goes rather than the flight landing under it. The
-    // portrait phone already closes it for the same reason; this is the same screen, turned.
-    if (off === null) {
-      if (H.closePanel) H.closePanel();
-      off = [0, 0];
-    }
+    var off = offsetForFlight();
     // Close enough to find the street, far enough to still see it against the crew's own
     // ground. Flying to 13.2 put one square across the whole screen, which answers "where is
     // it" with a picture of nowhere. A reader already zoomed in keeps their zoom.
