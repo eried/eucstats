@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import and_, case, desc, func, null
 
-from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip, Wheel, utcnow
+from models import CountryStat, DailyDistance, MapCell, Record, Rider, RiderStat, Trip, Wheel, utcnow, publishable_handle
 
 
 def _rider_loc(db, store_id: str):
@@ -31,7 +31,10 @@ def _rider_brief(db, store_id: str) -> dict:
     if r is None:
         return {"id": None, "name": None, "flag": None,
                 "has_avatar": False, "lat": lat, "lon": lon}
-    return {"id": r.public_id, "name": r.display_name, "flag": r.flag,
+    # Never a handle that is not one. This is a public board: an anonymous reader took a
+    # polluted id from here, stripped a prefix off it and paired as that rider.
+    return {"id": r.public_id if publishable_handle(r.public_id) else None,
+            "name": r.display_name, "flag": r.flag,
             "has_avatar": r.avatar_png is not None, "lat": lat, "lon": lon}
 
 

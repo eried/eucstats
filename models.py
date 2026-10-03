@@ -1,6 +1,7 @@
 """SQLAlchemy models for eucstats (see spec §5)."""
 from datetime import datetime, timezone
 
+import re
 import secrets
 
 from sqlalchemy import (
@@ -48,6 +49,21 @@ class Rider(Base):
     created_at = Column(DateTime, default=utcnow)
     deleted_at = Column(DateTime)
 
+
+
+# What a handle is: the sixteen hex characters `secrets.token_hex(8)` makes. Anything else
+# came from somewhere this code does not control -- an import, a migration, a stray script --
+# and must never be published, because `pair/confirm` takes a store_id as proof of identity and
+# a handle that happens to be one is a password printed on a public leaderboard.
+#
+# It lives here, beside the minter, because every reader needs the same answer. Checked at two
+# call sites instead, a reviewer simply read a different route: the public mileage board and
+# the crew contributors list both published a polluted row verbatim to an anonymous caller.
+_HANDLE_RE = re.compile(r"[0-9a-f]{16}")
+
+
+def publishable_handle(public_id) -> bool:
+    return bool(public_id) and bool(_HANDLE_RE.fullmatch(public_id))
 
 
 @event.listens_for(Rider, "before_insert")

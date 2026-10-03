@@ -44,7 +44,7 @@ from pathlib import Path
 import sqlalchemy as sa
 
 import config
-from models import Clan, ClanCell, ClanMember, Trip, TripTrack, utcnow
+from models import Clan, ClanCell, ClanMember, Trip, TripTrack, utcnow, publishable_handle
 from services import tiles as T
 
 _log = logging.getLogger(__name__)
@@ -1382,7 +1382,8 @@ def contributors(db, clan_id: str, window_days: int = WINDOW_DAYS, limit: int = 
     out = []
     for store_id, km, n in rows:
         r = riders.get(store_id)
-        out.append({"id": r.public_id if r else None,
+        # Same rule as everywhere else: a contributors list is public.
+        out.append({"id": r.public_id if (r and publishable_handle(r.public_id)) else None,
                     "name": r.display_name if r else "?",
                     "flag": r.flag if r else None,
                     "has_avatar": bool(r and r.avatar_png),

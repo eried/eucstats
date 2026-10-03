@@ -591,3 +591,47 @@ def test_an_admin_pass_is_refused_without_being_spent(client, db):
     again = client.get("/api/v1/pair/poll", params={"token": p["token"]})
     assert again.status_code == 410
     assert "wrong_screen" in again.text, "the pairing survives, and still says why"
+
+
+def test_no_public_surface_publishes_a_handle_that_is_not_one(db):
+    """The shape guard was at the two crews call sites, which is where a reviewer had attacked
+    the round before. They walked round it: the public mileage board and the crew contributors
+    list both published a polluted row verbatim to an anonymous caller, and stripping a prefix
+    off a leaderboard id was enough to pair as that rider and act as them.
+
+    Guarding the door somebody knocked on is not guarding the house, so the rule lives beside
+    the minter now and every reader asks it.
+    """
+    from models import publishable_handle
+    from services import stats, territory
+
+    _rider(db, "pub1")
+    row = db.query(Rider).filter(Rider.store_id == "pub1").one()
+    row.public_id = "h-pub1"                    # the shape found in the wild
+    db.commit()
+
+    brief = stats._rider_brief(db, "pub1")
+    assert brief["id"] is None or publishable_handle(brief["id"]), brief
+
+    c = crews.create(db, "pub1", "Public Eyes")
+    for row_ in territory.contributors(db, c.clan_id):
+        assert row_["id"] is None or publishable_handle(row_["id"]), row_
+
+
+def test_a_malformed_handle_is_repaired_at_startup_not_on_first_read(db):
+    """`backfill_public_ids` only ever repaired NULL or empty, so a malformed row survived
+    every restart and waited for whichever route read it first. That is how one polluted row
+    stayed polluted while four call sites each decided separately what to do about it."""
+    from database import backfill_public_ids
+    from models import publishable_handle
+
+    _rider(db, "stale1")
+    row = db.query(Rider).filter(Rider.store_id == "stale1").one()
+    row.public_id = "h-stale1"
+    db.commit()
+
+    assert backfill_public_ids() >= 1
+    db.expire_all()
+    fixed = db.query(Rider).filter(Rider.store_id == "stale1").one().public_id
+    assert publishable_handle(fixed), fixed
+    assert "stale1" not in fixed

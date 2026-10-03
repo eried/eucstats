@@ -18,7 +18,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Clan, ClanMember, PairToken, Rider, Trip, WebSession, utcnow
+from models import (Clan, ClanMember, PairToken, Rider, Trip, WebSession,
+                    publishable_handle, utcnow)
 from services import crews, pairing, ratelimit, settings, territory
 from services import tiles as T
 
@@ -37,10 +38,6 @@ def _ip(request: Request) -> str:
     if xff:
         return xff.split(",")[0].strip()
     return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
-
-
-# What `secrets.token_hex(8)` produces, which is what every handle in this system is.
-HANDLE_RE = re.compile(r"[0-9a-f]{16}")
 
 
 def _handle(db: Session, store_id: str) -> str:
@@ -62,7 +59,7 @@ def _handle(db: Session, store_id: str) -> str:
     # a handle equal to a DIFFERENT rider's store_id, and a case-variant of its own. Both were
     # published on a browser route and both minted a working session. Checking the shape
     # instead of the substring is the same one line and actually says what is meant.
-    if not HANDLE_RE.fullmatch(r.public_id or ""):
+    if not publishable_handle(r.public_id):
         r.public_id = secrets.token_hex(8)
         db.commit()
     return r.public_id
@@ -376,7 +373,7 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                     r = who.get(sid)
                     if r is None:
                         return ""
-                    if not HANDLE_RE.fullmatch(r.public_id or ""):
+                    if not publishable_handle(r.public_id):
                         return _handle(db, sid)        # mints a clean one; see _handle
                     return r.public_id
 

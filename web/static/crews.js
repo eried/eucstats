@@ -1127,9 +1127,18 @@
     if (noRival && TARGETS.length > 1) {
       head += '<p class="hint crewclear">' + t("crew.targets.clear") + "</p>";
     }
+    // Every branch of the chip chain gets a gate. Four had one and three did not, so the
+    // loudest badge in the panel printed itself three times running on the top crew's card
+    // and four times on another: the same class this chain has been closing for rounds,
+    // reopened by the branches nobody had got to yet. `drops` shares `saidQuiet` with its own
+    // quiet twin, which also stops one card saying "drops them to 22" in one weight and
+    // "DROPS THEM TO 21" in another about the same crew.
     var seenWho = {};
     var saidQuiet = {};
     var saidPass = {};
+    var saidGrow = {};
+    var saidLink = {};
+    var saidJoin = false;
     var body = TARGETS.map(function (x, i) {
           // Worked out before the tag chain, not after it. The chain asks whether this
           // rival's name has already appeared on the card, and `var` hoisting handed it
@@ -1167,11 +1176,16 @@
             // big. Four rows in the world take a crew up seven and two take one up
             // twenty-three, and the card printed neither.
             : typeof x.grown === "number" && x.grown - (x.own_now || 0) > 1
-              ? '<span class="crewtag joins">'
-                + t("crew.targets.grows", { n: x.grown }) + "</span>"
-            : x.links ? '<span class="crewtag joins">'
-              + t("crew.targets.links", { n: x.links }) + "</span>"
-            : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
+                && !saidGrow[x.grown]
+              ? ((saidGrow[x.grown] = 1), '<span class="crewtag joins">'
+                + t("crew.targets.grows", { n: x.grown }) + "</span>")
+            : x.links && !saidLink[x.links]
+              ? ((saidLink[x.links] = 1), '<span class="crewtag joins">'
+                + t("crew.targets.links", { n: x.links }) + "</span>")
+            // Once too. It carries no number, so a second one is the same five words again.
+            : x.joins && !saidJoin
+              ? ((saidJoin = true),
+                 '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>")
             : x.blocked && !x.first
               ? '<span class="crewtag done">' + t("crew.targets.blocked") + "</span>"
             // Below the three-square bar, say what their number becomes. One square off the
@@ -1193,9 +1207,9 @@
                  + '">' + (passes(x) === myName()
                    ? t("crew.targets.youpass")
                    : t("crew.targets.passes", { name: esc(passes(x)) })) + "</span>")
-            : x.ranked_was - x.ranked_now > 1
-              ? '<span class="crewtag drops">'
-                + t("crew.targets.drops", { n: x.ranked_now }) + "</span>"
+            : x.ranked_was - x.ranked_now > 1 && !saidQuiet[who]
+              ? ((saidQuiet[who] = 1), '<span class="crewtag drops">'
+                + t("crew.targets.drops", { n: x.ranked_now }) + "</span>")
             // Worth one square. True of most border squares, which is why printing it as a
             // chip on every row turned it into furniture the round it was introduced -- but
             // deleting it left 36 rows naming a rival and saying nothing about them at all.

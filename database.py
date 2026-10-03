@@ -88,8 +88,14 @@ def backfill_public_ids(db_path: str | None = None) -> int:
         cols = {row[1] for row in con.execute("PRAGMA table_info(riders)")}
         if "public_id" not in cols:
             return 0
+        # Not only the empty ones. A malformed-but-present handle survived every restart and
+        # waited for whichever route happened to read it first, which is how a polluted row
+        # stayed polluted while four different call sites each decided what to do about it.
+        # GLOB is case-sensitive in SQLite, so uppercase hex is repaired too.
+        hexglob = "[0-9a-f]" * 16
         rows = con.execute(
-            "SELECT store_id FROM riders WHERE public_id IS NULL OR public_id = ''").fetchall()
+            "SELECT store_id FROM riders WHERE public_id IS NULL OR public_id = ''"
+            f" OR public_id NOT GLOB '{hexglob}'").fetchall()
         for (sid,) in rows:
             con.execute("UPDATE riders SET public_id=? WHERE store_id=?",
                         (secrets.token_hex(8), sid))
