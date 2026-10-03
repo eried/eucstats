@@ -983,7 +983,13 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
             t["kills"] = False
     # a square that takes a crew off the map outranks everything except being on the map
     # yourself, which is the same move from the other side
+    # `blocked` last within its group. A square with nothing left to ride has `need` 0, and
+    # `need` sorted third, so it went to the top of a card headed "Where to ride next" -- on a
+    # brand-new crew's first-block card that put the one square they cannot ride above the two
+    # they must, and the place name (printed on the first row) landed on it. The card told a
+    # new crew where to go by naming the square they had already been to.
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
+                            1 if t.get("blocked") else 0,
                             rank(t), t["need"], t["x"], t["y"]))
     # One per victim. Four rows that are the same decision about the same crew are one row and
     # three wasted lines, and the cheapest of them is the one to ride.
@@ -996,6 +1002,7 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         else:
             struck.add(t["held_by"])
     out.sort(key=lambda t: (0 if t.get("first") else 1 if t.get("kills") else 2,
+                            1 if t.get("blocked") else 0,
                             rank(t), t["need"], t["x"], t["y"]))
 
     # Everything a row prints is effort, bearing and who holds it, so two rows agreeing on all

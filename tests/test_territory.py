@@ -677,3 +677,31 @@ def test_a_long_list_still_gets_its_tail():
     held = {(x, y) for x in range(4) for y in range(4)}
     out = targets_for(acc={}, kept={"A": held}, clan_id="A", won={}, zoom=14, limit=40)
     assert len(out) >= 8, f"a long request should not be capped at a card's worth: {len(out)}"
+
+
+def test_the_square_you_cannot_ride_does_not_head_the_card():
+    """A square with nothing left to ride has `need` 0, and `need` sorted before anything that
+    said so -- so on a first-block card it took the top row, above the squares the crew must
+    actually ride. The place name is printed on the first row and nowhere else, so a brand-new
+    crew was told where to go by being handed the name of the square they had already been to.
+    """
+    from services.territory import targets_for
+    # three squares of a 2x2 ridden, the fourth barely touched, and one of the three is
+    # already out-ridden so it has nothing left to ask for
+    led = {"14/5/5": ("A", 9.0, 1), "14/6/5": ("A", 9.0, 1), "14/5/6": ("A", 9.0, 1)}
+    acc = {t: {"A": [9.0, {"r"}]} for t in led}
+    acc["14/6/6"] = {"A": [0.0, set()]}
+    out = targets_for(acc, kept={}, clan_id="A", won=led, zoom=14)
+    assert out, "a crew one square short should still be told which square"
+
+    ridable = [t for t in out if not t.get("blocked")]
+    assert ridable, "there has to be something to ride"
+    assert not out[0].get("blocked"), (
+        "the top row is a square with nothing to ride: " + repr(out[0]))
+    # and every blocked row sits after every rideable one
+    seen_blocked = False
+    for t in out:
+        if t.get("blocked"):
+            seen_blocked = True
+        elif seen_blocked:
+            raise AssertionError("a rideable square sorted below a finished one: " + repr(t))
