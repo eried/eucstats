@@ -33,6 +33,8 @@ EN: dict[str, str] = {
     "crew.patches": "{n} patches",
     "crew.inall": "{v} all told",
     # signing in
+    "crew.targets.grows": "your block goes to {n}",
+    "crew.targets.youpassname": "takes you past {name}",
     "crew.targets.clear": "Nobody else is riding near you. Each of these adds one to your block.",
     "crew.targets.stray": "adds a square, not to your block",
     "crew.join.pending.none": "Nobody here can let you in. This crew has no leader.",

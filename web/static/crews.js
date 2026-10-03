@@ -1114,7 +1114,11 @@
     // Nothing on this card is held by anybody. Seven crews of fifteen are in that position,
     // and the honest thing to say about eight adjacent empty squares is the same sentence
     // eight times -- so it is said once, here, and the rows go back to being distances.
-    var noRival = TARGETS.every(function (x) { return !x.held_by; });
+    // Every row, not most of them. This said "each of these adds one to your block" over a
+    // card whose rows add nothing, and over another whose first four rows add seven.
+    var noRival = TARGETS.every(function (x) {
+      return !x.held_by && typeof x.grown === "number" && x.grown - (x.own_now || 0) === 1;
+    });
     if (noRival && TARGETS.length > 1) {
       head += '<p class="hint crewclear">' + t("crew.targets.clear") + "</p>";
     }
@@ -1153,6 +1157,13 @@
             ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
             : x.kills ? '<span class="crewtag kills">'
               + t("crew.targets.kills", { n: x.lost || 0 }) + "</span>"
+            // Above the link chips, because a gain of more than one only happens when
+            // patches merge: the number says everything "joins two patches" says, and how
+            // big. Four rows in the world take a crew up seven and two take one up
+            // twenty-three, and the card printed neither.
+            : typeof x.grown === "number" && x.grown - (x.own_now || 0) > 1
+              ? '<span class="crewtag joins">'
+                + t("crew.targets.grows", { n: x.grown }) + "</span>"
             : x.links ? '<span class="crewtag joins">'
               + t("crew.targets.links", { n: x.links }) + "</span>"
             : x.joins ? '<span class="crewtag joins">' + t("crew.targets.joins") + "</span>"
@@ -1189,10 +1200,13 @@
             // mirror case below it.
             : youPass(x) && !saidPass[youPass(x)]
               ? ((saidPass[youPass(x)] = 1), '<span class="crewtag youpass">'
-                + t("crew.targets.youpass") + "</span>")
+                + t("crew.targets.youpassname", { name: esc(youPass(x)) }) + "</span>")
             // A square that adds a tile the ranked number cannot see. Three rows in the world,
             // which is exactly why it is worth marking: riding one moves nothing.
-            : typeof x.grown === "number" && x.grown <= (x.own_now || 0) && !x.held_by
+            // No `held_by` test. It had one, and every stray in the world is held by
+            // somebody, so the explanation was deleted on exactly the rows it was written
+            // for: the cheapest ride on the card sits at the bottom and nothing says why.
+            : typeof x.grown === "number" && x.grown <= (x.own_now || 0)
               ? '<span class="crewtquiet">' + t("crew.targets.stray") + "</span>"
             : x.held_by && x.ranked_was - x.ranked_now === 1 && !saidQuiet[who]
               ? ((saidQuiet[who] = 1), '<span class="crewtquiet">'
@@ -1201,6 +1215,13 @@
           // Not part of the chain above: a square can be the best move in the game AND more
           // than the crew can physically bank, and being told only the first is how somebody
           // spends a month on arithmetic.
+          // Not beside the same sentence in the effort column. A blocked row already reads
+          // "ridden out, take the one next door" on the left; the chip repeated it in caps on
+          // the right, twice on one row.
+          if (x.blocked && tag.indexOf("crew.targets.blocked") < 0
+              && tag.indexOf(t("crew.targets.blocked")) >= 0) {
+            tag = "";
+          }
           if (!x.blocked && outOfReach(x.need)) {
             tag += '<span class="crewtag done">' + t("crew.targets.far") + "</span>";
           }
@@ -1242,13 +1263,15 @@
 
   // The widest phrase decides the column, because the phrase is prose and the locales differ
   // by a factor of two. ch is close enough for a proportional face and needs no measuring.
+  // Including the number, which this measured without: `--kmw` came out too narrow whenever
+  // a card's phrases were short, and six rows of eight wrapped to double height.
   function widest(rows) {
     var n = 7;
     (rows || []).forEach(function (x) {
-      var w = (x.blocked ? "" : effort(x.need, x.y)).length;
+      var w = (x.blocked ? "" : effort(x.need, x.y) + " " + fmtKm(x.need)).length;
       if (w > n) n = w;
     });
-    return Math.min(n + 1, 22);
+    return Math.min(n + 1, 26);
   }
 
   // The other half of the game. Every band and every shortfall is already in TERR.cells, so
@@ -2355,6 +2378,13 @@
       if (gap > 180) {
         var centre = right >= left ? (r.right + window.innerWidth) / 2 : left / 2;
         off = [centre - window.innerWidth / 2, 0];
+      } else if (r.top > 140) {
+        // A centred panel of `min(94vw, 720px)` leaves no usable margin beside it between
+        // 561 and 1080 px, so the offset came out zero and the square flew to dead centre,
+        // behind the card that had just said "Tap it to find it". Measured at 1024x768: the
+        // target projected to (512, 384) inside a panel spanning 152-872 by 223-684. There is
+        // clear map above it, so the square goes there instead.
+        off = [0, r.top / 2 - window.innerHeight / 2];
       }
     }
     // Close enough to find the street, far enough to still see it against the crew's own
