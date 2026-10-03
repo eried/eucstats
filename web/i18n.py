@@ -39,6 +39,11 @@ EN: dict[str, str] = {
     "crew.targets.clear": "Nobody else is riding near you. Each of these adds one square to your block.",
     "crew.targets.stray": "adds a square, but not to your block",
     "crew.join.pending.none": "Nobody here can let you in. This crew has no leader.",
+    # The panel's own chrome. `pclose` closes the whole feature and announced itself
+    # as "button"; `ppeek` is admin-only and was the one hardcoded English tooltip
+    # beside a sibling that already used data-i18n-title.
+    "panel.close": "Close",
+    "panel.peek": "Preview as a normal visitor",
     "crew.wip": "Not open for public testing yet. Anything you build here can be wiped without warning.",
     "crew.signin.h": "Get your pass",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",
