@@ -207,6 +207,20 @@ PLURAL = {
 }
 
 
+# Japanese and Korean mark person by register and by verb ending rather than by pronoun, and
+# their crew cards use number-neutral plain forms (`走れ`, `달려라`) that carry no number to
+# check. Both were audited by hand and neither has a live defect -- `crew.legend.note` uses
+# `自分たち` and `너희` correctly. They are exempt by name rather than by omission, so that a
+# nineteenth locale cannot join the set and be skipped in silence.
+EXEMPT = {"ja", "ko"}
+
+
+def test_every_locale_is_either_checked_or_exempt():
+    assert set(SINGULAR) | EXEMPT == set(TRANSLATIONS), (
+        "a locale is neither checked for person nor named as exempt: "
+        + repr(sorted(set(TRANSLATIONS) - set(SINGULAR) - EXEMPT)))
+
+
 def card_of(key):
     """The longest declared prefix that matches, so `crew.board.sub` beats `crew.board`."""
     best = None
