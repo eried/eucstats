@@ -18,11 +18,16 @@ from models import Clan, ClanMember, ClanCell, Trip, utcnow
 # 24 colours chosen to stay apart from each other on a map and to survive the common forms of
 # colour blindness — no red/green pair carries meaning on its own, which is why every crew also
 # has a pattern and an emblem.
+# Sorted by hue with the greys at the end, rather than in the order the 20-colour
+# categorical data-viz list ships in -- which put brown, cream, maroon and mint on one row and
+# olive, apricot, navy and grey on the next, in the one grid in the product whose whole job is
+# to be looked at. The SET is unchanged: crews hold these values in the database and
+# `colour not in PALETTE` validates against it, so dropping or adding one is a migration.
 PALETTE = [
-    "#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4",
-    "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#e6beff",
-    "#9a6324", "#fffac8", "#800000", "#aaffc3", "#808000", "#ffd8b1",
-    "#000075", "#a9a9a9", "#ff7043", "#56c5f0", "#7bd389", "#c2410c",
+    "#fabebe", "#800000", "#ff7043", "#c2410c", "#ffd8b1", "#f58231",
+    "#9a6324", "#ffe119", "#fffac8", "#808000", "#bcf60c", "#3cb44b",
+    "#aaffc3", "#7bd389", "#46f0f0", "#008080", "#56c5f0", "#4363d8",
+    "#000075", "#e6beff", "#911eb4", "#f032e6", "#e6194b", "#a9a9a9",
 ]
 # Patterns cost one sprite each, not one per crew: the fill layer paints the colour and a
 # second layer paints the pattern over it. A fifth pattern is one more image, not twenty-four.

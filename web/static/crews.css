@@ -102,6 +102,11 @@
 
 .crewlist { margin-top: 6px; }
 .crewrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(255,255,255,.05); }
+/* `display: flex` above is author CSS and `[hidden]`'s `display: none` comes from the user
+   agent, so the author rule wins and a hidden row went on taking its 44px. Fifteen of the
+   twenty-one rows in this list are hidden until you ask for them, so the toggle appeared to
+   do nothing at all. */
+.crewrow[hidden] { display: none; }
 .crewrow:first-child { border-top: 0; }
 .crewrown { flex: 1; min-width: 0; }
 .crewrown b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -118,7 +123,9 @@
 
 .crewident { display: flex; gap: 12px; align-items: center; margin: 12px 0 0; }
 .crewident > div { flex: 1; }
-.crewidentl { font-size: 11px; color: var(--mut, #9aa6c8); letter-spacing: .5px; text-transform: uppercase; }
+/* The label line also carries the preview, pushed to its right edge: see `.crewidentrow`. */
+.crewidentl { font-size: 11px; color: var(--mut, #9aa6c8); letter-spacing: .5px;
+  text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
 .crewident select { margin-top: 4px; }
 
 .crewsign { text-align: center; }
@@ -209,12 +216,43 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   opacity: .25; filter: grayscale(1); pointer-events: none; cursor: default;
 }
 
+/* Anything anchored after a control that is itself a flex item -- a confirm prompt, an
+   invite-code box, a failure message. Inserted as a bare div into a `.crewrow` it became a
+   fourth column: `.crewrown` was squeezed to 0px, its meta span rendered 29px wide by 257px
+   tall -- one word per line -- and the row grew from 60px to 378px and clipped at the panel
+   edge. It takes the whole width and the row wraps to let it. */
+.crewaskslot { flex: 1 0 100%; min-width: 0; }
+.crewrow:has(> .crewaskslot), .crewpendr:has(> .crewaskslot),
+.crewacts:has(> .crewaskslot), .crewtrow:has(> .crewaskslot) { flex-wrap: wrap; }
+
 /* A message anchored to the control that was pressed, rather than at the top of the panel
    five screens away from it. */
 .crewstatusnear { margin: 8px 0 2px; }
 .crewstatusnear .crewmsg { margin: 0; }
 /* Inside the invite-code prompt, above the input it is about. */
 .crewaskmsg { margin: 0 0 8px; }
+
+/* Narrowing sixteen crews, and the rest of them. */
+.crewfilter {
+  width: 100%; margin: 2px 0 8px; padding: 9px 10px; font: inherit;
+  color: var(--ink, #eef1fb); background: rgba(0,0,0,.25);
+  border: 1px solid var(--line, #243055); border-radius: 8px;
+}
+.crewmore { margin-top: 8px; }
+.crewlist[data-empty] { padding: 10px 0; }
+.crewlist[data-empty]::after {
+  content: "\2014"; color: var(--mut, #9aa6c8); font-size: 13px;
+}
+
+/* Somebody is waiting on an answer. The count repeats on the shut accordion summary and
+   beside the heading, because the list itself used to be 4.6 screenfuls down a panel. */
+.crewknock h4 { display: flex; align-items: center; gap: 8px; }
+.crewknockn, .crewsumdot {
+  min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
+  background: var(--sec, #ff8ad8); color: #140a11; text-align: center;
+  font: 700 11px/17px Orbitron, ui-sans-serif, sans-serif;
+}
+.crewsumdot { margin-left: 6px; flex: 0 0 auto; }
 
 /* Handing the pass back, for the five paired states that have no crew card to put it in. */
 .crewfoot {
@@ -312,10 +350,13 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* Swatches, not a dropdown of hex codes. The thing being chosen is the thing that ends up on
    the map, so it is shown as it will look, pattern and all. */
-.crewidentrow { display: flex; gap: 12px; align-items: flex-start; margin: 12px 0 0; }
+/* A block, not a flex row. The preview used to be a 62px item beside a 330px grid, so about
+   280px of empty gutter ran down the whole picker and the grid had 218px to lay 44px cells in
+   -- four columns and six rows. The preview sits on the label line now and the grid gets the
+   full width. */
+.crewidentrow { display: block; margin: 12px 0 0; }
 .crewpreview { flex: 0 0 auto; }
 .crewpreview .crewsw { border-width: 2px; }
-.crewpickwrap { flex: 1; min-width: 0; }
 .crewpickc, .crewpickp {
   /* the grid counts the columns from the width there is, so the chip takes the cell it got
      rather than sitting in the corner of it */
@@ -324,7 +365,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 }
 .crewpickp { background: transparent; display: flex; align-items: center; justify-content: center; }
 .crewpickp .crewsw { width: 20px; height: 20px; border: 0; }
-.crewpickc.on, .crewpickp.on { outline: 2px solid #fff; outline-offset: 1px; }
+/* Two rings, not one. `outline: 2px solid #fff` is invisible on seven of the twenty-four
+   swatches -- `#fffac8`, `#fabebe` (the default), `#aaffc3`, `#ffd8b1`, `#e6beff`, `#a9a9a9`
+   measure about 1.1:1 against white -- so on a third of the palette, on the one grid whose
+   only state channel IS the ring, a reviewer could not tell what was selected without
+   reading the DOM. A dark ring inside a light one reads on both halves. */
+.crewpickc.on, .crewpickp.on {
+  outline: 2px solid #fff; outline-offset: 1px;
+  box-shadow: 0 0 0 1px #0b0f1c inset, 0 0 0 4px rgba(11,15,28,.9);
+}
 /* `:not(.on)`, because these two are both 0-2-0 and neither is a subset of the other, so the
    later one simply won: resting the pointer on the colour you had just chosen dropped its 2px
    ring to the 1px ring every other cell shows, and on a 24-cell grid whose only state channel
@@ -355,6 +404,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(24px, 1fr));
   max-width: 353px; gap: 5px;
   margin: 5px 0 9px; }
+.crewidentl .crewpreview { margin-left: auto; line-height: 0; }
+
+/* A count, because a two-line box holding 280 characters still scrolls. */
+.crewcount { display: block; margin-top: 2px; font-size: 11px; color: var(--mut, #9aa6c8);
+  font-variant-numeric: tabular-nums; text-align: right; }
+.crewcard textarea {
+  width: 100%; resize: vertical; min-height: 46px; font: inherit;
+}
 #cf-patterns { grid-template-columns: repeat(6, 24px); }
 
 /* patterns have to be separable at swatch size */
@@ -640,6 +697,13 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    and cut German mid-word. The card has no fixed height, so a wrap grows it. */
 .crewboard .pod .psub .crewarea,
 .crewboard .pod .psub .crewgain { display: block; margin-left: 0; }
+/* The patch count renders as an EMPTY span when a crew holds one piece (`e.regions > 1`), and
+   an empty block has no line box, so the gold pod -- the only one with two patches -- was a
+   line taller below the number and its 91 sat 12px ABOVE the silver 60 and the bronze 56. The
+   gain line is bottom-pinned and lands level on all three, so two of the three figures agreed
+   and the winner's did not, which reads as a bug rather than as the podium step. Reserve the
+   line whether or not there is anything in it. */
+.crewboard .pod .psub .crewarea { min-height: 1.3em; }
 
 
 

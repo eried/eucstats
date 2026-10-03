@@ -1687,6 +1687,11 @@
     var top = document.getElementById("crewstatus");
     if (!near || !near.parentNode) return top;
     var slot = document.createElement("div");
+    // A class, because `near` is often a flex child and so is this: inserted bare into a
+    // `.crewrow` it became a fourth column, squeezed `.crewrown` to 0px wide and rendered the
+    // crew's own meta line one word per line down a 378px-tall row, clipped at the panel
+    // edge. The CSS gives it the full width instead.
+    slot.className = "crewaskslot";
     near.parentNode.insertBefore(slot, near.nextSibling);
     return slot;
   }
@@ -1817,7 +1822,7 @@
     var top = document.getElementById("crewstatus");
     if (!near || !near.parentNode) return top;
     statusSlot = document.createElement("div");
-    statusSlot.className = "crewstatusnear";
+    statusSlot.className = "crewstatusnear crewaskslot";
     // The live attributes go on BEFORE any text does. A region created and filled in the same
     // frame is frequently not announced at all, which is the whole point of this.
     statusSlot.setAttribute("role", "status");
@@ -1859,13 +1864,25 @@
     // Colours are swatches, not a dropdown of hex codes. Nobody picks a crew identity by
     // reading "#000075", and the thing being chosen is the thing you will see on the map, so
     // the picker shows it with the pattern already on it.
-    var colourGrid = '<div class="crewpick" id="cf-colours">' + cols.map(function (c) {
-      return '<button type="button" class="crewpickc' + (c === ident.colour ? " on" : "")
-        + '" data-c="' + c + '" style="background:' + c + '" title="' + c + '"></button>';
+    // A name and a state on every cell. A screen reader used to get twenty-four hex codes
+    // and four raw English identifiers, and the chosen cell carried a class with no
+    // `aria-pressed`, so the selection did not exist for assistive tech at all.
+    var colourGrid = '<div class="crewpick" id="cf-colours" role="group" aria-label="'
+      + esc(t("crew.new.colours")) + '">' + cols.map(function (c, i) {
+      var on = c === ident.colour;
+      return '<button type="button" class="crewpickc' + (on ? " on" : "")
+        + '" aria-pressed="' + (on ? "true" : "false")
+        + '" data-c="' + c + '" style="background:' + c + '" title="'
+        + esc(t("crew.new.colourn", { n: i + 1 })) + '" aria-label="'
+        + esc(t("crew.new.colourn", { n: i + 1 })) + '"></button>';
     }).join("") + "</div>";
-    var patternGrid = '<div class="crewpick" id="cf-patterns">' + PATTERNS.map(function (pt) {
-      return '<button type="button" class="crewpickp' + (pt === ident.pattern ? " on" : "")
-        + '" data-p="' + pt + '" title="' + pt + '">'
+    var patternGrid = '<div class="crewpick" id="cf-patterns" role="group" aria-label="'
+      + esc(t("crew.new.patterns")) + '">' + PATTERNS.map(function (pt) {
+      var on = pt === ident.pattern;
+      return '<button type="button" class="crewpickp' + (on ? " on" : "")
+        + '" aria-pressed="' + (on ? "true" : "false")
+        + '" data-p="' + pt + '" title="' + esc(t("crew.pattern." + pt))
+        + '" aria-label="' + esc(t("crew.pattern." + pt)) + '">'
         + '<span class="crewsw" data-p="' + pt + '" style="background:' + ident.colour
         + '"></span></button>';
     }).join("") + "</div>";
@@ -1877,11 +1894,19 @@
       // crew #8 on the board, visible in the join list directly under this form. A
       // rider who took the hint got `name_taken`.
       + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28">' + "</label>"
-      + "<label>" + t("crew.new.desc") + '<input id="cf-desc" maxlength="280">' + "</label>"
+      // A textarea. 275 characters in the old `<input maxlength="280">` measured
+      // scrollWidth 1639 against clientWidth 291, so you read back the last 35 with the
+      // leading glyph cut in half -- for a string the join list renders as two lines.
+      + "<label>" + t("crew.new.desc")
+      + '<textarea id="cf-desc" rows="2" maxlength="280"></textarea>'
+      + '<span class="crewcount" id="cf-desccount">0/280</span>' + "</label>"
+      // The preview sits with the label, not beside the grid: at 390px it left about 280px
+      // of empty gutter down the whole picker and squeezed the grid into four columns.
       + '<div class="crewidentrow">'
-      + '<div class="crewpreview">' + swatch(ident.colour, ident.pattern, 62) + "</div>"
-      + "<div class=crewpickwrap><div class=crewidentl>" + t("crew.new.colours") + "</div>"
-      + colourGrid + patternGrid + "</div></div>"
+      + "<div class=crewidentl>" + t("crew.new.colours")
+      + '<span class="crewpreview">' + swatch(ident.colour, ident.pattern, 34) + "</span>"
+      + "</div>"
+      + colourGrid + patternGrid + "</div>"
       + '<input type="hidden" id="cf-colour" value="' + ident.colour + '">'
       + '<input type="hidden" id="cf-pattern" value="' + ident.pattern + '">'
       + "<label>" + t("crew.new.who")
@@ -1911,24 +1936,37 @@
       });
     }
 
-    document.querySelectorAll("#cf-colours .crewpickc").forEach(function (b) {
+    // `aria-pressed` alongside the class, every time. A state class with no ARIA mirror is
+    // a state that only sighted users have.
+    function mark(list, chosen) {
+      list.forEach(function (o) {
+        var on = o === chosen;
+        o.classList.toggle("on", on);
+        o.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+    var swatches = [].slice.call(document.querySelectorAll("#cf-colours .crewpickc"));
+    swatches.forEach(function (b) {
       b.onclick = function () {
         hidC.value = b.dataset.c;
-        document.querySelectorAll("#cf-colours .crewpickc").forEach(function (o) {
-          o.classList.toggle("on", o === b);
-        });
+        mark(swatches, b);
         sync();
       };
     });
-    document.querySelectorAll("#cf-patterns .crewpickp").forEach(function (b) {
+    var pats = [].slice.call(document.querySelectorAll("#cf-patterns .crewpickp"));
+    pats.forEach(function (b) {
       b.onclick = function () {
         hidP.value = b.dataset.p;
-        document.querySelectorAll("#cf-patterns .crewpickp").forEach(function (o) {
-          o.classList.toggle("on", o === b);
-        });
+        mark(pats, b);
         sync();
       };
     });
+    // You cannot read back what you cannot see, so say how much of it there is.
+    var desc = document.getElementById("cf-desc");
+    var count = document.getElementById("cf-desccount");
+    if (desc && count) {
+      desc.oninput = function () { count.textContent = desc.value.length + "/280"; };
+    }
     sync();
 
     var go = document.getElementById("cf-go");
@@ -2067,6 +2105,20 @@
       h += '<div class="crewmsg' + (me.leader_gone ? " bad" : "") + '">'
         + t(me.leader_gone ? "crew.join.pending.none" : "crew.join.pending") + "</div>";
     }
+    // First inside the card, not last. This used to sit below the description, the territory
+    // figures, the invite code and the refusal list -- 4.6 screenfuls down at 390x844 -- and
+    // it is the only thing on the card that is waiting on the reader to do something.
+    if (me.pending && me.pending.length) {
+      h += '<div class="crewpend crewknock"><h4>' + t("crew.pending.h")
+        + ' <span class="crewknockn">' + me.pending.length + "</span></h4>"
+        + me.pending.map(function (p) {
+            return '<div class="crewpendr"><span>'
+              + (p.flag ? cc(p.flag) + " " : "") + esc(p.name) + "</span>"
+              + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '">' + t("crew.accept") + "</button>"
+              + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '">' + t("crew.decline") + "</button>"
+              + "</div>"; }).join("")
+        + "</div>";
+    }
     if (c.description) h += "<p>" + esc(c.description) + "</p>";
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
     if (c.invite_code) {
@@ -2126,15 +2178,6 @@
             return '<div class="crewpendr"><span>' + esc(x.name) + mark + "</span>" + btn
               + "</div>";
           }).join("") + "</div>";
-    }
-    if (me.pending && me.pending.length) {
-      h += '<div class="crewpend"><h4>' + t("crew.pending.h") + "</h4>"
-        + me.pending.map(function (p) {
-            return '<div class="crewpendr"><span>' + esc(p.name) + "</span>"
-              + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '">' + t("crew.accept") + "</button>"
-              + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '">' + t("crew.decline") + "</button>"
-              + "</div>"; }).join("")
-        + "</div>";
     }
     if (lead) {
       h += '<details class="crewedit"><summary>' + t("crew.mine.settings") + "</summary>"
@@ -2372,8 +2415,18 @@
       if (b._km == null) return -1;
       return a._km - b._km;
     });
-    return '<div class="crewcard"><h3>' + t("crew.join.h") + '</h3><div class="crewlist">'
-      + rows.map(function (c) {
+    // Six, with the rest behind a toggle. Nearest-first means the six are the ones a rider
+    // can actually reach, and the whole set stays in the DOM so the filter below works on all
+    // of it and the toggle costs no round trip.
+    var SHOWN = 6;
+    return '<div class="crewcard crewjoin"><h3>' + t("crew.join.h") + "</h3>"
+      + (rows.length > SHOWN
+         ? '<input class="crewfilter" id="cj-filter" type="search" autocomplete="off"'
+           + ' placeholder="' + esc(t("crew.join.filter")) + '"'
+           + ' aria-label="' + esc(t("crew.join.filter")) + '">'
+         : "")
+      + '<div class="crewlist" id="cj-list">'
+      + rows.map(function (c, i) {
           var open = c.join_policy === "open";
           var label = open ? t("crew.join.btn")
             : c.join_policy === "invite" ? t("crew.join.code") : t("crew.join.ask");
@@ -2384,7 +2437,8 @@
           var full = MAXMEM && c.members >= MAXMEM;
           var sub = riders(c.members) + " · " + policy
             + (c.km2 ? " · " + fmtKm2(c.km2) : "") + away;
-          return '<div class="crewrow">' + emb(c.slug, 26)
+          return '<div class="crewrow' + (i >= SHOWN ? " crewrest" : "") + '"'
+            + ' data-name="' + esc((c.name || "").toLowerCase()) + '">' + emb(c.slug, 26)
             + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + "</div>"
@@ -2395,7 +2449,52 @@
                  + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
                  + esc(c.name) + '">' + label + "</button>") + "</div>";
         }).join("")
-      + "</div></div>";
+      + "</div>"
+      + (rows.length > SHOWN
+         ? '<button class="crewbtn mini ghost crewmore" id="cj-more"'
+           + ' aria-expanded="false">' + t("crew.join.all", { n: rows.length })
+           + "</button>"
+         : "")
+      + "</div>";
+  }
+
+  // The filter and the toggle, over rows already in the DOM: the list is at most sixty and
+  // the whole point is that neither costs a request.
+  function bindList() {
+    var list = document.getElementById("cj-list");
+    if (!list) return;
+    var rows = [].slice.call(list.querySelectorAll(".crewrow"));
+    var more = document.getElementById("cj-more");
+    var box = document.getElementById("cj-filter");
+    var open = false;
+
+    function paint() {
+      var q = box ? box.value.trim().toLowerCase() : "";
+      var shown = 0;
+      rows.forEach(function (r, i) {
+        var hit = !q || (r.dataset.name || "").indexOf(q) >= 0;
+        // Typing searches the whole set; without a query the six nearest stand alone.
+        r.hidden = !hit || (!q && !open && r.classList.contains("crewrest"));
+        if (hit) shown++;
+      });
+      // Nothing to expand while a query is narrowing the list.
+      if (more) more.hidden = !!q;
+      if (!shown && box) {
+        list.setAttribute("data-empty", "1");
+      } else {
+        list.removeAttribute("data-empty");
+      }
+    }
+
+    if (box) box.oninput = paint;
+    if (more) more.onclick = function () {
+      open = !open;
+      more.setAttribute("aria-expanded", open ? "true" : "false");
+      more.textContent = open ? t("crew.join.fewer")
+                              : t("crew.join.all", { n: rows.length });
+      paint();
+    };
+    paint();
   }
 
   function bindJoin() {
@@ -2444,6 +2543,22 @@
   // staring at the top of the board with no sign it worked. Whatever is new gets scrolled to.
   var revealNext = null;
   var pendingStatus = null;
+
+  // The dock is outside the panel and survives every re-render, so the count is written to
+  // it rather than built with the panel HTML.
+  function dockDot(n) {
+    var dot = document.getElementById("crewsdot");
+    if (!dot) return;
+    dot.textContent = n > 9 ? "9+" : String(n);
+    dot.hidden = !n;
+    var btn = dot.parentNode;
+    if (btn && btn.setAttribute) {
+      // The label is hidden at phone widths, so the count has to reach a screen reader
+      // through the button's own name.
+      var base = t("dock.crews");
+      btn.setAttribute("aria-label", n ? base + " · " + t("crew.pending.h") + " " + n : base);
+    }
+  }
 
   function reveal(sel) {
     revealNext = sel;
@@ -2512,32 +2627,25 @@
       if (res[1].ok) BOARD = rank;
       var all = res[2].ok ? res[2].body.crews || [] : [];
       MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
-      // The board is the mode: it is a competition, and a rider who already has a crew came
-      // back to see where they stand, so it leads and their own card sits under it.
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
         + '<p class="hint crewboardsub">' + t("crew.board.sub") + "</p>"
         + firstRunNote()
         + (TERR && TERR.pending && !rank.length ? "" : rankingHTML(rank)) + "</div>";
-      // Signed out is the one exception, and it is about acting rather than reading: there
-      // is exactly one thing a visitor can do on this panel, so it goes above the board
-      // rather than below twenty-five rows of it.
-      var h = me.paired ? board : signInHTML() + board;
-      // Above all of it, for everyone. On the sign-in card this reached nobody who had
-      // already paired -- and nobody at all on a public map, which is the whole panel for a
-      // visitor. `=== false` would hide it when `/crews/me` fell over and the flag never
-      // arrived, and showing it is the safe way to be wrong.
-      if (me.test_notice !== false) {
-        h = '<div class="crewmsg warn">' + t("crew.wip") + "</div>" + h;
-      }
+      // What this rider can DO goes first and the standings go under it. The board used to
+      // lead for everyone, and it put your own crew 1.7 screenfuls down at 1440x900 and 2.3
+      // at 390x844 -- and START A CREW 2.1 screens down with JOIN A CREW at 3.7, for a rider
+      // who had just paired and had nothing to stand in. Signed out already worked this way
+      // and was the one screen a reviewer called the best in the feature, for that reason.
+      var own = "";
       if (!me.paired) {
-        /* the sign-in card is already at the top */
+        /* the sign-in card is the whole of it */
       } else if (me.crew) {
         // Above the crew card, not below the Leave / Disband / Hand-the-pass-back row at the
         // bottom of it, which is what a new member had to scroll past to find the rules.
-        h += explainer();
+        own += explainer();
         // Folded by default put the only actionable thing in the feature behind a
         // disclosure triangle, under a 25-row board.
-        h += '<details class="crewmine-wrap" open'
+        own += '<details class="crewmine-wrap" open'
           + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
           + "<span>" + esc(me.crew.name) + "</span>"
           // read back as "Harbour Bridge Bombersleader" without this
@@ -2547,46 +2655,75 @@
           // "Waiting on a leader to let you in".
           + '<span class="crewsumrole">'
           + t(me.status === "pending" ? "crew.role.waiting" : "crew.role." + me.role)
-          + "</span></summary>"
+          + "</span>"
+          // The accordion can be shut, and a leader who shut it had no way at all to learn
+          // that somebody was waiting.
+          + (me.pending && me.pending.length
+             // Its own class, not `.dockdot` as well: crews.css is linked BEFORE public.py's
+             // inline <style>, so the inline `.dockdot { position: absolute }` would win at
+             // equal specificity and this would be pinned to the summary's top-right corner.
+             ? '<span class="crewsumdot">' + me.pending.length + "</span>" : "")
+          + "</summary>"
           + myCrewHTML(me) + "</details>";
       } else if (me.removed_by) {
-        h += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
+        own += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
           + '<p class=hint>' + t("crew.removed.p", { name: esc(me.removed_by) })
           + "</p></div>"
+          // Joining first. A reviewer's tap-count table puts "newcomer to in a crew" as the
+          // journey that matters and it ends in Join, while founding is the rarer and bigger
+          // act -- and the create form's colour grid is 200px of scroll in front of it.
+          + joinHTML(all, me)
           + (me.can_found && me.creation_open && !me.cooldown_until
              ? createHTML(window.__CREWIDENT__ || null) : "")
-          + joinHTML(all, me);
       } else if (me.folded) {
-        h += '<div class="crewcard"><h3>' + t("crew.folded.h") + "</h3>"
+        own += '<div class="crewcard"><h3>' + t("crew.folded.h") + "</h3>"
           + '<p class=hint>' + t("crew.folded.p", { name: esc(me.folded) }) + "</p></div>"
+          // Joining first. A reviewer's tap-count table puts "newcomer to in a crew" as the
+          // journey that matters and it ends in Join, while founding is the rarer and bigger
+          // act -- and the create form's colour grid is 200px of scroll in front of it.
+          + joinHTML(all, me)
           + (me.can_found && me.creation_open && !me.cooldown_until
              ? createHTML(window.__CREWIDENT__ || null) : "")
-          + joinHTML(all, me);
       } else if (me.declined_by) {
-        h += '<div class="crewcard"><h3>' + t("crew.declined.h") + "</h3>"
+        own += '<div class="crewcard"><h3>' + t("crew.declined.h") + "</h3>"
           + '<p class=hint>' + t("crew.declined.p", { name: esc(me.declined_by) })
           + "</p></div>"
+          // Joining first. A reviewer's tap-count table puts "newcomer to in a crew" as the
+          // journey that matters and it ends in Join, while founding is the rarer and bigger
+          // act -- and the create form's colour grid is 200px of scroll in front of it.
+          + joinHTML(all, me)
           + (me.can_found && me.creation_open && !me.cooldown_until
              ? createHTML(window.__CREWIDENT__ || null) : "")
-          + joinHTML(all, me);
       } else if (!me.can_found && !me.cooldown_until) {
         // Both gates can be shut at once -- no validated ride AND just left a crew -- and
         // the panel printed "Joining one works right now" directly above "Next crew in 5
         // days". The cooldown is the nearer answer, so joinHTML's own card carries it.
-        h += '<div class="crewcard"><h3>' + t("crew.first.h") + "</h3>"
+        own += '<div class="crewcard"><h3>' + t("crew.first.h") + "</h3>"
           + '<p class=hint>' + t("crew.first.p") + "</p></div>" + joinHTML(all, me);
       } else {
         // Cooling off: joinHTML already swaps the list for the countdown, but the create form
         // was rendered regardless, so the panel offered a full form whose only possible
         // outcome is the error in the card directly below it.
-        h += (me.cooldown_until ? ""
-              : me.creation_open
-                ? createHTML(window.__CREWIDENT__ || null)
-                : '<div class="crewcard"><h3>' + t("crew.closed.h") + "</h3>"
-                  + '<p class=hint>' + t("crew.closed.p") + "</p></div>")
-          + joinHTML(all, me);
+        own += joinHTML(all, me)
+          + (me.cooldown_until ? ""
+             : me.creation_open
+               ? createHTML(window.__CREWIDENT__ || null)
+               : '<div class="crewcard"><h3>' + t("crew.closed.h") + "</h3>"
+                 + '<p class=hint>' + t("crew.closed.p") + "</p></div>");
       }
-      if (!me.crew) h += explainer();     // in a crew it is already above the crew card
+      // Act, then the rules, then the standings. In a crew the rules are already above the
+      // crew card; without one they go under the two things you can actually press.
+      if (me.paired && !me.crew) own += explainer();
+
+      // Signed out is the one case with nothing of your own to put first.
+      var h = me.paired ? own + board : signInHTML() + board;
+      // Above all of it, for everyone. On the sign-in card this reached nobody who had
+      // already paired -- and nobody at all on a public map, which is the whole panel for a
+      // visitor. `=== false` would hide it when `/crews/me` fell over and the flag never
+      // arrived, and showing it is the safe way to be wrong.
+      if (me.test_notice !== false) {
+        h = '<div class="crewmsg warn">' + t("crew.wip") + "</div>" + h;
+      }
       // The only sign-out button in the feature was emitted by `myCrewHTML`, which this
       // function calls on the `me.crew` branch alone -- so cooling off, removed, folded,
       // declined and no-ride-yet had no control of ANY kind on them. A reviewer pressed
@@ -2596,11 +2733,12 @@
           + t("crew.mine.signout") + "</button></div>";
       }
       panel.innerHTML = h;
+      dockDot(me.pending ? me.pending.length : 0);
 
       if (!me.paired) startPairing();
       else stopPairing();
       if (me.crew) bindMine(me);
-      else { bindCreate(); bindJoin(); }
+      else { bindCreate(); bindJoin(); bindList(); }
       bindSignOut();
       doReveal();
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }

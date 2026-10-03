@@ -72,6 +72,15 @@ EN: dict[str, str] = {
     "crew.new.name": "Name",
     "crew.new.desc": "Description",
     "crew.new.colours": "Colours",
+    # `solid`, `stripes`, `dots` and `hatch` were raw array identifiers, and the colour cells
+    # were named by hex code -- twenty-four of them read aloud, and the only strings in the
+    # create card that did not change with the language.
+    "crew.new.patterns": "Patterns",
+    "crew.pattern.solid": "solid",
+    "crew.pattern.stripes": "stripes",
+    "crew.pattern.dots": "dots",
+    "crew.pattern.hatch": "hatch",
+    "crew.new.colourn": "Colour {n}",
     "crew.new.who": "Who can join",
     "crew.new.approval": "A leader says yes",
     "crew.new.open": "Anyone",
@@ -79,6 +88,12 @@ EN: dict[str, str] = {
     "crew.new.go": "Create crew",
     # joining
     "crew.join.h": "Join a crew",
+    # Sixteen crews is about 1,800px with no way to narrow it, and once joining
+    # comes before founding that 1,800px is also what stands in front of the
+    # create form. Six nearest, a box, and the rest behind the toggle.
+    "crew.join.filter": "Find a crew",
+    "crew.join.all": "Show all {n}",
+    "crew.join.fewer": "Show fewer",
     "crew.join.btn": "Join",
     "crew.join.ask": "Ask",
     "crew.join.code": "Enter code",

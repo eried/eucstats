@@ -51,6 +51,15 @@ NO_AGREEMENT = {
     "crew.rank.level": "`level with {v}` -- the count is not in this string at all; it is "
                        "passed alongside its sibling by one ternary call.",
     "crew.targets.p": "`{n}x{n}` again, the seed dimension",
+    # Not a count at all: an index, so a screen reader has something to hold a position with
+    # instead of twenty-four hex codes. "Colour 3" never becomes "Colours 3".
+    "crew.new.colourn": "`Colour {n}` -- an index naming one swatch, not a quantity of them",
+    # Written so that nothing can agree with it. Read in all nineteen: the number ends the
+    # clause in en, de, da, no, sv, nl, it, fr, es, es-419, pt-BR, pl, ru, uk and ko; tr puts
+    # a noun after it (`{n} ekibin`) and Turkish does not pluralise after a numeral; zh and
+    # zh-Hant follow it with the measure word 个/個, which is invariant.
+    "crew.join.all": "`Show all {n}` -- the number ends the clause, or is followed by "
+                     "something that does not inflect after a numeral",
     "crew.targets.p0": "the same dimension",
 }
 

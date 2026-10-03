@@ -386,8 +386,17 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                         ClanMember.status == "active",
                         ClanMember.left_at.is_(None))
                     .order_by(ClanMember.joined_at.asc()).all()]
+                def _fl(sid):
+                    r = who.get(sid)
+                    return (r.flag or "") if r is not None else ""
+
+                # The flag as well. A pending row showed a bare name while the contributor
+                # list on the same card showed a flag for everyone already in, so the one row
+                # a leader has to make a decision about was the least informative on screen.
+                # Same field, same rider, same query -- `who` is already loaded.
                 out["pending"] = [
-                    {"store_id": _hd(p.store_id), "name": _nm(p.store_id)}
+                    {"store_id": _hd(p.store_id), "name": _nm(p.store_id),
+                     "flag": _fl(p.store_id)}
                     for p in db.query(ClanMember).filter(
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status == "pending",

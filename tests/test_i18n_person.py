@@ -91,6 +91,8 @@ CARDS = {
     "crew.removed.": "rider",
     "crew.first.": "rider",
     "crew.new.": "rider",
+    # One word each, naming a fill pattern. No verb, no person, nothing to address.
+    "crew.pattern.": "none",
     "crew.closed.": "rider",
     "crew.drawn.": "rider",
     "crew.board": "rider",
@@ -375,7 +377,7 @@ SHARED = {
 HOME = {
     "crew.signin.": {"signInHTML", "startPairing", "offerRetry"},
     "crew.mine.": {"myCrewHTML", "bindMine", "leaveQuestion", "contributorsHTML", "errMsg"},
-    "crew.join.": {"joinHTML", "bindJoin", "askFor"},
+    "crew.join.": {"joinHTML", "bindJoin", "bindList", "askFor"},
     "crew.how.": {"explainer"},
     "crew.targets.": {"targetsHTML", "ringTip", "bearing", "widest"},
     "crew.lose.": {"loseHTML", "ringTip"},
@@ -384,6 +386,7 @@ HOME = {
                    "ringTip", "targetsHTML"},
     "crew.legend.": {"legendHTML"},
     "crew.new.": {"createHTML", "myCrewHTML"},
+    "crew.pattern.": {"createHTML"},
     "crew.roles.": {"myCrewHTML", "bindMine"},
 }
 

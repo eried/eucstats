@@ -129,6 +129,11 @@ svg.ic{width:18px;height:18px;display:block}
 .rfoot .ver{font-family:ui-monospace,monospace;font-size:11px}
 .dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;max-width:calc(100vw - 16px);background:var(--surf);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:10px;padding:7px;box-shadow:var(--shadow),0 18px 54px rgba(0,0,0,.55)}
 .dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
+/* Somebody is waiting for an answer from you. The count lives on the dock because the
+   panel it belongs to is shut when it matters, and the icons-only phone layout drops the
+   label but keeps this. */
+.dockdot{position:absolute;top:4px;right:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#ff8ad8;color:#140a11;font:700 11px/17px Orbitron,ui-sans-serif,sans-serif;text-align:center;pointer-events:none}
+.dock button{position:relative}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}
 .dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}.dock button[data-p=crews]{--sec:#ff8ad8}
@@ -175,6 +180,10 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .pod:hover{transform:translateY(-3px)}.pod .av{width:54px;height:54px;margin:0 auto 8px;display:block}
 .pod.p1{border-top-color:var(--gold);margin-bottom:18px}.pod.p2{border-top-color:#cdd3e0}.pod.p3{border-top-color:#8a6038;margin-bottom:0}
 .pod .km{color:var(--acc);font-weight:700;margin-top:3px}.pod .rkn{color:var(--mut);font:700 12px/1 ui-monospace,monospace;letter-spacing:1px}
+/* `--mut` on a metal plate measured 3.07:1 on gold, 4.27:1 on silver and 5.80:1 on bronze for
+   the same 12px label: two of the three under AA for small text, and the worst of them on the
+   winner. One ink per metal, taken from each plate's own highlight. */
+.pod.gold1 .rkn{color:#ffe9a8}.pod.silv .rkn{color:#e8eefb}.pod.brnz .rkn{color:#f0cfae}
 .pname{margin-top:2px;font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .psub{color:var(--mut);font-size:10.5px;margin-top:3px}
 .blogo{position:relative;width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center}
@@ -265,7 +274,7 @@ __TESTWM__
 <div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="ppeek" data-i18n-title="panel.peek" title="Preview as a normal visitor" style="display:none"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="prefresh" data-i18n-title="act.refresh" title="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose" data-i18n-aria="panel.close" data-i18n-title="panel.close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
 <div class="dock intro">
   <button class="intro" data-p="riders" data-i18n-aria="dock.riders" data-i18n-title="dock.riders" aria-label="Riders"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><circle cx="17" cy="9" r="2.6"/><path d="M14.6 14.4c2.8-.7 5.6 1 6.4 4.6h-4.8z"/></svg><span class="lbl" data-i18n="dock.riders">Riders</span></button>
-  <button class="intro" data-p="crews" data-i18n-aria="dock.crews" aria-label="Crews"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><path d="M13 13h8v8h-8z" fill="currentColor" stroke="none" opacity=".75"/></svg><span class="lbl" data-i18n="dock.crews">Crews</span></button>
+  <button class="intro" data-p="crews" data-i18n-aria="dock.crews" aria-label="Crews"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><path d="M13 13h8v8h-8z" fill="currentColor" stroke="none" opacity=".75"/></svg><span class="lbl" data-i18n="dock.crews">Crews</span><span class="dockdot" id="crewsdot" hidden></span></button>
   <button class="intro" data-p="countries" data-i18n-aria="dock.countries" data-i18n-title="dock.countries" aria-label="Countries"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V3"/><path d="M5 4h13l-2.6 4 2.6 4H5"/></svg><span class="lbl" data-i18n="dock.countries">Countries</span></button>
   <button class="intro" data-p="wheels" data-i18n-aria="title.wheels" aria-label="Wheel models"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg><span class="lbl" data-i18n="dock.wheels">Wheels</span></button>
   <button class="intro" data-p="brands" data-i18n-aria="title.brands" aria-label="Wheel brands"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="lbl" data-i18n="dock.brands">Brands</span></button>
