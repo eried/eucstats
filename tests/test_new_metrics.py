@@ -13,6 +13,8 @@ from ingest.summary import (summarize, _max_voltage_sag, _max_sustained_accel, _
 from services import stats, settings
 from services.aggregator import Aggregator, rebuild_all
 
+from conftest import HANDLE
+
 
 def _s(sec, **kw):
     return Sample(t=datetime(2026, 6, 1, 10, 0, sec), **kw)
@@ -172,12 +174,12 @@ def test_new_leaderboards_order_and_banned_excluded(db):
 
     fk = stats.freespin_leaderboard(db)
     ids = [r["id"] for r in fk]
-    assert ids[:3] == ["b", "c", "a"]          # descending
-    assert "ban" not in ids                      # banned excluded
+    assert ids[:3] == [HANDLE("b"), HANDLE("c"), HANDLE("a")]       # descending
+    assert HANDLE("ban") not in ids              # banned excluded
     assert fk[0]["freespin_kmh"] == 200.0
 
-    assert stats.sag_leaderboard(db)[0]["id"] == "b"
-    assert stats.rocket_leaderboard(db)[0]["id"] == "b"
+    assert stats.sag_leaderboard(db)[0]["id"] == HANDLE("b")
+    assert stats.rocket_leaderboard(db)[0]["id"] == HANDLE("b")
     assert stats.BOARDS["freespin"] is stats.freespin_leaderboard
 
 
@@ -228,9 +230,9 @@ def test_ingest_persists_new_metrics_end_to_end(db):
     assert t.max_voltage_sag and t.max_voltage_sag >= 7    # 84 -> 76 dip
 
     fk = stats.freespin_leaderboard(db)
-    assert any(e["id"] == "m_test" and e["freespin_kmh"] == 150.0 for e in fk)
-    assert any(e["id"] == "m_test" for e in stats.rocket_leaderboard(db))
-    assert any(e["id"] == "m_test" for e in stats.sag_leaderboard(db))
+    assert any(e["id"] == HANDLE("m_test") and e["freespin_kmh"] == 150.0 for e in fk)
+    assert any(e["id"] == HANDLE("m_test") for e in stats.rocket_leaderboard(db))
+    assert any(e["id"] == HANDLE("m_test") for e in stats.sag_leaderboard(db))
 
 
 # ---------- schema migration idempotency ----------
@@ -475,7 +477,7 @@ def test_new_gated_leaderboard_returns_qualifying_max(db):
     db.commit()
     rebuild_all(db)
     brk = stats.BOARDS["brkg_b"](db, limit=10)
-    assert brk and brk[0]["id"] == "g" and brk[0]["v"] == 0.9   # max, short ride excluded
+    assert brk and brk[0]["id"] == HANDLE("g") and brk[0]["v"] == 0.9   # max, short excluded
     assert stats.BOARDS["spd5_b"](db, limit=10)[0]["v"] == 42.0
 
 

@@ -16,6 +16,8 @@ from fastapi.testclient import TestClient
 from models import Clan, ClanMember, Rider, Trip, utcnow
 from services import crews, pairing, settings
 
+from conftest import HANDLE
+
 
 # Written out rather than read back from get_crews: the config is cached in the process and
 # the per-test schema reset does not clear that cache, so basing one test's settings on
@@ -212,7 +214,7 @@ def test_a_declined_rider_is_told_once(client, db):
     client.cookies.clear()
     client.cookies.set(pairing.COOKIE, leader)
     r = client.post(f"/api/v1/crews/{clan.slug}/decide",
-                    json={"store_id": "d2", "accept": False})
+                    json={"store_id": HANDLE("d2"), "accept": False})
     assert r.status_code == 200, r.text
 
     client.cookies.clear()
@@ -236,7 +238,7 @@ def test_being_turned_down_costs_no_cooldown(client, db):
 
     client.cookies.clear()
     client.cookies.set(pairing.COOKIE, leader)
-    client.post(f"/api/v1/crews/{clan.slug}/decide", json={"store_id": "n2", "accept": False})
+    client.post(f"/api/v1/crews/{clan.slug}/decide", json={"store_id": HANDLE("n2"), "accept": False})
     assert crews.cooldown_until(db, "n2") is None, (
         "a request that was never accepted is not a crew you walked out of")
 
@@ -385,3 +387,71 @@ def test_the_published_handle_still_addresses_the_right_rider(client, db):
                     json={"store_id": handle, "role": "officer"})
     assert r.status_code == 200, r.text
     assert crews.membership(db, "crew").role == "officer"
+
+
+def test_no_endpoint_hands_the_browser_a_store_id(client, db):
+    """`pair/confirm` treats a store_id as proof of identity, so any readable copy of one is a
+    bearer token -- and unlike the session cookie it is permanent, cannot be made HttpOnly,
+    and survives `revoke_all`, which is the documented answer to a lost phone. The pairing
+    module's own docstring is the specification being guarded here: the browser "never sees
+    it, never asks for it, and cannot make one up".
+
+    Both of these printed it into their JSON body beside the cookie that was carefully kept
+    out of reach, and a reviewer replayed one into a brand-new session.
+    """
+    _rider(db, "leaky")
+    p = pairing.start(db, purpose="rider")
+    pairing.confirm(db, p["code"], "leaky")
+    # By value, not by substring: the test handle is "h-leaky", so a substring check would
+    # fire on the very field that is meant to be published.
+    def _values(o):
+        if isinstance(o, dict):
+            for v in o.values():
+                yield from _values(v)
+        elif isinstance(o, list):
+            for v in o:
+                yield from _values(v)
+        else:
+            yield o
+
+    poll = client.get("/api/v1/pair/poll", params={"token": p["token"]})
+    assert poll.status_code == 200, poll.text
+    assert "leaky" not in list(_values(poll.json())), f"the poll body leaks it: {poll.text}"
+
+    me = client.get("/api/v1/crews/me")
+    assert me.status_code == 200, me.text
+    assert "leaky" not in list(_values(me.json())), f"/crews/me leaks it: {me.text}"
+    assert me.json().get("handle") == HANDLE("leaky"), "the panel still needs its own name"
+
+    # And the value it does publish is not a key to anything.
+    p2 = pairing.start(db, purpose="rider")
+    with pytest.raises(pairing.PairError):
+        pairing.confirm(db, p2["code"], me.json()["handle"])
+
+
+def test_an_officer_is_not_offered_buttons_aimed_at_themselves(client, db):
+    """The roles list had a Remove and a Stand down on every non-leader row including the
+    reader's own: Remove answered 400 on every press, and Stand down worked -- it stripped the
+    clicker's own powers and took the roster panel with it. The panel can only tell its own
+    row apart if the payload says who is reading it."""
+    _rider(db, "of1")
+    _signed_in(client, db, "of1")
+    client.post("/api/v1/crews", json={"name": "Chain Of Command", "join_policy": "open"})
+    clan = db.query(Clan).filter(Clan.name == "Chain Of Command").one()
+
+    _rider(db, "of2")
+    _signed_in(client, db, "of2")
+    client.post(f"/api/v1/crews/{clan.slug}/join", json={})
+
+    # An officer, because that is who gets the roster panel and therefore the buttons.
+    _signed_in(client, db, "of1")
+    r = client.post(f"/api/v1/crews/{clan.slug}/role",
+                    json={"store_id": HANDLE("of2"), "role": "officer"})
+    assert r.status_code == 200, r.text
+
+    _signed_in(client, db, "of2")
+    me = client.get("/api/v1/crews/me").json()
+    assert me["handle"] == HANDLE("of2")
+    assert me["role"] == "officer"
+    mine = [x for x in me["roster"] if x["store_id"] == me["handle"]]
+    assert len(mine) == 1, "the reader has to be findable in their own roster"

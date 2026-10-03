@@ -136,3 +136,14 @@ def test_codes_avoid_the_characters_people_read_wrong(db):
     seen = "".join(pairing._code() for _ in range(300))
     assert not (set(seen) & set("OI01"))
     assert set(seen) <= set(pairing.ALPHABET)
+
+
+
+def test_a_handle_is_not_accepted_as_proof_of_identity(db):
+    """The API publishes a rider's handle in place of their store_id, which is only safe for
+    as long as a handle buys nothing at this door."""
+    from conftest import HANDLE
+    sid = _rider(db, "probe")
+    p = pairing.start(db)
+    with pytest.raises(pairing.PairError):
+        pairing.confirm(db, p["code"], HANDLE(sid))

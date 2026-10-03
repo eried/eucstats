@@ -49,22 +49,31 @@ def db():
         s.close()
 
 
+def HANDLE(store_id: str) -> str:
+    """The handle a test rider gets. Readable, and never the store_id itself."""
+    return f"h-{store_id}"
+
+
 @pytest.fixture(autouse=True)
 def _public_handle_matches_store_id():
-    """In tests, a rider's public handle IS their store_id.
+    """In tests, a rider's public handle is derived from their store_id but is not equal to it.
 
     Production gives every rider a random opaque handle (models._give_rider_a_public_id),
     because the public API publishes it in place of the store_id. That is the right behaviour
     and the wrong thing to assert against: the fixtures here name riders "a", "b", "gone", and
     every board assertion reads better comparing those than resolving a random hex each time.
-    So the handle is pinned to the store_id for the duration of a test, and the production
-    listener is left to do its job everywhere else.
+
+    This used to pin the handle to the store_id exactly, which made the fixtures readable and
+    made the test guarding the credential leak compare a value against itself -- it could not
+    go red however badly the API leaked. A prefix keeps both properties: "h-a" is as readable
+    as "a" in an assertion, and a store_id published where a handle belongs is now a
+    different string, so a leak is something a test can actually see.
     """
     import models
     from sqlalchemy import event
 
     def _pin(mapper, connection, target):
-        target.public_id = target.store_id
+        target.public_id = HANDLE(target.store_id)
 
     event.listen(models.Rider, "before_insert", _pin)
     try:

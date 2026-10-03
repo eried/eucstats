@@ -141,3 +141,47 @@ def test_a_spent_notice_is_kept_while_it_could_still_matter(db):
     crews.decide(db, "kp1", c.clan_id, "kp2", accept=False)
     crews.last_answer(db, "kp2")
     assert _sweep_spent_notices(db, utcnow()) == 0
+
+
+def test_a_crew_nobody_is_left_in_does_not_come_back(db):
+    """`unretire` revived whoever it could and appointed a leader only `if back` -- so when
+    every member had joined somewhere else since, the crew returned with zero members and
+    nobody in charge, and sat in the public join list under the default approval policy
+    waiting for an approver who could never exist. That is word for word the shell the
+    last-one-out branch of `leave()` was written to abolish, rebuilt by the admin screen and
+    reported to the admin as "restored with its riders"."""
+    _rider(db, "gh1")
+    _rider(db, "gh2")
+    c = crews.create(db, "gh1", "Ghost Ship", join_policy="approval")
+    crews.join(db, "gh2", c.clan_id)
+    crews.disband(db, "gh1", c.clan_id)
+
+    # both of them get on with their lives
+    other = crews.create(db, "gh1", "Somewhere Else", join_policy="open")
+    crews.join(db, "gh2", other.clan_id)
+    db.commit()
+
+    err = crews.unretire(db, c)
+    assert err and "Ghost Ship" in err, "the admin has to be told why, not told it worked"
+    db.refresh(c)
+    assert c.disbanded_at is not None, "a refused restore changes nothing"
+    assert _active(db, c.clan_id) == 0
+
+
+def test_a_crew_with_one_rider_left_to_come_back_still_restores(db):
+    """The other side of the same guard: one returning rider is a crew, and they lead it."""
+    _rider(db, "pt1")
+    _rider(db, "pt2")
+    c = crews.create(db, "pt1", "Partial Return", join_policy="open")
+    crews.join(db, "pt2", c.clan_id)
+    crews.disband(db, "pt1", c.clan_id)
+    moved = crews.create(db, "pt1", "Moved On", join_policy="open")
+    db.commit()
+
+    assert crews.unretire(db, c) is None
+    db.commit()
+    assert _active(db, c.clan_id) == 1
+    leaders = (db.query(ClanMember)
+               .filter(ClanMember.clan_id == c.clan_id, ClanMember.role == "leader",
+                       ClanMember.left_at.is_(None)).all())
+    assert len(leaders) == 1 and leaders[0].store_id == "pt2"

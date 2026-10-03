@@ -458,8 +458,14 @@ a.crewqr { display: flex; text-decoration: none; }
 .crewtag.kills { color: #ff4fa3; background: rgba(255,79,163,.16); }
 /* The same move, one or two squares' worth: true of every border square, so it is stated
    rather than shouted. The hot pink stays for a hole big enough to matter whoever you are. */
-.crewtag.drops { color: var(--mut, #9aa6c8); background: rgba(154,166,200,.1); }
-.crewtag.done { color: var(--mut, #9aa6c8); background: rgba(154,166,200,.1); }
+/* Two meanings had one identical grey chip. `drops` is a rival's number falling, which is
+   news about the board; `done` is "there is nothing to ride here", which is the absence of
+   news. The first keeps a box and a little warmth, the second is plain dim text. */
+.crewtag.drops { color: #c9b89a; background: rgba(201,184,154,.1); }
+.crewtag.done { color: var(--mut, #9aa6c8); background: none; padding-left: 0; padding-right: 0; }
+/* Moving up the board yourself. Not the hot pink that means breaking somebody's block --
+   that is news about them, and this is news about you. */
+.crewtag.youpass { color: #6ee7a0; background: rgba(110,231,160,.12); }
 
 /* the other half of the game, same shape so the two read as a pair */
 .crewlose .crewtkm { color: #ff9f6b; }
@@ -641,6 +647,10 @@ a.crewqr { display: flex; text-decoration: none; }
      text under the row they belong to. */
   .crewtag { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left;
     background: none; padding: 0; font-size: 11px; }
+  /* One class cannot strip what two classes painted: every coloured family kept its tinted
+     box here, which is the 294px bar this rule exists to abolish. */
+  .crewtag.first, .crewtag.joins, .crewtag.kills, .crewtag.drops,
+  .crewtag.done, .crewtag.youpass { background: none; padding: 0; }
   .crewboard table .val.sub { font-size: 11px; text-align: right; width: 1%; }
   .crewboard table .val.sub .crewarea { display: none; }
 }
@@ -748,3 +758,7 @@ a.crewqr { display: flex; text-decoration: none; }
 /* the share of the crew's riding, beside the distance it is a share of */
 .crewckm i { font-style: normal; font-size: 11px; color: var(--mut, #9aa6c8); margin-left: 5px;
   font-variant-numeric: tabular-nums; }
+
+/* Where the crew holding this square stands. Quiet, because it is context for the name
+   beside it rather than a third fact competing with the two above. */
+.crewtwho u { text-decoration: none; opacity: .72; }

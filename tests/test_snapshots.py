@@ -6,6 +6,8 @@ from services.aggregator import Aggregator
 from services.snapshots import generate_weekly, iso_week_key
 import models
 
+from conftest import HANDLE
+
 
 def test_weekly_champion(db):
     RiderRepo(db).upsert("w1", "google_play", "Wk1", "NO")
@@ -23,9 +25,9 @@ def test_weekly_champion(db):
     agg.apply(t("w_t3", "w2", 8.0, 1))
 
     out = generate_weekly(db, ref=date(2026, 6, 1))
-    assert out["champion"]["id"] == "w1"
+    assert out["champion"]["id"] == HANDLE("w1")
     assert out["champion"]["km"] == 15.0
-    assert out["top"][1]["id"] == "w2"
+    assert out["top"][1]["id"] == HANDLE("w2")
 
     key = iso_week_key(date(2026, 6, 1))
     assert db.get(models.LeaderboardSnapshot, ("week", key, "distance")) is not None

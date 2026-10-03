@@ -11,6 +11,8 @@ from services import stats
 from services.aggregator import Aggregator
 from services.identity import IdentityService, purge_rider
 
+from conftest import HANDLE
+
 
 def _rider_with_trip(db, sid="s", name="Sheep"):
     db.add(models.Rider(store_id=sid, display_name=name, platform="google_play", flag="NO"))
@@ -27,7 +29,7 @@ def _rider_with_trip(db, sid="s", name="Sheep"):
 
 def test_self_delete_hides_from_public_keeps_row(db):
     _rider_with_trip(db, "s", "Sheep")
-    assert any(e["id"] == "s" for e in stats.mileage_leaderboard(db))
+    assert any(e["id"] == HANDLE("s") for e in stats.mileage_leaderboard(db))
     IdentityService(db).delete("s")                 # rider closes their own account
     db.expire_all()
     # gone from public boards + card — a closed account no longer counts publicly
@@ -56,7 +58,7 @@ def test_purge_removes_everything(db):
 
     # the other rider is untouched
     assert db.get(models.Rider, "keep") is not None
-    assert "keep" in [e["id"] for e in stats.mileage_leaderboard(db)]
+    assert HANDLE("keep") in [e["id"] for e in stats.mileage_leaderboard(db)]
 
 
 def test_purge_missing_rider_returns_false(db):

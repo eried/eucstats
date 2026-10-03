@@ -10,6 +10,8 @@ import json
 import time
 from datetime import timedelta
 
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -44,7 +46,16 @@ def _handle(db: Session, store_id: str) -> str:
     other public surface uses.
     """
     r = db.get(Rider, store_id)
-    return (r.public_id if r is not None and r.public_id else store_id)
+    if r is None:
+        return ""
+    if not r.public_id:
+        # Both the insert listener and the startup backfill should have made this impossible,
+        # which is exactly why falling back to the store_id was the one leak nobody would
+        # ever see fire. Mint the handle instead: the caller gets something publishable and
+        # the row is fixed for good.
+        r.public_id = secrets.token_hex(8)
+        db.commit()
+    return r.public_id
 
 
 def _by_handle(db: Session, handle: str) -> str:
@@ -143,7 +154,10 @@ def pair_poll(token: str, response: Response, db: Session = Depends(get_db)):
     except pairing.PairError as e:
         raise _perr(410, e)
     if res.get("session"):
-        out = JSONResponse({k: v for k, v in res.items() if k != "session"})
+        # `store_id` goes no further than this function for the same reason `session` does
+        # not: the browser can replay either one into `pair/confirm`.
+        out = JSONResponse({k: v for k, v in res.items()
+                            if k not in ("session", "store_id")})
         # HttpOnly so no script on the page can read it; Lax so a link from elsewhere still
         # arrives signed in but a cross-site form post does not act as the rider
         out.set_cookie(pairing.COOKIE, res["session"], httponly=True, samesite="lax",
@@ -260,7 +274,10 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
         return {"paired": False, "creation_open": cfg["creation_open"]}
     rider = db.get(Rider, ws.store_id)
     m = crews.membership(db, ws.store_id)
-    out = {"paired": True, "store_id": ws.store_id,
+    # The handle, never `ws.store_id`: `pair/confirm` takes a store_id as proof of identity,
+    # so a readable copy in this body is a bearer token that outlives every sign-out. The
+    # panel also needs it to tell its own roster row apart from everybody else's.
+    out = {"paired": True, "handle": _handle(db, ws.store_id),
            "display_name": rider.display_name if rider else "?",
            "flag": rider.flag if rider else None,
            "can_found": crews.can_found(db, ws.store_id),
@@ -297,19 +314,41 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                     db, ws.store_id, clan.clan_id)
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
+                # Every rider this panel is about to name, in one query. Three `db.get` calls
+                # per row turned a 41-member crew into 133 statements.
+                rows = (db.query(ClanMember)
+                        .filter(ClanMember.clan_id == clan.clan_id,
+                                ClanMember.left_at.is_(None)
+                                | ClanMember.status.in_(("declined", "declined_seen")))
+                        .all())
+                who = {}
+                ids = sorted({x.store_id for x in rows})
+                if ids:
+                    for r in db.query(Rider).filter(Rider.store_id.in_(ids)).all():
+                        who[r.store_id] = r
+
+                def _nm(sid):
+                    r = who.get(sid)
+                    return r.display_name if r is not None else "?"
+
+                def _hd(sid):
+                    r = who.get(sid)
+                    if r is None:
+                        return ""
+                    if not r.public_id:
+                        return _handle(db, sid)        # mints one; see _handle
+                    return r.public_id
+
                 out["roster"] = [
-                    {"store_id": _handle(db, x.store_id), "role": x.role,
-                     "name": (db.get(Rider, x.store_id).display_name
-                              if db.get(Rider, x.store_id) else "?")}
+                    {"store_id": _hd(x.store_id), "role": x.role,
+                     "name": _nm(x.store_id)}
                     for x in db.query(ClanMember).filter(
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status == "active",
                         ClanMember.left_at.is_(None))
                     .order_by(ClanMember.joined_at.asc()).all()]
                 out["pending"] = [
-                    {"store_id": _handle(db, p.store_id),
-                     "name": (db.get(Rider, p.store_id).display_name
-                              if db.get(Rider, p.store_id) else "?")}
+                    {"store_id": _hd(p.store_id), "name": _nm(p.store_id)}
                     for p in db.query(ClanMember).filter(
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status == "pending",
@@ -318,9 +357,7 @@ def crews_me(request: Request, db: Session = Depends(get_db)):
                 # somewhere to do it. crews.decide(accept=True) reopens the request.
                 since = utcnow() - timedelta(days=7)
                 out["declined"] = [
-                    {"store_id": _handle(db, p.store_id),
-                     "name": (db.get(Rider, p.store_id).display_name
-                              if db.get(Rider, p.store_id) else "?"),
+                    {"store_id": _hd(p.store_id), "name": _nm(p.store_id),
                      # Whether letting them in could work. Without it the button is offered
                      # every day for a week to a rider who has since joined elsewhere, and
                      # fails identically every time.

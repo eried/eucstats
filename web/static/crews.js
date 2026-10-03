@@ -163,10 +163,17 @@
     return Math.round((0.3 + (v - 0.7) / 0.3 * 0.7) * 100) / 100;
   }
 
-  var LAYERS = ["crew-fill", "crew-pattern", "crew-contested", "crew-edge",
-                "crew-edge-glow", "crew-target-case", "crew-target-line",
-                "crew-pulse-danger", "crew-pulse-fresh", "crew-target-hit",
-                "crew-lose-line"];
+  // Kept by hand once, and a layer added without being added here took the whole mode down:
+  // clearLayers dropped what it knew, then removing `crew-hot` threw because the forgotten
+  // layer still used it, which aborted the rest of the teardown and left buildLayers to
+  // throw on a source that already existed. Every id this file adds is recorded as it is
+  // added now, so the two cannot drift again.
+  var LAYERS = [];
+
+  function addLayer(spec) {
+    if (LAYERS.indexOf(spec.id) < 0) LAYERS.push(spec.id);
+    map.addLayer(spec);
+  }
 
   function cursorPointer() { map.getCanvas().style.cursor = "pointer"; }
   function cursorDefault() { map.getCanvas().style.cursor = ""; }
@@ -339,7 +346,7 @@
     map.addSource("crew-pulse", { type: "geojson", data: pulse });
 
     var op = (window.__CREWCFG__ && window.__CREWCFG__.opacity) || 0.55;
-    map.addLayer({
+    addLayer({
       id: "crew-pulse-danger", type: "fill", source: "crew-pulse",
       // Your ground, when you have some. "Somebody is taking this off you" animating exactly
       // like "a crew in Santiago is being leaned on" is ambience, not a warning. Signed out,
@@ -350,19 +357,19 @@
       paint: { "fill-color": "#ffffff", "fill-opacity": 0, "fill-antialias": false,
                "fill-opacity-transition": { duration: 1600 } }
     });
-    map.addLayer({
+    addLayer({
       id: "crew-pulse-fresh", type: "fill", source: "crew-pulse",
       filter: ["==", ["get", "kind"], "fresh"],
       paint: { "fill-color": ["get", "c"], "fill-opacity": 0, "fill-antialias": false,
                "fill-opacity-transition": { duration: 1600 } }
     });
-    map.addLayer({
+    addLayer({
       id: "crew-fill", type: "fill", source: "crew-cells",
       paint: { "fill-color": ["get", "c"], "fill-opacity": 0,
                "fill-antialias": false,
                "fill-opacity-transition": { duration: 600 } }
     });
-    map.addLayer({
+    addLayer({
       id: "crew-pattern", type: "fill", source: "crew-cells",
       filter: ["!=", ["get", "p"], "crewpat-solid"],
       paint: { "fill-pattern": ["get", "p"], "fill-opacity": 0,
@@ -371,7 +378,7 @@
     // the glow sits under the hairline so a border reads at low zoom without being fat
     // Pressure needs a second channel. A shade on a dark map is something you notice
     // afterwards; a dashed edge is something you see.
-    map.addLayer({
+    addLayer({
       id: "crew-contested", type: "line", source: "crew-hot",
       filter: ["==", ["get", "kind"], "pushed"],
       paint: { "line-color": "#ffffff",
@@ -380,7 +387,7 @@
                "line-opacity": 0,
                "line-opacity-transition": { duration: 600 } }
     });
-    map.addLayer({
+    addLayer({
       // About to flip: solid and thicker than the dashed ring beside it, because a square
       // changing hands this week is not the same news as one somebody is riding.
       id: "crew-flipping", type: "line", source: "crew-hot",
@@ -390,12 +397,12 @@
                "line-opacity": 0,
                "line-opacity-transition": { duration: 600 } }
     });
-    map.addLayer({
+    addLayer({
       id: "crew-edge-glow", type: "line", source: "crew-edges",
       paint: { "line-color": ["get", "c"], "line-width": 7, "line-blur": 7,
                "line-opacity": 0 , "line-opacity-transition": { duration: 600 } }
     });
-    map.addLayer({
+    addLayer({
       id: "crew-edge", type: "line", source: "crew-edges",
       paint: { "line-color": ["get", "c"],
                "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1, 9, 1.8, 14, 3],
@@ -646,6 +653,11 @@
         + "<span>" + esc(losing
             ? t(row.band === 3 ? "crew.lose.cold"
                 : row.band === 2 ? "crew.lose.now" : "crew.lose.soon")
+            // The card calls this square the prize -- a block square the crew already
+            // out-rides comes off its holder the moment the block lands -- and the tip
+            // called it theirs. Same square, same sentence now.
+            : row.first && row.blocked && row.held_by && row.held_name
+            ? t("crew.targets.flips", { name: row.held_name })
             : row.held_by && row.held_name
             ? t("crew.targets.taken", { name: row.held_name })
             : row.held_by ? t("crew.targets.takenby")
@@ -1061,6 +1073,7 @@
     var onePlace = allFirst && TARGETS.length > 1
       && TARGETS.every(function (x) { return x.at && x.at === TARGETS[0].at; });
     var seenWho = {};
+    var saidPass = false;
     var body = TARGETS.map(function (x, i) {
           var tag = x.first && !allFirst
             ? '<span class="crewtag first">' + t("crew.targets.first") + "</span>"
@@ -1078,11 +1091,15 @@
             // printing that on all eight rows is a badge nobody reads -- the mistake the
             // kill badge made before it. Worth a line when the square costs them more than
             // one, or when it drops them past somebody on the board.
-            : passes(x)
-              ? '<span class="crewtag ' + (passes(x) === myName() ? "kills" : "drops") + '">'
-                + (passes(x) === myName()
+            // Its own colour, not the hot pink reserved for breaking a crew's block, and
+            // once per card: five rows saying the same thing about the same board is one
+            // piece of news printed five times in the loudest ink in the panel.
+            : passes(x) && !(passes(x) === myName() && saidPass)
+              ? ((passes(x) === myName() ? (saidPass = true) : 0),
+                 '<span class="crewtag ' + (passes(x) === myName() ? "youpass" : "drops")
+                 + '">' + (passes(x) === myName()
                    ? t("crew.targets.youpass")
-                   : t("crew.targets.passes", { name: esc(passes(x)) })) + "</span>"
+                   : t("crew.targets.passes", { name: esc(passes(x)) })) + "</span>")
             : x.ranked_was - x.ranked_now > 1
               ? '<span class="crewtag drops">'
                 + t("crew.targets.drops", { n: x.ranked_now }) + "</span>"
@@ -1113,6 +1130,7 @@
           // only the holder: rows are deduplicated on effort, place and holder -- not the
           // bearing, which differs without anything differing -- so two rows can share an
           // effort word and still be different places, and a ditto there would be a mistake.
+          var stand = x.held_name ? holderStanding(x.held_name) : null;
           var rw = seenWho[who] ? " rpt" : "";
           seenWho[who] = 1;
           return '<div class="crewtrow sel' + (x.blocked ? " done" : "") + '" data-t="' + i + '">'
@@ -1123,7 +1141,10 @@
             // ground is not how anyone reads a map of the city they live in.
             + '<span class="crewtwho">'
             + (x.at && !onePlace ? '<b class="crewtat">' + esc(x.at) + "</b>" : "")
-            + '<i class="' + (rw ? "rpt" : "") + '">' + who + "</i></span>"
+            + '<i class="' + (rw ? "rpt" : "") + '">' + who
+            + (stand ? ' <u>' + esc(ordinal(stand.place)) + " \u00b7 "
+                        + esc(t("crew.tiles", { n: stand.tiles })) + "</u>" : "")
+            + "</i></span>"
             + tag + "</div>";
         }).join("");
     // How close they are, which is the whole point of the card for a crew with no ground.
@@ -1259,16 +1280,16 @@
   // list explains the shape on the map rather than ranking loyalty.
   function contributorsHTML(rows) {
     if (!rows || !rows.length) return "";
-    var top = rows[0].km || 1;
-    // From zero, because a bar from anywhere else is not a bar. Scaling from the quietest
-    // rider made 103 km out of 111 draw as a stub, which says "did nothing" about somebody
-    // who did almost exactly as much as the leader.
+    // One denominator, because two of them is a chart that argues with its own label. The
+    // bar was the share of the leader and the text beside it the share of the crew, so the
+    // top rider drew a full-width bar reading "34%" and the rider 3 km behind them drew 97%
+    // of that, reading "34%" as well. The share is what the card is asking -- who carries
+    // this crew -- so the bar measures it too, and at a third of the width the track behind
+    // it is finally visible.
     var total = rows.reduce(function (a, r) { return a + (r.km || 0); }, 0) || 1;
     return '<div class="crewcontrib"><h4>' + t("crew.mine.who") + "</h4>" + rows.map(function (c) {
-      var pct = Math.max(3, Math.round((c.km / top) * 100));
-      // The share, which is the thing three near-equal bars cannot tell you and the thing
-      // the card is actually asking: who carries this crew.
       var share = Math.round((c.km / total) * 100);
+      var pct = Math.max(2, share);
       return '<div class="crewcrow">'
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
         + (H.cc && c.flag ? H.cc(c.flag) : "")
@@ -1605,10 +1626,29 @@
           { n: gap, v: ordinal(i) }) + "</span>";
   }
 
-  // 1st, 2nd, 3rd... in whatever the reader's language does with them. The host already has
-  // the three podium words; past that it is the bare number, which every locale accepts.
+  // 1st, 2nd, 3rd from the host's own podium words, and the bare suffix past that. This
+  // returned "{n}th" for every number, so second, third and fourth place read "1 off 1th".
   function ordinal(n) {
+    if (n >= 1 && n <= 3 && H.t) {
+      var pod = H.t("pod." + n);
+      if (pod && pod.indexOf("pod.") !== 0) return pod.toLowerCase();
+    }
     return t("crew.rank.nth", { n: n });
+  }
+
+  // Where the crew holding a square stands, so a row says what the prize is worth. Six rows
+  // naming one rival and nothing about them is a list of errands.
+  function holderStanding(name) {
+    if (!TERR || !TERR.crews || !name) return null;
+    var board = TERR.crews.slice().sort(function (a, b) {
+      return (b.best_tiles || 0) - (a.best_tiles || 0);
+    });
+    for (var i = 0; i < board.length; i++) {
+      if (board[i].name === name) {
+        return { place: i + 1, tiles: board[i].best_tiles || 0 };
+      }
+    }
+    return null;
   }
 
   function myCrewHTML(me) {
@@ -1656,7 +1696,11 @@
               : x.role === "officer" ? " " + ROLEIC.officer : "";
             // the leader is listed, because a section called "The crew" that leaves them out
             // is a section header telling a lie
-            var btn = x.role === "leader" ? ""
+            // Your own row. Remove answered 400 `not_yourself` on every press, and Stand
+            // down worked -- it stripped the clicker's own powers and took the roster panel
+            // with it. There is a way to step back further down the card; it is not this.
+            var btn = x.store_id && x.store_id === me.handle ? ""
+              : x.role === "leader" ? ""
               : '<button class="crewbtn mini ghost" data-role="'
                 + (x.role === "officer" ? "member" : "officer") + '" data-sid="'
                 + esc(x.store_id || "") + '">'
@@ -2186,17 +2230,17 @@
     if (map.getSource("crew-targets")) { map.getSource("crew-targets").setData(data); return; }
     map.addSource("crew-targets", { type: "geojson", data: data });
     // a dark casing first, or a thin gold line disappears over the pale half of the palette
-    map.addLayer({
+    addLayer({
       id: "crew-target-case", type: "line", source: "crew-targets",
       paint: { "line-color": "rgba(0,0,0,.85)",
                "line-width": ["interpolate", ["linear"], ["zoom"], 8, 4, 14, 8] }
     });
     // an invisible fill, because the line it used to be bound to is three pixels wide
-    map.addLayer({
+    addLayer({
       id: "crew-target-hit", type: "fill", source: "crew-targets",
       paint: { "fill-color": "#000", "fill-opacity": 0.01 }
     });
-    map.addLayer({
+    addLayer({
       // Ground to take: gold and solid. Ground to defend is a separate layer because
       // line-dasharray takes no data expression, which is just as well: solid against dashed
       // is the real difference. Seven of the twenty-four crew colours sit close enough to one
@@ -2214,7 +2258,7 @@
         "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 0.95]
       }
     });
-    map.addLayer({
+    addLayer({
       id: "crew-lose-line", type: "line", source: "crew-targets",
       filter: ["==", ["get", "lose"], 1],
       paint: {

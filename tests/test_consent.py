@@ -4,6 +4,8 @@ import models
 from services import stats
 from services.aggregator import Aggregator
 
+from conftest import HANDLE
+
 
 def _rider_trip(db, sid, consent, km=10.0):
     db.add(models.Rider(store_id=sid, display_name=sid.upper(), platform="google_play",
@@ -19,7 +21,7 @@ def test_consent_false_hidden_from_public(db):
     _rider_trip(db, "no", False, km=99.0)        # bigger, but opted out
 
     ids = [e["id"] for e in stats.mileage_leaderboard(db)]
-    assert "yes" in ids and "no" not in ids       # opted-out rider absent from the board
+    assert HANDLE("yes") in ids and HANDLE("no") not in ids   # opted-out rider absent
 
     rec_ids = [r["rider"]["id"] for r in stats.records(db)]
     assert "no" not in rec_ids                     # and from records (even though km is highest)
@@ -33,7 +35,7 @@ def test_deleted_rider_excluded_from_public(db):
     _rider_trip(db, "keep", True, km=10.0)
     _rider_trip(db, "gone", True, km=50.0)
     assert stats.global_summary(db)["riders"] == 2
-    assert "gone" in [e["id"] for e in stats.mileage_leaderboard(db)]
+    assert HANDLE("gone") in [e["id"] for e in stats.mileage_leaderboard(db)]
 
     RiderRepo(db).soft_delete("gone")               # rider closes their own account
     db.expire_all()
@@ -50,4 +52,4 @@ def test_consent_default_true_is_public(db):
                        distance_km=5.0, max_speed=20.0))
     db.commit()
     Aggregator(db).apply(db.get(models.Trip, "t-d"))
-    assert "d" in [e["id"] for e in stats.mileage_leaderboard(db)]
+    assert HANDLE("d") in [e["id"] for e in stats.mileage_leaderboard(db)]

@@ -514,3 +514,32 @@ def test_the_leader_who_folded_their_own_crew_is_not_told_about_it(db):
     c = crews.create(db, "ow1", "My Own Doing", join_policy="open")
     crews.disband(db, "ow1", c.clan_id)
     assert crews.last_fold(db, "ow1") is None, "they read the confirm dialog"
+
+
+def test_walking_out_of_your_own_crew_is_not_news_that_it_was_folded(db):
+    """The last-one-out sweep marks everybody still in the crew `disbanded`, which is the flag
+    `last_fold` turns into "your crew was folded" plus the cooldown line that goes with it.
+    The session does not autoflush, so the leaver's own row still read as present and they got
+    the notice too -- told that something had happened to them, about their own decision."""
+    _rider(db, "solo")
+    c = crews.create(db, "solo", "On My Own", join_policy="open")
+    crews.leave(db, "solo")
+
+    row = db.query(ClanMember).filter(ClanMember.store_id == "solo").one()
+    assert row.status != "disbanded", "they left; nobody folded anything on them"
+    assert crews.last_fold(db, "solo") is None, "no notice about your own decision"
+
+
+def test_the_last_one_out_still_closes_the_crew_behind_them(db):
+    """The other half: the crew itself does have to go, and anybody left waiting on it has to
+    be told, or they sit on a request to a crew that no longer exists."""
+    _rider(db, "lo1")
+    _rider(db, "lo2")
+    c = crews.create(db, "lo1", "Lights Out", join_policy="approval")
+    crews.join(db, "lo2", c.clan_id)          # pending, never approved
+    crews.leave(db, "lo1")
+
+    db.refresh(c)
+    assert c.disbanded_at is not None, "nobody is in it; it does not stay in the join list"
+    told = crews.last_fold(db, "lo2")
+    assert told and told["crew"] == "Lights Out", "the rider waiting has to hear about it"

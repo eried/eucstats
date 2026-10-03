@@ -381,8 +381,13 @@ def leave(db, store_id: str) -> None:
             # Pending rows too. Retiring the crew and leaving a request open left that rider
             # looking at a card for a crew that does not exist, waiting on a leader who is
             # gone, with no exit anything pointed at.
+            # Everybody else, said explicitly. The session does not autoflush, so the
+            # leaver's own row still reads as present here and was being marked `disbanded`
+            # alongside the rest -- which is the flag `last_fold` turns into "your crew was
+            # folded", shown to the one person who knows perfectly well that they left.
             for other in db.query(ClanMember).filter(
                     ClanMember.clan_id == m.clan_id,
+                    ClanMember.store_id != m.store_id,
                     ClanMember.left_at.is_(None)).all():
                 other.left_at = utcnow()
                 other.status = "disbanded"
@@ -672,6 +677,18 @@ def unretire(db, clan) -> str | None:
     slug = clan.slug[:-len(suffix)] if clan.slug.endswith(suffix) else clan.slug
     if db.query(Clan).filter(Clan.slug == slug, Clan.clan_id != clan.clan_id).first():
         slug = free_slug(db, name)
+    # Who is actually coming back. Counted before anything is written, because a crew with
+    # nobody in it must not be un-retired at all: it returns to the public join list with
+    # `members: 0` and no leader, and under the default approval policy anybody who joins
+    # waits for an approver who does not exist. That is the shell `leave()` abolishes,
+    # rebuilt by the admin screen and reported as a success.
+    coming = [m for m in db.query(ClanMember).filter(
+        ClanMember.clan_id == clan.clan_id,
+        ClanMember.status.in_(("disbanded", "disbanded_seen"))).all()
+        if not membership(db, m.store_id)]
+    if not coming:
+        return (f"Every rider who was in {name} has joined another crew since. "
+                f"Restoring it would put an empty crew back in the join list.")
     clan.name, clan.slug, clan.disbanded_at = name, slug, None
     back = 0
     # `disbanded_seen` too: last_fold rewrites the mark the moment the rider reads their
@@ -688,6 +705,11 @@ def unretire(db, clan) -> str | None:
         m.status = "active"
         m.left_at = None
         back += 1
+    # The session is built with `autoflush=False`, so without this both queries below run
+    # against the pre-loop rows: the restored members are invisible, `first` comes back None,
+    # and the whole promotion block quietly does nothing. It only ever looked right because
+    # the case anybody tested restored the original leader, who needs no promoting.
+    db.flush()
     if back and not db.query(ClanMember).filter(
             ClanMember.clan_id == clan.clan_id, ClanMember.role == "leader",
             ClanMember.left_at.is_(None)).first():
