@@ -29,3 +29,6 @@ __pycache__/
 /*.jpeg
 /*.png
 /*.output
+
+# reviewer probe scripts: written against the live code during a review, never part of the suite
+tests/test_zz_probe_*.py
