@@ -42,12 +42,16 @@ EN: dict[str, str] = {
     # The panel's own chrome. `pclose` closes the whole feature and announced itself
     # as "button"; `ppeek` is admin-only and was the one hardcoded English tooltip
     # beside a sibling that already used data-i18n-title.
+    # the anonymous-country globe, which a screen reader reads aloud
+    "flag.hidden": "Country hidden",
     "panel.close": "Close",
     "panel.peek": "Preview as a normal visitor",
     "crew.wip": "Not open for public testing yet. Anything you build here can be wiped without warning.",
     "crew.signin.h": "Get your pass",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",
     "crew.signin.scan": "Scan it with EUC Planet, or type the code in. Good for 3 minutes.",
+    # the QR image's only name: the first card a new rider sees
+    "crew.signin.qralt": "Crew pass code",
     "crew.signin.same": "Reading this on your phone? You can't scan your own screen. Tap below.",
     "crew.signin.open": "Open EUC Planet",
     # starting one
@@ -120,7 +124,7 @@ EN: dict[str, str] = {
     "crew.lose.now": "this week",
     "crew.lose.soon": "creeping up",
     "crew.lose.cold": "going cold on its own",
-    "crew.lose.more": "and {n} more going quiet",
+    "crew.lose.more": "and {v} more",
     "crew.tile.since": "held for {d}",
     "crew.ago.new": "a day or two",
     "crew.ago.days": "{n} days",
@@ -128,7 +132,7 @@ EN: dict[str, str] = {
     "crew.ago.weeks": "{n} weeks",
     "crew.ago.weeks.few": "{n} weeks",
     "crew.ago.year": "over a year",
-    "crew.board.gained": "{n} new this week",
+    "crew.board.gained": "+{v} this week",
     "crew.legend.note": "The breathing is your own ground. Everyone else's sits still.",
     "crew.targets.links": "{n} to link up",
     "crew.legend.fresh": "Taken this week",

@@ -224,13 +224,17 @@ def split_top(text, sep):
 
 
 def _find_is(sel):
-    """(start, end, inner) for the first `:is(…)`/`:where(…)`, with parens balanced.
+    """(start, end, inner) for the first `:is(…)`, with parens balanced.
+
+    `:where()` is NOT expanded, because `:where()` contributes zero specificity and writing it
+    out hands its contents' weight to `specificity()`. Left whole it is one opaque qualifier,
+    which is what it is for matching, and `specificity()` drops it.
 
     This was a regex, `:(?:is|where)\\(([^()]*)\\)`, and `:is(.a, .b:not(.x))` has a paren
     inside it -- so the rule matched nothing, expanded to itself, and both passes walked past
     it. One nested paren reopened a hole that had already been closed once.
     """
-    for m in re.finditer(r":(?:is|where)\(", sel, re.I):
+    for m in re.finditer(r":is\(", sel, re.I):
         i = m.end() - 1
         depth, j = 0, i
         while j < len(sel):
@@ -512,6 +516,10 @@ def specificity(sel):
     # `:not(.a, .b)` contributes its MOST SPECIFIC argument, not the sum of them. Counting
     # all of them over-scores, which pushes toward false alarms rather than silence -- but it
     # is still wrong, and a multi-argument `:not()` is ordinary CSS.
+    # `:where()` contributes zero. It is a qualifier for matching and a nothing for weight,
+    # so it comes out before anything is counted.
+    s = re.sub(r":where\((?:[^()]|\([^()]*\))*\)", " ", s, flags=re.I)
+
     def one_not(m):
         alts = split_top(m.group(1), ",")
         return max(alts, key=lambda x: len(re.findall(r"[.\[#:]", x))) if alts else ""
@@ -616,6 +624,20 @@ def layered(fix_ctx, broad_ctx):
     return "@layer" in (fix_ctx or "") and "@layer" not in (broad_ctx or "")
 
 
+def supported(fix_ctx, broad_ctx):
+    """True when the candidate fix sits behind a feature query the broad rule is not behind.
+
+    Such a fix only applies where that query passes, and nothing here can know whether it
+    does: a reviewer silenced every report with `@supports (-webkit-touch-callout: none)`,
+    the standard iOS-only hack, which is false in Chrome. Two rounds earlier the same reviewer
+    reported the opposite -- a correct fix wrapped in `@supports (display: flex)` being
+    flagged -- and both complaints are fair. They cannot both be met, so correctness decides:
+    a fix that holds only when a feature query passes is not one the stylesheet can rely on,
+    which is how `layered()` already treats `@layer`.
+    """
+    return "@supports" in (fix_ctx or "") and "@supports" not in (broad_ctx or "")
+
+
 def fixes(a, b, c):
     """True when rule `c` could be the fix for `a` losing to `b`.
 
@@ -670,6 +692,23 @@ def main():
     by_key = collections.defaultdict(list)
     for d in decls:
         by_key[(canon(d[2]), physical(d[3]))].append(d)
+    # A second index on the FAMILY, for the OVERRIDDEN branch only. Keyed on the literal
+    # property, `.crewtag { background: none }` in a media query and a later top-level
+    # `.crewtag { background-color: … }` were two keys and never met -- the round-six bug
+    # spelled with a longhand. The SELF-CANCEL branch keeps the literal key, because
+    # `padding-left` after `padding` is a narrowing rather than a cancellation.
+    by_fam = collections.defaultdict(list)
+    for d in decls:
+        by_fam[(canon(d[2]), family(d[3]))].append(d)
+    for (sel, fam), rows in sorted(by_fam.items()):
+        for a, b in zip(rows, rows[1:]):
+            if bare(a[4]) == bare(b[4]) or physical(a[3]) == physical(b[3]):
+                continue        # same spelling: the index above already judged it
+            if IMPORTANT_RE.search(a[4]) and not IMPORTANT_RE.search(b[4]):
+                continue
+            if a[1] and not b[1]:
+                bad.append(f"OVERRIDDEN  {sel} | {fam}: {a[3]}: {a[4]}  [{a[1]}]"
+                           f"  ->  {b[3]}: {b[4]}  [top level]")
     for (sel, prop), rows in sorted(by_key.items()):
         for a, b in zip(rows, rows[1:]):
             if bare(a[4]) == bare(b[4]):
@@ -728,6 +767,7 @@ def main():
                 # descendant selector (`.crewtrow .crewtag`), which is a perfectly good fix.
                 if any(c[1] and covers(c[1], a[1]) and family(c[3]) == prop
                        and IMPORTANT_RE.search(c[4]) and not layered(c[1], a[1])
+                       and not supported(c[1], a[1])
                        and fixes(a[2], b[2], c[2]) for c in rows):
                     continue
                 # Anything that reaches b's elements at or above b's specificity, from a
@@ -745,7 +785,7 @@ def main():
                     (covers(c[1], a[1]) or covers(a[1], c[1]))
                     and family(c[3]) == prop and c[2] != a[2]
                     and specificity(c[2]) >= specificity(b[2])
-                    and not layered(c[1], a[1])
+                    and not layered(c[1], a[1]) and not supported(c[1], a[1])
                     and fixes(a[2], b[2], c[2])
                     for c in rows)
                 if covered:

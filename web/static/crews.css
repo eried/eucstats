@@ -60,7 +60,8 @@
 }
 /* These rows are `<div>`s and `<tr>`s with `role="button"`, so they inherit no focus ring
    of their own. Keyboard only: a mouse press should not draw one. */
-.crewtrow:focus-visible, .crewboard tr.sel:focus-visible, .crewrow:focus-visible {
+.crewtrow:focus-visible, .crewboard tr.sel:focus-visible, .crewrow:focus-visible,
+.crewboard .pod:focus-visible {
   outline: 2px solid var(--sec, #ff8ad8); outline-offset: -2px;
 }
 
@@ -863,7 +864,16 @@ a.crewqr { display: flex; text-decoration: none; }
   text-align: right; line-height: 1.25; color: var(--mut, #9aa6c8); opacity: .8; }
 @media (max-width: 560px) {
   .crewtquiet { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }
+  /* The name takes its own line, like the chip above does. Whose row this is matters more
+     than fitting three things across 292px, and one of the three deletes them. */
+  .crewpendr { flex-wrap: wrap; }
+  .crewpendr > span:first-child {
+    flex: 1 0 100%; overflow: visible; text-overflow: clip; white-space: normal;
+  }
 }
 /* A name and its role mark are one thing; the phone was wrapping the diamond onto its own
-   line under the name. */
-.crewpendr > span { white-space: nowrap; }
+   line under the name. The mark keeps the nowrap, not the whole name: with it on the span,
+   the name was the thing that shortened, and the two buttons beside it are `flex: 0 0 auto`
+   -- in German "Zum Offizier machen" and "Entfernen" leave 45px of a 292px row, so three
+   roster rows read `S14·Fj…`, `SIM·V…`, `S14·K…` beside a button that removes somebody. */
+.crewpendr > span .crewrole { white-space: nowrap; }

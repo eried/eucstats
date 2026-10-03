@@ -128,7 +128,7 @@ svg.ic{width:18px;height:18px;display:block}
 .rfoot img{width:18px;height:18px}.rfoot svg{width:14px;height:14px}
 .rfoot .ver{font-family:ui-monospace,monospace;font-size:11px}
 .dock{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;display:flex;gap:4px;max-width:calc(100vw - 16px);background:var(--surf);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:10px;padding:7px;box-shadow:var(--shadow),0 18px 54px rgba(0,0,0,.55)}
-.dock button{display:flex;align-items:center;gap:8px;min-width:0;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
+.dock button{display:flex;align-items:center;gap:8px;background:transparent;color:var(--ink);border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;transition:background .15s,color .15s}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}
 .dock button[data-p=riders]{--sec:#2ea8ff}.dock button[data-p=countries]{--sec:#ff6b6b}.dock button[data-p=wheels]{--sec:#ffd24a}.dock button[data-p=brands]{--sec:#ff9f43}.dock button[data-p=records]{--sec:#39d98a}.dock button[data-p=tech]{--sec:#a78bfa}.dock button[data-p=crews]{--sec:#ff8ad8}
@@ -219,10 +219,13 @@ td.sub{color:var(--mut)}
    Tighter rather than wordless -- dropping the labels is what the 560px query below
    is for, and a globe and a wheel glyph alone are hard to tell apart. */
 @media(max-width:880px){.dock button{padding:10px 9px;gap:6px}}
-/* The labels give way before the icons do. Measured at 760px wide: the dock is 718px
-   in English and 798px in Turkish -- 38px wider than the window, clipped on both
-   sides. The round-12 fix for this measured English and stopped. */
-.dock .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* Icons only, when the words do not fit. Set by fitDock() below rather than by a
+   breakpoint, because the width that fits depends on how long the words are: the
+   dock is 802px in English at 1440 and 882px in Turkish, and sixteen of nineteen
+   locales outgrow the screen somewhere between 561 and 812px. Ellipsising them
+   instead -- which is what this used to do -- cut all seven labels in English at
+   700px, the active tab included. */
+.dock.icons .lbl{display:none}.dock.icons button{padding:11px}
 @media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}
 /* phones: size tabs to their label (not a fixed 176px) so 4-5 fit per swipe
    instead of barely 2, and tighten them a touch for density */
@@ -262,7 +265,7 @@ __TESTWM__
   <button class="intro" data-p="wheels" data-i18n-aria="title.wheels" aria-label="Wheel models"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.3"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2.8v3.3M12 17.9v3.3M2.8 12h3.3M17.9 12h3.3M5.3 5.3l2.3 2.3M16.4 16.4l2.3 2.3M18.7 5.3l-2.3 2.3M7.6 16.4l-2.3 2.3" stroke-linecap="round"/></svg><span class="lbl" data-i18n="dock.wheels">Wheels</span></button>
   <button class="intro" data-p="brands" data-i18n-aria="title.brands" aria-label="Wheel brands"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11V4h7l10.5 10.5L14 21 3 11Z"/><circle cx="7.3" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="lbl" data-i18n="dock.brands">Brands</span></button>
   <button class="intro" data-p="records" data-i18n-aria="title.records" aria-label="All-time records"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg><span class="lbl" data-i18n="dock.records">Records</span></button>
-  <button class="intro" data-p="tech" data-i18n-aria="title.tech" aria-label="App & devices"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2.6"/><path d="M10.5 18.5h3" stroke-linecap="round"/></svg><span class="lbl" data-i18n="dock.app">App</span></button>
+  <button class="intro" data-p="tech" data-i18n-aria="title.tech" aria-label="App & OS"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2.6"/><path d="M10.5 18.5h3" stroke-linecap="round"/></svg><span class="lbl" data-i18n="dock.app">App</span></button>
 </div>
 <button id="gear" class="intro" data-i18n-title="aria.settings" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg></button>
 <div id="cfg" class="cfgpop"></div>
@@ -294,14 +297,26 @@ async function ensureLang(l){if(l==="en"||(I18N[l]&&Object.keys(I18N[l]).length)
   try{const d=await j("/i18n/"+encodeURIComponent(l));if(d&&!d.detail)I18N[l]=d;}catch(e){}}
 function t(k,vars){let s=(I18N[LANG]&&I18N[LANG][k]);if(s==null)s=(I18N.en&&I18N.en[k]);if(s==null)s=k;
   if(vars)for(const p in vars)s=s.split("{"+p+"}").join(vars[p]);return s;}
+/* Does the nav fit, in this language, at this width?
+   The buttons are flex children, so under the `max-width` cap they SHRINK rather than
+   overflow and `scrollWidth` stays equal to `clientWidth` while the words are being
+   squeezed -- at 700px English wants 716 and Turkish 797 against a 683 box, and a
+   scrollWidth check called both of them fine. So the cap comes off for the length of
+   one measurement. */
+function fitDock(){var d=document.querySelector(".dock");if(!d)return;
+  d.classList.remove("icons");
+  var prev=d.style.maxWidth;d.style.maxWidth="none";
+  var natural=d.scrollWidth;d.style.maxWidth=prev;
+  if(natural>window.innerWidth-16)d.classList.add("icons");}
 function applyI18n(){
   document.querySelectorAll("[data-i18n]").forEach(e=>{e.textContent=t(e.getAttribute("data-i18n"));});
-  document.querySelectorAll("[data-i18n-aria]").forEach(e=>{e.setAttribute("aria-label",t(e.getAttribute("data-i18n-aria")));});
   document.querySelectorAll("[data-i18n-title]").forEach(e=>{e.title=t(e.getAttribute("data-i18n-title"));});
   /* aria-label beats title for the accessible name, so a translated title on a
      hard-coded label changes nothing a screen reader says. */
   document.querySelectorAll("[data-i18n-aria]").forEach(e=>{e.setAttribute("aria-label",t(e.getAttribute("data-i18n-aria")));});
-  try{document.documentElement.lang=LANG;}catch(e){}}
+  try{document.documentElement.lang=LANG;}catch(e){}
+  /* the words just changed length, which is the other half of whether they fit */
+  fitDock();}
 const cc=c=>c?`<img class="flag" src="https://flagcdn.com/24x18/${(""+c).toLowerCase()}.png" alt="${c}" loading="lazy"/>`:"";
 const _RN=(()=>{try{return new Intl.DisplayNames([navigator.language||"en"],{type:"region"});}catch(e){return null;}})();
 const cname=c=>{if(!c)return "";try{return (_RN&&_RN.of((""+c).toUpperCase()))||c;}catch(e){return c;}};
@@ -333,7 +348,7 @@ function dazzle(mark){
 // line up. Inline SVG rather than an emoji: .flag is sized and shadowed for an <img>,
 // so a glyph in that box gets clipped into a rectangle, and 🌐 is missing from some
 // system fonts entirely. No country colours, by design.
-const GLOBE='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" aria-label="Country hidden">'
+const GLOBE='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" data-i18n-aria="flag.hidden" aria-label="Country hidden">'
   +'<rect width="20" height="15" rx="2" fill="#252d4d"/>'
   +'<circle cx="10" cy="7.5" r="4.3" fill="none" stroke="#9aa6c8" stroke-width="1.1"/>'
   +'<path d="M5.7 7.5h8.6M10 3.2c1.85 2.2 1.85 6.4 0 8.6M10 3.2c-1.85 2.2-1.85 6.4 0 8.6" fill="none" stroke="#9aa6c8" stroke-width="1.1" stroke-linecap="round"/>'
@@ -900,7 +915,7 @@ function setupCfg(){
   render(); gear.onclick=()=>cfg.classList.toggle("open");
 }
 
-(function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");/* the matching half of @media(max-height:620px): the champion card drops to its badge, because below that height the panel needs the 110px more than the stats strip does. */var tb=document.querySelector(".topbar");if(tb)tb.classList.toggle("tight",h<=620);}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();
+(function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");/* the matching half of @media(max-height:620px): the champion card drops to its badge, because below that height the panel needs the 110px more than the stats strip does. */var tb=document.querySelector(".topbar");if(tb)tb.classList.toggle("tight",h<=620);fitDock();}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();
 async function init(){
   // Wire the autoplaying intro <video> FIRST, before any network await. Otherwise the
   // repeat-visit "seek to the end + reveal" attaches only after the i18n/stats fetches,

@@ -894,7 +894,9 @@
         // No km2 here. The board ranks on squares, and area beside it inverted the ranking
         // two rows apart: 29 squares at 21 km2 above 20 squares at 120 km2. Area lives on the
         // crew's own card and in the popup, where nothing is being compared.
-        var full = t("crew.board.gained", { n: gained });
+        // `tiles()`, so the noun carries the agreement. As a bare count this read
+        // "1 новых на этой неделе" on five rows of the default board.
+        var full = t("crew.board.gained", { v: tiles(gained) });
         if (short(e)) {
           return gained ? '<span class="crewgain" title="' + esc(full) + '">+'
             + gained.toLocaleString() + "</span>" : "";
@@ -1073,12 +1075,18 @@
     return Math.round(n).toLocaleString() + " km²";
   }
 
-  var ROLEIC = {
-    leader: '<span class="crewrole lead" title="Leader">★</span>',
-    officer: '<span class="crewrole off" title="Officer">◆</span>',
-    member: "",
-    past: '<span class="crewrole past" title="No longer in the crew">·</span>'
-  };
+  // A function rather than a constant: this was built at load time, before the host hands
+  // over its translator, so its titles could not have called `t()` even if anybody had
+  // thought to -- and `crew.role.leader` has been translated in all eighteen locales the
+  // whole time and is used correctly forty lines below.
+  var ROLEGLYPH = { leader: "\u2605", officer: "\u25c6", member: "", past: "\u00b7" };
+  var ROLECLASS = { leader: "lead", officer: "off", member: "", past: "past" };
+
+  function roleMark(role) {
+    if (!ROLEGLYPH[role]) return "";
+    return '<span class="crewrole ' + ROLECLASS[role] + '" title="'
+      + esc(t("crew.role." + role)) + '">' + ROLEGLYPH[role] + "</span>";
+  }
 
   // The squares this crew could take next. Until this existed the mode could say a tile was
   // contested but never where to go, which is the one thing a map mode about choosing routes
@@ -1485,7 +1493,7 @@
             + '<i class="' + (rs ? "rpt" : "") + '">' + state + "</i></span></div>";
         }).join("")
       // 85 squares are losable across the world and 45 were shown, with nothing saying so
-      + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { n: hidden }) + "</p>" : "")
+      + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { v: tiles(hidden) }) + "</p>" : "")
       + "</div>";
   }
 
@@ -1506,7 +1514,7 @@
       return '<div class="crewcrow">'
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
         + (H.cc && c.flag ? H.cc(c.flag) : "")
-        + '<span class="crewcname">' + esc(c.name) + (ROLEIC[c.role] || "") + "</span>"
+        + '<span class="crewcname">' + esc(c.name) + roleMark(c.role) + "</span>"
         + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
         + '<span class="crewckm">' + fmtKm(c.km)
         + ' <i>' + t("crew.who.share", { n: share }) + "</i></span></div>";
@@ -1569,7 +1577,7 @@
       var deep = "eucplanet://pair?code=" + encodeURIComponent(r.body.code)
         + "&host=" + encodeURIComponent(location.origin);
       if (qr) {
-        qr.innerHTML = '<img alt="Crew pass code" src="data:image/png;base64,'
+        qr.innerHTML = '<img alt="' + esc(t("crew.signin.qralt")) + '" src="data:image/png;base64,'
           + r.body.qr + '"/>';
         qr.href = deep;
       }
@@ -1859,8 +1867,8 @@
       if (pod && pod.indexOf("pod.") !== 0) return pod.toLowerCase();
     }
     var s = t("crew.rank.nth", { n: n });
-    // English and Swedish are the two locales whose suffix is irregular; English is the
-    // only one whose template
+    // English, Swedish and Ukrainian are the three locales whose suffix is irregular;
+    // English is the only one whose template
     // ends in "th" -- every other table carries its own correct form ("{n}.", "{n}e",
     // "{n}位"). Without this the board read "21th", "22th", "31th" past the podium.
     if (/th$/.test(s) && !(n % 100 >= 11 && n % 100 <= 13)) {
@@ -1873,6 +1881,21 @@
     if (/:a$/.test(s)) {
       var d = n % 10, h = n % 100;
       if (!((d === 1 || d === 2) && h !== 11 && h !== 12)) return s.slice(0, -1) + "e";
+    }
+    // Ukrainian is the third, and this comment said there were two until a reviewer found
+    // `1-ше` and `13-е` in the same list. The suffix follows the last word of the spelled-out
+    // ordinal -- перше, друге, третє, сьоме, восьме, and -те for everything else, with the
+    // teens taking -те. Russian uses the same `{n}-е` template and is genuinely correct with
+    // it (перше after a vowel), which is why this is keyed on the locale and not the shape.
+    if (locale() === "uk" && /-\u0435$/.test(s)) {
+      var ud = n % 10, uh = n % 100;
+      var tail = (uh >= 11 && uh <= 19) ? "\u0442\u0435"
+        : ud === 1 ? "\u0448\u0435"
+        : ud === 2 ? "\u0433\u0435"
+        : ud === 3 ? "\u0442\u0454"
+        : (ud === 7 || ud === 8) ? "\u043c\u0435"
+        : "\u0442\u0435";
+      return s.slice(0, -1) + tail;
     }
     return s;
   }
@@ -1959,8 +1982,8 @@
         && (me.role === "leader" || me.role === "officer")) {
       h += '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
         + me.roster.map(function (x) {
-            var mark = x.role === "leader" ? " " + ROLEIC.leader
-              : x.role === "officer" ? " " + ROLEIC.officer : "";
+            var mark = x.role === "leader" || x.role === "officer"
+              ? " " + roleMark(x.role) : "";
             // the leader is listed, because a section called "The crew" that leaves them out
             // is a section header telling a lie
             // Your own row. Remove answered 400 `not_yourself` on every press, and Stand

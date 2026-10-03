@@ -297,6 +297,23 @@ def _cases():
          css + NL + ".zztagI.hot { background: #f00; }" + NL
              + "@media (max-width: 560px) { :i" + BS + "s(.zztagI, .zzother)"
              + " { background: none; } }" + NL, 1),
+        # --- round fifteen. `:where()` contributes ZERO specificity, and `expand()` wrote it
+        # out so `specificity()` scored its contents. All three of these look like a fix and
+        # none of them can win.
+        ("the chip strip rewritten with :where()",
+         css.replace(PHONE_STRIP,
+                     "  .crewtag:where(.first, .joins, .kills, .drops, .done, .youpass)"
+                     " { background: none; padding: 0; }", 1), 1),
+        ("a descendant fix with :where() on the subject",
+         css.replace(PHONE_STRIP, "  .crewtrow :where(.crewtag)"
+                     " { background: none; padding: 0; }", 1), 1),
+        ("a descendant fix with :where() on the ancestor",
+         css.replace(PHONE_STRIP, "  :where(.crewtrow) .crewtag"
+                     " { background: none; padding: 0; }", 1), 1),
+        # the round-six bug spelled with a longhand: pass 1 keyed on the literal property, so
+        # `background` and `background-color` were two keys and never met
+        ("a longhand cancelling a shorthand from top level",
+         css + NL + ".crewtag { background-color: rgba(255,79,163,.16); }" + NL, 1),
         # --- two correct stylesheets it used to fail. Each must exit 0.
         ("!important, which genuinely wins",
          css.replace(PHONE_STRIP,
@@ -304,13 +321,23 @@ def _cases():
         ("a fix written as a descendant selector",
          css.replace(PHONE_STRIP, "  .crewtrow .crewtag { background: none; padding: 0; }", 1), 0),
         # --- and four more correct stylesheets round twelve failed
-        # The same descendant fix wrapped in @supports. Strictly a rule inside @supports is
-        # not guaranteed to apply, but five complaints about correct CSS is how a detector
-        # gets narrowed until it catches nothing.
-        ("a correct fix wrapped in @supports",
+        # REVERSED in round fifteen, deliberately. This was pinned as must-exit-0 in round
+        # twelve, when a reviewer reported a correct fix wrapped in `@supports (display:
+        # flex)` being flagged five times. In round fifteen the same reviewer silenced every
+        # report with `@supports (-webkit-touch-callout: none)` -- the standard iOS-only hack,
+        # which is false in Chrome -- and the bug was live behind it.
+        #
+        # Both complaints are fair and they cannot both be satisfied: nothing here can know
+        # which feature queries hold. A fix that applies only when one passes is not a fix the
+        # stylesheet can rely on, which is how `@layer` is already treated, so it is loud now.
+        ("a fix wrapped in @supports, which may not hold",
          css.replace(PHONE_STRIP, "", 1) + NL
              + "@supports (display: flex) { @media (max-width: 560px) {" + NL
-             + "  .crewtrow .crewtag { background: none; padding: 0; } } }" + NL, 0),
+             + "  .crewtrow .crewtag { background: none; padding: 0; } } }" + NL, 1),
+        ("a fix behind the iOS-only feature query",
+         css.replace(PHONE_STRIP, "", 1) + NL
+             + "@supports (-webkit-touch-callout: none) { @media (max-width: 560px) {" + NL
+             + "  .crewtag.kills { background: none; padding: 0; } } }" + NL, 1),
         # The same fix written with nesting, which the un-recursed branch swallowed whole and
         # then reported five times.
         ("a correct fix written as a nested rule",
@@ -336,6 +363,11 @@ def _cases():
          css.replace(PHONE_STRIP,
                      "  .crewtag { background: none ! important;"
                      " padding: 0 ! important; }", 1), 0),
+        # The reverse of the :where() cases above: written this way the six chip rules drop
+        # to (0,1,0), so the later phone rule wins and the stylesheet is CORRECT. Scoring
+        # `:where()` as if it carried its contents reported five problems against it.
+        ("the chips themselves written with :where()",
+         _chips_as(css, lambda c: ".crewtag:where(." + c + ")"), 0),
         # Chrome honours this as a priority, so reporting it is the cry-wolf half again
         ("!important spelled with an escape",
          css.replace(PHONE_STRIP,
@@ -357,3 +389,32 @@ def test_the_checker_is_not_fooled_and_does_not_cry_wolf(idx, tmp_path):
         assert r.returncode == 1, name + ": slipped past the checker" + NL + r.stdout
     else:
         assert r.returncode == 0, name + ": correct CSS reported as broken" + NL + r.stdout
+
+
+@pytest.mark.xfail(strict=True, reason="needs DOM knowledge the stylesheet does not contain")
+def test_a_planted_ancestor_that_can_never_contain_the_subject(tmp_path):
+    """The limit, stated as a limit rather than left to be rediscovered.
+
+    `fixes()` accepts a rule that refines the broad one and still reaches the narrow one's
+    subject, which is what the legitimate descendant fix (`.crewtrow .crewtag`) looks like.
+    `.crewpick .crewtag` looks identical and reaches nothing: `.crewpick` only ever contains
+    the two swatch buttons. Nothing in CSS distinguishes them -- both are "the same rule
+    written more specifically" -- so telling them apart needs to know what the markup nests
+    inside what, which this script does not read.
+
+    Three narrowings were tried and rejected on evidence. Requiring the ancestor to appear in
+    another selector is defeated by writing the decoy twice, and `.crewtrow .crewtag` is not
+    attested anywhere in crews.css either, so it would fail the legitimate case. Requiring the
+    fix to restate the broad rule's VALUE reported the shipped stylesheet (`.crewboard .pod`
+    padding) and broke ten pinned cases. Dropping the refinement branch entirely fails the
+    descendant fix this hatch exists for.
+
+    So it stays open, and stays visible. The threat model that remains is "did the developer's
+    fix work", not "is somebody planting rules that do nothing" -- and this test goes red the
+    day somebody closes it, which is the point of writing it down.
+    """
+    bug = CSS.read_text(encoding="utf-8").replace(PHONE_STRIP, "", 1) + NL + (
+        "@media (max-width: 560px) { .crewpick .crewtag"
+        " { background: #10131a; padding: 0; } }" + NL)
+    r = _run(_point_at(tmp_path, bug))
+    assert r.returncode == 1, "the planted ancestor no longer hides the bug" + NL + r.stdout
