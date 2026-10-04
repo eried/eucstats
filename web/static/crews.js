@@ -2859,13 +2859,22 @@
     // create form while cooling off was "a form whose only possible outcome is the error" --
     // and a list is not a form. Window-shopping for the crew you will join on day eight is
     // the only thing a cooldown leaves you.
-    var waiting = me.cooldown_until
+    // Three different reasons this list might be look-only, and they were one boolean.
+    // `cooling` is the seven days after walking out. `pending` is a request sitting with a
+    // leader -- `join()` refuses while ANY membership exists, this one included, so every row
+    // has to be shut even though nothing is wrong with the rider or the crew. A member cap is
+    // the third, and it is per row rather than per rider.
+    var cooling = !!me.cooldown_until;
+    var pending = !cooling && me.status === "pending";
+    var msg = cooling
       ? '<div class="crewmsg">'
         + t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) }) + "</div>"
-      : "";
+      : pending
+        ? '<div class="crewmsg">' + t("crew.join.pending") + "</div>"
+        : "";
     if (!crews.length) {
-      return waiting
-        ? '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>" + waiting + "</div>"
+      return cooling
+        ? '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>" + msg + "</div>"
         : "";
     }
     var rows = crews.slice();
@@ -2882,7 +2891,9 @@
     // of it and the toggle costs no round trip.
     var SHOWN = 6;
     return '<div class="crewcard crewjoin"><h3>'
-      + t(waiting ? "crew.join.wait.h" : "crew.join.h") + "</h3>" + waiting
+      // "Cooling off" only when that is what it is. A rider waiting on a leader is not
+      // cooling off, and the list they are reading is still a list of crews to join.
+      + t(cooling ? "crew.join.wait.h" : "crew.join.h") + "</h3>" + msg
       + (rows.length > SHOWN
          ? '<input class="crewfilter" id="cj-filter" type="search" autocomplete="off"'
            + ' placeholder="' + esc(t("crew.join.filter")) + '"'
@@ -2903,7 +2914,9 @@
           // Cooling off, so the list is for looking at. A button that cannot work must say
           // so before it is pressed, not after: the countdown above the list is the answer
           // and the button is the question.
-          var full = (MAXMEM && c.members >= MAXMEM) || !!waiting;
+          // Per row, and only for the cap. The other two reasons are about the rider.
+          var capped = !!(MAXMEM && c.members >= MAXMEM);
+          var locked = capped || cooling || pending;
           // Each fact in its own `nowrap` span, so the line breaks BETWEEN facts. The
           // non-breaking space stopped `78 km` splitting inside itself; the phrase around it
           // still broke anywhere, so a row read `… 78 km` / `from here` and the one below
@@ -2925,15 +2938,20 @@
             + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + "</div>"
-            + (full
+            + (locked
                // No `</div>` here. The row's own closer is appended to the whole expression
                // below, so this branch closed it twice: one `.crewrow` opened and two closed,
-               // and the surplus closer walked the rest of the list out of the card. `full`
+               // and the surplus closer walked the rest of the list out of the card. `locked`
                // covers the cooling-off window, so that was EVERY row for any rider who had
                // just left a crew -- the counter read "1 of 1 crews" over twenty-one rows,
                // the filter governed one of them, and the card's border stopped mid-list.
+               //
+               // A waiting rider keeps the row's OWN label, disabled. The reason is stated
+               // once above the list instead of twenty-one times inside it, and "Cooling off"
+               // on a row would be false -- they are not cooling off, they are queued.
                ? '<button class="crewbtn mini ghost" disabled>'
-                 + t(waiting ? "crew.join.wait.btn" : "crew.join.full")
+                 + (cooling ? t("crew.join.wait.btn")
+                    : capped ? t("crew.join.full") : label)
                  + "</button>"
                : '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
                  + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
@@ -3211,6 +3229,14 @@
              ? '<span class="crewsumdot">' + me.pending.length + "</span>" : "")
           + "</summary>"
           + myCrewHTML(me) + "</details>"
+          // The one state that can last for days was the only one with nothing to move on to.
+          // Removed, folded and declined all show the list under their notice; a rider waiting
+          // on a leader got the crew page and nothing else, while the decline notice two
+          // branches down says "No waiting, pick another one" -- advice pointing at a list
+          // that this state had taken away. Look-only, because `join()` refuses while the
+          // request stands: the rider reads what is out there and the card above says how to
+          // free themselves to act on it.
+          + (me.status === "pending" ? joinHTML(all, me) : "")
           + explainer();
       } else if (me.removed_by) {
         own += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"

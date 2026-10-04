@@ -127,6 +127,17 @@ function run() {
   out.capped = { tags: balance(h), wellFormed: wellFormed(h), depths: rowDepths(h) };
   MAXMEM = 0;
 
+  // 3b. WAITING on a leader. `join()` refuses while the request stands, so every row is
+  //     disabled -- but it keeps its own label, because "Cooling off" would be false and the
+  //     reason belongs above the list once rather than in all twenty-one rows.
+  h = joinHTML(many.map(c => Object.assign({}, c)), { status: "pending" });
+  out.waiting = { tags: balance(h), wellFormed: wellFormed(h), depths: rowDepths(h),
+                  rows: (h.match(/class="crewrow(?=[ "])/g) || []).length,
+                  disabled: (h.match(/disabled/g) || []).length,
+                  saysCoolingOff: h.indexOf("crew.join.wait.btn") >= 0,
+                  heading: /<h3>([^<]*)</.exec(h)[1],
+                  message: h.indexOf("crew.join.pending") >= 0 };
+
   // 4. Mixed: some crews full, some not, so one branch cannot mask the other.
   h = joinHTML(many.map((c, i) => Object.assign({}, c, { members: i %% 2 ? 9 : 2 })), {});
   MAXMEM = 0;
@@ -156,7 +167,8 @@ def _region():
     i = src.index(START)
     j = src.index(END, i)
     region = src[i:j]
-    for needed in ('class="crewrow', "var full =", 'id="cj-list"', "</button>"):
+    for needed in ('class="crewrow', "var locked =", "var pending =", 'id="cj-list"',
+                   "</button>"):
         assert needed in region, f"{needed} is not in the lifted region; this tests nothing"
     return region
 
@@ -209,6 +221,37 @@ def test_a_member_cap_does_not_break_the_browse_list():
         "cooling-off break, latent in the ordinary browse list until an admin sets a cap")
     assert out["wellFormed"]
     assert len(set(out["depths"])) == 1
+
+
+def test_a_waiting_rider_gets_a_browsable_list_that_closes_itself():
+    """The state that used to be a dead end. Structure first: it is the same row builder, so
+    the closer bug would reappear here if it reappeared anywhere."""
+    out = _run()["waiting"]
+    opened, closed = out["tags"]["div"]
+    assert opened == closed, f"{opened} <div> opened, {closed} closed while waiting"
+    assert out["wellFormed"]
+    assert len(set(out["depths"])) == 1
+    assert out["rows"] == 21, f"expected 21 browsable rows, got {out['rows']}"
+
+
+def test_a_waiting_rider_sees_every_row_disabled_but_not_called_cooling_off():
+    """`join()` refuses while the request stands, so an enabled button would be a lie -- and
+    "Cooling off" is a different situation with a seven-day clock attached."""
+    out = _run()["waiting"]
+    assert out["disabled"] >= 21, (
+        f"only {out['disabled']} disabled attributes for 21 rows: a waiting rider would get "
+        "buttons that fail with 'Leave your crew first.'")
+    assert not out["saysCoolingOff"], (
+        "the rows say 'Cooling off', which is a different state with a clock on it")
+    assert out["heading"] == "crew.join.h", (
+        f"heading is {out['heading']!r}; a waiting rider is not cooling off")
+    assert out["message"], "nothing on the card says why every row is disabled"
+
+
+def test_a_cooling_off_rider_is_still_told_it_is_a_cooldown():
+    """The mirror: separating the two reasons must not blur the one that already worked."""
+    out = _run()["cooling"]
+    assert out["tags"]["div"][0] == out["tags"]["div"][1]
 
 
 def test_a_mixed_list_is_balanced():
