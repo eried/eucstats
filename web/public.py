@@ -33,6 +33,11 @@ __HIDECFG__
 <style>
 :root{--ink:#eef1fb;--mut:#9aa6c8;--acc:#2ea8ff;--gold:#ffd24a;--line:#33457a;--surf:linear-gradient(158deg,rgba(34,52,100,.82),rgba(9,14,30,.85));--glass:rgba(13,17,32,.72);--shadow:0 12px 34px rgba(0,0,0,.6),inset 0 1px 0 rgba(130,170,255,.14);--panres:300px}
 @media(max-height:620px){:root{--panres:160px}}
+/* On a phone the sheet was 492px of an 844px screen -- 58% -- onto a document five screens
+   long, so a member's "Leave crew" sat 3.8 screens down. The reserve above the sheet exists
+   for the topbar and the dock; at phone widths the topbar is already `tight` and most of
+   that reserve is empty. 150px keeps the dock and a thumb's worth of map. */
+@media(max-width:560px){:root{--panres:150px}}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;height:100dvh;font:14px/1.45 "Chakra Petch",ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#070a16;overflow:hidden}
 body{position:fixed;inset:0;width:100%}

@@ -241,6 +241,11 @@ EN: dict[str, str] = {
     "crew.e.name.long": "Twenty-eight characters at most.",
     "crew.e.name.chars": "Letters, numbers, spaces and - ' & . only.",
     "crew.mine.saved": "Saved",
+    # Three successes that said nothing: approving somebody (the knock row vanishing
+    # was the only evidence a person had joined), turning them down, and disbanding.
+    "crew.roles.letin": "{name} is in.",
+    "crew.roles.turned": "{name} turned down.",
+    "crew.mine.disbanded": "{name} is gone. Its ground fades off the map on its own.",
     "crew.e.taken": "That name's taken.",
     "crew.e.increw": "Leave your crew first.",
     "crew.e.notrips": "Send up one ride first.",

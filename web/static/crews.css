@@ -17,7 +17,14 @@
 }
 .crewcard h3 { margin: 0 0 6px; font-size: 14px; letter-spacing: .4px; text-transform: uppercase; }
 .crewcard h4 { margin: 12px 0 6px; font-size: 12px; color: var(--mut, #9aa6c8); letter-spacing: .5px; text-transform: uppercase; }
-.crewcard p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
+/* `overflow-wrap: anywhere`, because this holds 280 characters of a crew's own free text and
+   the most predictable thing in it is a URL. Without it a crew's Instagram link clipped 96px
+   past the card at 390 and gave the whole panel 65px of sideways scroll; a long German
+   compound did 219px and 188px. Three other rules in this file already handle it; the one
+   place that needed it did not have it, which a stylesheet checker cannot see because an
+   absent property is not a declaration. */
+.crewcard p {
+  overflow-wrap: anywhere; margin: 6px 0; font-size: 13px; line-height: 1.5; }
 .crewcard code { background: rgba(255,255,255,.07); padding: 2px 6px; font-size: 12px; letter-spacing: 1px; }
 .crewcard label { display: block; margin: 9px 0 0; font-size: 11px; color: var(--mut, #9aa6c8); letter-spacing: .5px; text-transform: uppercase; }
 /* `textarea` is in this list because leaving it out made the description field the
@@ -85,7 +92,10 @@
    panel scales by whitespace at its edges rather than by holes in the middle of its rows.
    56ch is about where a line of this prose stops being comfortable to read anyway. */
 @media (min-width: 561px) {
-  .crewjoin .crewlist, .crewcontrib { max-width: 56ch; }
+  /* The CARD's content column. Capping the list alone gave one card three right edges -- the
+     filter at 1348, the rows at 1038, the toggle at 1348 -- and left `.crewcontrib` 156px
+     narrower than the `.crewtargets` block directly above it in the same stack. */
+  .crewjoin > *, .crewcontrib, .crewtargets { max-width: 56ch; }
 }
 /* Full width, so it reads as more list rather than a stray action: it was the only control in
    the join card not in the button column the six rows above it end with. `.crewshowall` and
@@ -148,7 +158,12 @@
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.crewrown span { font-size: 11px; color: var(--mut, #9aa6c8); }
+/* A flex row with a gap, which is what separates the facts now. A middot between two
+   facts is a glyph at one line edge or the other once the row wraps -- trailing it dangled,
+   leading it appeared on 6 of 6 rows at 390 -- and a gap cannot be stranded. */
+.crewrown > span { font-size: 11px; color: var(--mut, #9aa6c8);
+  display: flex; flex-wrap: wrap; column-gap: 9px; row-gap: 1px; }
+.crewrown > span.crewmeta2 { display: -webkit-box; }
 
 .crewrank { width: 100%; border-collapse: collapse; font-size: 13px; }
 .crewrank td { padding: 6px 4px; border-top: 1px solid rgba(255,255,255,.05); }
@@ -172,7 +187,11 @@
    centring themselves inside the text column rather than against the card. `.crewsign .hint`
    used to force left against a centred parent and is now what everything inherits. */
 .crewsign { text-align: left; }
-.crewsign .crewcode { text-align: center; }
+/* Left, like its six siblings. Centred it put a 26px code with 7px of tracking, and the
+   QR beside it, about 250px right of the heading's left edge -- and in the expired state the
+   masked six dots floated alone in a 649x188 empty box. */
+.crewsign .crewcode { text-align: left; }
+.crewsign .crewqr { justify-content: flex-start; }
 /* The version requirement is a precondition, not a footnote. It was the second of three
    identical hint lines with a pink one below it, so the newest and hardest requirement was
    the least visible thing in its own group. */
@@ -183,11 +202,10 @@
    `.crewopen` two rounds ago. */
 .crewsign .crewneeds { font-weight: 600; color: var(--ink, #eef1fb); }
 
-/* A fact, and the separator between two of them. Each fact is `nowrap` so a line breaks
-   BETWEEN facts: the non-breaking space stopped `78 km` splitting inside itself, and the
-   phrase around it still broke anywhere, so one row read `… 78 km` / `from here` while the
-   next began `· 222 km from here` -- a separator reading as a list bullet. */
-.crewfact, .crewsep { white-space: nowrap; }
+/* A fact holds together; the gap on its flex parent separates it from the next one. The
+   `.crewsep` span this used to cover is gone -- see `.crewrown > span` -- because a glyph
+   between two facts sits at a line edge whichever side of the fact it is glued to. */
+.crewfact { white-space: nowrap; }
 .crewqr { min-height: 188px; display: flex; align-items: center; justify-content: center; margin: 12px 0 8px; }
 .crewqr img { width: 188px; height: 188px; image-rendering: pixelated; background: #fff; padding: 7px; }
 .crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
@@ -200,7 +218,10 @@
    `#ff4fa3` rail was two pinks nested about 20 degrees apart, so the one state that must read
    differently from resting had almost no distance from it. The ink and the rail stay pink --
    that is the signal -- and the fill carries the difference. */
-.crewmsg.bad { background: rgba(10,6,14,.55); border-left-color: #ff4fa3; }
+/* The neutral fill was right and left the text in the generic hint grey, so "GIVE IT A
+   NAME." read as a label. Square corners too: it sits 4px under an input with no radius. */
+.crewmsg.bad { background: rgba(10,6,14,.55); border-left-color: #ff4fa3;
+  color: #ffb3d6; border-radius: 0; }
 /* Amber, not the error pink: nothing has gone wrong, it is just not finished. */
 .crewmsg.warn { background: rgba(255,210,74,.12); border-left-color: #ffd24a; color: #ffe9a8; }
 
@@ -290,7 +311,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* A message anchored to the control that was pressed, rather than at the top of the panel
    five screens away from it. */
-.crewstatusnear { margin: 8px 0 2px; }
+/* `text-transform: none`, because the slot is inserted as the input's next sibling, which
+   puts it INSIDE the `<label>` -- and `.crewcard label` is uppercase. So the create form
+   shouted "GIVE IT A NAME." and "THAT NAME'S TAKEN." while crew settings said the same
+   things in sentence case, from the same validator. Settings only escaped it by anchoring
+   its server error to the Save button, which was a bug of its own. */
+.crewstatusnear { margin: 8px 0 2px; text-transform: none; letter-spacing: normal; }
 .crewstatusnear .crewmsg { margin: 0; }
 /* Inside the invite-code prompt, above the input it is about. */
 .crewaskmsg { margin: 0 0 8px; }
@@ -497,7 +523,9 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* The same track function as the colours, so the two grids share a column. `repeat(6, 24px)`
    against `auto-fill minmax` gave them pitches of 24 and 24.83px, which drifted 1.7px apart
    by the fourth chip and read as a rendering wobble. */
-#cf-patterns { max-width: 353px; }
+/* No cap. This survived the one removed from `.crewpick`, so in the create form four
+   24x24 pattern swatches sat under a row of 36x36 colour swatches -- the same control at two
+   sizes, and the same control again at full size in crew settings. */
 .crewidentl .crewpreview { margin-left: auto; line-height: 0; }
 
 /* A count, because a two-line box holding 280 characters still scrolls. */
@@ -1096,8 +1124,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   /* The patch count and the gain line are the two things a 288px window cannot afford, and
      both are in the table two rows below. */
   .crewboard .pod .psub { display: none; }
-  /* Two lines reserved for the name, because two of the three crew names wrap in a ~100px
-     card and the third does not -- so the odd one out lifted its figure 12.6px above its
-     neighbours, which is the same staircase this rule's own breakpoint was added to stop. */
-  .crewboard .pod .pname { min-height: 2.4em; }
+  /* Two lines reserved AND two lines at most. Reserving without capping is a guess about
+     the longest name: "Nordlys Collective 456c" takes three lines in a 70px pod, so the
+     staircase came back at 11.5px where it had been 12.6. A reserve that is also a cap makes
+     the two numbers the same number. */
+  .crewboard .pod .pname {
+    min-height: 2.4em; display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
 }

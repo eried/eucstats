@@ -260,11 +260,20 @@
     return ["case", ["==", ["get", "slug"], ME.crew.slug], mine, theirs];
   }
 
+  // BOTH layers. The filters are written at build time, which happens before `/crews/me`
+  // resolves, so each one is first applied in its signed-out form and this is what corrects
+  // them. I scoped the fresh layer last round and left this function alone, so fifteen of
+  // sixteen crews' fresh ground went on breathing under a legend that says -- in two
+  // different wordings, one of them written for the stillness case -- that it does not.
   function scopePulse() {
-    if (!map || !map.getLayer("crew-pulse-danger")) return;
-    map.setFilter("crew-pulse-danger", (ME && ME.crew)
-      ? ["all", ["==", ["get", "kind"], "danger"], ["==", ["get", "slug"], ME.crew.slug]]
-      : ["==", ["get", "kind"], "danger"]);
+    if (!map) return;
+    ["danger", "fresh"].forEach(function (kind) {
+      var id = "crew-pulse-" + kind;
+      if (!map.getLayer(id)) return;
+      map.setFilter(id, (ME && ME.crew)
+        ? ["all", ["==", ["get", "kind"], kind], ["==", ["get", "slug"], ME.crew.slug]]
+        : ["==", ["get", "kind"], kind]);
+    });
   }
 
   function clearLayers() {
@@ -798,7 +807,15 @@
   var inFlight = {};
 
   function api(method, path, body) {
-    var key = method + " " + path;
+    // The BODY is part of the key. Keyed on method and path alone, two different riders
+    // decided through one endpoint were one key: Let in on row 1, then Let in on row 2 four
+    // hundred milliseconds later, sent ONE request, and the second click got the first's
+    // promise, saw `r.ok` and repainted as though it had worked -- rider two never decided,
+    // nothing said so. `/decide` also carries `accept`, so Let in followed by No returned an
+    // acceptance to a decline handler. A double-click on ONE button is still one write,
+    // because its body is identical; two riders are two writes, because they are two
+    // requests.
+    var key = method + " " + path + " " + (body === undefined ? "" : JSON.stringify(body));
     if (method !== "GET" && inFlight[key]) return inFlight[key];
     var opt = { method: method, headers: {}, credentials: "same-origin" };
     if (body !== undefined) {
@@ -937,6 +954,12 @@
         // crew's own card and in the popup, where nothing is being compared.
         // `tiles()`, so the noun carries the agreement. As a bare count this read
         // "1 новых на этой неделе" on five rows of the default board.
+        // Counted inside the region the board RANKS on, not across the whole holding: the
+        // row said "29 squares · +49 squares this week", because the figure is the biggest
+        // contiguous patch and the delta was every fresh cell a crew held. Two quantities,
+        // one noun, a plus between them. The note four lines above says area beside squares
+        // inverted the ranking two rows apart, and the same reasoning was never applied here.
+        if (gained > (e.best_tiles || 0)) gained = e.best_tiles || 0;
         var full = t("crew.board.gained", { v: tiles(gained) });
         if (short(e)) {
           return gained ? '<span class="crewgain" title="' + esc(full) + '">+'
@@ -2050,8 +2073,13 @@
           if (!step) return;
           e.preventDefault();
           var j = Math.max(0, Math.min(all.length - 1, i + step));
+          // Focus only. Clicking here too meant a swatch could never be focused WITHOUT
+          // being selected, so the `:focus-visible` rule written for exactly this case could
+          // never match -- an unreachable rule is not a fixed one. Arrows move, Space or
+          // Enter chooses, and the tab stop follows the focus so leaving and coming back
+          // returns to where you were.
+          all.forEach(function (o) { o.tabIndex = o === all[j] ? 0 : -1; });
           all[j].focus();
-          all[j].click();
         };
       });
     }
@@ -2100,7 +2128,11 @@
       // hardcoded English in all eighteen locales, and the name and description of
       // crew #8 on the board, visible in the join list directly under this form. A
       // rider who took the hint got `name_taken`.
-      + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28">' + "</label>"
+      // A counter, because `maxlength` clips in silence: 200 characters typed in became a
+      // crew called `AAAAAAAAAAAAAAAAAAAAAAAAAAAA` with nothing on screen saying the rest had
+      // gone. The description has had one since round seventeen.
+      + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28">'
+      + '<span class="crewcount" id="cf-namecount">0/28</span>' + "</label>"
       // A textarea. 275 characters in the old `<input maxlength="280">` measured
       // scrollWidth 1639 against clientWidth 291, so you read back the last 35 with the
       // leading glyph cut in half -- for a string the join list renders as two lines.
@@ -2139,11 +2171,13 @@
     // arrow keys all live in `bindIdent`, which the settings form calls as well.
     bindIdent("cf", sync);
     // You cannot read back what you cannot see, so say how much of it there is.
-    var desc = document.getElementById("cf-desc");
-    var count = document.getElementById("cf-desccount");
-    if (desc && count) {
-      desc.oninput = function () { count.textContent = desc.value.length + "/280"; };
-    }
+    [["cf-desc", "cf-desccount", 280], ["cf-name", "cf-namecount", 28]]
+      .forEach(function (pair) {
+        var box = document.getElementById(pair[0]);
+        var out = document.getElementById(pair[1]);
+        if (!box || !out) return;
+        box.oninput = function () { out.textContent = box.value.length + "/" + pair[2]; };
+      });
     sync();
 
     var go = document.getElementById("cf-go");
@@ -2278,14 +2312,19 @@
       + "<div>"
       // A literal " · " here as well: the rest of this line already uses one, and without
       // it the line read back as "6 off 8th4 riders · you run it".
-      + '<div class="crewmeta">' + standing(c.slug) + " &middot; " + riders(c.members)
+      // Joined from the parts that exist. `standing()` returns "" for a crew the board does
+      // not list -- which is every crew holding nothing, including the one a leader has just
+      // founded -- and this concatenated the separator regardless, so the first line of the
+      // first card a new leader sees opened with a middot hard against the emblem.
+      + '<div class="crewmeta">' + [standing(c.slug), riders(c.members)]
+          .filter(Boolean).join(" &middot; ")
       // Nothing about your standing in a crew that has not answered you yet.
       // `me.role` is "member" for a pending row, so this badged them MEMBER and said
       // "you ride for them" -- while current_clan_id requires an active membership, so
       // every trip they uploaded was stamped with no crew at all. A week of riding for
       // nobody, with the card saying it counted.
       + (me.status === "pending" ? ""
-         : " · " + t(me.role === "leader" ? "crew.mine.youare"
+         : " &middot; " + t(me.role === "leader" ? "crew.mine.youare"
              : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember"))
       + "</div></div></div>";
     if (me.status === "pending") {
@@ -2303,8 +2342,10 @@
         + me.pending.map(function (p) {
             return '<div class="crewpendr"><span>'
               + (p.flag ? cc(p.flag) + " " : "") + esc(p.name) + "</span>"
-              + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '">' + t("crew.accept") + "</button>"
-              + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '">' + t("crew.decline") + "</button>"
+              + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '"'
+              + ' data-name="' + esc(p.name) + '">' + t("crew.accept") + "</button>"
+              + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '"'
+              + ' data-name="' + esc(p.name) + '">' + t("crew.decline") + "</button>"
               + "</div>"; }).join("")
         + "</div>";
     }
@@ -2432,11 +2473,18 @@
     // and the only trace was a red line in devtools -- and they are the two buttons a leader
     // presses most. The un-decline handler below has had the right body all along.
     function decide(b, sid, accept) {
+      var who = b.dataset.name || "";
       b.onclick = function () {
         api("POST", "/api/v1/crews/" + c.slug + "/decide",
             { store_id: sid, accept: accept }).then(function (r) {
-          if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
+          if (r.ok) {
+            // The knock row vanishing was the ONLY evidence that a person had joined your
+            // crew, on the button a leader presses more than any other.
+            pendingStatus = t(accept ? "crew.roles.letin" : "crew.roles.turned",
+                              { name: who });
+            reveal(".crewmine-wrap");
+            show();
+          } else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
         });
       };
     }
@@ -2494,8 +2542,15 @@
     if (dis) dis.onclick = function () {
       ask(t("crew.mine.disbandq", { name: c.name }), t("crew.mine.disband"), function () {
         api("POST", "/api/v1/crews/" + c.slug + "/disband", {}).then(function (r) {
-          if (r.ok) { reveal(".crewcard:not(.crewboard)"); show(); reloadTerritory(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true, dis);
+          if (r.ok) {
+            // It landed at scrollTop 183 -- partway down somebody else's join list -- with no
+            // message at any poll from 250ms to six seconds. Leaving has said what happened
+            // since round eighteen; disbanding is the bigger act and said nothing.
+            pendingStatus = t("crew.mine.disbanded", { name: c.name });
+            reveal(".crewcard:not(.crewboard)");
+            show();
+            reloadTerritory();
+          } else if (!onWrite(r)) setStatus(errMsg(r.err), true, dis);
         });
       }, dis);
     };
@@ -2560,8 +2615,6 @@
       var nm = document.getElementById("ce-name");
       var bad = nameProblem(nm && nm.value);
       if (bad) {
-        // Beside the field, and the field focused -- the create form has done this since
-        // round seventeen and this one scrolled the bad name off the top of the panel.
         setStatus(t(bad), true, nm);
         if (nm) { nm.focus(); nm.select(); }
         return;
@@ -2575,10 +2628,26 @@
         pattern: (document.getElementById("ce-pattern") || {}).value
       }).then(function (r) {
         save.disabled = false;
-        // It used to save in silence and shut the accordion, so the only evidence was a word
-        // changing one screen away. The create path has confirmed since round four.
-        if (r.ok) { pendingStatus = t("crew.mine.saved"); show(); reloadTerritory(); }
-        else if (!onWrite(r)) setStatus(errMsg(r.err), true, save);
+        if (r.ok) {
+          // Beside Save, and the panel stays where it is. `pendingStatus` plus `show()` threw
+          // the leader to scrollTop 0 and shut the `<details>` they were working in, which put
+          // Save 1,052px -- 2.1 screens -- from where their finger had been.
+          setStatus(t("crew.mine.saved"), false, save);
+          reloadTerritory();
+          // The colour may have changed, so the swatch beside the summary is refreshed in
+          // place rather than by rebuilding the panel around it.
+          var sw = document.querySelector(".crewsumemb");
+          if (sw) sw.src = sw.src.split("?")[0] + "?v=" + Date.now();
+        } else if (!onWrite(r)) {
+          // A name-shaped refusal belongs beside the name, not beside Save: anchored to Save,
+          // `scrollIntoView` dragged the field to y-235 and the rider typed into a box they
+          // could not see.
+          var code = (r.err && (r.err.code || r.err.detail)) || "";
+          var nmf = document.getElementById("ce-name");
+          var near = (code === "name_taken" || code === "bad_name") && nmf ? nmf : save;
+          setStatus(errMsg(r.err), true, near);
+          if (near === nmf) { nmf.focus(); nmf.select(); }
+        }
       });
     };
     var logo = document.getElementById("ce-logo");
@@ -2624,8 +2693,12 @@
         tgt.html = targetsHTML(r.body.targets);
         tgt.first = !!(TARGETS.length && TARGETS[0].first);
       }
-      el.innerHTML = '<div class="crewbig">' + tiles(terr.best_tiles || terr.tiles || 0)
-        + " <span>" + t("crew.mine.ao") + "</span></div>"
+      // "0 squares in one piece" is the first line of the first card a new leader sees, and
+      // "in one piece" is a brag about a shape that does not exist yet. The line under it
+      // already says the useful thing.
+      var held = terr.best_tiles || terr.tiles || 0;
+      el.innerHTML = '<div class="crewbig">' + tiles(held)
+        + (held ? " <span>" + t("crew.mine.ao") + "</span>" : "") + "</div>"
         + '<div class="crewsub">' + fmtKm2(terr.best_km2)
         + (terr.regions > 1 ? " · " + plural(null, "crew.patches.few", "crew.patches", terr.regions) : "")
         + (terr.tiles && terr.tiles !== (terr.best_tiles || terr.tiles)
@@ -2731,19 +2804,18 @@
           // non-breaking space stopped `78 km` splitting inside itself; the phrase around it
           // still broke anywhere, so a row read `… 78 km` / `from here` and the one below
           // began `· 222 km from here` -- a separator reading as a list bullet.
-          // The separator lives INSIDE the fact it introduces, so it cannot be left dangling
-          // at the end of a line. Two nowrap spans with a breakable gap between them still
-          // allowed a break AFTER the separator, which is the worse of the two faults: a line
-          // ending `… 25 km² ·`, a bullet with nothing after it. Glued forwards, a line ends
-          // with a whole fact and the next begins `· 222 km from here`, which reads as the
-          // list continuing.
+          // No separator character. Glued backwards, a line could END with a dangling dot;
+          // glued forwards, every wrapped line BEGAN with one -- measured on 6 of 6 rows at
+          // 390 and 6 of 6 at 360. With a glyph between two facts and the break between two
+          // facts, there is no third position for it. The facts are flex items with a gap
+          // instead, which separates them at every width and has nothing to strand. The
+          // single space in the markup keeps the text layer from reading `6 off 8th4 riders`,
+          // which is why a separator was put here in the first place.
           var sub = [riders(c.members), policy]
             .concat(c.km2 ? [fmtKm2(c.km2)] : [])
             .concat(c._km == null ? [] : [t("crew.join.away", { v: fmtKm(c._km) })])
-            .map(function (f, k) {
-              return '<span class="crewfact">'
-                + (k ? '<span class="crewsep">· </span>' : "") + f + "</span>";
-            }).join(" ");
+            .map(function (f) { return '<span class="crewfact">' + f + "</span>"; })
+            .join(" ");
           return '<div class="crewrow' + (i >= SHOWN ? " crewrest" : "") + '"'
             + ' data-name="' + esc((c.name || "").toLowerCase()) + '">' + emb(c.slug, 26)
             + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"
@@ -2805,6 +2877,9 @@
         note.innerHTML = '<span>' + esc(t("crew.join.nomatch", { v: q })) + "</span>"
           + '<button class="crewbtn mini ghost" id="cj-clear">'
           + esc(t("crew.join.showall")) + "</button>";
+        // The empty state carries its own way back, so the list's toggle would be a second
+        // control with the same label six pixels below it.
+        if (more) more.hidden = true;
         note.hidden = false;
         var clear = document.getElementById("cj-clear");
         if (clear) clear.onclick = function () {
@@ -3339,6 +3414,10 @@
       map = theMap;
       H = helpers || {};
       reloadTerritory();
+      // The one call this needed and never had. Without it the dock count only ever appeared
+      // for a leader who had already opened the panel, which is the one person who does not
+      // need telling.
+      primeDock();
       map.on("style.load", function () {
         // a style switch wipes every layer; the payload is already in memory
         if (TERR && visible) { clearLayers(); buildLayers(); }

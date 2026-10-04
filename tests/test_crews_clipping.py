@@ -71,9 +71,6 @@ REVIEWED = {
         "separators, so nothing is cut -- the longest single fact is uk "
         "`за 223 км відсюди` at "
         "about 120px in a 292px row at 390.",
-    ".crewsep":
-        "the ` · ` between two of those facts, four characters wide. It may not start or "
-        "end a line, which is the whole reason it is a span.",
     ".crewboard table .val":
         "a figure and its unit -- `13 squares`, `91 клетка`. Measured at 390 in all 19: the "
         "column is sized from its widest row, and the longest (uk `клітинок`) fits.",
