@@ -1606,8 +1606,22 @@
                           : t("crew.lose.gap", { v: effort(x.need, x.y) });
     });
     var seenState = {};
-    return '<div style="--kmw:' + cols + 'ch" class="crewtargets crewlose'
-      + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.lose.h") + "</h4>"
+    // A disclosure once the list would bury what is under it. Twenty-odd rows sat between
+    // "where to ride next" and the roster, so the Leave / Disband / hand-back controls ended
+    // up far below the fold at 390. Capping the list is the one thing this must not do: see
+    // the note above `LOSING`, where a flat cut of five folded six squares with a named rival
+    // closing in behind a sentence calling them quiet. Nothing is hidden from a leader who
+    // opens this, and the summary names the count instead of characterising it -- "20 squares"
+    // is true in the way "and 12 more going quiet" was not. `tiles()` carries the plural, so
+    // no new string. Open while the list is short enough to be harmless.
+    var fold = LOSING.length > 6;
+    return '<details style="--kmw:' + cols + 'ch" class="crewtargets crewlose'
+      + (SHOW_NUMBERS ? " nums" : "") + '"' + (fold ? "" : " open") + "><summary><h4>"
+      + t("crew.lose.h")
+      // A space in the markup, not only a flex gap. The gap separates them on screen and
+      // not in the text layer, which is how this file already read "6 off 8th4 riders" once.
+      + (fold ? ' <span class="crewlosen">' + tiles(LOSING.length) + "</span>" : "")
+      + "</h4></summary>"
       // eight crews in fourteen have nothing but fading ground, and telling them a rival is
       // closing in on it is simply untrue
       + '<p class=hint>'
@@ -1648,7 +1662,7 @@
         }).join("")
       // 85 squares are losable across the world and 45 were shown, with nothing saying so
       + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { v: tiles(hidden) }) + "</p>" : "")
-      + "</div>";
+      + "</details>";
   }
 
   // Who actually rode for the crew, over the same window the territory is measured on, so the

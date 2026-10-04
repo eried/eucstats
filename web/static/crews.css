@@ -435,7 +435,18 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      `#panel` and lands 348px past its bottom edge, which gives the panel a phantom scroll
      range -- and `reveal()`'s scrollIntoView then slices the top off the panel title and the
      close button, with no scrollbar to put it back. */
-  position: relative;
+  /* `sticky`, which is also a containing block, so the note above still holds.
+     The card deliberately has no heading of its own -- this summary names the crew eighteen
+     pixels above it, and having both made the panel read "Peripherique" and then
+     "PERIPHERIQUE" -- which left a card several screens long on a phone saying "4 riders .
+     you run it" with no identity anywhere on it once you scrolled past this. Sticking it
+     keeps the name without printing it twice. Needs its own background, or the rows scroll
+     through it, and a z-index above the cards it slides over.
+     Declared HERE rather than in a rule of its own: the cascade checker caught the second
+     rule cancelling this one's `position` and refused the stylesheet, which is exactly what
+     it is for. */
+  position: sticky; top: 0; z-index: 3;
+  background: var(--pan, #0b1020);
 }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
@@ -811,7 +822,11 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      collapsed box and every decision after it was arithmetic over the wrong number. An
      intrinsic width is min(content, 230px) wherever it sits, which makes the measurement true
      and one measure-then-correct pass stable. */
-  width: max-content;
+  /* FIXED, not just position-independent. `max-content` fixed this morning's bug -- the
+     width no longer depends on where the tip is -- and left it depending on what is in it, so
+     a reviewer measured 141px on one square and 165px on its neighbour and the tip jittered
+     as the pointer crossed the map. A tooltip is normally one size; this is that size. */
+  width: 230px;
   padding: 6px 9px; border-radius: 7px; max-width: 230px;
   background: rgba(6, 10, 20, .94); border: 1px solid rgba(255, 255, 255, .16);
   box-shadow: 0 4px 18px rgba(0, 0, 0, .55);
@@ -1208,6 +1223,22 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    the ones nobody has written yet. An absent declaration is invisible to the cascade checker,
    which is why this has to be structural. */
 #pbody [hidden] { display: none; }
+
+
+/* The losses card is a disclosure when it is long enough to bury the controls under it. Its
+   summary carries the heading it used to print directly, so it has to look like one -- and
+   the count beside it is the honest version of the sentence that used to characterise the
+   squares it was hiding. */
+.crewlose > summary { cursor: pointer; list-style: none; }
+.crewlose > summary::-webkit-details-marker { display: none; }
+.crewlose > summary h4 { display: inline-flex; align-items: center; gap: 7px; }
+.crewlosen { font-size: 11px; font-weight: 400; color: var(--mut, #9aa6c8); }
+.crewlose > summary::after {
+  content: ""; display: inline-block; margin-left: 7px;
+  border: 4px solid transparent; border-left-color: var(--mut, #9aa6c8);
+  transition: transform .15s ease;
+}
+.crewlose[open] > summary::after { transform: rotate(90deg); }
 /* The name rule, shown beside the counter while there is still something to do about it. Its
    own colour because it is a correction rather than a count, and `:empty` so the label does
    not reserve a line for a message that is not there. */
