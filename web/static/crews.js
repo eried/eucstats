@@ -1748,7 +1748,10 @@
       // Which app, and which version of it. Without this a rider on 0.21.0 taps the button
       // and the app opens on whatever screen it opens on, with nothing to explain why.
       + '<p class="hint crewneeds">'
-      + t("crew.signin.needs", { v: (CFG && CFG.min_app) || "" }) + "</p>"
+      + t("crew.signin.needs", { v: (CFG && CFG.min_app) || "" })
+      // And the other precondition, which was only legible on the phone: the pairing is
+      // refused for a rider the site has never seen, and that refusal never reaches this card.
+      + " " + t("crew.signin.ride") + "</p>"
       + '<p class="hint crewnoapp"><a href="#" id="crewgetapp">'
       + t("crew.signin.noapp") + "</a></p>"
       + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"
@@ -2025,6 +2028,10 @@
     // true across nineteen files: it quoted "Lascia la squadra" where the button says "Esci
     // dalla squadra", and a different verb again in Polish. It takes the label now.
     if (k === "crew.e.not_yourself") return t(k, { v: t("crew.mine.leave") });
+    // "That code is not it." names the problem and stops. Every surface that shows this error
+    // gets the half that says what to do about it, which is why it is joined here rather than
+    // at the one call site that happens to be an invite prompt.
+    if (k === "crew.e.invite") return t(k) + " " + t("crew.e.invite.ask");
     // The server's own figure, where it sent one. `crew.e.cooldown` said "Still cooling off
     // from the last one." while `cooldown_until` sat in the payload and the join card already
     // formatted it -- so the error was vaguer than the data behind it.

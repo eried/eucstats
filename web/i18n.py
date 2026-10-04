@@ -65,6 +65,11 @@ EN: dict[str, str] = {
     # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
     # from services.pairing.MIN_APP, so a release is one line and not nineteen.
     "crew.signin.needs": "Needs EUC Planet {v} or newer.",
+    # Said BEFORE the scan, not after. A rider with no uploaded ride is refused server-side at
+    # `/pair/confirm` with "That rider is not registered." -- a clear sentence that goes to the
+    # phone, not to this card, so the browser went on showing a code that could never work
+    # until it expired. The precondition belongs where the code is offered.
+    "crew.signin.ride": "Upload a ride first. Crews are for riders the site already knows.",
     # the QR image's only name: the first card a new rider sees
     "crew.signin.qralt": "Crew pass code",
     "crew.signin.same": "Reading this on your phone? You can't scan your own screen. Tap below.",
@@ -239,6 +244,10 @@ EN: dict[str, str] = {
     # to themselves while they plainly were in the crew. This speaks to the reader.
     "crew.e.stale": "That had already changed. Here it is as it stands now.",
     "crew.e.invite": "That code is not it.",
+    # The actionable half. "That code is not it." names the problem and stops, with no hint
+    # where a code comes from -- a reviewer called it a dead end. Its own key rather than a
+    # rewrite of the sentence above, so eighteen existing translations stay as they are.
+    "crew.e.invite.ask": "Ask the crew for theirs.",
     "crew.e.name": "3 to 28 characters, and nothing exotic.",
     # The client checks the same shape the server does, so a typo costs a keystroke
     # instead of a round trip -- and says WHICH half failed. One sentence used to
