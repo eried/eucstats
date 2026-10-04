@@ -797,7 +797,18 @@
   // columns themselves carry no text between them, because the grid does that job on screen.
   function rowLabel(el) {
     return Array.prototype.map.call(el.children, function (c) {
-      return c.textContent.replace(/\s+/g, " ").trim();
+      // Not the parts that are hidden from the accessibility tree. The board's rank cue is
+      // `aria-hidden` because it re-states a number already in the row, and this function
+      // builds its string out of `textContent` -- which does not care -- so a reader heard
+      // "Cykelslangen▼5", the triangle as a character. `aria-hidden` keeps an element out of
+      // the tree; it cannot keep its text out of a string somebody else assembles.
+      if (c.getAttribute && c.getAttribute("aria-hidden") === "true") return "";
+      var t = c.cloneNode(true);
+      if (t.querySelectorAll) {
+        Array.prototype.forEach.call(t.querySelectorAll('[aria-hidden="true"]'),
+                                     function (h) { h.remove(); });
+      }
+      return t.textContent.replace(/\s+/g, " ").trim();
     }).filter(Boolean).join(" · ");
   }
 
@@ -1649,7 +1660,11 @@
       + t("crew.lose.h")
       // A space in the markup, not only a flex gap. The gap separates them on screen and
       // not in the text layer, which is how this file already read "6 off 8th4 riders" once.
-      + (fold ? ' <span class="crewlosen">' + tiles(LOSING.length) + "</span>" : "")
+      // Everything at risk, not the rows that happen to be shown. `LOSING.length` is the
+      // length of an array; the footer below already admits to the rest ("and 7 squares
+      // more"), so the summary read "37 squares" over a card that totals 44. A number on a
+      // disclosure has to count what the disclosure contains.
+      + (fold ? ' <span class="crewlosen">' + tiles(rows.length) + "</span>" : "")
       + "</h4></summary>"
       // eight crews in fourteen have nothing but fading ground, and telling them a rival is
       // closing in on it is simply untrue
@@ -3052,9 +3067,14 @@
                // A waiting rider keeps the row's OWN label, disabled. The reason is stated
                // once above the list instead of twenty-one times inside it, and "Cooling off"
                // on a row would be false -- they are not cooling off, they are queued.
+               // The row keeps its own label while cooling off too. "Cooling off" on every
+               // button hid the join policy -- the one thing a rider reads this list FOR --
+               // exactly while they were reading it, and the card above already says what the
+               // wait is, once. Same argument I made for the waiting state two commits ago;
+               // it applies here and I only applied it there. A member cap is different: that
+               // IS a fact about the crew in the row, so it still replaces the label.
                ? '<button class="crewbtn mini ghost" disabled>'
-                 + (cooling ? t("crew.join.wait.btn")
-                    : capped ? t("crew.join.full") : label)
+                 + (capped ? t("crew.join.full") : label)
                  + "</button>"
                : '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
                  + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
@@ -3410,7 +3430,17 @@
           + joinHTML(all, me)
           + (me.can_found && me.creation_open && !me.cooldown_until
              ? createHTML(window.__CREWIDENT__ || null) : "")
-      } else if (me.declined_by) {
+      } else if (me.declined_by && !me.cooldown_until) {
+        // Not while a cooldown is running. `crew.declined.p` ends "No waiting, pick another
+        // one." -- advice that is false during the seven days, and it sat directly above a
+        // card saying "Next crew in 7 days" with every row below it disabled. Two cards on one
+        // screen answering "can I join now?" in opposite directions.
+        //
+        // Reachable in ordinary use: ask crew B, get turned down, then quit crew A. Both facts
+        // are then true, and only one of them is actionable. The cooldown card is the one that
+        // says what the rider can do, so it is the one that stays; the decline was already
+        // announced when it happened. Splitting the sentence to keep the half that is still
+        // true would be a new string in nineteen tables for a card nobody can act on.
         own += '<div class="crewcard"><h3>' + t("crew.declined.h") + "</h3>"
           + '<p class=hint>' + t("crew.declined.p", { name: esc(me.declined_by) })
           + "</p></div>"
@@ -3463,8 +3493,14 @@
 
       if (!me.paired) startPairing();
       else stopPairing();
-      if (me.crew) bindMine(me);
-      else { bindCreate(); bindJoin(); bindList(); }
+      if (me.crew) {
+        bindMine(me);
+        // The waiting state renders the browse list UNDER the crew card, and a pending rider
+        // has `me.crew`, so this branch used to leave that list unbound: the filter and the
+        // toggle were both inert, and with no `paint()` every row rendered unfolded, so
+        // "Show all 22" was false the moment it appeared. Binding what was rendered.
+        if (me.status === "pending") { bindJoin(); bindList(); }
+      } else { bindCreate(); bindJoin(); bindList(); }
       bindSignOut();
       doReveal();
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
