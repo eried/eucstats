@@ -304,6 +304,13 @@ class Clan(Base):
     # this next to `terr_best_tiles`, and the two have to be counted over the same ground or
     # the row says a crew gained more than it holds.
     terr_best_fresh = Column(Integer, default=0)
+    # Where this crew stands, and where it stood before the last rebuild. The board wrote the
+    # standings every hour and never remembered the previous order, so "up two places" was not
+    # computable from anything on disk. Null until a crew has been ranked twice -- a new crew,
+    # and every crew on the first rebuild after this shipped, has no previous position, and an
+    # arrow drawn from a missing one would be a guess.
+    terr_rank = Column(Integer)
+    terr_prev_rank = Column(Integer)
     targets_json = Column(Text)                  # ground this crew could take next
 
 

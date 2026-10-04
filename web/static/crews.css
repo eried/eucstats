@@ -1224,6 +1224,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    which is why this has to be structural. */
 #pbody [hidden] { display: none; }
 
+/* Which way a crew is going. The green and the orange are the two already in this file for
+   gaining and losing ground, so the board's arrows mean what the map's colours mean. Quiet:
+   it is a second reading of a rank that is already printed beside it, and the one round that
+   made a chip loud on every row had to undo it twice. */
+.crewmoved {
+  margin-left: 6px; font-size: 10px; font-weight: 700; letter-spacing: .2px;
+  font-variant-numeric: tabular-nums; vertical-align: 1px; opacity: .85;
+}
+.crewmoved.up { color: #39d98a; }
+.crewmoved.down { color: #ff9f6b; }
+
 
 /* The losses card is a disclosure when it is long enough to bury the controls under it. Its
    summary carries the heading it used to print directly, so it has to look like one -- and

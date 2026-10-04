@@ -951,6 +951,28 @@
     if (document.querySelector(".crewboard")) show();
   });
 
+  // Which way a crew is going, as a glyph and a number. Every reviewer this round said some
+  // version of "nothing shows change" and named the board's stillness as what holds the fun
+  // score down; this is the cheapest true answer to it.
+  //
+  // `aria-hidden`, and deliberately: the arrow is a second reading of the rank that is already
+  // announced beside it, and "up two places" in nineteen languages is a sentence this did not
+  // need. A sighted reader gets the movement, a screen reader gets the position, and neither
+  // gets a translation written in a hurry.
+  //
+  // Nothing is drawn for a crew that has not moved, or that has no previous rank -- a crew
+  // founded since the last rebuild, and every crew on the first rebuild after this shipped. An
+  // arrow on every row is the badge-on-every-row mistake this file has made twice already, and
+  // an arrow drawn from a missing number is a guess.
+  function moved(e, i) {
+    if (e == null || e.prev_rank == null) return "";
+    var was = e.prev_rank, now = (typeof i === "number" ? i + 1 : null);
+    if (now == null || was === now) return "";
+    var up = now < was;
+    return '<span class="crewmoved ' + (up ? "up" : "down") + '" aria-hidden="true">'
+      + (up ? "\u25b2" : "\u25bc") + Math.abs(was - now) + "</span>";
+  }
+
   function rankingHTML(rows) {
     if (!rows || !rows.length) {
       return '<div class="empty">' + t("crew.empty") + "</div>";
@@ -967,7 +989,14 @@
     return H.podList(rows, {
       iconFn: function (e) { return '<img class="crewpodemb" alt="" src="' + e.emblem + '"/>'; },
       // the swatch is the crew's identity on the map, so it belongs beside every name
-      label: function (e) { return (isRow(e) ? emb(e.slug, 16) + " " : "") + esc(e.name); },
+      label: function (e) {
+        // The position comes from `rows`, not from an argument: `podList` calls `label(e)`
+        // with no index, in the podium and in the table both. Written as `label(e, i)` this
+        // read `undefined` and `moved()` returned "" on every row forever -- a feature that
+        // silently does nothing, which is the shape of bug this file keeps paying for.
+        return (isRow(e) ? emb(e.slug, 16) + " " : "") + esc(e.name)
+          + moved(e, rows.indexOf(e));
+      },
       // squares, because that is what the board is sorted on and a square is the same amount
       // of riding everywhere. The area sits underneath, where it informs without ranking.
       val: function (e) {

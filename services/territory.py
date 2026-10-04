@@ -1206,6 +1206,9 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     for c in clans.values():          # cleared first, so a crew that lost everything shows 0
         c.terr_km2 = c.terr_best_km2 = 0.0
         c.terr_tiles = c.terr_regions = c.terr_best_tiles = c.terr_best_fresh = 0
+        # NOT the rank. A crew that holds nothing this hour still stood somewhere last hour,
+        # and that is the whole value of the number -- clearing it here would erase the
+        # previous position of every crew that just lost its last square.
         c.targets_json = targets_json.get(c.clan_id)
     now = utcnow()
     order = sorted(kept.keys())
@@ -1304,6 +1307,21 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             "members": member_counts.get(clan_id, 0),
             "emblem": f"/api/v1/crews/{c.slug}/emblem",
         })
+    # Where everybody stands now, in the order the board sorts on -- squares first, area only
+    # to break a tie, exactly as `ranking()` does it, or the arrow would disagree with the row
+    # it sits on. Each crew's outgoing rank is kept before the new one replaces it, which is
+    # the only moment both numbers exist.
+    standing = sorted((c for c in clans.values() if (c.terr_tiles or 0) > 0),
+                      key=lambda c: (-(c.terr_best_tiles or 0), -(c.terr_best_km2 or 0.0)))
+    for place, c in enumerate(standing, start=1):
+        c.terr_prev_rank = c.terr_rank
+        c.terr_rank = place
+    # A crew holding nothing is off the board rather than last on it, and keeps the position
+    # it held when it was on, so the row that comes back says where it returned from.
+    for c in clans.values():
+        if (c.terr_tiles or 0) <= 0:
+            c.terr_prev_rank = c.terr_rank
+            c.terr_rank = None
     db.commit()
 
     # One lookup for the whole world's losable ground, shared through an index because a
@@ -1404,6 +1422,9 @@ def ranking(db, limit: int = 50) -> list[dict]:
              # Counted inside the patch `best_tiles` measures. The board puts them side by
              # side, so a delta counted over anything wider is a row that contradicts itself.
              "best_fresh": c.terr_best_fresh or 0,
+             # Where it stood before this rebuild, or None when it has only been ranked once.
+             # The board draws an arrow from the difference and draws nothing from a None.
+             "prev_rank": c.terr_prev_rank,
              "regions": c.terr_regions or 0,
              "emblem": f"/api/v1/crews/{c.slug}/emblem"}
             for c in rows]
