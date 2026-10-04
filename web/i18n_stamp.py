@@ -263,6 +263,8 @@ EN_FINGERPRINT = {
     'crew.mine.claim': '2c7f5505a581',
     'crew.mine.claimq': '822c18f8356c',
     'crew.mine.claimq.none': '690271f019e4',
+    'crew.mine.copied': '8e3df45a49db',
+    'crew.mine.copy': 'af74f7c5362a',
     'crew.mine.disband': 'd8136ce64dbd',
     'crew.mine.disbandq': '80a42d766fcf',
     'crew.mine.emblem': '6a55d7cf0293',

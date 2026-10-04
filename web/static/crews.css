@@ -236,6 +236,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* Inside the invite-code prompt, above the input it is about. */
 .crewaskmsg { margin: 0 0 8px; }
 
+/* The code and its copy button on one line, the button not stretched by the flex. */
+.crewinvite { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crewinvite code { flex: 0 1 auto; }
+
 /* Narrowing sixteen crews, and the rest of them. */
 .crewfilter {
   width: 100%; margin: 2px 0 8px; padding: 9px 10px; font: inherit;

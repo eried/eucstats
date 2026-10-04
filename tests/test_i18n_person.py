@@ -370,6 +370,10 @@ SHARED = {
     # pass and say the same thing on every one of those cards, which is why the move is safe.
     "crew.mine.signout": {"render", "bindSignOut"},
     "crew.mine.signoutq": {"bindSignOut"},
+    # The dated cooldown sentence, reused as the cooldown ERROR: `crew.e.cooldown` said
+    # "Still cooling off from the last one." while `cooldown_until` was in the payload all
+    # along. Same reader, same fact, and the dated wording already existed.
+    "crew.join.wait.p": {"errMsg"},
 }
 
 # The functions that build each card. Anything rendering a key from another card has to appear

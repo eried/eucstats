@@ -234,6 +234,10 @@ EN: dict[str, str] = {
     "crew.e.image2": "Too busy to shrink. Try something flatter, with fewer colours.",
     "crew.e.image": "That picture will not do. A small square PNG, under 2 MB.",
     "crew.mine.invite": "Invite code",
+    # Eight hex characters a new leader had to select by hand, inside a
+    # panel that scrolls under your finger.
+    "crew.mine.copy": "Copy",
+    "crew.mine.copied": "Copied",
     "crew.mine.settings": "Crew settings",
     "crew.mine.emblem": "Emblem (small, square)",
     "crew.mine.emblemp": "Leave it empty and we draw one from your name.",

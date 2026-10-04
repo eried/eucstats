@@ -1814,6 +1814,14 @@
     // true across nineteen files: it quoted "Lascia la squadra" where the button says "Esci
     // dalla squadra", and a different verb again in Polish. It takes the label now.
     if (k === "crew.e.not_yourself") return t(k, { v: t("crew.mine.leave") });
+    // The server's own figure, where it sent one. `crew.e.cooldown` said "Still cooling off
+    // from the last one." while `cooldown_until` sat in the payload and the join card already
+    // formatted it -- so the error was vaguer than the data behind it.
+    if (k === "crew.e.cooldown") {
+      var until = ME && ME.cooldown_until;
+      var n = until ? daysUntil(until) : null;
+      if (n != null && n >= 0) return t("crew.join.wait.p", { n: days(n) });
+    }
     return k ? t(k) : t("crew.err");
   }
 
@@ -2140,9 +2148,13 @@
     if (c.description) h += "<p>" + esc(c.description) + "</p>";
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
     if (c.invite_code) {
-      h += '<p class=hint>'
+      // A button, because this is the one act a new leader has to perform and it used to be
+      // eight hex characters to select by hand inside a panel that scrolls under your finger.
+      h += '<p class="hint crewinvite">'
         + t(c.join_policy === "invite" ? "crew.mine.invite" : "crew.mine.invite2")
-        + ': <code>' + esc(c.invite_code) + "</code></p>";
+        + ': <code id="cm-invite">' + esc(c.invite_code) + "</code>"
+        + '<button class="crewbtn mini ghost" id="cm-copy" data-code="'
+        + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button></p>";
     }
     if (me.declined && me.declined.length) {
       h += '<div class="crewpend"><h4>' + t("crew.decl.h") + "</h4>"
@@ -2315,6 +2327,40 @@
     };
     bindSignOut();
     var save = document.getElementById("ce-save");
+
+    var cp = document.getElementById("cm-copy");
+    if (cp) cp.onclick = function () {
+      var code = cp.dataset.code || "";
+      // `navigator.clipboard` is absent on an insecure origin and in some embedded webviews,
+      // so there are two fallbacks and the last one is "select it for you", which is still
+      // better than the hand-selection this replaces.
+      function done() { setStatus(t("crew.mine.copied"), false, cp); }
+      function pick() {
+        var node = document.getElementById("cm-invite");
+        if (!node || !window.getSelection) return;
+        var r = document.createRange();
+        r.selectNodeContents(node);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(done, function () { pick(); done(); });
+        return;
+      }
+      var ta = document.createElement("textarea");
+      ta.value = code;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (!ok) pick();
+      done();
+    };
     if (save) save.onclick = function () {
       save.disabled = true;
       api("POST", "/api/v1/crews/" + c.slug + "/edit", {
