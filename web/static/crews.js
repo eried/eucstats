@@ -2227,8 +2227,13 @@
       // A counter, because `maxlength` clips in silence: 200 characters typed in became a
       // crew called `AAAAAAAAAAAAAAAAAAAAAAAAAAAA` with nothing on screen saying the rest had
       // gone. The description has had one since round seventeen.
-      + "<label>" + t("crew.new.name") + '<input id="cf-name" maxlength="28">'
-      + '<span class="crewcount" id="cf-namecount">0/28</span>' + "</label>"
+      + "<label>" + t("crew.new.name")
+      + '<input id="cf-name" maxlength="28" aria-describedby="cf-namewhy">'
+      + '<span class="crewcount" id="cf-namecount">0/28</span>'
+      // Not a live region. The same sentence announced on every keystroke is how a screen
+      // reader is made unusable; `aria-invalid` on the field carries the state instead, and
+      // the spoken version still happens once, on submit, where it always did.
+      + '<span class="crewwhy" id="cf-namewhy"></span>' + "</label>"
       // A textarea. 275 characters in the old `<input maxlength="280">` measured
       // scrollWidth 1639 against clientWidth 291, so you read back the last 35 with the
       // leading glyph cut in half -- for a string the join list renders as two lines.
@@ -2272,7 +2277,19 @@
         var box = document.getElementById(pair[0]);
         var out = document.getElementById(pair[1]);
         if (!box || !out) return;
-        box.oninput = function () { out.textContent = box.value.length + "/" + pair[2]; };
+        box.oninput = function () {
+          out.textContent = box.value.length + "/" + pair[2];
+          // The name's rule, while there is still something to do about it. Silent: see the
+          // note on `#cf-namewhy`. Nothing is said about an empty field -- a form that
+          // objects before you have typed is worse than one that answers when you ask.
+          if (pair[0] !== "cf-name") return;
+          var why = document.getElementById("cf-namewhy");
+          if (!why) return;
+          var problem = box.value.trim() ? nameProblem(box.value) : null;
+          why.textContent = problem ? t(problem) : "";
+          if (problem) box.setAttribute("aria-invalid", "true");
+          else box.removeAttribute("aria-invalid");
+        };
       });
     sync();
 
@@ -2992,7 +3009,12 @@
       // Nothing to expand while a query is narrowing the list.
       if (more) more.hidden = !!q;
       var count = document.getElementById("cj-count");
-      if (count) count.textContent = t("crew.join.count", { n: shown, v: rows.length });
+      // Only while something is being searched. "21 of 21 crews" over six visible rows reads
+      // as a bug at a glance -- the other fifteen are behind the toggle, whose own label
+      // already carries the total. This is a `role="status"` for answering "what did my
+      // search do", so with no search it has nothing to answer.
+      if (count) count.textContent = q
+        ? t("crew.join.count", { n: shown, v: rows.length }) : "";
       // A sentence naming the query and a way back, rather than the single em dash a
       // stylesheet rule used to draw into an otherwise empty card.
       var note = document.getElementById("cj-none");

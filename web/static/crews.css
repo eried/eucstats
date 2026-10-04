@@ -1200,3 +1200,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    the ones nobody has written yet. An absent declaration is invisible to the cascade checker,
    which is why this has to be structural. */
 #pbody [hidden] { display: none; }
+/* The name rule, shown beside the counter while there is still something to do about it. Its
+   own colour because it is a correction rather than a count, and `:empty` so the label does
+   not reserve a line for a message that is not there. */
+.crewwhy { display: block; margin-top: 3px; font-size: 11px; color: #ff8ad8; }
+.crewwhy:empty { display: none; }
+#cf-name[aria-invalid="true"] { border-color: #ff8ad8; }
+
