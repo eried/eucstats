@@ -95,6 +95,9 @@ EN: dict[str, str] = {
     # comes before founding that 1,800px is also what stands in front of the
     # create form. Six nearest, a box, and the rest behind the toggle.
     "crew.join.filter": "Find a crew",
+    # The list changed under a search box and nothing was announced, not even that
+    # there were no results. A live status beside the box carries the count.
+    "crew.join.count": "{n} of {v} crews",
     "crew.join.all": "Show all {n}",
     "crew.join.fewer": "Show fewer",
     "crew.join.btn": "Join",

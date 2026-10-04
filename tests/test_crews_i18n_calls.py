@@ -60,6 +60,10 @@ NO_AGREEMENT = {
     # zh-Hant follow it with the measure word 个/個, which is invariant.
     "crew.join.all": "`Show all {n}` -- the number ends the clause, or is followed by "
                      "something that does not inflect after a numeral",
+    # `{n} of {v} crews`: the noun agrees with {v}, the total, and nothing follows {n}. In
+    # ja/zh/ko the counter sits on the total too (`{v}件中{n}件`, `{v} 中的 {n} 个`), and ru
+    # and uk drop the noun entirely (`{n} из {v}`).
+    "crew.join.count": "`{n} of {v} crews` -- the noun belongs to the total, not to {n}",
     "crew.targets.p0": "the same dimension",
 }
 

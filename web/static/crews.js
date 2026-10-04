@@ -515,10 +515,15 @@
       el.title = crew.name + " · " + fmtKm2(crew.km2);
       el.dataset.s = s;
       el.dataset.n = r.n || 1;              // region size, which decides how long it survives
+      // NOT a tab stop. `pressable` gives a div a role, a name, Enter and Space, which is
+      // right for a row inside a card and wrong for a marker on a map: about thirty of these
+      // put the map between the dock and the panel, so opening Crews with a keyboard took 39
+      // stops to get inside the thing you had just opened. The crew rows already fly to them,
+      // which is the keyboard route that makes sense.
       pressable(el, crew.name, function (ev) {
         if (ev) ev.stopPropagation();
         openCrew(crew.slug);
-      });
+      }, false);
       var m = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([lon, lat]).addTo(map);
       markers.push(m);
@@ -778,9 +783,12 @@
   // three things a button gets for free: a tab stop, a name for what pressing them does, and
   // Enter and Space. 35 of the 46 handlers in this panel had none of them, including every
   // row on the card that says "Pick one to find it".
-  function pressable(el, label, fn) {
+  function pressable(el, label, fn, focusable) {
     if (!el) return;
-    el.tabIndex = 0;
+    // `focusable === false` for things that are reachable another way and would otherwise
+    // flood the tab order -- the map's emblem markers, thirty of them between the dock and
+    // the panel.
+    el.tabIndex = focusable === false ? -1 : 0;
     el.setAttribute("role", "button");
     if (label) el.setAttribute("aria-label", label);
     el.onclick = fn;
@@ -1816,6 +1824,21 @@
     host.querySelector("#crewask-n").onclick = shut;
     host.querySelector("#crewask-y").onclick = function () { done(); ok(); };
     var yes = host.querySelector("#crewask-y");
+    var no = host.querySelector("#crewask-n");
+    var box = host.querySelector(".crewask");
+    // `aria-modal`, so a reader is told it is modal -- and then a focus cycle, so it is. Tab
+    // from the confirm button used to land on Disband, one press away from the irreversible
+    // control next door.
+    if (box) box.setAttribute("aria-modal", "true");
+    function cycle(e) {
+      if (e.key === "Escape") { e.preventDefault(); shut(); return; }
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      var fwd = !e.shiftKey;
+      (document.activeElement === yes ? (fwd ? no : no) : (fwd ? yes : yes)).focus();
+    }
+    if (yes) yes.addEventListener("keydown", cycle);
+    if (no) no.addEventListener("keydown", cycle);
     if (yes && yes.focus) { try { yes.focus(); } catch (e) {} }
   }
 
@@ -1971,7 +1994,16 @@
     if (other) other.innerHTML = "";
     var el = statusHost(near) || top;
     if (!el) return;
-    if (el !== top && top) top.innerHTML = "";
+    // The ANNOUNCEMENT goes into the permanent region, which has been registered since the
+    // panel was built; the anchored slot is the visual copy and is hidden from the
+    // accessibility tree. Both regions were dead code until now, because every in-card caller
+    // passes `near` and a region inserted with its text already in it is frequently not
+    // announced at all -- the pitfall `statusHost`'s own comment is about.
+    if (top) {
+      top.textContent = msg || "";
+      if (other) other.textContent = "";
+    }
+    if (el !== top) el.setAttribute("aria-hidden", "true");
     el.innerHTML = msg ? '<div class="crewmsg' + (bad ? " bad" : "") + '">'
       + esc(msg) + "</div>" : "";
     // The success path got scrolled into view and the failure path did not, so an error from
@@ -2786,7 +2818,11 @@
       + (rows.length > SHOWN
          ? '<input class="crewfilter" id="cj-filter" type="search" autocomplete="off"'
            + ' placeholder="' + esc(t("crew.join.filter")) + '"'
+           + ' aria-controls="cj-list" aria-describedby="cj-count"'
            + ' aria-label="' + esc(t("crew.join.filter")) + '">'
+           // The list changed under a search box and nothing was said, not even "no results".
+           + '<div class="crewcount" id="cj-count" role="status" aria-live="polite"'
+           + ' aria-atomic="true"></div>'
          : "")
       + '<div class="crewlist" id="cj-list">'
       + rows.map(function (c, i) {
@@ -2863,6 +2899,8 @@
       });
       // Nothing to expand while a query is narrowing the list.
       if (more) more.hidden = !!q;
+      var count = document.getElementById("cj-count");
+      if (count) count.textContent = t("crew.join.count", { n: shown, v: rows.length });
       // A sentence naming the query and a way back, rather than the single em dash a
       // stylesheet rule used to draw into an otherwise empty card.
       var note = document.getElementById("cj-none");
@@ -2953,6 +2991,8 @@
   // staring at the top of the board with no sign it worked. Whatever is new gets scrolled to.
   var revealNext = null;
   var pendingStatus = null;
+  // A `show()` that arrived before the helpers did; see `show()` and `init`.
+  var pendingShow = false;
 
   // The dock is outside the panel and survives every re-render, so the count is written to
   // it rather than built with the panel HTML.
@@ -3004,6 +3044,11 @@
   }
 
   function show() {
+    // `EUCCrews.init` runs from inside `map.on("load")`, after a fetch, so `H` is `{}` until
+    // then -- and the dock button was reachable by keyboard during that window even though it
+    // was invisible to the mouse. Pressing Enter threw `H.setPanel is not a function`,
+    // uncaught, three times out of three. The activation is held and drained by `init`.
+    if (!H || typeof H.setPanel !== "function") { pendingShow = true; return; }
     visible = true;
     H.setPanel("crews", (H.t ? H.t("title.crews") : "Crews & Territory"),
       // TWO regions, not one whose role flips. Changing `role` and `aria-live` on an
@@ -3414,6 +3459,8 @@
       map = theMap;
       H = helpers || {};
       reloadTerritory();
+      // Somebody pressed the dock button with a keyboard while this was still loading.
+      if (pendingShow) { pendingShow = false; show(); }
       // The one call this needed and never had. Without it the dock count only ever appeared
       // for a leader who had already opened the panel, which is the one person who does not
       // need telling.

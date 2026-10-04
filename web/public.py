@@ -75,7 +75,16 @@ tr.brnz{background-image:linear-gradient(100deg,rgba(150,104,64,.05) 0,rgba(168,
 .pod.brnz::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(206,150,100,0) 30%,rgba(206,150,100,.22) 50%,rgba(206,150,100,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 5.5s ease-in-out 1.8s infinite;pointer-events:none}
 .maplibregl-ctrl-attrib{background:none!important;box-shadow:none!important;font-size:9px;opacity:.4}.maplibregl-ctrl-attrib a{color:#7a86ad;text-shadow:0 1px 2px #000}.maplibregl-ctrl-attrib-button{display:none!important}.maplibregl-ctrl-group{background:var(--glass)!important;border:1px solid var(--line)!important;border-radius:9px!important;overflow:hidden;box-shadow:var(--shadow)}.maplibregl-ctrl-group button{background:transparent!important;width:32px;height:32px}.maplibregl-ctrl-group button+button{border-top:1px solid var(--line)!important}.maplibregl-ctrl-group button:hover{background:rgba(46,168,255,.14)!important}.maplibregl-ctrl-group button .maplibregl-ctrl-icon{filter:invert(72%) brightness(1.05)}.maplibregl-ctrl-group button:hover:not(:disabled) .maplibregl-ctrl-icon{filter:invert(100%)}.maplibregl-ctrl-group button:disabled .maplibregl-ctrl-icon{opacity:.28}
 svg.ic{width:18px;height:18px;display:block}
+/* `pointer-events:none` stops a mouse and not a keyboard: a <button> like this is still
+   focusable and still fires click on Enter, so Tab landed on seven invisible dock controls
+   and Enter on the Crews one threw during load. `inert` is the property that means "not
+   there yet" to both input devices. */
 .intro{opacity:0;pointer-events:none}
+/* Keyboard users too. `pointer-events:none` stops a mouse and nothing else, so Tab landed on
+   seven invisible dock controls and Enter on the Crews one threw during load. `inert` is the
+   one property that means "not here yet" to every input device; the class is removed when the
+   chrome is revealed, so this costs nothing afterwards. */
+.intro:not(.show){visibility:hidden}
 .intro.show{opacity:1;pointer-events:auto;transition:opacity 1s ease}
 @keyframes rowin{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 .topbar{position:fixed;top:16px;left:16px;z-index:500;width:min(92vw,380px);background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
@@ -647,6 +656,7 @@ function brandFlow(brand){
 }
 
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
+let panelOpener=null;
 let GANON=[];
 let openPanel=null;
 // `/#crews` opens the crews panel on load. The landing page a scanned QR reaches tells riders
@@ -703,6 +713,17 @@ function setPanel(name,title,html){
   // territory rectangles are this mode's alone — switching away puts the heatmap back
   if(name!=="crews"&&window.EUCCrews)window.EUCCrews.hide();
   openPanel=name;ptitle.textContent=title;pbody.innerHTML=html;panel.dataset.sec=name;panel.classList.add("open");
+  // Remember who opened it, so closing can hand focus back rather than dropping it on BODY.
+  panelOpener=document.activeElement&&document.activeElement.closest?
+    document.activeElement.closest(".dock button"):null;
+  // And move focus INTO the panel. `#panel` is before `.dock` in the document, so a keyboard
+  // user who pressed Enter on the dock button was left outside it with forward Tab walking
+  // away: 39 stops to get inside what they had just opened.
+  ptitle.setAttribute("tabindex","-1");
+  // On the next frame, not now: `open` has only just been added and the sheet animates in
+  // from `visibility:hidden`, and focusing a hidden element is silently ignored -- measured
+  // `focusInPanel: false` with the call made inline here.
+  requestAnimationFrame(()=>{try{ptitle.focus({preventScroll:true});}catch(e){}});
   if(prev!==name){   // animate on open/switch only — NOT on in-place refresh (prev===name)
     let anim="panUp";
     if(prev!==null){const oi=DOCK.indexOf(prev),ni=DOCK.indexOf(name);anim=(ni>oi)?"panRight":"panLeft";}
@@ -713,6 +734,9 @@ function setPanel(name,title,html){
 }
 function closePanel(){
   if(openPanel===null&&!panel.classList.contains("open"))return;
+  // Back to the control that opened it. Without this, closing drops focus on BODY and the
+  // keyboard starts again from the top of the document.
+  const back=panelOpener;panelOpener=null;
   // the panel closes but the territory stays: you have to close it to look at the map, and a
   // mode that erases itself the moment you try to see it is not a mode. The pairing poll
   // does stop though, since nobody is looking at the code any more.
@@ -722,8 +746,17 @@ function closePanel(){
   panel.style.animation="none";void panel.offsetWidth;
   panel.style.animation="panDown .28s ease both";
   setTimeout(()=>{panel.classList.remove("open");panel.style.animation="";},280);
+  if(back&&back.focus){try{back.focus({preventScroll:true});}catch(e){}}
 }
 document.getElementById("pclose").onclick=closePanel;
+// Escape closes it. A reader who cannot see the X in the corner had no way out but Tab, and
+// the panel is the only sheet on the site.
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape")return;
+  // A confirm prompt inside the panel owns Escape first; crews cancels its own.
+  if(document.querySelector(".crewask"))return;
+  if(panel.classList.contains("open")){e.preventDefault();closePanel();}
+});
 function refreshPanel(){const p=openPanel;if(p)HANDLERS[p]();}   // reload in place, no re-animate
 document.getElementById("prefresh").onclick=()=>{const b=document.getElementById("prefresh");b.classList.add("spin");refreshPanel();setTimeout(()=>b.classList.remove("spin"),650);};
 // admin-only "eye": flip between the dimmed preview and exactly what a normal visitor sees

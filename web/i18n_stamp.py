@@ -240,6 +240,7 @@ EN_FINGERPRINT = {
     'crew.join.btn': 'e0d73143de80',
     'crew.join.code': 'ab45ae5b415e',
     'crew.join.codeask': '1124fffe3847',
+    'crew.join.count': '13b0d07b2134',
     'crew.join.fewer': 'd94dfbe57732',
     'crew.join.filter': '201b7b3e5bae',
     'crew.join.full': '10b28a8c1e44',
