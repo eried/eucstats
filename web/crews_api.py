@@ -281,6 +281,15 @@ def _rebuild_every(db) -> int:
     minutes for ever.
     """
     try:
+        # A rebuild is already owed, so the honest answer is the debounce rather than the
+        # hourly cadence. Without this the panel told a rider who had just uploaded that their
+        # ride would appear in fifty-one minutes, while it was in fact about to appear.
+        from services import territory
+        if territory.is_dirty():
+            return territory.FRESH_GAP_S
+    except Exception:
+        pass
+    try:
         from services.settings import get_retention
         return max(REBUILD_EVERY_S, int(get_retention(db)["interval_s"]))
     except Exception:

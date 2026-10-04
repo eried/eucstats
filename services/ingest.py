@@ -263,6 +263,16 @@ class IngestService:
 
         if status == "validated":
             Aggregator(self.db).apply(trip)
+            # The map owes this rider a redraw. Only here: a flagged ride or a rider with no
+            # crew changes no squares, and a mark that is set for those means nothing when it
+            # is set for a ride that counts. The rebuild itself happens on its own loop, so
+            # this costs the upload a boolean -- see territory.mark_dirty and main.py.
+            if clan_id:
+                try:
+                    from services import territory
+                    territory.mark_dirty()
+                except Exception:
+                    pass          # a missed redraw is a stale map, never a failed upload
 
         return {"trip_uuid": trip_uuid, "validation_status": status,
                 "verdict": _verdict(status), "reasons": reasons, "duplicate": False,

@@ -51,6 +51,39 @@ _log = logging.getLogger(__name__)
 
 WINDOW_DAYS = 90           # the rolling window: territory is what you ride, not what you rode
 FRESH_DAYS = 7             # how long newly taken ground still counts as news
+
+# How soon after a ride the map may be redrawn, and the floor between two such redraws. The
+# rebuild is 0.5-1.3s on today's data and grows with the trips in the window, so this is the
+# debounce that stops a group ride queueing one rebuild per rider.
+FRESH_GAP_S = 45
+
+# Set by the upload path when a ride lands that could move a square, drained by the loop in
+# main.py. In the process rather than the database deliberately: it is derived state, losing it
+# on restart costs one late rebuild, and the hourly pass is still underneath as the floor.
+_dirty = [False]
+
+
+def mark_dirty() -> None:
+    """A ride has landed that could change the map.
+
+    Called from the upload path for a ride that validated AND was credited to a crew. A
+    flagged ride, or a ride by somebody with no crew, moves no squares and must not trigger
+    anything -- the whole point of the mark is that it means something when it is set.
+    """
+    _dirty[0] = True
+
+
+def is_dirty() -> bool:
+    """Whether a rebuild is owed. Read by the panel so its countdown tells the truth."""
+    return _dirty[0]
+
+
+def claim_dirty() -> bool:
+    """Take the mark, if there is one. The caller now owes a rebuild."""
+    if not _dirty[0]:
+        return False
+    _dirty[0] = False
+    return True
 SEED = 2                   # a crew must hold a SEED x SEED block to claim anything
 # A visit is a fraction of a crossing, not a fixed distance. As a flat 0.3 km it was 12% of
 # a crossing at the equator and 60% at Longyearbyen, which is the same latitude bias the lead

@@ -86,6 +86,57 @@ def _territory_if_due(db) -> None:
         logger.exception("territory rebuild failed")
 
 
+async def _territory_fresh_loop():
+    """Redraw the map shortly after a ride, rather than on the hour.
+
+    The rebuild rides the retention loop, which is hourly by default, so a rider's own ride
+    reached the map between a second and sixty minutes after they uploaded it. "You ride the
+    block, come home, open the panel, and the squares have not moved" was the oldest item on
+    the open list and the one thing a real ride test is guaranteed to hit.
+
+    This checks a flag, which costs nothing, and only rebuilds when a ride that could move a
+    square has actually landed. `FRESH_GAP_S` is the floor between two such rebuilds, so a
+    group ride finishing together is one redraw and not one per rider. The hourly pass stays
+    exactly as it was, underneath this, for everything else that makes the map stale -- a crew
+    folding, ground going cold, an admin changing the zoom.
+    """
+    from services import territory
+    loop = asyncio.get_running_loop()
+    while True:
+        await asyncio.sleep(15)
+        try:
+            if not territory.is_dirty():
+                continue
+            import time as _time
+            if _time.time() - _last_territory[0] < territory.FRESH_GAP_S:
+                continue
+            await loop.run_in_executor(None, _territory_fresh_once)
+        except Exception:
+            logger.exception("territory fresh rebuild failed")
+
+
+def _territory_fresh_once() -> None:
+    """One post-ride rebuild, on a thread. Synchronous on purpose, like `_retention_once`."""
+    db = SessionLocal()
+    try:
+        from services import settings as _settings, territory
+        cfg = _settings.get_crews(db)
+        if not cfg["enabled"]:
+            territory.claim_dirty()        # nothing to draw; do not spin on the mark
+            return
+        # Claimed before the work, not after: a ride arriving DURING the rebuild has to leave
+        # the mark set so the next pass picks it up, or it is the one ride that never lands.
+        if not territory.claim_dirty():
+            return
+        import time as _time
+        rep = territory.rebuild(db, window_days=cfg["window_days"], zoom=cfg["zoom"],
+                                seed=cfg["seed"])
+        _last_territory[0] = _time.time()
+        logger.info("territory rebuilt after a ride: %s", rep)
+    finally:
+        db.close()
+
+
 async def _telegram_daily_loop():
     """Post the daily Telegram summary once per day at the configured local time. Best-effort:
     the send is gated + idempotent (persists last_summary_date), and errors never stop the loop."""
@@ -113,11 +164,14 @@ async def lifespan(app: FastAPI):
         pass
     task = asyncio.create_task(_retention_loop())
     tg_task = asyncio.create_task(_telegram_daily_loop())
+    # Redraws the map shortly after a ride instead of on the hour; see the loop's own note.
+    fresh_task = asyncio.create_task(_territory_fresh_loop())
     try:
         yield
     finally:
         task.cancel()
         tg_task.cancel()
+        fresh_task.cancel()
 
 
 app = FastAPI(title="eucstats", lifespan=lifespan)
