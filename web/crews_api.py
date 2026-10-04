@@ -991,7 +991,7 @@ _PAIR_LIVE = """<h1>__H__</h1>
 <p>__NOAPP__</p>
 <p>__NEEDS__</p>
 <p class=safe>__SAFE__</p>
-<p><a class=back href="__HOST__/">__SITE__</a></p>"""
+<p><a class=back href="__HOST__/#crews">__SITE__</a></p>"""
 
 # A code lives three minutes and works once, so a scan of a photographed QR is likelier to be
 # stale than live. This page used to render byte-identical either way -- the heading, the code,
@@ -999,7 +999,7 @@ _PAIR_LIVE = """<h1>__H__</h1>
 _PAIR_DEAD = """<h1>__DEADH__</h1>
 <p>__DEADP__</p>
 <p>__NEEDS__</p>
-<a class=btn href="__HOST__/">__SITE__</a>"""
+<a class=btn href="__HOST__/#crews">__SITE__</a>"""
 
 
 @pair_router.get("/p/{code}")

@@ -644,6 +644,25 @@ function brandFlow(brand){
 const pbody=document.getElementById("pbody"),panel=document.getElementById("panel"),ptitle=document.getElementById("ptitle");
 let GANON=[];
 let openPanel=null;
+// `/#crews` opens the crews panel on load. The landing page a scanned QR reaches tells riders
+// to open Crews and its only button went to the map, where they had to find the pink dock
+// button themselves -- one more tap and a hunt, immediately after being told where to go.
+// There was no route to a panel anywhere in this file.
+function openFromHash(){
+  // Defensive about `location` and about the panel name. This runs from `map.on("load")`,
+  // and tests/intro_harness.js executes this script under node with a stubbed map and no
+  // `location` at all -- it went red on `ReferenceError: location is not defined`, which is
+  // the same class of mistake as the one that emptied the crew card, caught this time
+  // because that harness actually RUNS the page.
+  //
+  // A whitelist instead of `CSS.escape`, which is also absent outside a browser: a panel name
+  // is a short identifier, so anything else is not one.
+  const h=(typeof location!=="undefined"&&location.hash)||"";
+  const want=h.replace(/^#/,"").toLowerCase();
+  if(!want||!/^[a-z]{2,16}$/.test(want))return;
+  const b=document.querySelector('.dock button[data-p="'+want+'"]');
+  if(b)b.click();
+}
 // Which tab a section opens on. Always opening the first one meant every other board went
 // unseen, so pick one at random - but only ONCE per browser session, so reopening a panel
 // or coming back to it does not reshuffle under the reader. A fresh page load picks again.
@@ -1045,6 +1064,11 @@ async function init(){
       window.EUCCrews.init(map,{setPanel:setPanel,closePanel:closePanel,t:t,
         podList:podList,av:av,cc:cc,mph:mph});   // same podium AND same unit switch as every other board
     mapReady=true; doIntro();
+    // After the crews panel is registered, so `/#crews` can actually reach it. Also on a
+    // later hash change, because the landing page's link may be followed from an open tab.
+    openFromHash();
+    if(typeof window!=="undefined"&&window.addEventListener)
+      window.addEventListener("hashchange",openFromHash);
   });
 }
 init().catch(()=>{const c=document.getElementById("chips");c.classList.add("show");c.innerHTML='<span class="chip">'+t("empty.apierror")+'</span>';});

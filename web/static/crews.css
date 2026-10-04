@@ -78,6 +78,21 @@
 .crewbtn.mini { margin: 0; padding: 5px 11px; font-size: 12px; }
 .crewacts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
+/* A content cap above the phone breakpoint. Each join row was emblem 46 + text ~400 + about
+   380px of NOTHING + an 86px button, six times over, and the contributor chart had the same
+   hole: a fixed 42% name column against ~120px names left ~150px of dead track before the
+   bars. Nothing was broken; the layout simply had nothing to do with its width. Capped, the
+   panel scales by whitespace at its edges rather than by holes in the middle of its rows.
+   56ch is about where a line of this prose stops being comfortable to read anyway. */
+@media (min-width: 561px) {
+  .crewjoin .crewlist, .crewcontrib { max-width: 56ch; }
+}
+/* Full width, so it reads as more list rather than a stray action: it was the only control in
+   the join card not in the button column the six rows above it end with. `.crewshowall` and
+   not `.crewmore` -- that name was already taken by the lose card's "and 3 squares more", and
+   borrowing it put a width and a margin on a hint paragraph in another card. */
+.crewshowall { width: 100%; margin-top: 8px; }
+
 /* a crew's identity at a glance: the colour, with its pattern drawn over it, exactly as the
    map draws it — so the swatch beside a name is the same thing you see on the ground */
 .crewsw { display: inline-block; vertical-align: middle; border: 1px solid rgba(255,255,255,.55); position: relative; }
@@ -296,7 +311,6 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    themed down to `::file-selector-button`; this one got colour and background and no
    placeholder. */
 .crewfilter::placeholder { color: var(--mut, #9aa6c8); opacity: 1; }
-.crewmore { margin-top: 8px; }
 /* The no-match state used to be one em dash, left-aligned, in a card keeping its full
    height -- which reads as a rendering fault rather than as an answer. The sentence is a real
    node now, written by `bindList`, so it can name the query and offer the way back. */

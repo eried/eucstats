@@ -90,11 +90,17 @@ def test_both_states_carry_a_way_back_to_the_site(client, db, loc):
 
     With no app installed, or a code that had rolled, the page was a cul-de-sac that never
     mentioned the site it was served from.
+
+    And the link carries `#crews`, because the page's own sentence tells the reader to open
+    Crews: it used to land them on the map, where they had to find the pink dock button
+    themselves -- one more tap and a hunt, immediately after being told where to go. There was
+    no route to a panel anywhere in public.py until this link needed one.
     """
     p = pairing.start(db, purpose="rider")
     for name, code in (("live", p["code"]), ("dead", "ZZZZZZ")):
         page = _get(client, code, loc)
-        assert 'href="http://testserver/"' in page, f"{loc} {name}: no link back to the site"
+        assert 'href="http://testserver/#crews"' in page, (
+            f"{loc} {name}: no link back to the crews panel")
 
 
 def test_the_page_declares_the_language_it_answered_in(client, db):

@@ -469,6 +469,30 @@ def _cases():
         ("an ancestor made visible over a descendant that hid itself",
          css + NL + ".zzwrap .zzkid { visibility: hidden; }" + NL
              + "@media (max-height: 700px) { .zzwrap { visibility: visible; } }" + NL, 1),
+        # A shorthand standing after a longhand resets it: somebody wrote a specific value
+        # and then a general one over the top. This is how a class name shared by two
+        # elements two hundred lines apart went unnoticed.
+        ("a longhand wiped by a later shorthand on the same selector",
+         css + NL + ".zzmore { margin-top: 8px; }" + NL
+             + ".zzmore { margin: 6px 0 0; }" + NL, 1),
+        ("the same thing across a media query that contains the other",
+         css + NL + "@media (max-width: 560px) { .zzmore { padding-left: 4px; } }" + NL
+             + ".zzmore { padding: 0; }" + NL, 1),
+        # And the other direction, which is ordinary CSS and most of this stylesheet: a
+        # longhand after a shorthand is a deliberate exception to it, which is exactly why
+        # pass 1's main index is keyed on the literal property.
+        ("a longhand narrowing a shorthand that came before it",
+         css + NL + ".zzmore { margin: 6px 0 0; }" + NL
+             + ".zzmore { margin-top: 8px; }" + NL, 0),
+        ("two shorthands, which the existing index already judges",
+         css + NL + ".zzmore { margin: 6px 0 0; }" + NL
+             + ".zzmore { margin: 6px 0 0; }" + NL, 0),
+        ("a priority is not reset by a later shorthand",
+         css + NL + ".zzmore { margin-top: 8px !important; }" + NL
+             + ".zzmore { margin: 6px 0 0; }" + NL, 0),
+        ("two conditions that cannot both apply",
+         css + NL + "@media (max-width: 400px) { .zzmore { margin-top: 8px; } }" + NL
+             + "@media (min-width: 900px) { .zzmore { margin: 6px 0 0; } }" + NL, 0),
         # Chrome honours this as a priority, so reporting it is the cry-wolf half again
         ("!important spelled with an escape",
          css.replace(PHONE_STRIP,

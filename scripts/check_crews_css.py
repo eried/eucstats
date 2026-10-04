@@ -865,6 +865,35 @@ def main():
                     bad.append(f"OVERRIDDEN  {sel} | {fam}: {a[3]}: {a[4]}  [{a[1]}]"
                                f"  ->  {b[3]}: {b[4]}  [top level]")
                     break
+    # A longhand wiped by a later shorthand on the same selector. Directional on purpose: a
+    # shorthand sets every component it has, so one standing AFTER a longhand resets it --
+    # somebody wrote a specific value and then a general one over the top. The reverse,
+    # `padding-left: 0` after `padding: 2px 6px`, is a deliberate exception and is why
+    # `by_key` is keyed on the literal property; reporting that would be crying wolf on most
+    # of CSS.
+    #
+    # It took `.crewmore { margin-top: 8px }` meeting a `.crewmore { margin: 6px 0 0 }` two
+    # hundred lines away -- a different element sharing a class name -- for this to show up,
+    # with pass 1's two indexes between them seeing nothing: one keys on the literal property
+    # so they never met, and the other only reports a conditional rule beaten by a top-level
+    # one.
+    for (sel, fam), rows in sorted(by_fam.items()):
+        for i, b in enumerate(rows):
+            if physical(b[3]) != fam:
+                continue                        # `b` has to be the shorthand
+            for a in rows[:i]:
+                if physical(a[3]) == fam:
+                    continue                    # two shorthands: the index above has it
+                if bare(a[4]) == bare(b[4]):
+                    continue
+                if IMPORTANT_RE.search(a[4]) and not IMPORTANT_RE.search(b[4]):
+                    continue                    # a priority is not overridden by a later rule
+                if not (covers(b[1], a[1]) or covers(a[1], b[1])):
+                    continue                    # different, unrelated conditions
+                bad.append(f"SHORTHAND   {sel} | {a[3]}: {a[4]} is reset by the later"
+                           f" {b[3]}: {b[4]}  [{a[1] or 'top level'}]")
+                break
+
     for (sel, prop), rows in sorted(by_key.items()):
         for i, b in enumerate(rows):
             for a in rows[:i]:

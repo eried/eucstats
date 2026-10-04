@@ -1938,15 +1938,17 @@
   }
 
   function setStatus(msg, bad, near) {
-    var top = document.getElementById("crewstatus");
-    var el = statusHost(near);
+    // An error is worth interrupting for and a confirmation is not, so there are two regions
+    // rather than one that is re-roled on the spot: both are registered when the panel is
+    // built, and the text goes into the one that matches.
+    var polite = document.getElementById("crewstatus");
+    var alert_ = document.getElementById("crewalert");
+    var top = bad ? (alert_ || polite) : polite;
+    var other = bad ? polite : alert_;
+    if (other) other.innerHTML = "";
+    var el = statusHost(near) || top;
     if (!el) return;
     if (el !== top && top) top.innerHTML = "";
-    // An error is worth interrupting for and a confirmation is not. There was no live region
-    // anywhere in this feature, so a screen reader got nothing at all from a write -- not the
-    // error, not "You're in", not the offline failure.
-    el.setAttribute("role", bad ? "alert" : "status");
-    el.setAttribute("aria-live", bad ? "assertive" : "polite");
     el.innerHTML = msg ? '<div class="crewmsg' + (bad ? " bad" : "") + '">'
       + esc(msg) + "</div>" : "";
     // The success path got scrolled into view and the failure path did not, so an error from
@@ -2412,8 +2414,14 @@
       + (me.role !== "leader" && me.leader_stale && me.can_claim
          ? '<button class="crewbtn ghost" id="cm-claim">' + t("crew.mine.claim") + "</button>"
          : "")
-      + '<button class="crewbtn ghost" id="cm-signout">' + t("crew.mine.signout") + "</button>"
-      + "</div></div>";
+      + "</div>"
+      // Its own bar, like every crewless state already has. In this row it was a plain ghost
+      // button identical to "Leave crew" and two along from "Disband", so the control that
+      // ends your session looked exactly like the one that leaves your crew, beside the
+      // irreversible one.
+      + '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout">'
+      + t("crew.mine.signout") + "</button></div>"
+      + "</div>";
     return h;
   }
 
@@ -2751,7 +2759,11 @@
         }).join("")
       + "</div>"
       + (rows.length > SHOWN
-         ? '<button class="crewbtn mini ghost crewmore" id="cj-more"'
+         // `crewshowall`, not `crewmore`: that class already belongs to the lose card's
+         // "and 3 squares more", two hundred lines away in this file and a hundred and
+         // fifty in the stylesheet. Borrowing it put a `width: 100%` and a `margin-top`
+         // on a hint paragraph in a different card.
+         ? '<button class="crewbtn mini ghost crewshowall" id="cj-more"'
            + ' aria-expanded="false">' + t("crew.join.all", { n: rows.length })
            + "</button>"
          : "")
@@ -2813,6 +2825,9 @@
       more.textContent = open ? t("crew.join.fewer")
                               : t("crew.join.all", { n: rows.length });
       paint();
+      // Expanding pushed the button 1,225px down the panel, so "Show fewer" was below the
+      // fold the instant it existed and the thumb was left pointing at a row.
+      more.scrollIntoView({ block: "nearest" });
     };
     paint();
   }
@@ -2916,7 +2931,12 @@
   function show() {
     visible = true;
     H.setPanel("crews", (H.t ? H.t("title.crews") : "Crews & Territory"),
+      // TWO regions, not one whose role flips. Changing `role` and `aria-live` on an
+      // already-registered region in the same mutation as the text is the registration
+      // pitfall `statusHost` was written around -- the same pitfall one line further on.
+      // Both exist from the start and the message goes into whichever one matches.
       '<div id="crewstatus" role="status" aria-live="polite" aria-atomic="true"></div>'
+      + '<div id="crewalert" role="alert" aria-live="assertive" aria-atomic="true"></div>'
       + '<div id="crewpanel"><div class="spin"></div></div>');
     render();
     if (TERR && !map.getLayer("crew-fill")) buildLayers();
