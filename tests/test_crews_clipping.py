@@ -63,6 +63,14 @@ def _inline_stylesheet():
 # Every selector allowed to clip, and what was measured in the locale that needs the most
 # room. Adding a row here is the review; the measurement belongs in the note.
 REVIEWED = {
+    ".crewwhen":
+        "the exact moment a cooldown lifts, beside the sentence saying how long is left. The "
+        "nowrap holds one date together so it cannot break between the day and the time; the "
+        "`.crewmsg` around it wraps normally, so the line moves rather than the date being "
+        "cut. Measured on the real element in en, de, ru, pl, tr, uk, ja, fr, pt-BR and "
+        "zh-Hant: the widest is zh-Hant `10月11日 下午02:14` at 99px, "
+        "against a 293px card at 390 and 433px at 1280, with no overflow on the card or the "
+        "page at either width.",
     ".crewfact":
         "one fact out of a join row's meta line -- `4 riders`, `leader says yes`, `137 km²`, "
         "`223 km from here`. The nowrap is here so the line breaks BETWEEN facts: without it a "

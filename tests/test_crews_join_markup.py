@@ -52,6 +52,10 @@ const days = n => n + " days";
 const daysUntil = () => 7;
 // `groundAway` returns null with no map loaded, which is the real behaviour on a cold panel.
 const groundAway = () => null;
+// The cooldown card's exact date. A presentation helper that lives outside the lifted region,
+// so it is stubbed to a fixed string: this test is about the list's STRUCTURE, and a real
+// `toLocaleString` here would make the assertions depend on the machine's time zone.
+const whenAgain = (iso) => (iso ? ' <span class="crewwhen">Oct 11, 02:14 PM</span>' : "");
 let MAXMEM = 0;
 
 %(region)s
