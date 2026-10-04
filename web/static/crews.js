@@ -1036,8 +1036,14 @@
       + band(0, "crew.tile.safe") + band(1, "crew.tile.pushed")
       + band(2, "crew.tile.slipping") + band(3, "crew.tile.fading")
       + band(4, "crew.tile.ringed")
-      + '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
-      + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
+      // Both of these are keys to cards only a crew has. The breathing note below was gated
+      // on `ME.crew` and these two were left, so a rider with no crew read a legend for
+      // "where to ride next" and "what you could lose" -- neither of which is on their
+      // screen. The earlier fix's letter was met and its reasoning stopped a line short.
+      + (ME && ME.crew
+         ? '<span class="bt"><i></i>' + t("crew.targets.h") + "</span>"
+           + '<span class="bl"><i></i>' + t("crew.lose.h") + "</span>"
+         : "")
       // the same ink and pattern as every other chip: this was the one square in the key
       // with no hatch on it, so a crew saw its own colour flat where the map shows it woven
       + '<span class="bf"><i'
@@ -3036,6 +3042,14 @@
         var clear = document.getElementById("cj-clear");
         if (clear) clear.onclick = function () {
           box.value = "";
+          // Expanded, not merely unfiltered. Clearing alone dropped the list back to its six
+          // nearest with a second "Show all 22" immediately below it -- two presses for what
+          // one button names, and the second is the very duplicate this card suppresses.
+          open = true;
+          if (more) {
+            more.setAttribute("aria-expanded", "true");
+            more.textContent = t("crew.join.fewer");
+          }
           paint();
           box.focus();
         };

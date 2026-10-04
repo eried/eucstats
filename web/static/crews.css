@@ -107,6 +107,14 @@
      definition. 31rem is the 56ch measure at the body size, which is where the number came
      from in the first place. */
   .crewjoin > *, .crewmine > *, .crewterr > * { max-width: 31rem; }
+  /* And the CARD, or the cap is a hole rather than a column. Capping only the blocks left
+     every rule, row and chip inside the crew card stopping 220px short of the card's own
+     border -- 316.3 to 750.3 inside a card running 299.3 to 970.7 -- while the warning
+     banner, the board and the rules beside it all reached 971.3. A reviewer read it as
+     cropped, which is exactly what it was. 31rem of content plus this card's own 15px
+     padding and 1px border on each side, so the chrome and the content share one edge and
+     the slack falls outside the card, which is where the note above wanted it. */
+  .crewjoin, .crewmine { max-width: calc(31rem + 32px); }
 }
 /* Full width, so it reads as more list rather than a stray action: it was the only control in
    the join card not in the button column the six rows above it end with. `.crewshowall` and
