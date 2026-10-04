@@ -217,9 +217,12 @@
     // taking a square off your own crew. Lower than the pulse's peak for danger: a steady
     // white wash reads louder than a breathing one.
     if (CALM) {
+      // Danger brighter than fresh. The calm note says "what is marked brighter is your
+      // own", and both layers are now scoped to your own crew -- but a square being taken
+      // OFF you is the louder of the two facts, so it is the louder wash.
       try {
-        map.setPaintProperty("crew-pulse-danger", "fill-opacity", 0.18);
-        map.setPaintProperty("crew-pulse-fresh", "fill-opacity", 0.26);
+        map.setPaintProperty("crew-pulse-danger", "fill-opacity", 0.3);
+        map.setPaintProperty("crew-pulse-fresh", "fill-opacity", 0.2);
       } catch (e) {}
       return;
     }
@@ -332,7 +335,11 @@
       var fresh = cells.filter(function (t) { return t[4]; });
       if (fresh.length) {
         pulse.features.push({
-          type: "Feature", properties: { kind: "fresh", c: crew.colour },
+          // The slug, so this layer can be scoped the way `crew-pulse-danger` is. Without
+          // it the fresh wash breathed for every crew on the map -- fourteen of sixteen in
+          // the current payload -- while the legend said "everyone else's sits still".
+          type: "Feature",
+          properties: { kind: "fresh", c: crew.colour, slug: crew.slug },
           geometry: { type: "MultiPolygon",
                       coordinates: fresh.map(function (t) { return tileRing(t[0], t[1], z); }) }
         });
@@ -376,7 +383,13 @@
     });
     addLayer({
       id: "crew-pulse-fresh", type: "fill", source: "crew-pulse",
-      filter: ["==", ["get", "kind"], "fresh"],
+      // Scoped like the danger layer above, and for the same reason its comment gives: a
+      // square you have just taken breathing exactly like a square somebody in Santiago has
+      // just taken is ambience, not news. Signed out, all of it is news again.
+      filter: (ME && ME.crew)
+        ? ["all", ["==", ["get", "kind"], "fresh"],
+                  ["==", ["get", "slug"], ME.crew.slug]]
+        : ["==", ["get", "kind"], "fresh"],
       paint: { "fill-color": ["get", "c"], "fill-opacity": 0, "fill-antialias": false,
                "fill-opacity-transition": { duration: 1600 } }
     });
@@ -1567,6 +1580,18 @@
     }).join("") + "</div>";
   }
 
+  // Build an optional section, or nothing. A section that cannot render is a section
+  // missing; it is not a reason for the rest of the card to disappear. The console still
+  // gets the error, because a swallowed exception is how this stays broken quietly.
+  function safely(build) {
+    try {
+      return build();
+    } catch (e) {
+      if (window.console && console.error) console.error("crews: section failed", e);
+      return "";
+    }
+  }
+
   /* ---------- sign-in ---------- */
 
   function signInHTML() {
@@ -1707,6 +1732,11 @@
   // of the panel, because a question about the thing under your thumb belongs under your thumb.
   function askHost(near) {
     var top = document.getElementById("crewstatus");
+    // One prompt at a time. Pressing a confirm trigger twice -- which is what a keyboard user
+    // does when the first press gives no signal at all -- used to insert a second prompt, and
+    // then two elements shared the id `crewask-y` and `getElementById` was a coin toss.
+    var open = document.querySelector(".crewaskslot");
+    if (open && open.parentNode) open.parentNode.removeChild(open);
     if (!near || !near.parentNode) return top;
     var slot = document.createElement("div");
     // A class, because `near` is often a flex child and so is this: inserted bare into a
@@ -1724,13 +1754,27 @@
     function done() { if (host.id === "crewstatus") host.innerHTML = ""; else host.remove(); }
     // The quiet button is the one that acts and the bright one is the way out. Leaving costs
     // a crew and a cooldown, and a stray tap should not be the easy path.
-    host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
-      + '<button class="crewbtn mini ghost" id="crewask-y">' + esc(confirmLabel) + "</button>"
+    // A dialog, named by its own question. Without this the trigger did not change, focus
+    // did not move and nothing was announced, so pressing Disband gave a keyboard or screen
+    // reader user no signal whatsoever -- on every irreversible action in the feature, and
+    // the one for Leave states the seven-day cost in the text nobody heard.
+    var qid = "crewask-q";
+    host.innerHTML = '<div class="crewask" role="alertdialog" aria-labelledby="' + qid + '">'
+      + '<p id="' + qid + '">' + esc(message) + "</p>"
+      + '<button class="crewbtn mini ghost" id="crewask-y" aria-describedby="' + qid + '">'
+      + esc(confirmLabel) + "</button>"
       + '<button class="crewbtn mini" id="crewask-n">' + t("crew.cancel") + "</button>"
       + "</div>";
     host.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    host.querySelector("#crewask-n").onclick = done;
+    function shut() {
+      done();
+      // Back where they came from, so the keyboard does not land at the top of the panel.
+      if (near && near.focus) { try { near.focus(); } catch (e) {} }
+    }
+    host.querySelector("#crewask-n").onclick = shut;
     host.querySelector("#crewask-y").onclick = function () { done(); ok(); };
+    var yes = host.querySelector("#crewask-y");
+    if (yes && yes.focus) { try { yes.focus(); } catch (e) {} }
   }
 
   // One handler, wherever the button was rendered: inside the crew card's action row, or in
@@ -1751,6 +1795,8 @@
     if (!host) { var v = window.prompt(message); if (v) ok(v); return; }
     function done() { if (host.id === "crewstatus") host.innerHTML = ""; else host.remove(); }
     host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
+      + '<div class="crewmsg bad crewaskmsg" role="alert" aria-live="assertive"'
+      + ' aria-atomic="true" hidden></div>'
       + '<input id="crewask-in" placeholder="' + esc(placeholder) + '" maxlength="16">'
       + '<button class="crewbtn mini" id="crewask-y">' + t("crew.join.btn") + "</button>"
       + '<button class="crewbtn mini ghost" id="crewask-n">' + t("crew.cancel") + "</button>"
@@ -1762,15 +1808,14 @@
     // `done()` used to run BEFORE `ok(v)`, so one wrong character in an eight-character invite
     // code cost the prompt, the typing and 3.7 screens of scrolling back to the row it opened
     // beside. The caller decides now: `ctl.close()` on success, `ctl.fail(msg)` to keep it.
+    // The box is built empty with the prompt and filled later. Creating a `role="alert"`
+    // node and writing its text in the same task frequently announces nothing at all, which
+    // is the pitfall `statusHost` was written around and this had reintroduced.
     function fail(msg) {
       var box = host.querySelector(".crewaskmsg");
-      if (!box) {
-        box = document.createElement("div");
-        box.className = "crewmsg bad crewaskmsg";
-        box.setAttribute("role", "alert");
-        host.querySelector(".crewask").insertBefore(box, input);
-      }
+      if (!box) return;
       box.textContent = msg;
+      box.hidden = false;        // built empty and hidden with the prompt; see above
       input.focus();
       input.select();
     }
@@ -1833,8 +1878,19 @@
 
   // Any write that comes back unauthorised repaints to the sign-in card, because every
   // control still on screen belongs to a session that no longer exists.
+  // `not_member` and its relatives mean exactly "the card you are looking at is wrong", and
+  // they were the ones that left the wrong card up: two tabs, leave in one, press Leave in the
+  // other, and you got "You are not in that crew." above a card still naming the crew.
+  var STALE = { not_member: 1, not_in_crew: 1, no_crew: 1, no_request: 1 };
+
   function onWrite(r) {
     if (r && r.status === 401) { ME = null; show(); return true; }
+    var code = r && r.err && (r.err.code || r.err.detail);
+    if (code && STALE[code]) {
+      pendingStatus = errMsg(r.err);
+      show();
+      return true;
+    }
     return false;
   }
 
@@ -1878,6 +1934,9 @@
     // deep inside the crew card painted at the top of a scrolled panel where nobody saw it.
     clearTimeout(statusTimer);
     if (!msg) return;
+    // A bad status had no timer, so failures accumulated: two live red boxes 1124px apart,
+    // one of them about a prompt that had already been cancelled. The next write clears the
+    // last failure -- see `statusHost`, which removes the previous anchored slot.
     el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     // A success banner is a toast, not furniture. "You're in" was still the loudest thing on
     // the panel long after it stopped being news.
@@ -2012,9 +2071,11 @@
         go.disabled = false;
         if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
         else if (!onWrite(r)) {
-          setStatus(errMsg(r.err), true, go);
-          // the field, not the button: every one of these errors is about the name
+          // Anchored to the FIELD, not the button. Anchoring to the button and then focusing
+          // the field is two scrolls, and `focus()` runs last and wins, so the message ended
+          // up at top 794 of a 492px viewport -- a focused empty box and no words.
           var nm = document.getElementById("cf-name");
+          setStatus(errMsg(r.err), true, nm || go);
           if (nm) { nm.focus(); nm.select(); }
         }
       });
@@ -2257,17 +2318,24 @@
 
   function bindMine(me) {
     var c = me.crew;
-    document.querySelectorAll("[data-ok]").forEach(function (b) {
+    // `.then(show)` and nothing else: no `r.ok`, no `onWrite`, no `setStatus`. With
+    // `/decide` answering 400 these two did NOTHING visible -- the knock stayed on the card
+    // and the only trace was a red line in devtools -- and they are the two buttons a leader
+    // presses most. The un-decline handler below has had the right body all along.
+    function decide(b, sid, accept) {
       b.onclick = function () {
         api("POST", "/api/v1/crews/" + c.slug + "/decide",
-            { store_id: b.dataset.ok, accept: true }).then(show);
+            { store_id: sid, accept: accept }).then(function (r) {
+          if (r.ok) { reveal(".crewmine-wrap"); show(); }
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
+        });
       };
+    }
+    document.querySelectorAll("[data-ok]").forEach(function (b) {
+      decide(b, b.dataset.ok, true);
     });
     document.querySelectorAll("[data-no]").forEach(function (b) {
-      b.onclick = function () {
-        api("POST", "/api/v1/crews/" + c.slug + "/decide",
-            { store_id: b.dataset.no, accept: false }).then(show);
-      };
+      decide(b, b.dataset.no, false);
     });
     document.querySelectorAll("[data-undecline]").forEach(function (b) {
       b.onclick = function () {
@@ -2295,7 +2363,7 @@
         api("POST", "/api/v1/crews/" + c.slug + "/role",
             { store_id: b.dataset.sid, role: b.dataset.role }).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
         });
       };
     });
@@ -2305,8 +2373,11 @@
       ask(pending ? t("crew.mine.cancelq", { name: c.name }) : leaveQuestion(c.name),
           t(pending ? "crew.mine.cancel" : "crew.mine.leave"), function () {
         api("POST", "/api/v1/crews/leave", {}).then(function (r) {
-          if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+          // The card that explains what just happened, not the leaderboard. Flashing
+          // `.crewboard` scrolled 0 -> 405 and put the "next crew in 7 days" card at
+          // viewTop -57: off the top of the screen at the moment it was written.
+          if (r.ok) { reveal(".crewcard:not(.crewboard)"); show(); reloadTerritory(); }
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true, leave);
         });
       }, leave);
     };
@@ -2314,8 +2385,8 @@
     if (dis) dis.onclick = function () {
       ask(t("crew.mine.disbandq", { name: c.name }), t("crew.mine.disband"), function () {
         api("POST", "/api/v1/crews/" + c.slug + "/disband", {}).then(function (r) {
-          if (r.ok) { reveal(".crewboard"); show(); reloadTerritory(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+          if (r.ok) { reveal(".crewcard:not(.crewboard)"); show(); reloadTerritory(); }
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true, dis);
         });
       }, dis);
     };
@@ -2325,7 +2396,7 @@
           t("crew.mine.claim"), function () {
         api("POST", "/api/v1/crews/" + c.slug + "/claim", {}).then(function (r) {
           if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true);
+          else if (!onWrite(r)) setStatus(errMsg(r.err), true, claim);
         });
       }, claim);
     };
@@ -2390,7 +2461,9 @@
         .then(function (r) {
           if (r.ok) { show(); reloadTerritory(); return; }
           Promise.resolve(r.json ? r.json() : {}).catch(function () { return {}; })
-            .then(function (b) { setStatus(errMsg({ detail: b && b.detail }), true); });
+            .then(function (b) {
+              setStatus(errMsg({ detail: b && b.detail }), true, logo);
+            });
         });
     };
     var clr = document.getElementById("ce-clearlogo");
@@ -2425,8 +2498,16 @@
         + (terr.tiles && terr.tiles !== (terr.best_tiles || terr.tiles)
             ? " · " + t("crew.inall", { v: tiles(terr.tiles) }) : "")
         + (terr.tiles ? "" : " · " + (tgt.first ? "" : t("crew.mine.start", { n: SEED }))) + "</div>"
-        + (me.status === "pending" ? "" : tgt.html + loseHTML(c.slug))
-        + contributorsHTML(r.body.contributors);
+        + (me.status === "pending" ? "" : tgt.html + safely(function () {
+            return loseHTML(c.slug);
+          }))
+        // Behind a guard, and so is the losing list above it. This whole body is one
+        // assignment, so when `contributorsHTML` threw -- `av()` called an `esc` that does
+        // not exist in public.py's scope -- NOTHING was assigned: the squares, the area, the
+        // ride targets and the losing list all vanished with it, `showTargets` never ran, and
+        // the card showed a 21px gap. The figures never depended on the contributor list;
+        // they were sharing a `+`.
+        + safely(function () { return contributorsHTML(r.body.contributors); });
       el.querySelectorAll("[data-t]").forEach(function (row) {
         pressable(row, rowLabel(row), function () {
           flyToTile(TARGETS[+row.dataset.t], +row.dataset.t);
@@ -2614,6 +2695,16 @@
 
   // The dock is outside the panel and survives every re-render, so the count is written to
   // it rather than built with the panel HTML.
+  // Asked once on load, so the count is there before anybody opens the panel. `dockDot` was
+  // only reachable from `render()`, which only runs from `show()`, so the badge could only
+  // ever tell a leader something they were already looking at.
+  function primeDock() {
+    api("GET", "/api/v1/crews/me").then(function (r) {
+      if (!r.ok || !r.body) return;
+      dockDot(r.body.pending ? r.body.pending.length : 0);
+    });
+  }
+
   function dockDot(n) {
     var dot = document.getElementById("crewsdot");
     if (!dot) return;
@@ -2708,9 +2799,11 @@
       if (!me.paired) {
         /* the sign-in card is the whole of it */
       } else if (me.crew) {
-        // Above the crew card, not below the Leave / Disband / Hand-the-pass-back row at the
-        // bottom of it, which is what a new member had to scroll past to find the rules.
-        own += explainer();
+        // BELOW the crew card. It went above for a while so a new member would not have to
+        // scroll past the Leave / Disband row to find the rules -- but that put a shut
+        // accordion of rules in front of the crew of every rider who already knows them,
+        // which is the opposite of what this round did for the crewless state.
+        own += "";
         // Folded by default put the only actionable thing in the feature behind a
         // disclosure triangle, under a 25-row board.
         own += '<details class="crewmine-wrap" open'
@@ -2732,7 +2825,8 @@
              // equal specificity and this would be pinned to the summary's top-right corner.
              ? '<span class="crewsumdot">' + me.pending.length + "</span>" : "")
           + "</summary>"
-          + myCrewHTML(me) + "</details>";
+          + myCrewHTML(me) + "</details>"
+          + explainer();
       } else if (me.removed_by) {
         own += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
           + '<p class=hint>' + t("crew.removed.p", { name: esc(me.removed_by) })

@@ -1204,7 +1204,16 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # Before the fresh bump below: a square that is contested AND taken this week
             # comes out as band 6 or 7, matched neither 1 nor 2, and lost its rival's name on
             # precisely the squares that just changed hands.
-            if pushing is not None and band in (1, 2):
+            # `idx_of` only knows the crews in this payload, and `order` is built from the
+            # crews that KEPT ground. A crew pushing on somebody's square need hold nothing
+            # of its own -- a brand-new crew whose riders have been down the same street is
+            # the ordinary case -- so this was `idx_of[pushing]` and raised KeyError, which
+            # aborted the whole rebuild: no standings written, no payload written, and the
+            # previous two files left in place to go stale in different directions. That is
+            # what a reviewer saw as the board listing 13 crews while the map had 16.
+            # The marker points at a crew index, so with no index there is no marker to draw;
+            # the square still reports its band and its shortfall.
+            if pushing is not None and band in (1, 2) and pushing in idx_of:
                 rivals_flat.extend((len(cells_flat) // 5, idx_of[pushing]))
             # Fresh ground rides along in the band rather than as a sixth integer per cell:
             # the payload is five ints a tile and a whole extra column to carry one bit would

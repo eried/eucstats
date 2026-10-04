@@ -20,7 +20,12 @@
 .crewcard p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
 .crewcard code { background: rgba(255,255,255,.07); padding: 2px 6px; font-size: 12px; letter-spacing: 1px; }
 .crewcard label { display: block; margin: 9px 0 0; font-size: 11px; color: var(--mut, #9aa6c8); letter-spacing: .5px; text-transform: uppercase; }
-.crewcard input[type=text], .crewcard input:not([type]), .crewcard select {
+/* `textarea` is in this list because leaving it out made the description field the
+   brightest object in the panel: white on black, grey border, no padding, 11px, and the
+   browser's own focus ring, two points smaller than the one-word name field above it while
+   holding 280 characters. */
+.crewcard input[type=text], .crewcard input:not([type]), .crewcard select,
+.crewcard textarea {
   display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
   background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055); color: inherit;
   font: inherit; font-size: 13px; border-radius: 0;
@@ -48,7 +53,8 @@
 .crewcard input[type=file]::file-selector-button:hover {
   color: #fff; border-color: var(--sec, #ff8ad8);
 }
-.crewcard input:focus, .crewcard select:focus { outline: none; border-color: var(--sec, #ff8ad8); }
+.crewcard input:focus, .crewcard select:focus,
+.crewcard textarea:focus { outline: none; border-color: var(--sec, #ff8ad8); }
 
 .crewbtn {
   margin-top: 12px; padding: 9px 16px; background: var(--sec, #ff8ad8); color: #061020;
@@ -114,6 +120,19 @@
 .crewrow:first-child { border-top: 0; }
 .crewrown { flex: 1; min-width: 0; }
 .crewrown b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* This file says twice that truncating a crew's name is indefensible in a feature about
+   naming your crew, and applies that to `.crewboard .pname` and the table's `.celln > span`.
+   The join list -- where you pick a crew BY NAME -- kept the ellipsis: a 41-character name
+   got 170px of a 390px row and read `Kreuzberg Nachtschwärm…`, and 141px at 360. It wraps.
+   The description beside it is clamped instead, because 280 characters of blurb took one row
+   to 202px against 91px for its neighbours and left the Ask button level with line three. */
+@media (max-width: 560px) {
+  .crewrown b { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+.crewrow .crewmeta2 {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .crewrown span { font-size: 11px; color: var(--mut, #9aa6c8); }
 
 .crewrank { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -246,11 +265,19 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   color: var(--ink, #eef1fb); background: rgba(0,0,0,.25);
   border: 1px solid var(--line, #243055); border-radius: 8px;
 }
+.crewfilter:focus { outline: none; border-color: var(--sec, #ff8ad8); }
+/* The placeholder was the field's only visible label and it was the browser's own grey:
+   measured 3.56:1 against the field, 2.31:1 sampled. Every other field in this panel is
+   themed down to `::file-selector-button`; this one got colour and background and no
+   placeholder. */
+.crewfilter::placeholder { color: var(--mut, #9aa6c8); opacity: 1; }
 .crewmore { margin-top: 8px; }
-.crewlist[data-empty] { padding: 10px 0; }
-.crewlist[data-empty]::after {
-  content: "\2014"; color: var(--mut, #9aa6c8); font-size: 13px;
-}
+/* The no-match state used to be one em dash, left-aligned, in a card keeping its full
+   height -- which reads as a rendering fault rather than as an answer. The sentence is a real
+   node now, written by `bindList`, so it can name the query and offer the way back. */
+.crewlist[data-empty] { padding: 2px 0 6px; }
+.crewempty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  color: var(--mut, #9aa6c8); font-size: 13px; }
 
 /* Somebody is waiting on an answer. The count repeats on the shut accordion summary and
    beside the heading, because the list itself used to be 4.6 screenfuls down a panel. */
@@ -382,6 +409,19 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   outline: 2px solid #fff; outline-offset: 1px;
   box-shadow: 0 0 0 1px #0b0f1c inset, 0 0 0 4px rgba(11,15,28,.9);
 }
+/* Focus needs a channel of its own. Without a rule here the user agent drew a white outline
+   in the same place on the same property as `.on`, so tabbing the palette left two chips
+   ringed identically and nothing said which one was the crew's colour -- on the one grid
+   whose only state channel IS the ring. Pink, and a shadow rather than an outline, so the
+   two can be on the same chip at once and still be told apart. */
+.crewpickc:focus-visible, .crewpickp:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+}
+.crewpickc.on:focus-visible, .crewpickp.on:focus-visible {
+  outline: 2px solid #fff; outline-offset: 1px;
+  box-shadow: 0 0 0 1px #0b0f1c inset, 0 0 0 4px var(--sec, #ff8ad8);
+}
 /* `:not(.on)`, because these two are both 0-2-0 and neither is a subset of the other, so the
    later one simply won: resting the pointer on the colour you had just chosen dropped its 2px
    ring to the 1px ring every other cell shows, and on a 24-cell grid whose only state channel
@@ -409,17 +449,22 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewrank .celln .crewsw, .crewboard table .celln .crewsw { flex: 0 0 auto; }
 
 /* the colour grid was ragged; 12 to a row reads as a palette */
-.crewpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(24px, 1fr));
-  max-width: 353px; gap: 5px;
-  margin: 5px 0 9px; }
+/* No `max-width`. It capped the grid at 353px, so in a 652px card at 1280 the picker was a
+   strip of twelve 24.8px chips with 299px of empty gutter beside it -- the same dead gutter
+   the preview used to make, moved one element along. The chips have a floor, so a wide card
+   gets bigger swatches rather than more of them. */
+.crewpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 5px; margin: 5px 0 9px; }
+/* The same track function as the colours, so the two grids share a column. `repeat(6, 24px)`
+   against `auto-fill minmax` gave them pitches of 24 and 24.83px, which drifted 1.7px apart
+   by the fourth chip and read as a rendering wobble. */
+#cf-patterns { max-width: 353px; }
 .crewidentl .crewpreview { margin-left: auto; line-height: 0; }
 
 /* A count, because a two-line box holding 280 characters still scrolls. */
 .crewcount { display: block; margin-top: 2px; font-size: 11px; color: var(--mut, #9aa6c8);
   font-variant-numeric: tabular-nums; text-align: right; }
-.crewcard textarea {
-  width: 100%; resize: vertical; min-height: 46px; font: inherit;
-}
+.crewcard textarea { resize: vertical; min-height: 46px; }
 #cf-patterns { grid-template-columns: repeat(6, 24px); }
 
 /* patterns have to be separable at swatch size */
@@ -711,7 +756,7 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    gain line is bottom-pinned and lands level on all three, so two of the three figures agreed
    and the winner's did not, which reads as a bug rather than as the podium step. Reserve the
    line whether or not there is anything in it. */
-.crewboard .pod .psub .crewarea { min-height: 1.3em; }
+.crewboard .pod .psub .crewarea { min-height: 1.45em; }
 
 
 
@@ -1012,4 +1057,8 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   /* The patch count and the gain line are the two things a 288px window cannot afford, and
      both are in the table two rows below. */
   .crewboard .pod .psub { display: none; }
+  /* Two lines reserved for the name, because two of the three crew names wrap in a ~100px
+     card and the third does not -- so the odd one out lifted its figure 12.6px above its
+     neighbours, which is the same staircase this rule's own breakpoint was added to stop. */
+  .crewboard .pod .pname { min-height: 2.4em; }
 }

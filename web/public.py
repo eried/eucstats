@@ -373,10 +373,20 @@ const GLOBE_TPL='<svg class="flag anonflag" viewBox="0 0 20 15" role="img" aria-
   +'</svg>';
 const GLOBE=()=>GLOBE_TPL.replace("__A__",t("flag.hidden").replace(/"/g,"&quot;"));
 const anonName=e=>e.alias||e.name||"Rider";
+// One character off a rider's name, for the disc that would otherwise be an empty circle.
+// A whitelist rather than an escaper: `esc` lives in crews.js's IIFE and does not exist in
+// this scope, and calling it here threw `ReferenceError` on every avatar-less rider, which
+// emptied the whole territory block of every crew anybody had ridden for. For a single
+// character a whitelist is the shorter answer anyway -- nothing that matters in HTML is a
+// letter -- and it cannot throw.
+const avInitial=e=>{
+  const c=String((anonView(e)?anonName(e):(e&&e.name)||"?")).trim().charAt(0);
+  return !c||/[<>&"'`\\/]/.test(c)?"?":c.toUpperCase();
+};
 const av=(id,has,e)=>anonView(e)?`<img class="av anonav" alt="" src="${dazzle(e.mark)}"/>`
   // An initial, not an empty disc. Four of these stacked in "who rode for it" read as four
   // broken images; the same circle with a letter in it reads as four people.
-  :(has===false?`<span class="av avph">${esc((anonView(e)?anonName(e):(e&&e.name)||"?").trim().slice(0,1).toUpperCase())}</span>`:`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
+  :(has===false?`<span class="av avph">${avInitial(e)}</span>`:`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
 const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE():cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
 const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
