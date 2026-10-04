@@ -1582,6 +1582,10 @@
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
       + '<p class=hint id="crewcodehint">' + t("crew.signin.scan") + "</p>"
+      // Which app, and which version of it. Without this a rider on 0.21.0 taps the button
+      // and the app opens on whatever screen it opens on, with nothing to explain why.
+      + '<p class="hint crewneeds">'
+      + t("crew.signin.needs", { v: (CFG && CFG.min_app) || "" }) + "</p>"
       + '<p class="hint crewnoapp"><a href="#" id="crewgetapp">'
       + t("crew.signin.noapp") + "</a></p>"
       + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"

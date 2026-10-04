@@ -1113,12 +1113,14 @@ def _crew_cfg(db):
     there to be found rather than there and broken.
     """
     from services.crews import PALETTE, PATTERNS
+    from services.pairing import MIN_APP
     c = settings.get_crews(db)
     return {"enabled": c["enabled"], "opacity": c["opacity"], "zoom": c["zoom"],
             "window_days": c["window_days"], "seed": c["seed"],
             "creation_open": c["creation_open"], "cooldown_days": c["cooldown_days"],
             "heat_ghost": c["heat_ghost"], "numbers": c["numbers"],
-            "palette": PALETTE, "patterns": list(PATTERNS)}
+            "palette": PALETTE, "patterns": list(PATTERNS),
+            "min_app": MIN_APP}
 
 
 @public_router.get("/", response_class=HTMLResponse)

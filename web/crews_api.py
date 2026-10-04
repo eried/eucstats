@@ -989,6 +989,7 @@ _PAIR_LIVE = """<h1>__H__</h1>
 <div class=code>__CODE__</div>
 <a class=btn href="eucplanet://pair?code=__CODE__&amp;host=__HOST__">__OPEN__</a>
 <p>__NOAPP__</p>
+<p>__NEEDS__</p>
 <p class=safe>__SAFE__</p>
 <p><a class=back href="__HOST__/">__SITE__</a></p>"""
 
@@ -997,6 +998,7 @@ _PAIR_LIVE = """<h1>__H__</h1>
 # the button, the safety notice -- and hand the app a code that could not work.
 _PAIR_DEAD = """<h1>__DEADH__</h1>
 <p>__DEADP__</p>
+<p>__NEEDS__</p>
 <a class=btn href="__HOST__/">__SITE__</a>"""
 
 
@@ -1058,5 +1060,6 @@ def pair_landing(code: str, request: Request, db: Session = Depends(get_db)):
             .replace("__DEADH__", t("pair.dead.h"))
             .replace("__DEADP__", t("pair.dead.p", crews=crews_name))
             .replace("__SITE__", t("pair.site"))
+            .replace("__NEEDS__", t("crew.signin.needs", v=pairing.MIN_APP))
             .replace("__CODE__", safe).replace("__HOST__", escape(host)))
     return HTMLResponse(page)

@@ -84,6 +84,13 @@ def start(db, purpose: str = "rider") -> dict:
     return {"token": token, "code": code, "expires_in": int(CODE_TTL.total_seconds())}
 
 
+# The first EUC Planet that can answer `eucplanet://pair`. A rider on anything older taps
+# "Open EUC Planet" and lands on whatever screen the app happens to open, because an app that
+# has never heard of the scheme cannot explain itself. Both surfaces that ask somebody to pair
+# read this, so a release is one line here and no translation work at all.
+MIN_APP = "0.22.0"
+
+
 def _live(db, code: str) -> PairToken | None:
     """An unused, unexpired pairing for this code."""
     cutoff = utcnow() - CODE_TTL

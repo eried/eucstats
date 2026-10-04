@@ -329,6 +329,7 @@ EN_FINGERPRINT = {
     'crew.roles.removeq': '5c08ad5ba9b8',
     'crew.signin.again': 'e4efe722d859',
     'crew.signin.h': 'c1d27c67c591',
+    'crew.signin.needs': 'b1767a407ecb',
     'crew.signin.noapp': 'fa3bd793509e',
     'crew.signin.ok': 'ef8889c4fae0',
     'crew.signin.open': '04582edcad5a',

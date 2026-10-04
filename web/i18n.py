@@ -62,6 +62,9 @@ EN: dict[str, str] = {
     "crew.signin.h": "Get your pass",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",
     "crew.signin.scan": "Scan it with EUC Planet, or type the code in. Good for 3 minutes.",
+    # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
+    # from services.pairing.MIN_APP, so a release is one line and not nineteen.
+    "crew.signin.needs": "Needs EUC Planet {v} or newer.",
     # the QR image's only name: the first card a new rider sees
     "crew.signin.qralt": "Crew pass code",
     "crew.signin.same": "Reading this on your phone? You can't scan your own screen. Tap below.",
