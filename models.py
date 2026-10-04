@@ -300,6 +300,10 @@ class Clan(Base):
     terr_best_tiles = Column(Integer, default=0)   # the ranked number: squares, not area   # the largest single connected region
     terr_tiles = Column(Integer, default=0)
     terr_regions = Column(Integer, default=0)
+    # Fresh squares inside the ranked patch, not across the whole holding. The board prints
+    # this next to `terr_best_tiles`, and the two have to be counted over the same ground or
+    # the row says a crew gained more than it holds.
+    terr_best_fresh = Column(Integer, default=0)
     targets_json = Column(Text)                  # ground this crew could take next
 
 

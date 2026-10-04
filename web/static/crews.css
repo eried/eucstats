@@ -157,6 +157,12 @@
 .crewrow .crewmeta2 {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
+  /* `anywhere`, for the same reason the crew card's own <p> has it: this is 280 characters of
+     a crew's own free text, and an unbreakable 49-character compound measured 277px of
+     content in a 132px box and was cut mid-word. `overflow: hidden` contains it, so the
+     fault was a silent clip rather than a scrollbar -- which is why testing at two widths
+     never showed it. */
+  overflow-wrap: anywhere;
 }
 /* A flex row with a gap, which is what separates the facts now. A middot between two
    facts is a glyph at one line edge or the other once the row wraps -- trailing it dangled,

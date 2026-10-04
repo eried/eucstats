@@ -603,6 +603,30 @@
   var HOVER_MS = 650;
   var hoverTimer = null, hoverTip = null, hoverKey = "";
 
+  // Where a tip sits, for both of them. Two call sites, one stylesheet, one 14px transform
+  // offset -- and until now one right-edge guard copied into each with no left-edge
+  // counterpart. A reviewer measured the tapped tip at a left edge of -14px from a tap in the
+  // centre of a 390px map: the band stripe and the first character of every line off-screen.
+  function placeTip(el, px) {
+    el.style.left = px.x + "px";
+    el.style.top = px.y + "px";
+    var tw = el.offsetWidth, vw = window.innerWidth, gut = 8;
+    // Flipping is a preference. Being on the map is not, so the far side has to have room for
+    // it before the tip is sent over there.
+    var flip = px.x + tw + 30 > vw;
+    if (flip && px.x - tw - 14 < gut) flip = false;
+    if (flip) el.classList.add("left");
+    // `left` is the anchor and the transform supplies the offset, so the correction for a box
+    // that fits on neither side belongs on `left`.
+    var lead = flip ? px.x - tw - 14 : px.x + 14;
+    var off = lead < gut ? gut - lead
+            : lead + tw > vw - gut ? vw - gut - tw - lead : 0;
+    if (off) el.style.left = (px.x + off) + "px";
+    // Near the top of the map there is nothing above the pointer to hang it from. The tapped
+    // tip did this and the resting one did not, which is the same drift as the missing guard.
+    if (px.y < el.offsetHeight / 2 + 8) el.classList.add("below");
+  }
+
   function hideTip() {
     clearTimeout(hoverTimer);
     hoverTimer = null;
@@ -632,10 +656,7 @@
         + esc(w[1]) + (w[2] ? " <i>" + esc(w[2]) + "</i>" : "") + "</span>"
         + (info[2] ? "<span><em>" + esc(t("crew.tile.fresh")) + "</em></span>" : "");
       map.getCanvasContainer().appendChild(el);
-      el.style.left = px.x + "px";
-      el.style.top = px.y + "px";
-      // it is nowrap, so max-width cannot save it: flip to the other side near the edge
-      if (px.x + el.offsetWidth + 30 > window.innerWidth) el.classList.add("left");
+      placeTip(el, px);
       hoverTip = el;
     }, HOVER_MS);
   }
@@ -715,10 +736,7 @@
            + esc(t("crew.targets.kills", { v: tiles(row.lost || 0) })) + "</em></span>" : "")
         + (row.first ? "<span><em>" + esc(t("crew.targets.first")) + "</em></span>" : "");
       map.getCanvasContainer().appendChild(el);
-      el.style.left = px.x + "px";
-      el.style.top = px.y + "px";
-      if (px.x + el.offsetWidth + 30 > window.innerWidth) el.classList.add("left");
-      if (px.y < el.offsetHeight / 2 + 8) el.classList.add("below");
+      placeTip(el, px);
       return el;
   }
 
@@ -967,7 +985,15 @@
         // contiguous patch and the delta was every fresh cell a crew held. Two quantities,
         // one noun, a plus between them. The note four lines above says area beside squares
         // inverted the ranking two rows apart, and the same reasoning was never applied here.
-        if (gained > (e.best_tiles || 0)) gained = e.best_tiles || 0;
+        // The rebuild counts it, because the components only exist there and a second flood
+        // fill per crew per board render is not worth the bytes it would save. My first
+        // attempt at this clamped the whole-holding count at the ranked figure, which is a
+        // number true of nothing: 49 fresh cells over 3 patches printed "+29" beside a
+        // 29-square patch, reading as though the entire block had been won this week.
+        // The clamp stays as the fallback for a row from an older rebuild -- stale beats
+        // wrong -- and `best_fresh` is used wherever the rebuild has supplied it.
+        if (e.best_fresh != null) gained = e.best_fresh;
+        else if (gained > (e.best_tiles || 0)) gained = e.best_tiles || 0;
         var full = t("crew.board.gained", { v: tiles(gained) });
         if (short(e)) {
           return gained ? '<span class="crewgain" title="' + esc(full) + '">+'
@@ -1015,8 +1041,16 @@
       + t("crew.legend.fresh") + "</span>"
       // The note described the breathing, which is exactly what is not happening for a
       // reader who asked for stillness.
-      + '<p class="crewlegnote">' + t(CALM ? "crew.legend.note.calm" : "crew.legend.note")
-      + "</p>"
+      // And only for a reader who has ground of their own. Both wordings say "your own", and
+      // this legend also renders for a rider who is paired with no crew yet, where `ME.crew`
+      // is null and `scopePulse()` therefore scopes nothing: sixteen crews' fresh ground
+      // breathing under a sentence saying it belongs to the reader, who holds none of it. The
+      // swatch above still reads "Taken this week", which is true of precisely what moves, so
+      // the sentence goes and the motion stays for the rider who has nothing yet.
+      + (ME && ME.crew
+         ? '<p class="crewlegnote">'
+           + t(CALM ? "crew.legend.note.calm" : "crew.legend.note") + "</p>"
+         : "")
       + "</div>";
   }
 
@@ -2748,7 +2782,11 @@
         + (terr.regions > 1 ? " · " + plural(null, "crew.patches.few", "crew.patches", terr.regions) : "")
         + (terr.tiles && terr.tiles !== (terr.best_tiles || terr.tiles)
             ? " · " + t("crew.inall", { v: tiles(terr.tiles) }) : "")
-        + (terr.tiles ? "" : " · " + (tgt.first ? "" : t("crew.mine.start", { n: SEED }))) + "</div>"
+        // `||`, not a separator with an empty string after it. A crew that holds nothing
+        // and whose first target completes its first block took the inner branch and printed
+        // `0 km2 · ` with nothing following the dot -- on the first card every founder
+        // sees, which is the third time this shape has shipped.
+        + (terr.tiles || tgt.first ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
         + (me.status === "pending" ? "" : tgt.html + safely(function () {
             return loseHTML(c.slug);
           }))
@@ -2871,9 +2909,15 @@
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + "</div>"
             + (full
+               // No `</div>` here. The row's own closer is appended to the whole expression
+               // below, so this branch closed it twice: one `.crewrow` opened and two closed,
+               // and the surplus closer walked the rest of the list out of the card. `full`
+               // covers the cooling-off window, so that was EVERY row for any rider who had
+               // just left a crew -- the counter read "1 of 1 crews" over twenty-one rows,
+               // the filter governed one of them, and the card's border stopped mid-list.
                ? '<button class="crewbtn mini ghost" disabled>'
                  + t(waiting ? "crew.join.wait.btn" : "crew.join.full")
-                 + "</button></div>"
+                 + "</button>"
                : '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
                  + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
                  + esc(c.name) + '">' + label + "</button>") + "</div>";

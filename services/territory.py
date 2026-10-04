@@ -1172,7 +1172,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     db.query(ClanCell).delete()
     for c in clans.values():          # cleared first, so a crew that lost everything shows 0
         c.terr_km2 = c.terr_best_km2 = 0.0
-        c.terr_tiles = c.terr_regions = c.terr_best_tiles = 0
+        c.terr_tiles = c.terr_regions = c.terr_best_tiles = c.terr_best_fresh = 0
         c.targets_json = targets_json.get(c.clan_id)
     now = utcnow()
     order = sorted(kept.keys())
@@ -1187,6 +1187,10 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         c = clans[clan_id]
         km2 = 0.0
         pts = kept[clan_id]
+        # The squares this crew took inside the window, kept so the components pass below can
+        # count the ones that fell inside the patch the board ranks on. The loop is already
+        # making this decision per tile for the band; this only writes it down.
+        fresh_pts: set[tuple[int, int]] = set()
         for (x, y) in sorted(pts):
             tile = f"{zoom}/{x}/{y}"
             # a tile gained by enclosure has no winner entry: nobody rode it, it is held
@@ -1231,10 +1235,17 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                 losable.append((len(cells_flat) // 5, x, y))
             if prev and got and (now - got).days < FRESH_DAYS:
                 band += 5
+                fresh_pts.add((x, y))
             cells_flat.extend((idx, x, y, band, need))
         comps = patches_by_clan[clan_id]          # worked out once, above
         best_km2 = 0.0
         best_tiles = 0
+        # The patch itself, not only its size: the board prints a weekly delta beside the
+        # ranked figure, and the two have to be counted over the same squares. Clamping the
+        # crew's whole fresh count at this figure instead made the row arithmetically possible
+        # and still untrue -- 49 fresh cells across 3 patches printed as "+29" next to a
+        # 29-square patch, which reads as the whole block having been won this week.
+        best_comp: set | None = None
         for comp in comps:
             ex, ey, es = emblem_slot(comp)
             regions_out.append({"c": idx, "e": [ex, ey, es], "n": len(comp)})
@@ -1243,16 +1254,19 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             # ranking on area hands a rider at the equator four times the credit.
             if len(comp) > best_tiles:
                 best_tiles = len(comp)
+                best_comp = comp
             best_km2 = max(best_km2, sum(T.area_km2(f"{zoom}/{x}/{y}") for (x, y) in comp))
         c.terr_km2 = round(km2, 1)
         c.terr_best_km2 = round(best_km2, 1)
         c.terr_best_tiles = best_tiles
         c.terr_tiles = len(pts)
         c.terr_regions = len(comps)
+        c.terr_best_fresh = len(fresh_pts & best_comp) if best_comp else 0
         payload_crews.append({
             "id": clan_id, "name": c.name, "slug": c.slug, "colour": c.colour,
             "pattern": c.pattern, "tiles": len(pts), "km2": round(km2, 1),
             "best_km2": round(best_km2, 1), "best_tiles": best_tiles,
+            "best_fresh": c.terr_best_fresh,
             "regions": len(comps),
             "members": member_counts.get(clan_id, 0),
             "emblem": f"/api/v1/crews/{c.slug}/emblem",
@@ -1354,6 +1368,9 @@ def ranking(db, limit: int = 50) -> list[dict]:
              "pattern": c.pattern, "tiles": c.terr_tiles or 0,
              "km2": c.terr_km2 or 0.0, "best_km2": c.terr_best_km2 or 0.0,
              "best_tiles": c.terr_best_tiles or 0,
+             # Counted inside the patch `best_tiles` measures. The board puts them side by
+             # side, so a delta counted over anything wider is a row that contradicts itself.
+             "best_fresh": c.terr_best_fresh or 0,
              "regions": c.terr_regions or 0,
              "emblem": f"/api/v1/crews/{c.slug}/emblem"}
             for c in rows]
