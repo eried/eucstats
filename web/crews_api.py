@@ -755,10 +755,14 @@ def edit_crew(slug: str, payload: dict, request: Request, db: Session = Depends(
     if m is None or m.role not in ("leader", "officer"):
         raise HTTPException(403, "forbidden")
     if "name" in payload:
-        name = (payload["name"] or "").strip()
-        if not crews.NAME_RE.match(name):
+        # Normalised before it is checked or compared, like `crews.create` -- otherwise the
+        # two spellings of an accented name are two different rows with one appearance.
+        name = crews.clean_name(payload["name"])
+        if not crews.name_ok(name):
+            # The full sentence. This path said "3-28 characters." to a name refused for its
+            # characters, so a rider editing `Ron's Crew #1` was told the length was wrong.
             raise HTTPException(400, json.dumps({"code": "bad_name",
-                                                 "detail": "3-28 characters."}))
+                                                 "detail": crews.NAME_RULE_TEXT}))
         # Every crew, not only the living ones: the column is UNIQUE for the life of the
         # table, so clashing against live crews alone passed here and raised an
         # IntegrityError nobody caught. Same reasoning as crews.create.

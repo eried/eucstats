@@ -2184,12 +2184,24 @@
   // working name into an error nobody can get past.
   //
   // Verified against the server for Nordlys, Кланы, 戦隊兵, Zürich Crew, كلان (all accepted)
-  // and `Rev B 🛞 Crew`, `<b>hi</b>` (both refused). Python's `\w` also covers combining
-  // marks, hence `\p{M}`; it does not cover emoji, and neither does this.
+  // and `Rev B 🛞 Crew`, `<b>hi</b>` (both refused). It does not cover emoji, and nor
+  // does the server.
+  //
+  // The line that used to be here said Python's `\w` "also covers combining marks, hence
+  // `\p{M}`". It does not: a mark is category Mn/Mc and `str.isalnum()` is false for it. So
+  // every DECOMPOSED name passed here and was refused by the server -- and decomposed is what
+  // iOS and macOS text input commonly hand you. A reviewer measured `Zürich Crew` accepted
+  // by this regex and refused with "3-28 characters." about a twelve-character name. The
+  // server is written by category now and normalises first; see `crews.name_ok`.
   var NAME_OK = /^[\p{L}\p{N}\p{M}_ \-'&.]{3,28}$/u;
 
   function nameProblem(v) {
-    var name = (v || "").trim();
+    // NFC first, and for the same reason the server does it: otherwise the two sides measure
+    // different strings. `u` + `U+0308` is two characters here and one after normalising, so a
+    // 28-character name with accents could be refused as too long by the browser and accepted
+    // by the server, which is the same disagreement the other way round.
+    var raw = (v || "").trim();
+    var name = raw.normalize ? raw.normalize("NFC") : raw;
     if (!name) return "crew.e.name.empty";
     if (name.length < 3) return "crew.e.name.short";
     if (name.length > 28) return "crew.e.name.long";

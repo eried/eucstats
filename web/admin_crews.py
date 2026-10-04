@@ -273,9 +273,11 @@ def rename(request: Request, db: Session = Depends(get_db),
     c = db.get(Clan, clan_id)
     if c is None:
         return _redir(err="No such crew.")
-    name = (name or "").strip()
-    if not crews.NAME_RE.match(name):
-        return _redir(err="A name is 3-28 characters.")
+    # Normalised like the rider-facing paths, so the admin and the panel agree on what one
+    # name is -- and refused with the rule rather than with the length.
+    name = crews.clean_name(name)
+    if not crews.name_ok(name):
+        return _redir(err="A name is " + crews.NAME_RULE_TEXT)
     if db.query(Clan).filter(Clan.name == name, Clan.clan_id != clan_id).first():
         return _redir(err="That name is taken.")   # UNIQUE covers folded crews too
     old = c.name

@@ -1186,3 +1186,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
     -webkit-box-orient: vertical; overflow: hidden;
   }
 }
+
+/* `[hidden]` means hidden, everywhere in the panel.
+   `[hidden] { display: none }` is a user-agent rule, so ANY author `display` outranks it. That
+   has now shipped three times in this one file: `.crewrow` got its own guard (see the note
+   beside it), a comment further up flags `.crewbtn { display: inline-flex }` as the same
+   hazard, and the two elements that actually needed it -- `.crewempty` at `display: flex` and
+   the show-all button -- did not have it. The visible result was a "Nothing matches" notice
+   that could not be dismissed for the rest of the session, sitting under a full list, beside a
+   second "Show all" doing something different.
+   So: not another exception. `#pbody [hidden]` is specificity (1,1,0), which nothing else in
+   this stylesheet reaches, and it covers every element the panel hides by attribute including
+   the ones nobody has written yet. An absent declaration is invisible to the cascade checker,
+   which is why this has to be structural. */
+#pbody [hidden] { display: none; }

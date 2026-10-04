@@ -10,6 +10,7 @@ import hashlib
 import math
 import random
 import re
+import unicodedata
 import uuid
 from datetime import timedelta
 
@@ -36,7 +37,40 @@ PATTERNS = ["solid", "stripes", "dots", "hatch"]
 JOIN_POLICIES = ("open", "approval", "invite")
 COOLDOWN_DAYS = 7          # the default; the admin's figure comes from settings, see _cooldown_days
 IDLE_LEADER_DAYS = 90      # before the longest-serving member may claim leadership
-NAME_RE = re.compile(r"^[\w \-'&.]{3,28}$", re.UNICODE)
+NAME_MIN, NAME_MAX = 3, 28
+# The five punctuation characters a crew name may use, and nothing else outside letters,
+# numbers and marks. Kept beside `name_ok` so the message and the rule cannot drift.
+NAME_PUNCT = frozenset(" -'&._")
+
+
+def name_ok(name: str) -> bool:
+    r"""Whether a crew may be called this. The one rule; the client mirrors it exactly.
+
+    This was `^[\w \-'&.]{3,28}$`, and Python's `\w` does not match combining marks while the
+    client's `\p{M}` does. Any decomposed string therefore passed in the browser and was
+    refused by the server -- and decomposed is what iOS and macOS text input commonly produce.
+    A reviewer measured `Zu\u0308rich Crew` (u + U+0308) refused with "3-28 characters." about
+    a twelve-character name.
+
+    So it is written by category now, which is what the client's classes mean, and the name is
+    normalised first: the two spellings of "Zurich" are one name, not two rows that look
+    identical in a list and collide on nothing.
+    """
+    s = unicodedata.normalize("NFC", name or "").strip()
+    if not (NAME_MIN <= len(s) <= NAME_MAX):
+        return False
+    return all(ch in NAME_PUNCT or unicodedata.category(ch)[0] in ("L", "N", "M") for ch in s)
+
+
+def clean_name(name: str) -> str:
+    """The form a name is stored in. Normalising on the way in is what makes uniqueness mean
+    what a reader thinks it means."""
+    return unicodedata.normalize("NFC", name or "").strip()
+
+
+# The sentence both refusal paths use. `/edit` had its own, shorter one -- "3-28 characters."
+# for a character-set violation -- so a rejected `Ron's Crew #1` was told its length was wrong.
+NAME_RULE_TEXT = "3-28 characters, letters, numbers, spaces and - ' & ."
 
 
 class CrewError(Exception):
@@ -288,8 +322,9 @@ def can_found(db, store_id: str) -> bool:
 
 def create(db, store_id: str, name: str, description: str = "", colour: str | None = None,
            pattern: str | None = None, join_policy: str = "approval") -> Clan:
-    if not NAME_RE.match((name or "").strip()):
-        raise CrewError("bad_name", "3-28 characters, letters, numbers, spaces and - ' & .")
+    name = clean_name(name)
+    if not name_ok(name):
+        raise CrewError("bad_name", NAME_RULE_TEXT)
     if membership(db, store_id):
         raise CrewError("already_in_crew", "Leave your crew before founding another.")
     until = cooldown_until(db, store_id)
