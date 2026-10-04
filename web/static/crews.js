@@ -1126,7 +1126,10 @@
   // over its translator, so its titles could not have called `t()` even if anybody had
   // thought to -- and `crew.role.leader` has been translated in all eighteen locales the
   // whole time and is used correctly forty lines below.
-  var ROLEGLYPH = { leader: "\u2605", officer: "\u25c6", member: "", past: "\u00b7" };
+  // `past` was U+00B7, the same middle dot that sits inside every `S13·Night Shift`
+  // handle in the list, so "has left the crew" read as a typo next to a gold star and a mint
+  // diamond. U+2716 is a mark, not punctuation.
+  var ROLEGLYPH = { leader: "\u2605", officer: "\u25c6", member: "", past: "\u2716" };
   var ROLECLASS = { leader: "lead", officer: "off", member: "", past: "past" };
 
   function roleMark(role) {
@@ -2712,13 +2715,27 @@
           var policy = t("crew.policy." + c.join_policy);
           // what the crew holds and what it says about itself, so the choice is not a
           // blind name-pick that costs a cooldown if it is wrong
-          var away = c._km == null ? "" : " · " + t("crew.join.away", { v: fmtKm(c._km) });
           // Cooling off, so the list is for looking at. A button that cannot work must say
           // so before it is pressed, not after: the countdown above the list is the answer
           // and the button is the question.
           var full = (MAXMEM && c.members >= MAXMEM) || !!waiting;
-          var sub = riders(c.members) + " · " + policy
-            + (c.km2 ? " · " + fmtKm2(c.km2) : "") + away;
+          // Each fact in its own `nowrap` span, so the line breaks BETWEEN facts. The
+          // non-breaking space stopped `78 km` splitting inside itself; the phrase around it
+          // still broke anywhere, so a row read `… 78 km` / `from here` and the one below
+          // began `· 222 km from here` -- a separator reading as a list bullet.
+          // The separator lives INSIDE the fact it introduces, so it cannot be left dangling
+          // at the end of a line. Two nowrap spans with a breakable gap between them still
+          // allowed a break AFTER the separator, which is the worse of the two faults: a line
+          // ending `… 25 km² ·`, a bullet with nothing after it. Glued forwards, a line ends
+          // with a whole fact and the next begins `· 222 km from here`, which reads as the
+          // list continuing.
+          var sub = [riders(c.members), policy]
+            .concat(c.km2 ? [fmtKm2(c.km2)] : [])
+            .concat(c._km == null ? [] : [t("crew.join.away", { v: fmtKm(c._km) })])
+            .map(function (f, k) {
+              return '<span class="crewfact">'
+                + (k ? '<span class="crewsep">· </span>' : "") + f + "</span>";
+            }).join(" ");
           return '<div class="crewrow' + (i >= SHOWN ? " crewrest" : "") + '"'
             + ' data-name="' + esc((c.name || "").toLowerCase()) + '">' + emb(c.slug, 26)
             + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"

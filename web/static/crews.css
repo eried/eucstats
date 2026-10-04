@@ -151,8 +151,28 @@
   text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
 .crewident select { margin-top: 4px; }
 
-.crewsign { text-align: center; }
-.crewsign .hint { text-align: left; }
+/* One axis. The card changed alignment five times -- centred heading, left-ragged subtitle
+   directly under it, centred QR, centred code, then three left-ragged hints -- so the heading
+   had no left edge in common with its own subtitle. Left throughout, with the code and the QR
+   centring themselves inside the text column rather than against the card. `.crewsign .hint`
+   used to force left against a centred parent and is now what everything inherits. */
+.crewsign { text-align: left; }
+.crewsign .crewcode { text-align: center; }
+/* The version requirement is a precondition, not a footnote. It was the second of three
+   identical hint lines with a pink one below it, so the newest and hardest requirement was
+   the least visible thing in its own group. */
+/* `.crewsign .crewneeds`, not `.crewneeds`: the element is `<p class="hint crewneeds">` and
+   `.crewcard .hint` sets the muted ink at (0,2,0), so a single class could set the weight and
+   never the colour. Two classes on one element is a relationship the stylesheet does not
+   state and the cascade checker cannot see -- the same shape as `.crewbtn` un-hiding
+   `.crewopen` two rounds ago. */
+.crewsign .crewneeds { font-weight: 600; color: var(--ink, #eef1fb); }
+
+/* A fact, and the separator between two of them. Each fact is `nowrap` so a line breaks
+   BETWEEN facts: the non-breaking space stopped `78 km` splitting inside itself, and the
+   phrase around it still broke anywhere, so one row read `… 78 km` / `from here` while the
+   next began `· 222 km from here` -- a separator reading as a list bullet. */
+.crewfact, .crewsep { white-space: nowrap; }
 .crewqr { min-height: 188px; display: flex; align-items: center; justify-content: center; margin: 12px 0 8px; }
 .crewqr img { width: 188px; height: 188px; image-rendering: pixelated; background: #fff; padding: 7px; }
 .crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
@@ -160,7 +180,12 @@
 .crewmsg { margin: 9px 0; padding: 8px 11px; border-radius: 7px;
   background: rgba(255,138,216,.14); border-left: 2px solid var(--sec, #ff8ad8);
   font-size: 12px; }
-.crewmsg.bad { background: rgba(255,79,163,.13); border-left-color: #ff4fa3; }
+/* A neutral-dark fill, not a second pink wash. The ask box it most often sits inside is
+   `rgba(255,138,216,.1)` with a `#ff8ad8` rail; an error on `rgba(255,79,163,.13)` with a
+   `#ff4fa3` rail was two pinks nested about 20 degrees apart, so the one state that must read
+   differently from resting had almost no distance from it. The ink and the rail stay pink --
+   that is the signal -- and the fill carries the difference. */
+.crewmsg.bad { background: rgba(10,6,14,.55); border-left-color: #ff4fa3; }
 /* Amber, not the error pink: nothing has gone wrong, it is just not finished. */
 .crewmsg.warn { background: rgba(255,210,74,.12); border-left-color: #ffd24a; color: #ffe9a8; }
 

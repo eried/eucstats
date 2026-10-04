@@ -63,6 +63,17 @@ def _inline_stylesheet():
 # Every selector allowed to clip, and what was measured in the locale that needs the most
 # room. Adding a row here is the review; the measurement belongs in the note.
 REVIEWED = {
+    ".crewfact":
+        "one fact out of a join row's meta line -- `4 riders`, `leader says yes`, `137 km²`, "
+        "`223 km from here`. The nowrap is here so the line breaks BETWEEN facts: without it a "
+        "row read `… 78 km` / `from here` and the next began `· 222 km from here`, a "
+        "separator reading as a list bullet. The container still wraps, and it wraps at the "
+        "separators, so nothing is cut -- the longest single fact is uk "
+        "`за 223 км відсюди` at "
+        "about 120px in a 292px row at 390.",
+    ".crewsep":
+        "the ` · ` between two of those facts, four characters wide. It may not start or "
+        "end a line, which is the whole reason it is a span.",
     ".crewboard table .val":
         "a figure and its unit -- `13 squares`, `91 клетка`. Measured at 390 in all 19: the "
         "column is sized from its widest row, and the longest (uk `клітинок`) fits.",
