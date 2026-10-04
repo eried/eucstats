@@ -2919,6 +2919,28 @@
 
   var MAXMEM = 0;
 
+  // The exact moment the cooldown lifts, in the reader's own locale and with no string to
+  // translate. `toLocaleString` is given the locale the panel is already running in, and falls
+  // back to the browser's own if that is not a tag it knows.
+  function whenAgain(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";          // never print "Invalid Date" at a rider
+    var out;
+    try {
+      // `locale()` reads the root element's lang, which the page updates every time the rider
+      // changes language -- the same source `plural()` uses, so the date and the nouns around
+      // it cannot disagree. I first wrote `LANG`, which does not exist in this file and would
+      // have thrown on the one card it was written for.
+      out = d.toLocaleString(locale() || undefined,
+                             { day: "numeric", month: "short", hour: "2-digit",
+                               minute: "2-digit" });
+    } catch (e) {
+      try { out = d.toLocaleString(); } catch (e2) { return ""; }
+    }
+    return ' <span class="crewwhen">' + esc(out) + "</span>";
+  }
+
   function joinHTML(crews, me) {
     // The countdown used to be returned INSTEAD of the list, so twenty-one crews existed
     // and a rider could not look at one of them for a week. The stated reason for hiding the
@@ -2934,7 +2956,15 @@
     var pending = !cooling && me.status === "pending";
     var msg = cooling
       ? '<div class="crewmsg">'
-        + t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) }) + "</div>"
+        + t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) })
+        // The date itself, which the server has known all along: a join attempt during the
+        // cooldown is refused with "You can join a crew after 11 Oct 12:14." and the card
+        // printed only "next crew in 7 days", so a rider coming back on day four could not
+        // tell what was left. A formatted date needs no translation -- the browser renders it
+        // in the reader's own locale -- which is why it is a span beside the sentence rather
+        // than a sentence of its own in nineteen tables.
+        + whenAgain(me.cooldown_until)
+        + "</div>"
       : pending
         ? '<div class="crewmsg">' + t("crew.join.pending") + "</div>"
         : "";

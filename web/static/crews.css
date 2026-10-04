@@ -1224,6 +1224,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    which is why this has to be structural. */
 #pbody [hidden] { display: none; }
 
+/* The exact moment a cooldown lifts, beside the sentence that says how long is left. Quieter
+   than the sentence, because it is the precise version of something already said. */
+.crewwhen { font-variant-numeric: tabular-nums; opacity: .8; white-space: nowrap; }
+
 /* Which way a crew is going. The green and the orange are the two already in this file for
    gaining and losing ground, so the board's arrows mean what the map's colours mean. Quiet:
    it is a second reading of a rank that is already printed beside it, and the one round that
