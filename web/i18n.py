@@ -195,6 +195,9 @@ EN: dict[str, str] = {
     "crew.who.share": "{n}%",
     "crew.rank.top": "top of the board",
     "crew.rank.nth": "{n}th",
+    # `{n}` comes through `tiles()`, so the noun agrees. As a bare integer this was the one
+    # count in the feature with nothing after it for a locale to inflect, in the most
+    # prominent line on the crew card.
     "crew.rank.off": "{n} off {v}",
     "crew.rank.level": "level with {v}",
     "crew.roles.remove": "Remove",
@@ -214,6 +217,9 @@ EN: dict[str, str] = {
     "crew.declined.p": "{name} turned your request down. No waiting, pick another one.",
     "crew.join.away": "{v} from here",
     "crew.join.full": "Full",
+    "crew.join.nomatch": "Nothing matches “{v}”.",
+    "crew.join.showall": "Show all",
+    "crew.join.wait.btn": "Cooling off",
     "crew.off.h": "Crews are off",
     "crew.e.off": "Crews are switched off right now.",
     "crew.e.leaderback": "Your leader turned up again.",
@@ -227,6 +233,14 @@ EN: dict[str, str] = {
     "crew.e.rate": "Slow down a second.",
     "crew.e.invite": "That code is not it.",
     "crew.e.name": "3 to 28 characters, and nothing exotic.",
+    # The client checks the same shape the server does, so a typo costs a keystroke
+    # instead of a round trip -- and says WHICH half failed. One sentence used to
+    # answer an empty box, three spaces, two emoji, "ab" and `<b>hi</b>` alike.
+    "crew.e.name.empty": "Give it a name.",
+    "crew.e.name.short": "Three characters at least.",
+    "crew.e.name.long": "Twenty-eight characters at most.",
+    "crew.e.name.chars": "Letters, numbers, spaces and - ' & . only.",
+    "crew.mine.saved": "Saved",
     "crew.e.taken": "That name's taken.",
     "crew.e.increw": "Leave your crew first.",
     "crew.e.notrips": "Send up one ride first.",

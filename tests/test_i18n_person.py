@@ -389,8 +389,8 @@ HOME = {
     "crew.tile.": {"tileWords", "legendHTML", "fadesIn", "onCellClick", "onCellHover",
                    "ringTip", "targetsHTML"},
     "crew.legend.": {"legendHTML"},
-    "crew.new.": {"createHTML", "myCrewHTML"},
-    "crew.pattern.": {"createHTML"},
+    "crew.new.": {"createHTML", "myCrewHTML", "identGrids", "identBlock"},
+    "crew.pattern.": {"createHTML", "identGrids"},
     "crew.roles.": {"myCrewHTML", "bindMine"},
 }
 

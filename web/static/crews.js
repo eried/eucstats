@@ -791,13 +791,21 @@
 
   /* ---------- the panel ---------- */
 
+  // What is already in flight, keyed by method and path. Nothing debounced a write, so a
+  // double-click on Join sent two POSTs -- 200 then 400 `already_in_crew` -- and whichever
+  // landed last decided what the rider saw. Every write in this feature goes through here,
+  // so this one set covers join, create, leave, disband, promote, remove and approve.
+  var inFlight = {};
+
   function api(method, path, body) {
+    var key = method + " " + path;
+    if (method !== "GET" && inFlight[key]) return inFlight[key];
     var opt = { method: method, headers: {}, credentials: "same-origin" };
     if (body !== undefined) {
       opt.headers["Content-Type"] = "application/json";
       opt.body = JSON.stringify(body);
     }
-    return fetch(path, opt).catch(function () {
+    var p = fetch(path, opt).catch(function () {
       // No catch at all before this: a dropped request rejected, the .then never ran, and
       // "Create crew" stayed disabled with nothing on screen to say why.
       return { ok: false, status: 0, json: function () { return Promise.resolve({}); } };
@@ -810,6 +818,14 @@
         return { ok: r.ok, status: r.status, body: b, err: r.ok ? null : (detail || {}) };
       });
     });
+    if (method !== "GET") {
+      inFlight[key] = p;
+      // Released however it settles, including the catch above, so one failed write cannot
+      // wedge that endpoint for the rest of the session.
+      p.then(function () { delete inFlight[key]; },
+             function () { delete inFlight[key]; });
+    }
+    return p;
   }
 
   // The crew's own emblem at name size. Same source the map and the podium draw.
@@ -1945,36 +1961,133 @@
 
   /* ---------- create / manage ---------- */
 
+  // One builder for both forms. The create card and the crew settings card ask the same
+  // question -- what does this crew look like on the map -- and settings never offered it, so
+  // the single most visible choice a crew makes was the one choice it could not revisit.
+  //
+  // A roving tabindex, because 24 swatches were 24 tab stops: crossing this one control cost
+  // 28 presses in a form with two text fields, and reaching Leave crew took 56. One stop in,
+  // arrows to move, one stop out, which is what a grid of toggles is supposed to do.
+  // `aria-pressed` is unchanged; it is the state, and this is only the focus order.
+  function identGrids(prefix, ident) {
+    var cols = (window.__CREWCFG__ && window.__CREWCFG__.palette) || [];
+    var chosenC = cols.indexOf(ident.colour);
+    if (chosenC < 0) chosenC = 0;
+    var chosenP = PATTERNS.indexOf(ident.pattern);
+    if (chosenP < 0) chosenP = 0;
+    return {
+      colours: '<div class="crewpick" id="' + prefix + '-colours" role="group" aria-label="'
+        + esc(t("crew.new.colours")) + '">' + cols.map(function (c, i) {
+          var on = c === ident.colour;
+          return '<button type="button" class="crewpickc' + (on ? " on" : "")
+            + '" aria-pressed="' + (on ? "true" : "false")
+            + '" tabindex="' + (i === chosenC ? "0" : "-1")
+            + '" data-c="' + c + '" style="background:' + c + '" title="'
+            + esc(t("crew.new.colourn", { n: i + 1 })) + '" aria-label="'
+            + esc(t("crew.new.colourn", { n: i + 1 })) + '"></button>';
+        }).join("") + "</div>",
+      patterns: '<div class="crewpick" id="' + prefix + '-patterns" role="group" aria-label="'
+        + esc(t("crew.new.patterns")) + '">' + PATTERNS.map(function (pt, i) {
+          var on = pt === ident.pattern;
+          return '<button type="button" class="crewpickp' + (on ? " on" : "")
+            + '" aria-pressed="' + (on ? "true" : "false")
+            + '" tabindex="' + (i === chosenP ? "0" : "-1")
+            + '" data-p="' + pt + '" title="' + esc(t("crew.pattern." + pt))
+            + '" aria-label="' + esc(t("crew.pattern." + pt)) + '">'
+            + '<span class="crewsw" data-p="' + pt + '" style="background:' + ident.colour
+            + '"></span></button>';
+        }).join("") + "</div>"
+    };
+  }
+
+  // The identity block, label and preview and both grids, for whichever form asks.
+  function identBlock(prefix, ident) {
+    var g = identGrids(prefix, ident);
+    return '<div class="crewidentrow">'
+      + "<div class=crewidentl>" + t("crew.new.colours")
+      + '<span class="crewpreview">' + swatch(ident.colour, ident.pattern, 34) + "</span>"
+      + "</div>"
+      + g.colours
+      // A visible label of its own. Four pattern swatches sat under twenty-four colour
+      // swatches with nothing but an `aria-label`, so a sighted reader got an unexplained
+      // second grid in a form whose every other control is labelled.
+      + '<div class=crewidentl>' + t("crew.new.patterns") + "</div>"
+      + g.patterns + "</div>"
+      + '<input type="hidden" id="' + prefix + '-colour" value="' + ident.colour + '">'
+      + '<input type="hidden" id="' + prefix + '-pattern" value="' + ident.pattern + '">';
+  }
+
+  // Wire one form's grids: selection, the preview, the hidden inputs, and arrow keys.
+  function bindIdent(prefix, onChange) {
+    function wire(sel, attr, hidden) {
+      var all = [].slice.call(document.querySelectorAll("#" + prefix + sel + " button"));
+      if (!all.length) return;
+      function mark(chosen) {
+        all.forEach(function (o) {
+          var on = o === chosen;
+          o.classList.toggle("on", on);
+          o.setAttribute("aria-pressed", on ? "true" : "false");
+          o.tabIndex = on ? 0 : -1;
+        });
+      }
+      all.forEach(function (b, i) {
+        b.onclick = function () {
+          var h = document.getElementById(prefix + hidden);
+          if (h) h.value = b.dataset[attr];
+          mark(b);
+          if (onChange) onChange();
+        };
+        b.onkeydown = function (e) {
+          var step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
+                   : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1
+                   : e.key === "Home" ? -all.length
+                   : e.key === "End" ? all.length : 0;
+          if (!step) return;
+          e.preventDefault();
+          var j = Math.max(0, Math.min(all.length - 1, i + step));
+          all[j].focus();
+          all[j].click();
+        };
+      });
+    }
+    wire("-colours", "c", "-colour");
+    wire("-patterns", "p", "-pattern");
+  }
+
+  // The same shape the server checks, so a typo costs a keystroke instead of a round trip
+  // and a red line in the console. `maxlength="28"` already proved the client knew the rule;
+  // what it did not do was say WHICH half failed -- one sentence answered an empty box, three
+  // spaces, two emoji, "ab" and `<b>hi</b>` alike, and led with the length every time.
+  //
+  // `\p{L}\p{N}_` and NOT `\w`. The server's pattern is `[\w \-'&.]` with `re.UNICODE`, where
+  // `\w` matches any Unicode word character -- Кланы, 戦隊兵, Zürich and كلان all pass it. In
+  // JavaScript `\w` is ASCII-only no matter what flags it carries, even `/u`, so my first
+  // version of this check refused four of the five non-Latin names the server accepts. A
+  // client check stricter than the server is worse than no client check at all: it turns a
+  // working name into an error nobody can get past.
+  //
+  // Verified against the server for Nordlys, Кланы, 戦隊兵, Zürich Crew, كلان (all accepted)
+  // and `Rev B 🛞 Crew`, `<b>hi</b>` (both refused). Python's `\w` also covers combining
+  // marks, hence `\p{M}`; it does not cover emoji, and neither does this.
+  var NAME_OK = /^[\p{L}\p{N}\p{M}_ \-'&.]{3,28}$/u;
+
+  function nameProblem(v) {
+    var name = (v || "").trim();
+    if (!name) return "crew.e.name.empty";
+    if (name.length < 3) return "crew.e.name.short";
+    if (name.length > 28) return "crew.e.name.long";
+    if (!NAME_OK.test(name)) return "crew.e.name.chars";
+    return null;
+  }
+
   function createHTML(ident) {
     // No invented fallback. Nothing is preselected until the server says what is free, which
     // is a form with no colour chosen rather than a form lying about one.
     ident = ident || { colour: null, pattern: null };
-    var cols = (window.__CREWCFG__ && window.__CREWCFG__.palette) || [];
     // Colours are swatches, not a dropdown of hex codes. Nobody picks a crew identity by
     // reading "#000075", and the thing being chosen is the thing you will see on the map, so
-    // the picker shows it with the pattern already on it.
-    // A name and a state on every cell. A screen reader used to get twenty-four hex codes
-    // and four raw English identifiers, and the chosen cell carried a class with no
-    // `aria-pressed`, so the selection did not exist for assistive tech at all.
-    var colourGrid = '<div class="crewpick" id="cf-colours" role="group" aria-label="'
-      + esc(t("crew.new.colours")) + '">' + cols.map(function (c, i) {
-      var on = c === ident.colour;
-      return '<button type="button" class="crewpickc' + (on ? " on" : "")
-        + '" aria-pressed="' + (on ? "true" : "false")
-        + '" data-c="' + c + '" style="background:' + c + '" title="'
-        + esc(t("crew.new.colourn", { n: i + 1 })) + '" aria-label="'
-        + esc(t("crew.new.colourn", { n: i + 1 })) + '"></button>';
-    }).join("") + "</div>";
-    var patternGrid = '<div class="crewpick" id="cf-patterns" role="group" aria-label="'
-      + esc(t("crew.new.patterns")) + '">' + PATTERNS.map(function (pt) {
-      var on = pt === ident.pattern;
-      return '<button type="button" class="crewpickp' + (on ? " on" : "")
-        + '" aria-pressed="' + (on ? "true" : "false")
-        + '" data-p="' + pt + '" title="' + esc(t("crew.pattern." + pt))
-        + '" aria-label="' + esc(t("crew.pattern." + pt)) + '">'
-        + '<span class="crewsw" data-p="' + pt + '" style="background:' + ident.colour
-        + '"></span></button>';
-    }).join("") + "</div>";
+    // the picker shows it with the pattern already on it. `identBlock` builds both grids.
+
     return '<div class="crewcard">'
       + "<h3>" + t("crew.new.h") + "</h3>"
       + '<p class=hint>' + t("crew.new.p") + "</p>"
@@ -1989,15 +2102,7 @@
       + "<label>" + t("crew.new.desc")
       + '<textarea id="cf-desc" rows="2" maxlength="280"></textarea>'
       + '<span class="crewcount" id="cf-desccount">0/280</span>' + "</label>"
-      // The preview sits with the label, not beside the grid: at 390px it left about 280px
-      // of empty gutter down the whole picker and squeezed the grid into four columns.
-      + '<div class="crewidentrow">'
-      + "<div class=crewidentl>" + t("crew.new.colours")
-      + '<span class="crewpreview">' + swatch(ident.colour, ident.pattern, 34) + "</span>"
-      + "</div>"
-      + colourGrid + patternGrid + "</div>"
-      + '<input type="hidden" id="cf-colour" value="' + ident.colour + '">'
-      + '<input type="hidden" id="cf-pattern" value="' + ident.pattern + '">'
+      + identBlock("cf", ident)
       + "<label>" + t("crew.new.who")
       + '<select id="cf-policy">'
       + '<option value="approval">' + t("crew.new.approval") + "</option>"
@@ -2025,31 +2130,9 @@
       });
     }
 
-    // `aria-pressed` alongside the class, every time. A state class with no ARIA mirror is
-    // a state that only sighted users have.
-    function mark(list, chosen) {
-      list.forEach(function (o) {
-        var on = o === chosen;
-        o.classList.toggle("on", on);
-        o.setAttribute("aria-pressed", on ? "true" : "false");
-      });
-    }
-    var swatches = [].slice.call(document.querySelectorAll("#cf-colours .crewpickc"));
-    swatches.forEach(function (b) {
-      b.onclick = function () {
-        hidC.value = b.dataset.c;
-        mark(swatches, b);
-        sync();
-      };
-    });
-    var pats = [].slice.call(document.querySelectorAll("#cf-patterns .crewpickp"));
-    pats.forEach(function (b) {
-      b.onclick = function () {
-        hidP.value = b.dataset.p;
-        mark(pats, b);
-        sync();
-      };
-    });
+    // One wiring for both forms: selection, `aria-pressed`, the roving tabindex and the
+    // arrow keys all live in `bindIdent`, which the settings form calls as well.
+    bindIdent("cf", sync);
     // You cannot read back what you cannot see, so say how much of it there is.
     var desc = document.getElementById("cf-desc");
     var count = document.getElementById("cf-desccount");
@@ -2060,6 +2143,13 @@
 
     var go = document.getElementById("cf-go");
     if (go) go.onclick = function () {
+      var nmf = document.getElementById("cf-name");
+      var why = nameProblem(nmf && nmf.value);
+      if (why) {
+        setStatus(t(why), true, nmf);
+        if (nmf) { nmf.focus(); nmf.select(); }
+        return;
+      }
       go.disabled = true;
       api("POST", "/api/v1/crews", {
         name: document.getElementById("cf-name").value,
@@ -2104,8 +2194,11 @@
     // Your own place first. `crew.rank.off` names the crew ABOVE you -- "1 off 7th" when you
     // are eighth -- and it was the only ordinal on your own card, so it read as your rank.
     return '<span class="crewgap">' + esc(ordinal(i + 1)) + " &middot; "
+      // `tiles()`, so the noun agrees. As a bare count this was the one number on the
+      // card's most prominent line with nothing after it for a locale to inflect: ja read
+      // `2位まで5`, a numeral with no counter, and fr and nl read "5 of 2nd".
       + t(gap === 0 ? "crew.rank.level" : "crew.rank.off",
-          { n: gap, v: ordinal(i) }) + "</span>";
+          { n: tiles(gap), v: ordinal(i) }) + "</span>";
   }
 
   // 1st, 2nd, 3rd from the host's own podium words, and the bare suffix past that. This
@@ -2280,6 +2373,11 @@
         + esc(c.name) + '"></label>'
         + "<label>" + t("crew.new.desc") + '<input id="ce-desc" maxlength="280" value="'
         + esc(c.description || "") + '"></label>'
+        // The colours. `/crews/{slug}/edit` has taken these since it was written and
+        // `crew.e.identity` exists for them; the form never asked, so the one thing a crew
+        // IS on the map was an irreversible guess made before meeting a single rival's
+        // colour, and two of the nineteen error strings were unreachable.
+        + identBlock("ce", { colour: c.colour, pattern: c.pattern })
         + "<label>" + t("crew.new.who") + '<select id="ce-policy">'
         + ["approval", "open", "invite"].map(function (p) {
             return '<option value="' + p + '"' + (p === c.join_policy ? " selected" : "")
@@ -2401,6 +2499,17 @@
       }, claim);
     };
     bindSignOut();
+    bindIdent("ce", function () {
+      var hid = document.getElementById("ce-colour");
+      var pat = document.getElementById("ce-pattern");
+      if (!hid || !pat) return;
+      var prev = document.querySelector(".crewedit .crewpreview .crewsw");
+      if (prev) { prev.style.background = hid.value; prev.dataset.p = pat.value; }
+      document.querySelectorAll("#ce-patterns .crewsw").forEach(function (el) {
+        el.style.background = hid.value;
+      });
+    });
+
     var save = document.getElementById("ce-save");
 
     var cp = document.getElementById("cm-copy");
@@ -2437,14 +2546,27 @@
       done();
     };
     if (save) save.onclick = function () {
+      var nm = document.getElementById("ce-name");
+      var bad = nameProblem(nm && nm.value);
+      if (bad) {
+        // Beside the field, and the field focused -- the create form has done this since
+        // round seventeen and this one scrolled the bad name off the top of the panel.
+        setStatus(t(bad), true, nm);
+        if (nm) { nm.focus(); nm.select(); }
+        return;
+      }
       save.disabled = true;
       api("POST", "/api/v1/crews/" + c.slug + "/edit", {
         name: document.getElementById("ce-name").value,
         description: document.getElementById("ce-desc").value,
-        join_policy: document.getElementById("ce-policy").value
+        join_policy: document.getElementById("ce-policy").value,
+        colour: (document.getElementById("ce-colour") || {}).value,
+        pattern: (document.getElementById("ce-pattern") || {}).value
       }).then(function (r) {
         save.disabled = false;
-        if (r.ok) { show(); reloadTerritory(); }
+        // It used to save in silence and shut the accordion, so the only evidence was a word
+        // changing one screen away. The create path has confirmed since round four.
+        if (r.ok) { pendingStatus = t("crew.mine.saved"); show(); reloadTerritory(); }
         else if (!onWrite(r)) setStatus(errMsg(r.err), true, save);
       });
     };
@@ -2548,13 +2670,20 @@
   var MAXMEM = 0;
 
   function joinHTML(crews, me) {
-    if (me.cooldown_until) {
-      return '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>"
-        + '<div class="crewmsg">'
-        + t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) })
-        + "</div></div>";
+    // The countdown used to be returned INSTEAD of the list, so twenty-one crews existed
+    // and a rider could not look at one of them for a week. The stated reason for hiding the
+    // create form while cooling off was "a form whose only possible outcome is the error" --
+    // and a list is not a form. Window-shopping for the crew you will join on day eight is
+    // the only thing a cooldown leaves you.
+    var waiting = me.cooldown_until
+      ? '<div class="crewmsg">'
+        + t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) }) + "</div>"
+      : "";
+    if (!crews.length) {
+      return waiting
+        ? '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>" + waiting + "</div>"
+        : "";
     }
-    if (!crews.length) return "";
     var rows = crews.slice();
     rows.forEach(function (c) { c._km = groundAway(c.slug); });
     // Nearest first. Rider count is a fine tiebreak and a terrible sort: it put a crew
@@ -2568,7 +2697,8 @@
     // can actually reach, and the whole set stays in the DOM so the filter below works on all
     // of it and the toggle costs no round trip.
     var SHOWN = 6;
-    return '<div class="crewcard crewjoin"><h3>' + t("crew.join.h") + "</h3>"
+    return '<div class="crewcard crewjoin"><h3>'
+      + t(waiting ? "crew.join.wait.h" : "crew.join.h") + "</h3>" + waiting
       + (rows.length > SHOWN
          ? '<input class="crewfilter" id="cj-filter" type="search" autocomplete="off"'
            + ' placeholder="' + esc(t("crew.join.filter")) + '"'
@@ -2583,7 +2713,10 @@
           // what the crew holds and what it says about itself, so the choice is not a
           // blind name-pick that costs a cooldown if it is wrong
           var away = c._km == null ? "" : " · " + t("crew.join.away", { v: fmtKm(c._km) });
-          var full = MAXMEM && c.members >= MAXMEM;
+          // Cooling off, so the list is for looking at. A button that cannot work must say
+          // so before it is pressed, not after: the countdown above the list is the answer
+          // and the button is the question.
+          var full = (MAXMEM && c.members >= MAXMEM) || !!waiting;
           var sub = riders(c.members) + " · " + policy
             + (c.km2 ? " · " + fmtKm2(c.km2) : "") + away;
           return '<div class="crewrow' + (i >= SHOWN ? " crewrest" : "") + '"'
@@ -2592,7 +2725,8 @@
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + "</div>"
             + (full
-               ? '<button class="crewbtn mini ghost" disabled>' + t("crew.join.full")
+               ? '<button class="crewbtn mini ghost" disabled>'
+                 + t(waiting ? "crew.join.wait.btn" : "crew.join.full")
                  + "</button></div>"
                : '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'
                  + esc(c.slug) + '" data-pol="' + esc(c.join_policy) + '" data-name="'
@@ -2628,10 +2762,30 @@
       });
       // Nothing to expand while a query is narrowing the list.
       if (more) more.hidden = !!q;
+      // A sentence naming the query and a way back, rather than the single em dash a
+      // stylesheet rule used to draw into an otherwise empty card.
+      var note = document.getElementById("cj-none");
       if (!shown && box) {
         list.setAttribute("data-empty", "1");
+        if (!note) {
+          note = document.createElement("div");
+          note.className = "crewempty";
+          note.id = "cj-none";
+          list.appendChild(note);
+        }
+        note.innerHTML = '<span>' + esc(t("crew.join.nomatch", { v: q })) + "</span>"
+          + '<button class="crewbtn mini ghost" id="cj-clear">'
+          + esc(t("crew.join.showall")) + "</button>";
+        note.hidden = false;
+        var clear = document.getElementById("cj-clear");
+        if (clear) clear.onclick = function () {
+          box.value = "";
+          paint();
+          box.focus();
+        };
       } else {
         list.removeAttribute("data-empty");
+        if (note) note.hidden = true;
       }
     }
 
@@ -2906,9 +3060,14 @@
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
         var i = +el.dataset.i, r = rank[i];
-        // The name alone left a screen reader with "Polar Night Riders, button" -- no rank,
-        // on the three biggest targets on the board.
-        pressable(el, r && (ordinal(i + 1) + " · " + r.name), function () {
+        // `aria-label` REPLACES the element's own text, so naming the rank and the crew did
+        // not merely leave out the 91 squares, the 2 patches and the +13 this week: it
+        // suppressed them. A reader on a card headed "Biggest patch a crew holds in one
+        // piece" heard sixteen names and not one number. `rowLabel` joins what is actually
+        // in the row, which is what the target rows have always done.
+        // No ordinal prefix: the row's first child IS the rank, so `rowLabel` already has
+        // it and prefixing produced "2nd · 2ND · Polar Night Riders".
+        pressable(el, r && rowLabel(el), function () {
           if (r) flyToCrew(r.slug);
         });
       });
