@@ -94,8 +94,19 @@
 @media (min-width: 561px) {
   /* The CARD's content column. Capping the list alone gave one card three right edges -- the
      filter at 1348, the rows at 1038, the toggle at 1348 -- and left `.crewcontrib` 156px
-     narrower than the `.crewtargets` block directly above it in the same stack. */
-  .crewjoin > *, .crewcontrib, .crewtargets { max-width: 56ch; }
+     narrower than the `.crewtargets` block directly above it in the same stack.
+     Named by STACK, not by member, which is what "the card's content column" has to mean:
+     `.crewcontrib` and `.crewtargets` are children of `.crewterr`, not of the card, so capping
+     those two left them 147px short of every one of the card's own children and put three
+     right edges in one card again -- 955.7, 808.7 and a border at 970.7, measured at 1280.
+     Capping each stack's children instead gives the whole card one edge, and a nested stack
+     inherits it because its own parent is already capped.
+     In rem, not ch. `ch` is resolved in each element's OWN font size, so the same declaration
+     gave the 13px blocks a 492px cap and the smaller `<p>` copy a 773.5px one -- two right
+     edges again, from one rule, measured at 1280. A content column is a single length by
+     definition. 31rem is the 56ch measure at the body size, which is where the number came
+     from in the first place. */
+  .crewjoin > *, .crewmine > *, .crewterr > * { max-width: 31rem; }
 }
 /* Full width, so it reads as more list rather than a stray action: it was the only control in
    the join card not in the button column the six rows above it end with. `.crewshowall` and
@@ -696,6 +707,16 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px;
 }
 .crewtargets.nums { --kmc: 58px; }
+/* Above the phone breakpoint the phrase stops taking the slack. `--kmw` is set inline from the
+   list's LONGEST phrase, so on a desktop the column was 217.7px for a row reading "one lap
+   0.2 km" while the neighbourhood got 119.9px and wrapped to four lines -- a 68.3px row about
+   70% empty, in a list whose other rows are 31-41px. Sizing to the longest phrase is right at
+   390, where the alternative is that phrase wrapping inside 46%; it is wrong once there is
+   width to spare, because the slack lands on the column that needs it least. The phone rule is
+   deliberately untouched -- every number in it was measured against a real bug. */
+@media (min-width: 561px) {
+  .crewtargets { --kmc: min(var(--kmw, 96px), 33%); }
+}
 .crewtargets .hint { margin: 0 0 8px; }
 /* Top-aligned, because the phrase wraps and the other two columns do not: centred, the
    bearing on a two-line row sat level with neither line and the column staggered down. */
@@ -709,7 +730,16 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    lines. The monospace column comes back only when the admin asks for exact kilometres. */
 /* gold, because the ring this column points at is gold. The lose card is orange for the same
    reason. That pairing is the only thing telling the two cards apart at a glance. */
-.crewtkm { flex: 0 0 auto; width: var(--kmc); font-weight: 600; color: #ffd24a; }
+/* `min-width: 0`, or the explicit width above is only a suggestion: a flex item's
+   `min-width` is `auto`, which floors its used width at min-content, so a row whose longest
+   word did not fit the shared column quietly got a wider one. Measured consequence: the
+   bearing beside it took five different left edges across eight rows, spanning 36px, and read
+   as a ragged column. The badge next door was given this treatment for the same reason; the
+   phrase column never was. */
+.crewtkm {
+  flex: 0 0 auto; width: var(--kmc); min-width: 0;
+  font-weight: 600; color: #ffd24a;
+}
 .crewtargets.nums .crewtkm {
   font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums;
   font-weight: 700; text-align: right;
@@ -765,6 +795,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewtip {
   position: absolute; z-index: 5; pointer-events: none;
   transform: translate(14px, -50%);
+  /* `max-content`, so the width does not depend on where the tip is. Absolutely positioned
+     with only a `max-width`, this box shrink-to-fits against the room between its anchor and
+     the container's right edge -- so a tap at x=378 in a 390px map gave it 12px to work with
+     and it collapsed to 36px wide by 626px tall, one character per line, 96px below the fold.
+     `placeTip` reads `offsetWidth` to decide which side to use, so it was measuring the
+     collapsed box and every decision after it was arithmetic over the wrong number. An
+     intrinsic width is min(content, 230px) wherever it sits, which makes the measurement true
+     and one measure-then-correct pass stable. */
+  width: max-content;
   padding: 6px 9px; border-radius: 7px; max-width: 230px;
   background: rgba(6, 10, 20, .94); border: 1px solid rgba(255, 255, 255, .16);
   box-shadow: 0 4px 18px rgba(0, 0, 0, .55);

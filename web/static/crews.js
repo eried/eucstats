@@ -610,6 +610,11 @@
   function placeTip(el, px) {
     el.style.left = px.x + "px";
     el.style.top = px.y + "px";
+    // `offsetWidth` is only the box's real width because the stylesheet gives it
+    // `width: max-content`. Without that, an absolutely positioned box with just a
+    // `max-width` shrink-to-fits against the room to its right, so this read the COLLAPSED
+    // width near an edge -- 36px instead of 210 -- and the whole function then reasoned about
+    // a box that no longer existed. See the note on `.crewtip` in crews.css.
     var tw = el.offsetWidth, vw = window.innerWidth, gut = 8;
     // Flipping is a preference. Being on the map is not, so the far side has to have room for
     // it before the tip is sent over there.
