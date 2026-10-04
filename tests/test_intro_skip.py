@@ -57,7 +57,24 @@ def test_both_existing_modes_are_untouched():
     assert "setTimeout(endVideo,14000)" in page          # full first view
     assert "vid.currentTime=vid.duration-0.9" in page    # repeat view seek
     assert "setTimeout(endVideo,4500)" in page           # repeat view safety net
-    assert "if(_C.intro_enabled===false||_introOff){" in page   # off entirely
+    # Three ways off now, not two. The third is a link that names a panel: the intro sits at
+    # z-index 3000 for about fourteen seconds, and `/#crews` is where the QR landing page
+    # sends a rider -- so the one visitor guaranteed to arrive that way, a first-timer with a
+    # phone camera, was shown a film instead of the thing they had been sent to.
+    assert "if(_C.intro_enabled===false||_introOff||_deepLink){" in page
+
+
+def test_a_link_that_names_a_panel_skips_the_intro():
+    """The deep-link mode, and the shape of what counts as one.
+
+    A panel name, not any hash: the test is `/^[a-z]{2,16}$/` on the hash, so `#crews` skips
+    and `#some-anchor-with-dashes` or a tracking fragment does not. Same expression the panel
+    opener uses, so the two cannot drift into disagreeing about what a panel name is.
+    """
+    page = _page()
+    assert "const _deepLink=" in page
+    assert page.count("/^[a-z]{2,16}$/") == 2, (
+        "the deep-link test and the panel opener must share one definition of a panel name")
 
 
 def test_the_single_exit_path_is_still_single():

@@ -296,6 +296,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* Five codes in a row went unanswered, so this pairing is over. The code was blanked to dots
    -- which reads as loading -- while a full-size scannable QR and a bright `eucplanet://`
    button both stayed live and went on offering a handshake that could not happen. */
+/* A refusal, not a wait. The code slot showed six middots -- which read as loading -- with a
+   spinner turning behind them forever, so an expired code and a spent rate limit both looked
+   like a page still working.
+
+   No `letter-spacing` here: the phone block sets 5px on `.crewcode` and a top-level
+   `.dead` would beat it, which is the exact shape the checker reports -- and it told me so
+   on the first run. One em dash does not need its tracking adjusted anyway. */
+.crewcode.dead { color: var(--mut, #9aa6c8); }
 #crewqr.dead, #crewopen.dead {
   opacity: .25; filter: grayscale(1); pointer-events: none; cursor: default;
 }

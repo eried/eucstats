@@ -1040,7 +1040,16 @@ async function init(){
     if(fx){fx.classList.add("done"); setTimeout(()=>{fx&&fx.remove();},2000);} };
   const _C=window.__CFG__||{};
   const _introOff=localStorage.getItem("eucstats_intro_off")==="1";   // visitor opted out via the gear menu
-  if(_C.intro_enabled===false||_introOff){ if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; }
+  // A link that names a panel skips the cinematic. `/#crews` is where the QR landing page
+  // sends a rider, and the intro sits at z-index 3000 over everything for about fourteen
+  // seconds -- so the one visitor guaranteed to arrive by that link, a first-timer with a
+  // phone camera, was shown a film instead of the thing they were sent to. A tap did skip it
+  // and nothing said so.
+  const _deepLink=(()=>{
+    const h=(typeof location!=="undefined"&&location.hash||"").replace(/^#/,"").toLowerCase();
+    return /^[a-z]{2,16}$/.test(h);
+  })();
+  if(_C.intro_enabled===false||_introOff||_deepLink){ if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; }
   else {
   if(vid&&_C.intro_src){const _so=vid.querySelector("source"); if(_so&&_so.getAttribute("src")!==_C.intro_src){_so.setAttribute("src",_C.intro_src); vid.load();}}
   const introSeen=localStorage.getItem("eucstats_intro_seen");

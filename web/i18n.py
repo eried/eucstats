@@ -234,6 +234,10 @@ EN: dict[str, str] = {
     "crew.e.forbidden": "Only a leader or officer can do that.",
     "crew.e.pass": "Your pass ran out. Grab a new one.",
     "crew.e.rate": "Slow down a second.",
+    # The server's `not_member` sentence is written for the rider it is ABOUT -- 
+    # "You are not in that crew." -- and a leader removing somebody saw it addressed
+    # to themselves while they plainly were in the crew. This speaks to the reader.
+    "crew.e.stale": "That had already changed. Here it is as it stands now.",
     "crew.e.invite": "That code is not it.",
     "crew.e.name": "3 to 28 characters, and nothing exotic.",
     # The client checks the same shape the server does, so a typo costs a keystroke

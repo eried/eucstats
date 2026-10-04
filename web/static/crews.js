@@ -1677,7 +1677,13 @@
   function offerRetry() {
     stopPairing();
     var code = document.getElementById("crewcode");
-    if (code) code.textContent = "······";
+    // Not dots. Six middot characters where a code goes read as LOADING, and the spinner
+    // inside the QR frame kept spinning forever behind them, so a refusal -- an expired code
+    // or a spent rate limit -- was dressed as a wait. An em dash is a state, not a promise.
+    if (code) { code.textContent = "—"; code.classList.add("dead"); }
+    // The spinner too: it is inside `#crewqr` and nothing ever stopped it.
+    var spin = document.querySelector("#crewqr .spin");
+    if (spin && spin.parentNode) spin.parentNode.removeChild(spin);
     // The code was blanked to dots -- which reads as LOADING -- and everything else on the
     // card stayed live: a full-size scannable QR, and both `eucplanet://pair?code=…` links
     // still carrying the dead code, so the biggest thing on screen and the brightest button
@@ -1692,7 +1698,10 @@
     if (open) {
       open.classList.add("dead");
       open.removeAttribute("href");
-      open.setAttribute("aria-hidden", "true");
+      // `aria-hidden` on the QR is right -- it is decoration once it cannot be scanned -- but
+      // this is a labelled button, and hiding it left a reader with a card whose only
+      // announced content was the heading. Disabled says the same thing and stays readable.
+      open.setAttribute("aria-disabled", "true");
     }
     var el = document.getElementById("crewcodehint");
     if (!el) return;
@@ -1952,7 +1961,11 @@
     if (r && r.status === 401) { ME = null; show(); return true; }
     var code = r && r.err && (r.err.code || r.err.detail);
     if (code && STALE[code]) {
-      pendingStatus = errMsg(r.err);
+      // The server's sentence is written for the rider it is about -- "You are not in that
+      // crew." -- and a leader removing somebody sees it addressed to themselves, while they
+      // plainly ARE in the crew. The reader here is whoever pressed the button, and what is
+      // true for them is that the card they were looking at was out of date.
+      pendingStatus = t("crew.e.stale");
       show();
       return true;
     }

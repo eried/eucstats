@@ -212,6 +212,7 @@ EN_FINGERPRINT = {
     'crew.e.pass': '4e4a856fe534',
     'crew.e.promote': 'a31837b486df',
     'crew.e.rate': 'eade3abfd021',
+    'crew.e.stale': 'c129cc7bf08a',
     'crew.e.taken': '341ae680f9fc',
     'crew.e.wrongscreen': 'c72bf1d15824',
     'crew.empty': '0a5992c4e65a',
