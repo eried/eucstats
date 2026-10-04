@@ -716,6 +716,12 @@ function setPanel(name,title,html){
   // Remember who opened it, so closing can hand focus back rather than dropping it on BODY.
   panelOpener=document.activeElement&&document.activeElement.closest?
     document.activeElement.closest(".dock button"):null;
+  // A MOUSE click does not reliably leave focus on the button it pressed, so opening with the
+  // mouse and then pressing Escape dropped focus on BODY and started the keyboard again at
+  // the top of the document. The keyboard path was right, which is why this lasted -- the fix
+  // that added focus return was tested with the keyboard. The panel knows its own name and
+  // the dock button carries it, so there is always a correct answer here.
+  panelOpener=panelOpener||document.querySelector('.dock button[data-p="'+name+'"]');
   // And move focus INTO the panel. `#panel` is before `.dock` in the document, so a keyboard
   // user who pressed Enter on the dock button was left outside it with forward Tab walking
   // away: 39 stops to get inside what they had just opened.
@@ -730,7 +736,13 @@ function setPanel(name,title,html){
     panel.style.animation="none";void panel.offsetWidth;
     panel.style.animation=anim+" .4s cubic-bezier(.2,.8,.2,1)";
   }
-  document.querySelectorAll(".dock button").forEach(b=>b.classList.toggle("on",b.dataset.p===name));
+  // `aria-expanded` wherever `.on` goes. The button carried its state for sighted readers
+  // and nothing for anybody else.
+  document.querySelectorAll(".dock button").forEach(b=>{
+    const mine=b.dataset.p===name;
+    b.classList.toggle("on",mine);
+    b.setAttribute("aria-expanded",mine?"true":"false");
+  });
 }
 function closePanel(){
   if(openPanel===null&&!panel.classList.contains("open"))return;
@@ -742,7 +754,10 @@ function closePanel(){
   // does stop though, since nobody is looking at the code any more.
   if(window.EUCCrews&&window.EUCCrews.panelClosed)window.EUCCrews.panelClosed();
   openPanel=null;
-  document.querySelectorAll(".dock button").forEach(b=>b.classList.remove("on"));
+  document.querySelectorAll(".dock button").forEach(b=>{
+    b.classList.remove("on");
+    b.setAttribute("aria-expanded","false");
+  });
   panel.style.animation="none";void panel.offsetWidth;
   panel.style.animation="panDown .28s ease both";
   setTimeout(()=>{panel.classList.remove("open");panel.style.animation="";},280);

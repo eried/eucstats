@@ -3145,7 +3145,44 @@
     api("GET", "/api/v1/crews/me").then(function (r) {
       if (!r.ok || !r.body) return;
       dockDot(r.body.pending ? r.body.pending.length : 0);
+      // And keep asking. Once was the fix for a badge that could only ever tell a leader
+      // something they were already looking at; it left the badge unable to tell them
+      // anything NEW.
+      watchKnocks();
     });
+  }
+
+  // How often a leader's queue is re-checked while they have the page open. `primeDock`
+  // asks once on load and never again, so a request arriving a minute later was invisible
+  // until something re-rendered the panel -- a reviewer had the panel open when two requests
+  // landed and had to close and reopen it to find them. Approval is the default join policy,
+  // so this is the path most crews use.
+  var KNOCK_POLL_MS = 30000;
+  var knockTimer = null;
+
+  function watchKnocks() {
+    if (knockTimer) return;
+    knockTimer = setInterval(function () {
+      // Nothing to answer in a background tab, and nothing to ask for somebody who cannot
+      // receive a knock in the first place.
+      if (document.hidden) return;
+      if (!ME || !ME.crew) return;
+      if (ME.role !== "leader" && ME.role !== "officer") return;
+      api("GET", "/api/v1/crews/me").then(function (r) {
+        if (!r.ok || !r.body) return;
+        var n = r.body.pending ? r.body.pending.length : 0;
+        // The counts only. Re-rendering on a timer would pull the form out from under a
+        // leader halfway through typing a crew name, which is a worse bug than the one this
+        // fixes -- so the badge and the dot are updated in place and nothing else moves.
+        dockDot(n);
+        var dot = document.querySelector(".crewsumdot");
+        if (dot) {
+          dot.textContent = String(n);
+          dot.hidden = !n;
+        }
+        if (ME) ME.pending = r.body.pending || [];
+      });
+    }, KNOCK_POLL_MS);
   }
 
   function dockDot(n) {
