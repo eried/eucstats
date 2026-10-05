@@ -228,6 +228,8 @@ EN_FINGERPRINT = {
     'crew.first.p': 'b708d87b327d',
     'crew.folded.h': '7d56d5eff9f0',
     'crew.folded.p': '1a3979975072',
+    'crew.good.h': '62c957f68283',
+    'crew.good.p': 'e7585dd5e49d',
     'crew.hold.1': 'fe281749d20f',
     'crew.hold.2': '684964c386c5',
     'crew.hold.3': '45cef8522996',

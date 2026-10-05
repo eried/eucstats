@@ -1735,6 +1735,30 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* What the marks beside the names mean, for the readers who cannot hover a `title`. */
 .crewrolekey { margin: 6px 0 0; font-size: 11px; }
 
+/* The two column wrappers, which exist only so a wide screen has something to put side by
+   side. `contents` takes them out of the box tree entirely, so at every width below the
+   desktop breakpoint the cards are laid out exactly as they were before the wrappers existed. */
+.crewcol { display: contents; }
+
+/* Good news, with the weight the bad news has always had. The three one-shot notices in this
+   mode -- turned down, removed, folded -- are full cards with a heading; taking ground was a
+   grey line set in 11px. It sits at the top of the crew card, where the diff already was, and
+   it is gold rather than pink because every other pink thing on this panel is either a control
+   or a warning and this is neither. */
+.crewgood {
+  margin: 0 0 12px; padding: 11px 13px;
+  background: linear-gradient(135deg,
+    rgba(255,210,74,.14), rgba(255,210,74,.05));
+  border: 1px solid rgba(255,210,74,.34);
+  border-radius: 8px;
+}
+.crewgood h4 {
+  margin: 0 0 3px; font-size: 14px; letter-spacing: .3px;
+  color: var(--gold, #ffd24a);
+}
+.crewgood p { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--ink, #eef1fb); }
+
+
 
 /* The podium name box is 113px at 1280 and 78px at 390 -- but the narrow one WRAPS and the
    wide one clips, so the bigger screen showed less of the name. Two lines there too. */
@@ -1800,3 +1824,29 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    that is news rather than state. Accent-tinted so it reads as a change and not a heading. */
 .crewsince { margin: 0 0 6px; font-size: 12px; color: var(--sec, #ff8ad8);
   font-weight: 600; letter-spacing: .2px; }
+
+/* ---------- the desktop actually being a desktop ----------
+
+   The panel is `width: min(94vw, 720px)` for every section, which at 1280 leaves 560px of
+   window unused and stacks a 2234px column through a 508px viewport. A reviewer measured it
+   and called it the phone layout centred, which it was: content column 434px inside a 466px
+   card inside a 719px panel inside a 1280px window.
+
+   The answer is not a wider single column -- a 1000px line length reads worse than a 460px
+   one, and the measures in this file were tuned against that 450px row. It is two columns:
+   what this rider can DO on the left, the standings beside it rather than a screen below.
+   Both columns keep a comfortable measure and the panel stops being a tall straw.
+
+   `.crewcol` is `display: contents` everywhere below this breakpoint, so the phone layout is
+   untouched -- the wrappers are not in the box tree at all there. */
+@media (min-width: 1100px) {
+  .panel[data-sec=crews] { width: min(94vw, 1100px); }
+  #crewpanel { display: flex; align-items: flex-start; gap: 0 22px; }
+  /* `display` FIRST. Without it the wrappers stay `contents`, their cards become flex items
+     of `#crewpanel` directly, and the whole left column lays itself out as a ROW -- which
+     looks correct for exactly as long as there are two cards on screen and falls apart at
+     three. `flex` on an element that is not in the box tree does nothing at all.
+     `min-width: 0` on both, or a long crew name pushes the panel wider than it is and the
+     body scrolls sideways. */
+  .crewcol { display: block; flex: 1 1 0; min-width: 0; }
+}

@@ -80,6 +80,9 @@ CARDS = {
     # imperative -- "take over the world", "change that" -- which is the same person the
     # rest of that card speaks to.
     "crew.hook.": "rider",
+    # The good-news card on your own crew card: addressed to the one rider reading it, same
+    # as the three one-shot notices it is modelled on.
+    "crew.good.": "rider",
     "crew.signin.": "rider",
     # the test notice: it is at the top of the panel rather than on a card, and it
     # tells the one reader that what they build may be wiped
@@ -437,6 +440,7 @@ SHARED = {
 # The functions that build each card. Anything rendering a key from another card has to appear
 # in SHARED above.
 HOME = {
+    "crew.good.": {"sinceLine"},
     "crew.signin.": {"signInHTML", "startPairing", "offerRetry", "qrGrid", "inviteNote"},
     "crew.mine.": {"myCrewHTML", "bindMine", "leaveQuestion", "contributorsHTML", "errMsg"},
     # `offerInvite` is the join card's arrival path: it unfolds the list and has to put the

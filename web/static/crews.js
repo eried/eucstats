@@ -3576,13 +3576,29 @@
   function sinceLine(c, terr) {
     if (!c || !c.slug) return "";
     var now = sinceSnap(c.slug, terr);
-    var bits = sinceBits(lastSeen(c.slug), now);
+    // Read once and held: `markSeen` below overwrites it, and the card needs to know which
+    // way the change went, not only that there was one.
+    var lastSeen_ = lastSeen(c.slug);
+    var bits = sinceBits(lastSeen_, now);
     markSeen(c.slug, now);
     // Read, so the badge that sent them here has nothing left to announce.
     dockNews = false;
     dockDot(dockKnocks, false);
     if (!bits.length) return "";
-    return '<p class="crewsince">' + t("crew.since.h") + " " + bits.join(" &middot; ") + "</p>";
+    var joined = bits.join(" &middot; ");
+    // Gained squares, or climbed the board. Every one-shot card in this mode announces
+    // something going wrong -- turned down, removed, folded under you -- and taking ground
+    // arrived as a grey line in a corner of a card you had to scroll to. A reviewer named it:
+    // nothing ever congratulates you. Good news gets the same shape and the same prominence
+    // the bad news has always had, and only when it is true, which is what keeps it worth
+    // reading. Losing ground keeps the quiet line: a crew that is shrinking does not need a
+    // banner about it, it needs the number.
+    var was = lastSeen_;
+    var up = !!was && ((now.t - (was.t || 0)) > 0
+                       || (now.r && was.r && now.r < was.r));
+    if (!up) return '<p class="crewsince">' + t("crew.since.h") + " " + joined + "</p>";
+    return '<div class="crewgood"><h4>' + esc(t("crew.good.h")) + "</h4>"
+      + "<p>" + t("crew.good.p", { v: joined }) + "</p></div>";
   }
 
   // One of the three one-shot notices has just been built into the HTML about to go on
@@ -5087,15 +5103,24 @@
       // with it, shut: deciding whether to bother is exactly when somebody wants to read what
       // the mode is, and until now they were only rendered to people who had already signed
       // in. `<details>` with no `open`, so the card you land on is still the sign-in alone.
-      var h = me.paired ? own + board : signInHTML() + board;
+      // Two wrappers, so a wide screen can put the board beside what you can DO rather than
+      // a kilometre below it. They are `display: contents` under the desktop breakpoint, so
+      // at phone width the cards flow exactly as they always have and nothing here changes.
+      // Wrappers rather than grid placement on the cards themselves: with the board pinned to
+      // column 2 row 1, row 1's height becomes the height of the whole board and a gap opens
+      // under the first card on the left.
+      var h = '<div class="crewcol crewcolmain">'
+        + (me.paired ? own : signInHTML())
       // The only sign-out button in the feature was emitted by `myCrewHTML`, which this
       // function calls on the `me.crew` branch alone -- so cooling off, removed, folded,
       // declined and no-ride-yet had no control of ANY kind on them. A reviewer pressed
       // Leave and found an empty `querySelectorAll` while the endpoint answered 200.
-      if (me.paired && !me.crew) {
-        h += '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout">'
-          + t("crew.mine.signout") + "</button></div>";
-      }
+        + ((me.paired && !me.crew)
+           ? '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout">'
+             + t("crew.mine.signout") + "</button></div>"
+           : "")
+        + "</div>"
+        + '<div class="crewcol crewcolside">' + board + "</div>";
       panel.innerHTML = h;
       // Put the rider back where they were. Pressing Refresh threw the scroll away: a
       // reviewer measured 2038px -- three and a half screens into an expanded join list --

@@ -254,6 +254,13 @@ EN: dict[str, str] = {
     # The dock badge. Not a count of anything -- one fact -- so it shows as a bare dot and
     # this is what it says on hover and to a screen reader.
     "crew.since.dot": "Something moved in your crew",
+    # Good news, with the weight the bad news has always had. Every one-shot card in this mode
+    # announces something going wrong -- turned down, removed, folded -- and taking ground
+    # showed up only as a grey line in a corner. A reviewer put it plainly: nothing ever
+    # congratulates you. Same slot, same card shape, same prominence; it just has to be true,
+    # so it appears only when the crew actually gained.
+    "crew.good.h": "You took ground",
+    "crew.good.p": "{v} since you last looked.",
     "crew.since.up": "+{v}",
     "crew.since.down": "−{v}",
     "crew.since.rose": "{a} → {b}",
