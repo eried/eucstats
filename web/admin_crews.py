@@ -104,7 +104,7 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
               <td class=mut>0 = no cap.</td></tr>
           <tr><td>Fill opacity <input name=opacity value="{cfg['opacity']}" size=5></td>
               <td class=mut>How strongly the rectangles paint over the map.</td></tr>
-          <tr><td>Exact kilometres <input type=checkbox name=numbers {"checked" if cfg["numbers"] else ""}></td>
+          <tr><td><label><input type=checkbox name=numbers {"checked" if cfg["numbers"] else ""}> Exact kilometres</label></td>
               <td class=mut>Off, a row reads "a short ride" rather than "0.2 km", measured
               against that square's own size so the words mean the same at every latitude.
               On, riders get the figures the model actually uses.</td></tr>

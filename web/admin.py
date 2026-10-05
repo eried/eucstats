@@ -161,6 +161,18 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th{text-align:left;color:#8ea0c8;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #26345e;padding:8px}
 td{border-bottom:1px solid rgba(38,52,94,.5);padding:9px 8px;vertical-align:middle}
 tr.active{background:rgba(46,168,255,.08)}
+/* The settings table. Rows are written label-then-control in one cell, so without a
+   width and an anchor each control starts wherever its label text happened to end --
+   and the checkbox rows start on the other side of theirs. One column, one right edge,
+   one box width. */
+.form{table-layout:fixed}
+.form td{vertical-align:top}
+.form td:first-child{width:330px}
+/* Floated, not flexed: `display:flex` on a <td> stops it being a table-cell, so it drops out
+   of the column model and the width above means nothing. Float keeps the cell a cell and still
+   puts every box on one right edge. */
+.form td:first-child input:not([type=checkbox]),.form td:first-child select{float:right;width:92px;text-align:right}
+.form td.mut{padding-top:12px;line-height:1.45}
 .scrollbox{height:210px;overflow:auto;border:1px solid #1d2945;border-radius:9px}
 .scrollbox table th{position:sticky;top:0;background:#10182e;z-index:1}
 .pager{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:13px}
