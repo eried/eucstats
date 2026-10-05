@@ -85,7 +85,15 @@ def name_ok(name: str) -> bool:
     s = unicodedata.normalize("NFC", name or "").strip()
     if not (NAME_MIN <= len(s) <= NAME_MAX):
         return False
-    return all(ch in NAME_PUNCT or unicodedata.category(ch)[0] in ("L", "N", "M") for ch in s)
+    if not all(ch in NAME_PUNCT or unicodedata.category(ch)[0] in ("L", "N", "M") for ch in s):
+        return False
+    # And at least one character somebody could read the crew BY. Every character in
+    # `NAME_PUNCT` was allowed, so "..." is three permitted characters and passed -- a crew
+    # called "..." on a public leaderboard, which `slugify` then reduced to the empty string
+    # and replaced with eight random hex digits, giving it a URL nobody could guess or share.
+    # A reviewer founded it. Marks are excluded here too: a combining mark has nothing to
+    # attach to on its own.
+    return any(unicodedata.category(ch)[0] in ("L", "N") for ch in s)
 
 
 def clean_name(name: str) -> str:

@@ -1376,7 +1376,19 @@ _CREW_PAGE = r"""<!doctype html>
   @media print {
     body { background: #fff; color: #000; }
     .card { background: #fff; border: 0; padding: 0; }
-    .go, .nums, .desc { display: none; }
+    /* `.nums` and `.desc` used to go too, which left a poster carrying an emblem, a name,
+       a member count and a QR -- no pitch and no number. The description is the crew's own
+       one line ("Up is the only direction.") and the figure is what they are bragging about;
+       between them they are the whole reason a stranger with a phone stops walking. The
+       button goes, because a printed link is not pressable. */
+    .go { display: none; }
+    .nums { border-top: 1px solid #ccc; }
+    .num b { color: #000; }
+    /* `--mut` again. The rule two lines down already catches it for `.meta` and the QR
+       caption at 2.42:1 on white; the unit labels under the figures are the same grey and
+       were only not caught because this block used to hide them. */
+    .num span { color: #333; }
+    .desc { color: #333; }
     /* `.foot` used to go with them, which dropped the only line telling a passer-by what
        they are looking at: "Crews cut the map into squares. Ride inside one and it turns
        your crew's colour." On a sticker that is the whole pitch, and it was the one thing
@@ -1536,7 +1548,13 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         .replace("__POLICY__", _e(t(f"crew.policy.{clan.join_policy}")))
         .replace("__DESC__", desc)
         .replace("__TILES__", f"{tiles:,}".replace(",", " "))
-        .replace("__TILESW__", _e(t("crew.tile1" if tiles == 1 else "crew.tiles", n="").strip()))
+        # "squares IN ONE PIECE". The figure is the biggest connected patch, and the label
+        # said only "squares" -- so a stranger reads 91 as everything the crew holds, which
+        # for Holmenkollen is 119. The crew's own card has always been explicit about this;
+        # the page strangers actually read was not. `crew.mine.ao` is that phrase already,
+        # so this costs no new string in nineteen tables.
+        .replace("__TILESW__", _e(t("crew.tile1" if tiles == 1 else "crew.tiles", n="").strip()
+                                  + " " + t("crew.mine.ao")))
         .replace("__KM2__", f"{clan.terr_best_km2 or 0:.0f}")
         # The page a stranger reaches by scanning a backpack is a recruitment page, and
         # its only control said "Open in EUC Stats" -- it stated "anyone can join" and

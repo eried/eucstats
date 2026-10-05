@@ -49,6 +49,23 @@ def test_founding_needs_a_ride_behind_it(db):
     assert e.value.code == "no_trips"
 
 
+def test_a_name_has_to_contain_something_to_read_it_by():
+    """Punctuation alone was a legal crew name.
+
+    `NAME_PUNCT` is " -'&._" and every character in it was permitted, so "..." is three
+    permitted characters and passed -- a crew called "..." on a public leaderboard. `slugify`
+    then reduced it to the empty string and fell back to `uuid4().hex[:8]`, so it also got a
+    URL nobody could guess, share or type. A reviewer founded it and reached its public page.
+    Marks are excluded as well: a combining mark has nothing to attach to on its own.
+    """
+    for bad in ("...", "   ", "-.-", "'&'", "._-", "́́́"):
+        assert not crews.name_ok(bad), repr(bad)
+    # and nothing legitimate was caught by it
+    for good in ("..a", "Oslo Crew", "123", "A-1", "Zürich Crew", "日本クラン",
+                 "Ron's Crew", "B&B"):
+        assert crews.name_ok(good), repr(good)
+
+
 def test_two_names_that_look_different_and_slugify_the_same(db):
     """`Night Riders` and `Night.Riders` are two legal names and one slug, and the column is
     UNIQUE, so the second founder passed the name check and then hit an IntegrityError that

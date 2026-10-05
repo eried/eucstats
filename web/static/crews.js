@@ -327,18 +327,38 @@
   // things, little enough that a rival's block is still a block and not a suggestion.
   var THEIRS = 0.68;
 
+  // How much of the ground shows through, by zoom. Flat colour is right for an overview --
+  // that is the map answering "who holds what" -- and wrong once you are close enough to be
+  // asking "which streets". A reviewer called the fly-to view the worst-looking screen in the
+  // product: pastel blocks filling the viewport with no roads under them, reached by the one
+  // control whose whole job is to send you somewhere to ride. Erwin had already said the same
+  // thing about the layer in general ("But it is very opaque"), which is what set the current
+  // 0.75; this is that note applied where it bites hardest rather than a second global cut.
+  //
+  // Nothing changes at or below z11, so the overview keeps the weight it was tuned at.
+  // `interpolate` has to be the TOP of the expression, with the whole ladder rebuilt at each
+  // stop -- `["*", ladder, ["interpolate", ["zoom"] ...]]` is the obvious shape and MapLibre
+  // rejects it outright: "zoom expression may only be used as input to a top-level step or
+  // interpolate expression". It throws from `setPaintProperty`, the paint property keeps its
+  // previous value, and the map goes on looking exactly as it did -- no exception reaches the
+  // page, nothing fails, and the only trace is a console line. I wrote it the wrong way first
+  // and the screenshot looked plausible.
+  var ZOOM_LO = 11, ZOOM_HI = 14.5, FADE_HI = 0.55;
+
   function bandOp(op, b3) {
-    var ladder = ["match", ["get", "band"],
-                  1, op * BAND_OP[1], 2, op * BAND_OP[2], 3, op * BAND_OP[3] * b3,
-                  4, op, op];
-    if (!ME || !ME.crew) return ladder;
-    var mine = ["match", ["get", "band"],
-                1, op * BAND_OP[1], 2, op * BAND_OP[2], 3, op * BAND_OP[3] * b3,
-                4, op, op];
-    var theirs = ["match", ["get", "band"],
-                  1, op * BAND_OP[1] * THEIRS, 2, op * BAND_OP[2] * THEIRS,
-                  3, op * BAND_OP[3] * b3 * THEIRS, 4, op * THEIRS, op * THEIRS];
-    return ["case", ["==", ["get", "slug"], ME.crew.slug], mine, theirs];
+    function at(scale) {
+      var o = op * scale;
+      var ladder = ["match", ["get", "band"],
+                    1, o * BAND_OP[1], 2, o * BAND_OP[2], 3, o * BAND_OP[3] * b3,
+                    4, o, o];
+      if (!ME || !ME.crew) return ladder;
+      var theirs = ["match", ["get", "band"],
+                    1, o * BAND_OP[1] * THEIRS, 2, o * BAND_OP[2] * THEIRS,
+                    3, o * BAND_OP[3] * b3 * THEIRS, 4, o * THEIRS, o * THEIRS];
+      return ["case", ["==", ["get", "slug"], ME.crew.slug], ladder, theirs];
+    }
+    return ["interpolate", ["linear"], ["zoom"],
+            ZOOM_LO, at(1), ZOOM_HI, at(FADE_HI)];
   }
 
   // BOTH layers. The filters are written at build time, which happens before `/crews/me`
@@ -1007,6 +1027,31 @@
     };
   }
 
+  // The framing for Highlight, which has to know about the key.
+  //
+  // The padding was four constants, and the key panel is not a constant: open, it is 198x306
+  // at (10,434) on a 390x844 screen -- about a quarter of the map area under the champions
+  // card. A reviewer pixel-diffed the shine frames against a cleared frame and found that at
+  // t=1500ms the ONLY changed pixels in the map region were x 18-46: the whole animation ran
+  // behind the key. Closing the key made the same animation plainly visible. The one gesture
+  // whose entire output is an animation was framing it underneath a panel.
+  //
+  // So the bottom padding grows to clear the key when the key is open, which puts the patch
+  // in the band above it. Bottom only: padding the left as well would corner the patch into
+  // whatever is left and zoom it out to nothing. Clamped to 45% of the viewport so a short
+  // screen cannot end up with no framing area at all, and `fitBounds` throws if the padding
+  // does not fit -- which is what the `try` around it was already there for.
+  function shinePadding() {
+    var pad = { top: 90, bottom: 120, left: 50, right: 50 };
+    var key = document.querySelector(".crewkey");
+    if (!key || !key.hasAttribute("open")) return pad;
+    var r = key.getBoundingClientRect();
+    if (!r.height) return pad;
+    var want = Math.round(window.innerHeight - r.top + 12);
+    pad.bottom = Math.max(pad.bottom, Math.min(want, Math.round(window.innerHeight * 0.45)));
+    return pad;
+  }
+
   /* ---------- Highlight ----------
      The crew's biggest patch lit from its middle outward. Scoped to the patch under the
      finger rather than every square the crew holds: a crew with ground in two cities would
@@ -1049,8 +1094,8 @@
       b.extend([tileLon(q[0] + 1, TERR.z), tileLat(q[1] + 1, TERR.z)]);
     });
     try {
-      map.fitBounds(b, { padding: { top: 90, bottom: 120, left: 50, right: 50 },
-                         maxZoom: 12.5, duration: 700, essential: true });
+      map.fitBounds(b, { padding: shinePadding(), maxZoom: 12.5, duration: 700,
+                         essential: true });
     } catch (e) {}
 
     // Each ring holds, rather than flashing past. The whole thing used to be over in 770ms
@@ -3300,6 +3345,10 @@
   // by this regex and refused with "3-28 characters." about a twelve-character name. The
   // server is written by category now and normalises first; see `crews.name_ok`.
   var NAME_OK = /^[\p{L}\p{N}\p{M}_ \-'&.]{3,28}$/u;
+  // And something to read it by. The set above is all that was required, so "..." -- three
+  // permitted characters -- was a legal crew name, and the server's slugger turned it into
+  // eight random hex digits because there was nothing left to slug. The server mirrors this.
+  var NAME_HAS_WORD = /[\p{L}\p{N}]/u;
 
   function nameProblem(v) {
     // NFC first, and for the same reason the server does it: otherwise the two sides measure
@@ -3312,6 +3361,7 @@
     if (name.length < 3) return "crew.e.name.short";
     if (name.length > 28) return "crew.e.name.long";
     if (!NAME_OK.test(name)) return "crew.e.name.chars";
+    if (!NAME_HAS_WORD.test(name)) return "crew.e.name.chars";
     return null;
   }
 
@@ -3975,8 +4025,14 @@
         // so a leader who types exactly what the screen shows them was refused by a
         // difference they could not see -- the two strings are identical on screen. The gate
         // is there to make you stop and read the name, not to test your shift key.
+        // Internal whitespace too, and for exactly the reason above. HTML collapses runs of
+        // spaces, so a crew called "Cykel  slangen" is rendered "Cykel slangen" in the
+        // sentence asking for it AND in the input's own placeholder -- the leader types the
+        // only thing they can see, and is told it is not the name. The two strings are
+        // identical on screen. A reviewer founded that crew and could not disband it: with
+        // no other way to end a crew, its leader is stuck for good.
         var norm = function (x) {
-          x = (x || "").trim();
+          x = (x || "").trim().replace(/\s+/g, " ");
           if (x.normalize) x = x.normalize("NFC");
           return x.toLowerCase();
         };
