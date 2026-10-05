@@ -368,6 +368,16 @@ EN: dict[str, str] = {
     "crew.policy.open": "anyone can join",
     "crew.policy.approval": "leader says yes",
     "crew.policy.invite": "invite code",
+    # The public crew page at /c/<slug> and the Share card that hands out its address. This
+    # one is meant to be PRINTED -- on a backpack, on a sticker -- so it points at the slug
+    # and never at the invite code: a code can be rotated, and a sticker cannot.
+    "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
+    "crew.pub.scan": "Scan to find this crew",
+    "crew.pub.open": "Open in EUC Stats",
+    "crew.pub.folded": "This crew has folded.",
+    "crew.pub.print": "Printable code",
+    "crew.share": "Share crew",
+    "crew.share.p": "Print it, stick it on your backpack. This link keeps working even if you change your invite code.",
     "crew.roles.h": "The crew",
     "crew.roles.promote": "Make officer",
     "crew.roles.demote": "Stand down",
@@ -380,6 +390,9 @@ EN: dict[str, str] = {
     "crew.tip.leave": "You stop riding for this crew. The rides you already did stay on the map.",
     "crew.tip.cancel": "Takes your request back. You are not in the crew either way.",
     "crew.tip.disband": "Ends the crew for everyone in it. This cannot be undone.",
+    # "Copy link" and "Copy" sat side by side with nothing on either saying which was which.
+    "crew.tip.copylink": "A link that opens this crew with the code already filled in. Good for one person, today.",
+    "crew.tip.copycode": "Just the code, for reading out loud or typing in by hand.",
     "crew.tip.claim": "Makes you the leader, because the one you have has gone quiet.",
     "crew.tip.signout": "Signs this browser out. The crew carries on without you here, and you need your phone to get back in.",
     "crew.tip.remove": "Takes this rider out of the crew. They can ask to join again.",

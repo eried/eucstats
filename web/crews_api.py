@@ -41,6 +41,18 @@ def _ip(request: Request) -> str:
     return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
 
 
+def _origin(request: Request) -> str:
+    """The scheme and host this request came in on, for a URL we are about to hand out.
+
+    Behind nginx the request's own scheme is http, and an address that says `http://` when the
+    site is https is one that redirects on every visit -- which matters here because these go
+    on stickers and into chat messages, where nobody is going to reissue them.
+    """
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return f"{scheme}://{host}" if host else str(request.base_url).rstrip("/")
+
+
 def _handle(db: Session, store_id: str) -> str:
     """What a roster may publish about a rider.
 
@@ -374,6 +386,12 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                 # still waiting to be let in, for whom it can only ever fail.
                 out["can_claim"] = bool(out.get("leader_stale")) and crews.claim_eligible(
                     db, ws.store_id, clan.clan_id)
+            # For everybody in the crew, not only the two roles that can invite: this is the
+            # crew's public address, the one thing a member can hand out without being able to
+            # let anybody in. It carries the slug and never the code, because the point of it
+            # is that it survives the code being rotated -- it is meant to be printed.
+            out["crew"]["share_url"] = f"{_origin(request)}/c/{clan.slug}"
+            out["crew"]["share_qr"] = pairing.qr_rows(out["crew"]["share_url"])
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
                 # Every rider this panel is about to name, in one query. Three `db.get` calls

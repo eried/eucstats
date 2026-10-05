@@ -1981,6 +1981,32 @@
   // sign-in and thrown away with the card. A CSS-only diagonal is not possible here -- the
   // delay depends on row PLUS column, which no selector can express -- and an inline style is
   // cheaper than 1,089 rules.
+  /* ---------- clipboard ----------
+     `navigator.clipboard` is absent on an insecure origin and in some embedded webviews, so
+     there is a fallback, and if that fails too the caller is told nothing happened rather
+     than being shown a tick over a clipboard that never changed. */
+  function copyVia(text, ok, fail) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, function () { viaTextarea(text, ok, fail); });
+      return;
+    }
+    viaTextarea(text, ok, fail);
+  }
+
+  function viaTextarea(text, ok, fail) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    var done = false;
+    try { done = document.execCommand("copy"); } catch (e) { done = false; }
+    document.body.removeChild(ta);
+    if (done) ok(); else fail();
+  }
+
   function qrGrid(rows) {
     if (!rows || !rows.length) return "";
     var n = rows[0].length, cells = [], y, x;
@@ -2956,9 +2982,11 @@
         // a line of its own: at 390 the label, the code and the first button exactly fill the
         // row, and the break landed between the two things that belong side by side.
         + '<span class="crewinvbtns">'
-        + '<button class="crewbtn mini" id="cm-copylink" data-link="'
+        + '<button class="crewbtn mini" id="cm-copylink" title="'
+        + esc(t("crew.tip.copylink")) + '" data-link="'
         + esc(inviteLink(c)) + '">' + t("crew.mine.copylink") + "</button>"
-        + '<button class="crewbtn mini ghost" id="cm-copy" data-code="'
+        + '<button class="crewbtn mini ghost" id="cm-copy" title="'
+        + esc(t("crew.tip.copycode")) + '" data-code="'
         + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button></span></p>";
     }
     if (me.declined && me.declined.length) {
@@ -3051,6 +3079,13 @@
         + "</details>";
     }
     h += '<div class="crewacts">'
+      // Every member gets this, not only the two roles that can invite: handing out where
+      // the crew lives is not the same act as letting somebody in, and a rider who cannot
+      // approve anybody can still put a code on their backpack.
+      + (c.share_url
+         ? '<button class="crewbtn ghost" id="cm-share" title="'
+           + esc(t("crew.share.p")) + '">' + t("crew.share") + "</button>"
+         : "")
       // `title` on each of these: the labels are in this feature's voice and the voice is only
       // free when the plain meaning is one hover away. Pulling a request and leaving a crew
       // are different acts, so they do not share an explanation.
@@ -3204,31 +3239,40 @@
 
     var save = document.getElementById("ce-save");
 
+    // Share crew: the address that goes on a sticker, with its code big enough to scan off
+    // a phone held up to somebody. Deliberately NOT the invite link -- an invite code can be
+    // rotated and a printed one cannot, so what leaves this card carries the slug.
+    var sh = document.getElementById("cm-share");
+    if (sh) sh.onclick = function () {
+      var c = (ME && ME.crew) || {};
+      if (!c.share_url) return;
+      window.openModal(t("crew.share"),
+        '<div class="crewshare">'
+        + qrGrid(c.share_qr)
+        + '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank" rel="noopener">'
+        + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
+        + '<p class="hint">' + esc(t("crew.share.p")) + "</p>"
+        + '<div class="crewacts">'
+        + '<button class="crewbtn" id="cs-copy">' + t("crew.mine.copylink") + "</button>"
+        + '<a class="crewbtn ghost" href="' + esc(c.share_url) + '" target="_blank"'
+        + ' rel="noopener">' + t("crew.pub.print") + "</a>"
+        + "</div></div>");
+      var b = document.getElementById("cs-copy");
+      if (b) b.onclick = function () {
+        copyVia(c.share_url,
+          function () { flash(b, t("crew.mine.copied")); },
+          function () { setStatus(t("crew.err"), true, b); });
+      };
+    };
+
     var cl = document.getElementById("cm-copylink");
     if (cl) cl.onclick = function () {
-      var link = cl.dataset.link || "";
-      function said() { setStatus(t("crew.mine.copied"), false, cl); flash(cl, t("crew.mine.copied")); }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(link).then(said, function () { fallback(); });
-        return;
-      }
-      fallback();
-      function fallback() {
-        // No `<code>` holding the URL to select, so the offscreen textarea is the only route;
-        // if that fails too the status line says nothing happened rather than claiming it did.
-        var ta = document.createElement("textarea");
-        ta.value = link;
-        ta.setAttribute("readonly", "");
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        var ok = false;
-        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-        document.body.removeChild(ta);
-        if (ok) said();
-        else setStatus(t("crew.err"), true, cl);
-      }
+      // No `<code>` holding the URL to select, so the offscreen textarea in `copyVia` is the
+      // only fallback route; if that fails too the status line says nothing happened rather
+      // than claiming it did.
+      copyVia(cl.dataset.link || "",
+        function () { setStatus(t("crew.mine.copied"), false, cl); flash(cl, t("crew.mine.copied")); },
+        function () { setStatus(t("crew.err"), true, cl); });
     };
 
     var cp = document.getElementById("cm-copy");

@@ -1318,3 +1318,214 @@ def home(request: Request, db: Session = Depends(get_db)):
                         # `no-cache` keeps the copy and asks first: one conditional request,
                         # and the long asset cache becomes safe instead of a week-long trap.
                         headers={"Cache-Control": "no-cache"})
+
+
+# --- the public crew page -------------------------------------------------------------------
+
+_CREW_PAGE = r"""<!doctype html>
+<html lang="__LANG__"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>__TITLE__</title>
+<meta name="description" content="__BLURB__"/>
+<meta property="og:title" content="__OGTITLE__"/>
+<meta property="og:description" content="__BLURB__"/>
+<meta property="og:image" content="__ORIGIN__/api/v1/crews/__SLUG__/emblem"/>
+<meta property="og:url" content="__URL__"/>
+<meta property="og:type" content="profile"/>
+<meta name="twitter:card" content="summary"/>
+<link rel="canonical" href="__URL__"/>
+<link rel="icon" type="image/png" href="/static/favicon.png"/>
+<link rel="stylesheet" href="/static/crews.css?v=__ASSETV__"/>
+<style>
+  :root { --bg: #0b0f1c; --pan: #121a30; --ink: #e8edfb; --mut: #9aa6c8; --line: #243055;
+          --acc: #ff8ad8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif,
+         system-ui, -apple-system, "Segoe UI", sans-serif; }
+  /* One column, centred, with a 16px gutter: this is a page people open from a phone camera
+     while standing next to the backpack they scanned it off. */
+  .wrap { max-width: 440px; margin: 0 auto; padding: 24px 16px 40px; }
+  .card { background: var(--pan); border: 1px solid var(--line); border-radius: 12px;
+          padding: 18px; }
+  .top { display: flex; gap: 14px; align-items: center; }
+  .emb { width: 64px; height: 64px; flex: 0 0 64px; object-fit: cover; border-radius: 0;
+         box-shadow: 0 0 0 1px rgba(255,255,255,.14); background: rgba(0,0,0,.3); }
+  h1 { font-size: 21px; line-height: 1.2; margin: 0 0 4px; overflow-wrap: anywhere; }
+  .sw { width: 15px; height: 15px; display: inline-block; vertical-align: -2px;
+        border: 1px solid rgba(255,255,255,.55); position: relative; }
+  .meta { color: var(--mut); font-size: 13px; }
+  .desc { margin: 14px 0 0; color: var(--ink); overflow-wrap: anywhere; }
+  .nums { display: flex; gap: 20px; margin: 16px 0 0; padding-top: 14px;
+          border-top: 1px solid var(--line); }
+  .num b { display: block; font-size: 23px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .num span { color: var(--mut); font-size: 12px; }
+  .go { display: block; margin: 16px 0 0; padding: 12px; text-align: center; border-radius: 8px;
+        background: var(--acc); color: #1a0d16; font-weight: 700; text-decoration: none; }
+  .qr { margin: 22px 0 0; text-align: center; }
+  .qr svg { width: 190px; height: 190px; background: #fff; padding: 8px; border-radius: 8px; }
+  .qr p { color: var(--mut); font-size: 12px; margin: 8px 0 0; }
+  .url { display: block; margin: 4px 0 0; color: var(--acc); font-size: 12px;
+         word-break: break-all; text-decoration: none; }
+  .foot { margin: 22px 0 0; color: var(--mut); font-size: 12px; text-align: center; }
+  .foot a { color: var(--mut); }
+  /* Printed, this IS the sticker: white paper, the code, the crew's name and the address
+     under it. Everything that only makes sense on a screen comes off. */
+  @media print {
+    body { background: #fff; color: #000; }
+    .card { background: #fff; border: 0; padding: 0; }
+    .go, .foot, .desc, .nums { display: none; }
+    .qr svg { width: 260px; height: 260px; padding: 0; }
+    .url { color: #000; }
+  }
+  @media (prefers-color-scheme: light) {
+    /* The site's pink is a dark-mode accent: #ff8ad8 on white is about 1.8:1, and the printed
+       address under the code is the one line a reader may have to type by hand. Darker here,
+       and the call to action keeps the bright fill with dark ink on it either way. */
+    :root:not([data-theme="dark"]) { --bg: #f4f6fc; --pan: #fff; --ink: #11162a;
+      --mut: #5a6484; --line: #d8deef; --acc: #b31277; }
+  }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="card">
+    <div class="top">
+      <img class="emb" src="/api/v1/crews/__SLUG__/emblem" alt="" width="64" height="64"/>
+      <div>
+        <h1>__NAME__</h1>
+        <div class="meta"><span class="sw crewsw" data-p="__PATTERN__"
+             style="background:__COLOUR__"></span> __RIDERS__ &middot; __POLICY__</div>
+      </div>
+    </div>
+    __DESC__
+    <div class="nums">
+      <div class="num"><b>__TILES__</b><span>__TILESW__</span></div>
+      <div class="num"><b>__KM2__</b><span>km&sup2;</span></div>
+    </div>
+    <a class="go" href="/?crew=__SLUG__#crews">__OPEN__</a>
+  </div>
+  <div class="qr">
+    __QRSVG__
+    <p>__SCAN__</p>
+    <a class="url" href="__URL__">__URLTEXT__</a>
+  </div>
+  <p class="foot">__WHAT__<br/><a href="/">EUC Stats</a></p>
+</div>
+</body></html>"""
+
+
+def _qr_svg(text: str) -> str:
+    """The code as inline SVG, one rect per dark module run.
+
+    SVG rather than the PNG beside it because this page is meant to be PRINTED: a sticker
+    comes out of a printer at whatever DPI it has, and a 33x33 bitmap scaled to 60mm is a
+    blurred code that readers refuse. Runs rather than one rect per module keeps it to about
+    a third of the elements with identical output.
+    """
+    from services.pairing import qr_rows
+    rows = qr_rows(text)
+    n = len(rows)
+    parts = []
+    for y, row in enumerate(rows):
+        x = 0
+        while x < n:
+            if row[x] == "1":
+                run = 1
+                while x + run < n and row[x + run] == "1":
+                    run += 1
+                parts.append(f'<rect x="{x}" y="{y}" width="{run}" height="1"/>')
+                x += run
+            else:
+                x += 1
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {n} {n}" '
+            f'shape-rendering="crispEdges" role="img" aria-hidden="true">'
+            f'<rect width="{n}" height="{n}" fill="#fff"/>'
+            f'<g fill="#000">{"".join(parts)}</g></svg>')
+
+
+@public_router.get("/c/{slug}", response_class=HTMLResponse)
+def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
+    """A crew's own page, for a link in a chat and a code on a backpack.
+
+    This exists because the thing a crew wants to hand out has to outlive its invite code. The
+    panel's Copy link carries `?crew=&code=`, which is right for inviting one person today and
+    wrong for anything printed: rotate the code, or switch to invite-only, and every sticker
+    already stuck to a backpack stops working. A slug cannot be rotated, so that is what the
+    printed code carries -- and what it lands on says what the crew is and offers the way in,
+    whatever the join policy happens to be that week.
+
+    Public on purpose, and no more public than the board already is: name, emblem, colours,
+    what it holds and how many ride for it, all of which the standings show to a signed-out
+    visitor. Not the roster, not the invite code, not where anybody rides.
+    """
+    from html import escape as _e
+    from web import i18n
+    from models import Clan, ClanMember
+    from web.crews_api import _origin
+
+    loc = i18n.pick(request.headers.get("accept-language", ""))
+    tbl = i18n.locale_table(loc) or {}
+
+    def t(key, **kw):
+        s = tbl.get(key) or i18n.EN.get(key, key)
+        return s.format(**kw) if kw else s
+
+    clan = (db.query(Clan).filter(Clan.slug == slug, Clan.disbanded_at.is_(None)).first())
+    if clan is None:
+        # A folded crew gets a page saying so rather than a 404 wall: somebody is standing in
+        # front of a backpack with their camera out, and "not found" tells them they scanned it
+        # wrong when in fact they scanned it right.
+        gone = (db.query(Clan).filter(Clan.slug == slug).first())
+        body = _CREW_PAGE
+        name = _e(gone.name) if gone else _e(slug)
+        return HTMLResponse(
+            body.replace("__LANG__", _e(loc)).replace("__TITLE__", name)
+                .replace("__OGTITLE__", name).replace("__BLURB__", _e(t("crew.pub.folded")))
+                .replace("__NAME__", name).replace("__SLUG__", _e(slug))
+                .replace("__DESC__", f'<p class="desc">{_e(t("crew.pub.folded"))}</p>')
+                .replace("__RIDERS__", "").replace("__POLICY__", "")
+                .replace("__PATTERN__", "solid").replace("__COLOUR__", "#4a4a4a")
+                .replace("__TILES__", "0").replace("__TILESW__", "").replace("__KM2__", "0")
+                .replace("__OPEN__", _e(t("crew.pub.open")))
+                .replace("__QRSVG__", "").replace("__SCAN__", "")
+                .replace("__URL__", "").replace("__URLTEXT__", "")
+                .replace("__WHAT__", _e(t("crew.pub.what")))
+                .replace("__ORIGIN__", _e(_origin(request)))
+                .replace("__ASSETV__", _asset_version()),
+            status_code=404, headers={"Cache-Control": "public, max-age=60"})
+
+    n = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == clan.clan_id, ClanMember.status == "active",
+                 ClanMember.left_at.is_(None)).count())
+    tiles = clan.terr_tiles or 0
+    origin = _origin(request)
+    url = f"{origin}/c/{clan.slug}"
+    desc = (f'<p class="desc">{_e(clan.description)}</p>' if clan.description else "")
+    return HTMLResponse(
+        _CREW_PAGE
+        .replace("__LANG__", _e(loc))
+        .replace("__TITLE__", _e(f"{clan.name} · EUC Stats"))
+        .replace("__OGTITLE__", _e(clan.name))
+        .replace("__BLURB__", _e(clan.description or t("crew.pub.what")))
+        .replace("__NAME__", _e(clan.name))
+        .replace("__SLUG__", _e(clan.slug))
+        .replace("__COLOUR__", _e(clan.colour or "#a9a9a9"))
+        .replace("__PATTERN__", _e(clan.pattern or "solid"))
+        .replace("__RIDERS__", _e(t("crew.rider1" if n == 1 else "crew.riders", n=n)))
+        .replace("__POLICY__", _e(t(f"crew.policy.{clan.join_policy}")))
+        .replace("__DESC__", desc)
+        .replace("__TILES__", f"{tiles:,}".replace(",", " "))
+        .replace("__TILESW__", _e(t("crew.tile1" if tiles == 1 else "crew.tiles", n="").strip()))
+        .replace("__KM2__", f"{clan.terr_km2 or 0:.0f}")
+        .replace("__OPEN__", _e(t("crew.pub.open")))
+        .replace("__QRSVG__", _qr_svg(url))
+        .replace("__SCAN__", _e(t("crew.pub.scan")))
+        .replace("__URL__", _e(url))
+        .replace("__URLTEXT__", _e(url.split("://", 1)[-1]))
+        .replace("__WHAT__", _e(t("crew.pub.what")))
+        .replace("__ORIGIN__", _e(origin))
+        .replace("__ASSETV__", _asset_version()),
+        # Public and the same for everybody, unlike every other crew response: no cookie is
+        # read here and nothing on it depends on who is asking. A minute is short enough that
+        # a rename or a new square shows up, and long enough to absorb a code being scanned by
+        # a group of riders at once.
+        headers={"Cache-Control": "public, max-age=60"})

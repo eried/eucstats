@@ -1501,3 +1501,21 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewwhy:empty { display: none; }
 #cf-name[aria-invalid="true"] { border-color: #ff8ad8; }
 
+
+/* ---------- Share crew ----------
+   The modal behind "Share crew": the code big enough to scan off a phone held up to somebody,
+   the address under it in full, and the two things you can do with it. It reuses `.crewqrg`
+   from the sign-in card rather than a second QR style -- same modules, same animation, one
+   definition. */
+.crewshare { text-align: center; }
+.crewshare .crewqrg { max-width: 230px; margin: 0 auto; }
+/* The address is the half of this that survives a photocopier, so it is readable text and not
+   a hint: somebody will type it in. `anywhere` because a slug can be long and a URL that
+   overflows its card is one you cannot read the end of. */
+.crewshareu { margin: 12px 0 2px; font-size: 13px; overflow-wrap: anywhere; }
+.crewshareu a { color: var(--acc, #ff8ad8); }
+.crewshare .crewacts { justify-content: center; margin-top: 14px; }
+/* `<a>` in a row of `<button>`: without this it sits on the text baseline and runs a few
+   pixels taller than the button beside it. */
+.crewshare .crewacts .crewbtn { display: inline-flex; align-items: center;
+  justify-content: center; text-decoration: none; }

@@ -104,6 +104,14 @@ CARDS = {
     "crew.drawn.": "rider",
     "crew.board": "rider",
     "crew.board.": "rider",
+    # The public crew page at /c/<slug>, and the card that hands out its address. The page is
+    # read by somebody who has just pointed a camera at a sticker and may not have an account
+    # at all, so it addresses them the way the sign-in card does -- "Scan to find this crew",
+    # "Open in EUC Stats". `crew.share.p` is on a button in the crew card and tells the reader
+    # what printing it will get them, which is the same person `crew.tip.` speaks to.
+    "crew.pub.": "rider",
+    "crew.share": "rider",
+    "crew.share.": "rider",
     "crew.roles.": "rider",
     "crew.decl.": "none",
     "crew.tile.": "none",
