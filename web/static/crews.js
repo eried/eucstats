@@ -378,7 +378,7 @@
     map.addSource("crew-hot", { type: "geojson", data: hot });
     map.addSource("crew-pulse", { type: "geojson", data: pulse });
 
-    var op = (window.__CREWCFG__ && window.__CREWCFG__.opacity) || 0.55;
+    var op = (window.__CREWCFG__ && window.__CREWCFG__.opacity) || 0.75;
     addLayer({
       id: "crew-pulse-danger", type: "fill", source: "crew-pulse",
       // Your ground, when you have some. "Somebody is taking this off you" animating exactly
@@ -3401,7 +3401,7 @@
     // Not off, just faint. Territory answers "who holds this" and the heatmap answers "does
     // anybody actually ride here", and the second is useful context under the first as long
     // as it is quiet enough not to blur the edges that are the whole point.
-    var ghost = CFG.heat_ghost != null ? CFG.heat_ghost : 0.14;
+    var ghost = CFG.heat_ghost != null ? CFG.heat_ghost : 0.30;
     var want = on ? full : full * ghost;
     try { map.setPaintProperty("heat", "heatmap-opacity", want); } catch (e) {}
   }

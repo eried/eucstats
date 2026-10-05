@@ -805,7 +805,7 @@ def get_crews(db: Session) -> dict:
         "seed": _clamp_int(get_meta(db, "crew_seed", 2), 2, 1, 4),
         "cooldown_days": _clamp_int(get_meta(db, "crew_cooldown_days", 7), 7, 0, 90),
         "max_members": _clamp_int(get_meta(db, "crew_max_members", 0), 0, 0, 10000),
-        "opacity": _clamp_float(get_meta(db, "crew_opacity", 0.55), 0.55, 0.0, 1.0),
+        "opacity": _clamp_float(get_meta(db, "crew_opacity", 0.75), 0.75, 0.0, 1.0),
         "creation_open": (get_meta(db, "crew_creation_open", "1") or "1") == "1",
         # Whether the panel warns that this is not open for public testing. On by default:
         # the notice exists for the window between "everyone can see it" and "everyone can
@@ -818,7 +818,7 @@ def get_crews(db: Session) -> dict:
         # answer different questions and fight each other at full strength, but a ghost of
         # "where people actually ride" under "who holds what" is useful context. 0 turns it
         # off, which is what it was before.
-        "heat_ghost": _clamp_float(get_meta(db, "crew_heat_ghost", 0.14), 0.14, 0.0, 1.0),
+        "heat_ghost": _clamp_float(get_meta(db, "crew_heat_ghost", 0.30), 0.30, 0.0, 1.0),
         # Exact kilometres instead of "a short ride". Off by default: a decimal tells a rider
         # the answer before they have played, and reads like a model rather than a contest.
         "numbers": (get_meta(db, "crew_numbers", "0") or "0") == "1",
@@ -832,18 +832,18 @@ def get_crews(db: Session) -> dict:
 
 
 def set_crews(db: Session, enabled, zoom, window_days, seed, cooldown_days, max_members,
-              opacity, creation_open, heat_ghost=0.14, numbers=False,
+              opacity, creation_open, heat_ghost=0.30, numbers=False,
               test_notice=True) -> None:
     _invalidate_crews_cache()
     set_meta(db, "crew_numbers", "1" if numbers else "0")
-    set_meta(db, "crew_heat_ghost", str(_clamp_float(heat_ghost, 0.14, 0.0, 1.0)))
+    set_meta(db, "crew_heat_ghost", str(_clamp_float(heat_ghost, 0.30, 0.0, 1.0)))
     set_meta(db, "crew_enabled", "1" if enabled else "0")
     set_meta(db, "crew_zoom", str(_clamp_int(zoom, 14, 8, 16)))
     set_meta(db, "crew_window_days", str(_clamp_int(window_days, 90, 7, 730)))
     set_meta(db, "crew_seed", str(_clamp_int(seed, 2, 1, 4)))
     set_meta(db, "crew_cooldown_days", str(_clamp_int(cooldown_days, 7, 0, 90)))
     set_meta(db, "crew_max_members", str(_clamp_int(max_members, 0, 0, 10000)))
-    set_meta(db, "crew_opacity", str(_clamp_float(opacity, 0.55, 0.0, 1.0)))
+    set_meta(db, "crew_opacity", str(_clamp_float(opacity, 0.75, 0.0, 1.0)))
     set_meta(db, "crew_creation_open", "1" if creation_open else "0")
     set_meta(db, "crew_test_notice", "1" if test_notice else "0")
 
