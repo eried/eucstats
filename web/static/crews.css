@@ -188,7 +188,10 @@
 }
 /* One ink for all of them. The three copies used .42, .45 and .5 with nothing choosing
    between them, so two patterns on the same colour printed at different weights. */
-[data-p] { --patink: rgba(0,0,0,.45); }
+/* .36, following the map down. The swatch is a preview of what the ground looks like, so
+   when the stencil on the map was lightened to 0.65 this had to come with it or the picker
+   would be promising a heavier pattern than the rider gets. */
+[data-p] { --patink: rgba(0,0,0,.36); }
 
 [data-p=solid] { --pat: none; }
 [data-p=stripes] { --pat: repeating-linear-gradient(45deg, var(--patink) 0 2px, transparent 2px 5px); }
@@ -1587,15 +1590,24 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* The board row "Details" lands on. The panel can be a long scroll, and arriving silently in
    the middle of a table leaves you hunting for what just happened. */
-.crewlit { animation: crewlit 2.2s ease-out 1; }
+/* `outline`, not `background`. The rows this lights are two different elements: a `<tr>` in
+   the table and a `<div class="pod gold1">` on the podium -- and the podium cards carry
+   `background: linear-gradient(...) !important` from the host stylesheet, which an animation
+   cannot beat. Measured: the animation ran for twelve sampled frames and the computed
+   background stayed `rgba(0,0,0,0)` for every one of them.
+   Nothing sets an outline on either, it draws over the gradient, and it costs no layout.
+   The background goes with it for the table rows, where it does land. */
+.crewlit { outline: 3px solid transparent; outline-offset: -3px;
+  animation: crewlit 2.2s ease-out 1; }
 @keyframes crewlit {
-  0% { background: rgba(255,138,216,.42); }
-  100% { background: transparent; }
+  0% { outline-color: rgba(255,138,216,.95); background-color: rgba(255,138,216,.42); }
+  100% { outline-color: rgba(255,138,216,0); background-color: rgba(255,138,216,0); }
 }
 @media (prefers-reduced-motion: reduce) {
   /* No wave and no flash: the Highlight button still works, it simply lights the whole patch
      at once rather than sweeping, which `shine` does by its rings landing together. */
-  .crewlit { animation: none; background: rgba(255,138,216,.22); }
+  .crewlit { animation: none; outline-color: rgba(255,138,216,.9);
+    background-color: rgba(255,138,216,.22); }
 }
 
 /* ---------- the key, on the map ----------
@@ -1645,3 +1657,25 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   .crewmine-wrap > summary span:first-of-type { flex: 1 1 auto; min-width: 0; }
   .crewsumrole { flex: 1 0 100%; text-align: left; order: 3; }
 }
+
+/* ---------- touch targets and two contrast failures ----------
+   Measured by a reviewer, all on the phone this feature is built for. */
+
+/* 78.6 x 29.1px, against a 44px minimum. The popup is the only route to Highlight and
+   Details, so these are not optional chrome. */
+.crewpopb { min-height: 44px; }
+
+/* The crew label on a map marker ran 23px past the right edge of a 390px viewport with no
+   clip and no ellipsis, rendering "Nordlys Collec". A marker label is a hint, not a heading:
+   it gives up its tail rather than the viewport. */
+.crewemb-n { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The podium name box is 113px at 1280 and 78px at 390 -- but the narrow one WRAPS and the
+   wide one clips, so the bigger screen showed less of the name. Two lines there too. */
+.pod .pname { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+
+/* The leader's star was the first thing truncation ate: `.crewcname` clips at 123px of a
+   294px row and the overflowing glyph was exactly the mark identifying the leader. The mark
+   is pulled out of the clipped box so the NAME gives way instead. */
+.crewcname { min-width: 0; }
+.crewcrow .crewrole { flex: 0 0 auto; }

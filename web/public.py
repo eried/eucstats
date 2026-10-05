@@ -171,7 +171,7 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes panDown{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,58px)}}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);flex:0 0 auto;z-index:5;background:rgba(11,15,28,.96)}
 .phead b{font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}.phead button{background:transparent;border:0;color:var(--mut);cursor:pointer}
-.pacts{display:flex;gap:12px;align-items:center}/* Help belongs to the one panel that has a manual. `data-sec` is written by setPanel. */#phelp{display:none}.panel[data-sec=crews] #phelp{display:block}#phelp[aria-expanded=true]{color:var(--acc)}.phead button:hover{color:var(--acc)}#ppeek.on{color:var(--gold)}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
+.pacts{display:flex;gap:12px;align-items:center}/* Help belongs to the one panel that has a manual. `data-sec` is written by setPanel. */#phelp{display:none}.panel[data-sec=crews] #phelp{display:block}#phelp[aria-expanded=true]{color:var(--acc)}.phead button:hover{color:var(--acc)}#ppeek.on{color:var(--gold)}/* 44px of hit area. These three measured 19x18 -- 17% of the iOS minimum by area -- while every other button in the feature is 44 tall, and one of them is the only way to the manual. The GLYPH stays 18px; the target around it grows, so nothing moves. */.phead button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;margin:-13px 0}.pacts{gap:0}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
 .pbody{padding:12px 18px;flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(130,170,255,.3) transparent}.hint{color:var(--mut);font-size:11.5px;margin:2px 0 12px;letter-spacing:.3px;border-left:2px solid var(--acc);padding-left:8px}
 table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;text-align:left}
 tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:700;font-variant-numeric:tabular-nums}
@@ -1380,6 +1380,9 @@ _CREW_PAGE = r"""<!doctype html>
        the printed version threw away. */
     .foot { color: #000; margin-top: 14px; }
     .foot a { display: none; }
+    /* `--mut` is a dark-theme grey and printed at 2.42:1 on white -- on the surface whose
+       entire purpose is to come out of a printer and go on a backpack. */
+    .qr p, .meta { color: #333; }
     .qr svg { width: 260px; height: 260px; padding: 0; }
     .url { color: #000; }
   }
@@ -1388,7 +1391,11 @@ _CREW_PAGE = r"""<!doctype html>
        address under the code is the one line a reader may have to type by hand. Darker here,
        and the call to action keeps the bright fill with dark ink on it either way. */
     :root:not([data-theme="dark"]) { --bg: #f4f6fc; --pan: #fff; --ink: #11162a;
-      --mut: #5a6484; --line: #d8deef; --acc: #b31277; }
+      --mut: #5a6484; --line: #d8deef; --acc: #8c0f5d; }
+    /* The call to action is ink on the accent, and at #b31277 that was 2.94:1 -- under AA
+       for 15px text and under the 3:1 floor for large text too, on the one control this
+       page has. Darker fill, white ink: 7.1:1. */
+    :root:not([data-theme="dark"]) .go { color: #fff; }
   }
 </style>
 </head><body>
@@ -1502,7 +1509,13 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
     n = (db.query(ClanMember)
          .filter(ClanMember.clan_id == clan.clan_id, ClanMember.status == "active",
                  ClanMember.left_at.is_(None)).count())
-    tiles = clan.terr_tiles or 0
+    # The SAME pair the board ranks on and the join list prints: the biggest patch held in one
+    # piece. This showed `terr_tiles` and `terr_km2` -- everything the crew holds anywhere --
+    # so one crew read 91 squares on the board and 119 on its own public page, and 137 km2 in
+    # the join list against 209 on the map marker. A stranger reading the sticker and a member
+    # reading the board were looking at different crews. The manual explains biggest-patch; it
+    # is the figure every surface should carry.
+    tiles = clan.terr_best_tiles or 0
     origin = _origin(request)
     url = f"{origin}/c/{clan.slug}"
     desc = (f'<p class="desc">{_e(clan.description)}</p>' if clan.description else "")
@@ -1521,7 +1534,7 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         .replace("__DESC__", desc)
         .replace("__TILES__", f"{tiles:,}".replace(",", " "))
         .replace("__TILESW__", _e(t("crew.tile1" if tiles == 1 else "crew.tiles", n="").strip()))
-        .replace("__KM2__", f"{clan.terr_km2 or 0:.0f}")
+        .replace("__KM2__", f"{clan.terr_best_km2 or 0:.0f}")
         # The page a stranger reaches by scanning a backpack is a recruitment page, and
         # its only control said "Open in EUC Stats" -- it stated "anyone can join" and
         # then offered no way to. One button, labelled by the policy it will meet:

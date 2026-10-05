@@ -143,6 +143,9 @@ EN: dict[str, str] = {
     # Joining costs a cooldown on the way back out, and took one tap with nothing said,
     # while pulling a request -- which costs nothing -- opened a dialog.
     "crew.join.confirm": "Ride for {name}? If you leave again you wait {v} before joining another.",
+    # Asking is not joining: nothing is given up until a leader says yes, and the
+    # withdrawal dialog two taps later already says "Costs you nothing."
+    "crew.join.askconfirm": "Ask to ride for {name}? Nothing changes until a leader says yes.",
     "crew.cancel": "Cancel",
     "crew.join.pending": "Waiting on a leader to let you in.",
     "crew.join.wait.h": "Cooling off",
@@ -371,7 +374,10 @@ EN: dict[str, str] = {
     "crew.how.cool": "Walk out of a crew and you wait {v} before joining another.",
     "crew.how.size": "A crew holds {n} riders at most.",
     "crew.how.1": "Ride a square and it turns your colour. Whoever put the most km into it over the last {d} days holds it.",
-    "crew.how.2": "Nothing shows until you hold a {n}x{n} block of them, about {v} across. One street gets you nothing.",
+    # "a 2x2 block, about 1.2 km across" -- `{v}` is the width of ONE square, so that
+    # sentence put a 2x2 block at the size of a single square, and the numbers section
+    # printed the same figure for one square two sections later. "each" fixes it.
+    "crew.how.2": "Nothing shows until you hold a {n}x{n} block of them, each about {v} across. One street gets you nothing.",
     "crew.how.3": "Ground grows out of ground. Close the gap between two patches and they count as one, which is the biggest move there is. Ride a full loop around something and the inside is yours too, up to about double what you rode.",
     "crew.how.4": "Nothing holds itself. Stop riding and your claim fades until one ride is enough to take it off you, but nobody takes it by waiting. Ride more than someone and you take theirs.",
     "crew.how.5": "Rides you did for a crew stay with that crew. Walking out does not wipe the map.",

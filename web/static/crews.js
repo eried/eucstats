@@ -525,7 +525,10 @@
       // stops bottoming out: 0.70 keeps the darkest crew on the map while it fades.
       var pat = Math.min(1, op + 0.15);
       map.setPaintProperty("crew-fill", "fill-opacity", bandOp(op, 1));
-      map.setPaintProperty("crew-pattern", "fill-opacity", bandOp(pat, 0.9));
+      // 0.65, not 0.9. The stencil sat close to the ceiling and the hatch was reading as
+      // loudly as the colour underneath it -- Erwin's call, looking at the real map. The
+      // pattern is the second channel for telling two crews apart; it is not the first.
+      map.setPaintProperty("crew-pattern", "fill-opacity", bandOp(pat, 0.65));
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
@@ -579,7 +582,10 @@
       el.className = "crewemb";
       el.innerHTML = '<img alt="" src="' + crew.emblem + '"/>'
                    + '<span class="crewemb-n">' + esc(crew.name) + "</span>";
-      el.title = crew.name + " · " + fmtKm2(crew.km2);
+      // The biggest patch, like the board, the join list and the crew's own page. This was
+      // `crew.km2` -- everything they hold anywhere -- so the marker printed 209 km2 beside a
+      // join row reading 137 for the same crew at the same moment.
+      el.title = crew.name + " · " + fmtKm2(crew.best_km2 != null ? crew.best_km2 : crew.km2);
       el.dataset.s = s;
       el.dataset.n = r.n || 1;              // region size, which decides how long it survives
       // NOT a tab stop. `pressable` gives a div a role, a name, Enter and Space, which is
@@ -1130,10 +1136,12 @@
       // nothing had mentioned the board. Two reviewers read it as a non-sequitur, and
       // separately asked why a crew shows "91 squares", "2 patches", "23 km2" and "77 km2"
       // with nothing reconciling them. That is this section.
-      + rulesSection("crew.how.s5", ["crew.how.n1", "crew.how.n2"])
-      // The five shades belong here rather than under the board. It is a key, and a key is
-      // something you look up once, not a row of swatches on screen every time you visit.
+      // The swatches belong to the section that names them. They were emitted last, so the
+      // reader got six colour descriptions with no colours, then two paragraphs of
+      // arithmetic, then six unheadered chips 422px further down -- measured by a reviewer
+      // as an orphan under the wrong heading.
       + legendHTML()
+      + rulesSection("crew.how.s5", ["crew.how.n1", "crew.how.n2"])
       + "</div>";
   }
 
@@ -2895,11 +2903,17 @@
   // What this page was opened with, read once. Held rather than acted on immediately: a rider
   // arriving on an invite link is usually not signed in yet, and the code has to survive the
   // pairing and the re-render that follows it.
+  // A slug ALONE is enough. This used to require both, so `/?crew=nordlys-collective#crews`
+  // -- which is exactly where the public crew page's "Join this crew" button sends you, and
+  // the whole point of a printed sticker that outlives its invite code -- was discarded, and
+  // a rider who had just scanned a backpack landed on an undifferentiated list of thirty-four
+  // crews with no mention of the one they came for. The code is optional: it is what
+  // pre-fills the prompt for an invite-only crew, and there is nothing to pre-fill without it.
   var INVITE = (function () {
     try {
       var q = new URLSearchParams(location.search);
       var slug = q.get("crew"), code = q.get("code");
-      return (slug && code) ? { slug: slug, code: code } : null;
+      return slug ? { slug: slug, code: code || null } : null;
     } catch (e) { return null; }
   })();
 
@@ -4142,7 +4156,15 @@
     var more = document.getElementById("cj-more");
     if (more && btn.closest("[hidden]")) more.click();
     btn.scrollIntoView({ block: "center" });
-    if (btn.dataset.pol === "invite") {
+    // Say which row. Arriving from a sticker and being dropped at a scroll position in a list
+    // of thirty-four is the same as being dropped at the top of it.
+    var row = btn.closest(".crewrow");
+    if (row) {
+      flashRow(row);
+    }
+    // Only with a code to put in it. A slug-only link to an invite-only crew opens the
+    // prompt with nothing to type, which is worse than leaving the button alone.
+    if (btn.dataset.pol === "invite" && inv.code) {
       btn.click();                          // opens the code prompt beside the row
       var box = document.getElementById("crewask-in");
       if (box) { box.value = inv.code; box.focus(); box.select(); }
@@ -4181,8 +4203,11 @@
           // dialog itself says "costs you nothing" -- got a confirmation. The budget was
           // being spent on the wrong one. Not `danger`: this is a thing you want to do, so
           // the affirmative is the bright button.
-          ask(t("crew.join.confirm", { name: b.dataset.name || "", v: days(COOLDOWN_DAYS) }),
-              t(b.dataset.pol === "approval" ? "crew.join.ask" : "crew.join.btn"),
+          // Asking queues you and costs nothing; joining commits you to the cooldown.
+          var approval = b.dataset.pol === "approval";
+          ask(t(approval ? "crew.join.askconfirm" : "crew.join.confirm",
+                { name: b.dataset.name || "", v: days(COOLDOWN_DAYS) }),
+              t(approval ? "crew.join.ask" : "crew.join.btn"),
               function () { send({}); }, b);
         } else {
           send({});
@@ -4589,6 +4614,29 @@
     if (panelCovers() && H.closePanel) H.closePanel();
   }
 
+  /* ---------- lighting a row ----------
+     The host writes `style="animation:rowin .5s both;animation-delay:45ms"` onto every
+     standings row and podium card as it builds them (web/public.py:815 and :817). An inline
+     declaration beats any stylesheet rule without `!important`, so `.crewlit` NEVER applied:
+     a reviewer sampled `getAnimations()` on the target row every 180ms for 2.9 seconds and
+     found only `rowin`, with the background flat `rgba(0,0,0,0)` throughout. The class was
+     added and removed exactly as intended and nothing could be seen.
+
+     The inline animation is a half-second entry effect that finished long before anything
+     asks for a flash, so the property is removed rather than fought with `!important` --
+     which would have to win against two shorthands and would also kill the entry effect for
+     every future row. */
+  function flashRow(el) {
+    if (!el) return;
+    el.style.removeProperty("animation");
+    el.style.removeProperty("animation-delay");
+    // restart cleanly if the row is lit twice in a row
+    el.classList.remove("crewlit");
+    void el.offsetWidth;
+    el.classList.add("crewlit");
+    setTimeout(function () { el.classList.remove("crewlit"); }, 2400);
+  }
+
   function openCrew(slug) {
     if (!panelOpen) show();
     flyToCrew(slug);
@@ -4608,8 +4656,7 @@
       try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {
         row.scrollIntoView();
       }
-      row.classList.add("crewlit");
-      setTimeout(function () { row.classList.remove("crewlit"); }, 2400);
+      flashRow(row);
     }, 280);
   }
 

@@ -287,7 +287,10 @@ def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
             "colour": clan.colour, "pattern": clan.pattern, "members": n,
             "join_policy": clan.join_policy,
             # what it holds, so picking a crew is not a blind name-pick that costs a cooldown
-            "km2": clan.terr_best_km2 or 0.0, "tiles": clan.terr_tiles or 0,
+            # BOTH from the biggest patch, like the board, the map marker and the crew's own
+            # page. `km2` was already best and `tiles` was the total, so one brief carried two
+            # different answers to the same question and anything reading it got to choose.
+            "km2": clan.terr_best_km2 or 0.0, "tiles": clan.terr_best_tiles or 0,
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
 
 
