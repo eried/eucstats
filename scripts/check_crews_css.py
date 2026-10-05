@@ -646,6 +646,25 @@ RELAXERS = {
 }
 
 
+# Properties whose value on an ANCESTOR actually governs a descendant, and so can be written
+# to lift something the descendant sets. Inheritance is half of it and containment the other:
+# a parent's `white-space` reaches the child's text, a parent's `overflow` clips the child's
+# box, a parent's `display: none` means the child is never laid out at all.
+#
+# What is deliberately absent is box geometry -- margin, padding, border, width, inset, gap.
+# A descendant cannot defeat an ancestor's margin, because they are two different boxes, and
+# the `relaxes()` docstring already argues exactly this for padding before the code forgot to
+# ask which property it was holding. Without this, `margin-inline: auto` on three containers
+# -- the ordinary way to centre a capped column -- was reported three times against correct
+# CSS, each time "losing" to a rule on a DESCENDANT it shares no element with.
+GOVERNS_DESCENDANTS = frozenset({
+    "white-space", "word-break", "overflow-wrap", "text-overflow", "hyphens",
+    "overflow", "display", "visibility", "opacity", "position", "contain", "clip-path",
+    "color", "font", "line-height", "letter-spacing", "text-align", "text-transform",
+    "direction", "cursor", "pointer-events",
+})
+
+
 # How many distinct selectors each compound appears in. A planted ancestor appears in exactly
 # one -- its own rule -- while the fix this hatch exists for, `.crewtrow .crewtag`, names a
 # compound the stylesheet uses nine times. See fixes().
@@ -819,6 +838,12 @@ def relaxes(val, against=None, prop=None):
     # `visibility: hidden` is deliberately NOT here: a descendant really can set
     # `visibility: visible` and come back, so an ancestor setting it IS relaxing something.
     if prop is not None and physical(prop) == "display" and bare(val).strip().lower() == "none":
+        return False
+    # And only for a property an ancestor's value reaches the descendant through. `auto` is in
+    # the list above because `overflow: auto` lifts a child's clipping; it is also the value of
+    # every centred container in the file, and without this question those were reported as
+    # beaten by a `margin` rule on a child three levels down. See GOVERNS_DESCENDANTS.
+    if prop is not None and family(prop) not in GOVERNS_DESCENDANTS:
         return False
     return val.strip().lower() in RELAXERS
 

@@ -357,6 +357,14 @@ def _cases():
                      "  .crewtag { background: none !important; padding: 0 !important; }", 1), 0),
         ("a fix written as a descendant selector",
          css.replace(PHONE_STRIP, "  .crewtrow .crewtag { background: none; padding: 0; }", 1), 0),
+        # The ordinary way to centre a capped column, which this reported three times against
+        # the shipped file: `auto` is in RELAXERS for `overflow: auto`, and the branch read the
+        # value without asking what property it was on. A child's margin is a different box
+        # and can no more beat its parent's than its padding can. The pair below this one is
+        # the other half: narrowing must not reach the bug the branch was built for.
+        ("a centred container above a descendant that sets its own margin",
+         css + NL + ".crewinvite .crewbtn { margin: 0; }" + NL
+             + "@media (min-width: 561px) { .crewinvite { margin-inline: auto; } }" + NL, 0),
         # --- and four more correct stylesheets round twelve failed
         # REVERSED in round fifteen, deliberately. This was pinned as must-exit-0 in round
         # twelve, when a reviewer reported a correct fix wrapped in `@supports (display:
