@@ -912,7 +912,10 @@
   }
 
   function explainer() {
-    return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
+    // No summary row: the way in is the (?) in the panel title, and a disclosure with two
+    // triggers is a disclosure whose state you have to look in two places to read. `id`
+    // because the button points at it with `aria-controls`.
+    return '<details class="crewhow" id="crewhow"><summary></summary>'
       // Numbered, because eight paragraphs at one weight is a wall however good the words
       // are, and these are the rules of a game. The numbering is markup, so it costs no
       // translation.
@@ -2090,6 +2093,22 @@
 
   // One handler, wherever the button was rendered: inside the crew card's action row, or in
   // the panel footer for the five paired states that have no crew card to put it in.
+  // The (?) in the panel chrome. Bound on every render because `setPanel` rewrites the body
+  // and this button lives OUTSIDE it, so the handler survives but the block it opens does not.
+  function bindHelp() {
+    var btn = document.getElementById("phelp");
+    var how = document.getElementById("crewhow");
+    if (!btn) return;
+    if (!how) { btn.setAttribute("aria-expanded", "false"); return; }
+    btn.setAttribute("aria-expanded", how.open ? "true" : "false");
+    btn.onclick = function () {
+      how.open = !how.open;
+      btn.setAttribute("aria-expanded", how.open ? "true" : "false");
+      if (how.open) reveal("#crewhow");
+      doReveal();
+    };
+  }
+
   function bindSignOut() {
     var so = document.getElementById("cm-signout");
     if (!so) return;
@@ -3714,6 +3733,7 @@
         if (me.status === "pending") { bindJoin(); bindList(); }
       } else { bindCreate(); bindJoin(); bindList(); }
       bindSignOut();
+      bindHelp();
       doReveal();
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {

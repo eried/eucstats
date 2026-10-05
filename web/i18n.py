@@ -294,7 +294,7 @@ EN: dict[str, str] = {
     "crew.mine.generated": "Use the drawn one",
     "crew.mine.save": "Save",
     "crew.mine.leave": "Leave crew",
-    "crew.mine.signout": "Hand the pass back",
+    "crew.mine.signout": "Sign out",
     "crew.mine.leaveq": "Leave {name}? No new crew for {n}.",
     "crew.role.leader": "leader",
     "crew.role.officer": "officer",
@@ -339,7 +339,7 @@ EN: dict[str, str] = {
     "crew.roles.h": "The crew",
     "crew.roles.promote": "Make officer",
     "crew.roles.demote": "Stand down",
-    "crew.mine.signoutq": "Hand the pass back? You need your phone to get back in.",
+    "crew.mine.signoutq": "Sign out? You need your phone to get back in.",
     # What each of these actually does, in plain words, for the hover and for a screen reader.
     # The labels stay in this feature's voice; these say the same thing with nothing in it to
     # work out. Deliberately not shown as body text: six explanatory lines under six buttons

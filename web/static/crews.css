@@ -39,6 +39,18 @@
   background: rgba(0,0,0,.35); border: 1px solid var(--line, #243055); color: inherit;
   font: inherit; font-size: 13px; border-radius: 0;
 }
+/* The OPEN list, which this card does not draw. A `<select>`'s popup is native chrome built
+   from each option's own colours, so the rule above styled the closed control and nothing
+   else: the options inherited the card's light ink and the popup kept its platform default,
+   which is white. Light text on white, and no way to read your own choices.
+   `color-scheme` is the part that makes the browser draw its widget dark -- the scrollbar, the
+   hover row, the tick -- and the explicit colours cover engines that take the one and not the
+   other. Opaque, not the field's translucent black: a popup has nothing behind it to blend
+   with. */
+.crewcard select { color-scheme: dark; }
+.crewcard select option, .crewcard select optgroup {
+  background: var(--pan, #0b1020); color: var(--ink, #eef1fb);
+}
 /* The one native control in the feature. Without this the browser draws its own grey
    "Choose File" button, in Arial, inside a dark themed card -- `input[type=file]` is excluded
    from the field rule above on purpose, so it had no box of its own at all.
@@ -261,6 +273,12 @@
 /* Amber, not the error pink: nothing has gone wrong, it is just not finished. */
 .crewmsg.warn { background: rgba(255,210,74,.12); border-left-color: #ffd24a; color: #ffe9a8; }
 
+/* Shut, the manual is not in the panel at all: it answers to the (?) in the title now, and a
+   collapsed card in the stack would be a second way in and one more thing to scroll past. Its
+   `<summary>` goes with it -- a disclosure with two triggers has a state you must look in two
+   places to read. */
+.crewhow > summary { display: none; }
+.crewhow:not([open]) { display: none; }
 /* The same bottom margin every card has. Without it the board sat flush against this, 0px
    between two bordered boxes, which reads as one box with a rule across it. */
 .crewhow { font-size: 12px; line-height: 1.55; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); padding: 0 13px; margin: 0 0 11px; }

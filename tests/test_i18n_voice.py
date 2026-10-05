@@ -70,7 +70,12 @@ PASS_NOUN = {
     "pl": "przepust", "pt-BR": "passe", "ru": "пропуск", "sv": "nyckel", "tr": "izn",
     "uk": "пропуск", "zh": "通行证", "zh-Hant": "通行證",
 }
-PASS_KEYS = ["crew.signin.h", "crew.e.pass", "crew.mine.signout", "crew.mine.signoutq"]
+# `crew.mine.signout` and its question were in here while the control was called "Hand
+# the pass back". It is "Sign out" now -- Erwin asked twice what the old label meant,
+# which is the answer to whether a metaphor is carrying -- so neither string mentions a
+# pass and neither should be asked to. What is left are the two that really do fetch and
+# return one: the sign-in heading, and the error for acting without one.
+PASS_KEYS = ["crew.signin.h", "crew.e.pass"]
 
 
 @pytest.mark.parametrize("loc", sorted(PASS_NOUN))
