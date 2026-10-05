@@ -295,17 +295,17 @@ def _enroll_html(qr: str, secret: str) -> str:
 
 def _pair_html(qr: str, code: str, error: str = "") -> str:
     """Step two: scan with the phone that owns this console."""
+    from services import pairing
+    minapp = pairing.MIN_APP
     err = f'<div class="flash err">{html.escape(error)}</div>' if error else ""
     inner = f"""
     <div class=card>
       <div class=brand style="font-size:19px;margin-bottom:8px">EUC<b>STATS</b></div>
-      <h1 style="margin:0 0 4px">Second factor</h1>
-      <p class=hint>The code was right. Now scan this with <b>EUC Planet</b> on the phone
-      bound to this console. The code proves what you know; the phone proves what you have.</p>
+      <h1 style="margin:0 0 4px">Access</h1>
+      <p class=hint>To continue, scan with <b title="Needs EUC Planet {minapp} or newer">EUC Planet</b> on your phone.</p>
       {err}
       <img class=qr src="data:image/png;base64,{qr}" alt="admin pairing QR code"/>
-      <p class=hint>Or type this into the app: <code>{html.escape(code)}</code><br>
-      It expires in three minutes and this page will move on by itself.</p>
+      <p class=hint>or type <code title="Expires in 3 minutes">{html.escape(code)}</code> in the app</p>
       <form method=post action="/admin/logout"><button class="ghost mini">Start over</button></form>
     </div>
     <script>
@@ -329,7 +329,7 @@ def _login_html(error: str = "") -> str:
     <div class=card>
       <div class=brand style="font-size:19px;margin-bottom:8px">EUC<b>STATS</b></div>
       <h1 style="margin:0 0 4px">Admin sign in</h1>
-      <p class=hint>Enter the 6-digit code from your authenticator app.</p>
+      <p class=hint>6-digit code from your authenticator.</p>
       {err}
       <form method="post" action="/admin/verify-totp">
         <input class=codein name="code" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" autofocus/>
