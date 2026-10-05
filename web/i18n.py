@@ -201,7 +201,7 @@ EN: dict[str, str] = {
     "crew.mine.cancel": "Pull the request",
     "crew.mine.cancelq": "Pull your request to {name}? Costs you nothing.",
     "crew.mine.disband": "Disband",
-    "crew.mine.disbandq": "Disband {name}? Colours go back in the box and the map fades out on its own.",
+    "crew.mine.disbandq": "Disband {name}? Colours go back in the box and the map fades out on its own. No waiting afterwards — you can start or join another straight away.",
     "crew.mine.claim": "Take over",
     "crew.mine.claimq.none": "Nobody is running this crew. Take it over?",
     "crew.mine.claimq": "Your leader has gone quiet. Take the crew over?",
@@ -351,6 +351,10 @@ EN: dict[str, str] = {
     "crew.mine.leave": "Leave crew",
     "crew.mine.signout": "Sign out",
     "crew.mine.leaveq": "Leave {name}? No new crew for {n}.",
+    # Walking out of a crew you are the last member of ends it. `leave()` retires the clan
+    # when nobody active is left AND stamps the cooldown, so the gentle-sounding button
+    # destroys the crew and benches you a week, while Disband does it for nothing.
+    "crew.mine.leaveq.last": "Leave {name}? You are the last one in it, so the crew ends with you — and you wait {n} before joining another. Disbanding it costs you no wait at all.",
     "crew.role.leader": "leader",
     "crew.role.officer": "officer",
     "crew.role.member": "member",
@@ -378,7 +382,7 @@ EN: dict[str, str] = {
     "crew.how.s4": "What the colours mean",
     "crew.how.s5": "What the numbers mean",
     "crew.how.n1": "The board ranks a crew on its biggest patch in one piece, not on everything it holds. Two patches of ten lose to one of eleven.",
-    "crew.how.n2": "Squares and km² are the same thing counted twice: one square is about {v} across where you ride, wherever that is.",
+    "crew.how.n2": "Squares and km² are the same thing counted twice. A square is about {v} across where YOU ride — they are wider nearer the equator and narrower nearer the poles, so a square is the same amount of riding everywhere, not the same amount of ground.",
     # Both from the settings that enforce them. The cooldown was only ever said in the leave
     # prompt, where you read it after deciding; the size cap was never said anywhere.
     "crew.how.cool": "Walk out of a crew and you wait {v} before joining another.",

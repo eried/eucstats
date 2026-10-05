@@ -448,17 +448,24 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                         return _handle(db, sid)        # mints a clean one; see _handle
                     return r.public_id
 
+                def _fl(sid):
+                    r = who.get(sid)
+                    return (r.flag or "") if r is not None else ""
+
+                # The flag belongs here too. The roster renderer has asked for `x.flag` since
+                # the fold landed -- with a comment saying "a list of riders that says nothing
+                # about any rider is a list of buttons" -- and the payload never carried one,
+                # so the branch was dead and the list stayed exactly what the comment
+                # complained about. `who` is already loaded; the pending list below and the
+                # contributor list on the same card both use it.
                 out["roster"] = [
                     {"store_id": _hd(x.store_id), "role": x.role,
-                     "name": _nm(x.store_id)}
+                     "name": _nm(x.store_id), "flag": _fl(x.store_id)}
                     for x in db.query(ClanMember).filter(
                         ClanMember.clan_id == clan.clan_id,
                         ClanMember.status == "active",
                         ClanMember.left_at.is_(None))
                     .order_by(ClanMember.joined_at.asc()).all()]
-                def _fl(sid):
-                    r = who.get(sid)
-                    return (r.flag or "") if r is not None else ""
 
                 # The flag as well. A pending row showed a bare name while the contributor
                 # list on the same card showed a flag for everyone already in, so the one row

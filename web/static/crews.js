@@ -53,10 +53,15 @@
 
   // With the cooldown switched off there is no waiting to describe, so the sentence changes
   // rather than the number. "No new crew for right now" is what came out before.
+  // The last member out takes the crew with them. `services/crews.py` retires the clan when
+  // nobody active is left, AND stamps the cooldown -- so on a solo crew the gentle-sounding
+  // button ends the crew and benches you for a week, while Disband two rows down does the
+  // same thing to the crew for nothing. Neither prompt said so.
   function leaveQuestion(name) {
-    return COOLDOWN_DAYS > 0
-      ? t("crew.mine.leaveq", { name: name, n: days(COOLDOWN_DAYS) })
-      : t("crew.mine.leaveq0", { name: name });
+    var solo = ME && ME.crew && (ME.crew.members || 0) <= 1;
+    if (COOLDOWN_DAYS <= 0) return t("crew.mine.leaveq0", { name: name });
+    return t(solo ? "crew.mine.leaveq.last" : "crew.mine.leaveq",
+             { name: name, n: days(COOLDOWN_DAYS) });
   }
 
   function days(n) {
@@ -3567,7 +3572,11 @@
           // The card that explains what just happened, not the leaderboard. Flashing
           // `.crewboard` scrolled 0 -> 405 and put the "next crew in 7 days" card at
           // viewTop -57: off the top of the screen at the moment it was written.
-          if (r.ok) { reveal(".crewcard:not(.crewboard)"); show(); reloadTerritory(); }
+          // The TOP of the panel: after disbanding there is no crew card to go to, the
+          // first `.crewcard` is the create form, and that is where a leader who has just
+          // ended their crew was landing -- in a pattern picker. `#crewstatus` is where the
+          // "X is gone" line lands.
+          if (r.ok) { reveal("#crewstatus"); show(); reloadTerritory(); }
           else if (!onWrite(r)) setStatus(errMsg(r.err), true, leave);
         });
       }, leave, true);
@@ -3582,7 +3591,16 @@
         // Composed on both sides, like `name_ok` does on the server: an accented name can be
         // typed decomposed and stored composed, and the leader would be told that their own
         // crew's name is not its name.
-        var norm = function (x) { x = (x || "").trim(); return x.normalize ? x.normalize("NFC") : x; };
+        // Case-folded as well as normalised. The input renders what you type in UPPERCASE
+        // (`text-transform` plus 2px tracking) and its placeholder is the crew's real name,
+        // so a leader who types exactly what the screen shows them was refused by a
+        // difference they could not see -- the two strings are identical on screen. The gate
+        // is there to make you stop and read the name, not to test your shift key.
+        var norm = function (x) {
+          x = (x || "").trim();
+          if (x.normalize) x = x.normalize("NFC");
+          return x.toLowerCase();
+        };
         if (norm(typed) !== norm(c.name)) { ctl.fail(t("crew.e.nomatch")); return; }
         ctl.close();
         api("POST", "/api/v1/crews/" + c.slug + "/disband", {}).then(function (r) {
@@ -4361,7 +4379,15 @@
     // Before `setPanel` replaces the panel body, and only when this panel was already the one
     // on screen -- a fresh open belongs at the top. `render()` applies it.
     var pb0 = document.getElementById("pbody");
-    KEEPTOP = (panelOpen && pb0) ? pb0.scrollTop : 0;
+    // NOT when something is waiting to be revealed. `reveal()` is how an action says "the
+    // thing I just did is over there"; `doReveal()` scrolls to it synchronously after the
+    // render, and this restore runs in a requestAnimationFrame AFTER that -- so keeping the
+    // old position silently undid every one of them. Reviewer D measured Ask landing at
+    // scrollTop 1352, Create at 1114 and Disband at 1443, each about two screens away from
+    // the card it had just produced, with the confirmation pinned off-screen at the top.
+    // That was this line, introduced with the Refresh fix. A refresh has nothing to reveal,
+    // which is exactly when carrying the position is the right answer.
+    KEEPTOP = (panelOpen && pb0 && !revealNext) ? pb0.scrollTop : 0;
     visible = true;
     panelOpen = true;
     syncKey();
