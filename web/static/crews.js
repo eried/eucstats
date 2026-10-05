@@ -2187,6 +2187,14 @@
       // The test warning used to be here, which meant a rider only ever saw it before they
       // had anything to lose. It is at the top of the panel now, for everybody.
       + "<h3>" + t("crew.signin.h") + "</h3>"
+      // The pitch, before the ask. Three reviewers in a row said this screen never says what
+      // crews are or why anybody would pair a phone for them -- it was a heading, a QR and a
+      // version requirement, and `crew.signin.p` had been written and then rendered nowhere.
+      // One of six hooks, picked per visit so a second look is not the same screen, and one
+      // plain sentence under it saying what actually happens on the map.
+      + '<p class="crewhook">' + esc(t("crew.hook." + (1 + Math.floor(Math.random() * 6))))
+      + "</p>"
+      + '<p class="hint crewwhat">' + esc(t("crew.pub.what")) + "</p>"
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
       // One line: what to point at it, which app, and which version. The version used to be a

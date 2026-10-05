@@ -76,6 +76,10 @@ CARDS = {
     "crew.targets.": "crew",
     "crew.lose.": "crew",
     "crew.legend.": "crew",
+    # The six hooks on the signed-out card. They address the reader directly and in the
+    # imperative -- "take over the world", "change that" -- which is the same person the
+    # rest of that card speaks to.
+    "crew.hook.": "rider",
     "crew.signin.": "rider",
     # the test notice: it is at the top of the panel rather than on a card, and it
     # tells the one reader that what they build may be wiped

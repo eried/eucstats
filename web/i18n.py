@@ -61,6 +61,16 @@ EN: dict[str, str] = {
     "crew.wip": "Not open for public testing yet. Anything you build here can be wiped without warning.",
     "crew.signin.h": "Get started",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",
+    # The line above the code, picked at random per visit. Three reviewers independently said
+    # the signed-out screen never says what this IS or why you would want it -- it was a QR
+    # under the word "Get started" and nothing else, and the pitch that existed was rendered
+    # nowhere. These are the hook; `crew.pub.what` under them is the mechanic in one sentence.
+    "crew.hook.1": "Take over the world. The EUC bit of it, anyway.",
+    "crew.hook.2": "The streets are going to belong to somebody. Might as well be you.",
+    "crew.hook.3": "Ride it and it is yours. Stop, and somebody comes for it.",
+    "crew.hook.4": "Your city, in your colours, if you can hold it.",
+    "crew.hook.5": "Every square out there has somebody's name on it. Change that.",
+    "crew.hook.6": "Turn the ride home into a land grab.",
     "crew.signin.scan": "Scan it with EUC Planet {v} or newer, or type the code in.",
     # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
     # from services.pairing.MIN_APP, so a release is one line and not nineteen.
