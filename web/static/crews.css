@@ -735,6 +735,18 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    deliberately untouched -- every number in it was measured against a real bug. */
 @media (min-width: 561px) {
   .crewtargets { --kmc: min(var(--kmw, 96px), 33%); }
+  /* The losses card is not the targets card. Its phrase is a whole sentence -- "one lap 0.1 km
+     and it's theirs" against the targets card's "one lap 0.2 km" -- so a third of the column
+     is about 162px for something that needs 210, and a reviewer measured the effort column
+     wrapping on nearly every one of 37 rows at BOTH widths, which is this cap of mine making
+     the card double-height and ragged.
+     50%, swept and measured rather than reasoned about. Zero wrapping in the effort column
+     sounds like the goal and is not: past half the row the WHO column starts wrapping instead
+     and the rows get taller anyway. Measured on 37 rows at 1280 -- 46%: 26 double-height rows,
+     1921px of card; 50%: 7 and 1752px; 58%: no effort wrapping at all but 28 double-height
+     rows and 2074px; 62%: 34 and 2157px, worse than where this started. The shortest, most
+     regular card is the one to want, and it is at 50%. */
+  .crewtargets.crewlose { --kmc: min(var(--kmw, 96px), 50%); }
 }
 .crewtargets .hint { margin: 0 0 8px; }
 /* Top-aligned, because the phrase wraps and the other two columns do not: centred, the
