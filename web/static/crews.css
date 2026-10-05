@@ -971,6 +971,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   /* Wider tracks rather than a min-height: a min-height beats aspect-ratio, and a 33px-wide
      chip stretched to 44 is a portrait rectangle in a feature whose language is squares. */
   .crewpickp .crewsw { width: 32px; height: 32px; }
+
+  /* The contribution bar gets its own line. Inline, it is the last thing in a row that already
+     holds an avatar, a 42% name column, two gaps and "830 km 45%" -- measured at 390 the track
+     was squeezed to 30px of its 24px minimum, so 65% drew 19px and 35% drew 10px and a 2:1
+     split read as nine pixels. The number carried all the meaning and the bar was decoration.
+     Full width on its own line it is about 292px, so the same split draws 190px against 102px.
+     The target rows already wrap a part onto its own line at this width for the same reason. */
+  .crewcbar { flex: 1 0 100%; order: 3; min-width: 0; margin-top: 3px; }
 }
 
 @media (max-width: 560px) {
