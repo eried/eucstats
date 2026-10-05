@@ -243,6 +243,19 @@ EN: dict[str, str] = {
     # ride you just finished turns into ground. This does, and it stands on its own.
     "crew.drawn.in": "Ride now and it lands on the map in about {n} min.",
     "crew.drawn.soon": "The map is redrawing right now. New ground lands any second.",
+    # When the rebuild is more than an interval late. "New ground lands any second" was
+    # printed by every value <= 1 minute, so a map seven hours stale said it for six of
+    # them and would have said it for ever. This also answers the question the panel never
+    # did: not when the next one lands, but how old the one you are reading is.
+    # The diff the crew card leads with. Five reviewers said the mode is entirely pull --
+    # every piece of news exists and none of it is told to you -- so this is the panel paying
+    # you for opening it. Held per browser; it is one reader's "last time I looked".
+    "crew.since.h": "Since you last looked:",
+    "crew.since.up": "+{v}",
+    "crew.since.down": "−{v}",
+    "crew.since.rose": "{a} → {b}",
+    "crew.since.fell": "{a} → {b}",
+    "crew.drawn.old": "This map was drawn over {n} h ago. New rides are waiting on the next redraw.",
     "crew.targets.takenby": "somebody holds it",
     "crew.targets.drops": "drops them to {n}",
     "crew.targets.passes": "puts them behind {name}",
@@ -390,7 +403,10 @@ EN: dict[str, str] = {
     "crew.how.n2": "Squares and km² are the same thing counted twice. A square is about {v} across where YOU ride — they are wider nearer the equator and narrower nearer the poles, so a square is the same amount of riding everywhere, not the same amount of ground.",
     # Both from the settings that enforce them. The cooldown was only ever said in the leave
     # prompt, where you read it after deciding; the size cap was never said anywhere.
-    "crew.how.cool": "Walk out of a crew and you wait {v} before joining another.",
+    # The server blocks FOUNDING as well -- `can_found` goes false and the whole START A
+    # CREW form is removed during the wait. A reader who left intending to start their
+    # own was told that was allowed and then found it was not.
+    "crew.how.cool": "Walk out of a crew and you wait {v} before joining another one or starting your own.",
     "crew.how.size": "A crew holds {n} riders at most.",
     "crew.how.1": "Ride a square and it turns your colour. Whoever put the most km into it over the last {d} days holds it.",
     # "a 2x2 block, about 1.2 km across" -- `{v}` is the width of ONE square, so that

@@ -43,6 +43,7 @@ NO_AGREEMENT = {
     "crew.targets.links": "`{n} to link up` -- no noun follows it in any locale",
     "crew.targets.drops": "`drops them to {n}` -- ends the clause",
     "crew.drawn.in": "`{n} min` -- every locale abbreviates the unit, so nothing inflects",
+    "crew.drawn.old": "`over {n} h ago` -- the same abbreviated unit, same reason",
     "crew.who.share": "`{n}%`",
     # The roster's fold. Read in all three: ru `Показать всех {n}`, pl `Pokaż wszystkich {n}`,
     # uk `Показати всіх {n}` -- the number ENDS the clause in every one, and the word

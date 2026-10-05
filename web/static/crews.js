@@ -609,7 +609,12 @@
       // which is the keyboard route that makes sense.
       pressable(el, crew.name, function (ev) {
         if (ev) ev.stopPropagation();
-        openCrew(crew.slug);
+        // `openCrewDetail`, not `openCrew`. The second opens the panel and flies the map --
+        // and on a phone the panel is 76% of the screen, so the fly-to happens entirely
+        // behind it and the crew you tapped is never named. You tapped a crew's emblem and
+        // got an unrelated card scrolled to the top. The popup's own Details button has done
+        // the right thing for rounds: open, scroll to that crew's row, flash it.
+        openCrewDetail(crew.slug);
       }, false);
       var m = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([lon, lat]).addTo(map);
@@ -1182,8 +1187,20 @@
     // The server does the arithmetic: the browser's clock is not the one the file was
     // stamped by, and on a phone it is frequently minutes out.
     if (!DRAWN || DRAWN.drawn_s_ago == null) return "";
-    var mins = Math.round((DRAWN.every - DRAWN.drawn_s_ago) / 60);
-    // Overdue: the rebuild shares the retention loop, so it lands on that loop's next pass.
+    var every = DRAWN.every || 3600;
+    var mins = Math.round((every - DRAWN.drawn_s_ago) / 60);
+    // Overdue by MORE than an interval is not "any second", it is a map that has stopped.
+    // A reviewer measured this instance at 7h14m against a one-hour cadence, printing "New
+    // ground lands any second" -- which it had been saying for six hours and would say for
+    // ever, because every value <= 1 collapsed into it. Saying how old the map is degrades
+    // honestly whatever the rebuild is doing, and is the thing the panel never answered:
+    // it said when the next one lands and never how old this one is.
+    if (DRAWN.drawn_s_ago > every * 1.5) {
+      // Whole hours, floored. `heldFor` works in days and would call a seven-hour-old map
+      // "new", which is the opposite of the thing being said.
+      var hrs = Math.max(1, Math.floor(DRAWN.drawn_s_ago / 3600));
+      return '<p class="hint crewdrawn">' + esc(t("crew.drawn.old", { n: hrs })) + "</p>";
+    }
     if (mins <= 1) return '<p class="hint crewdrawn">' + t("crew.drawn.soon") + "</p>";
     return '<p class="hint crewdrawn">' + t("crew.drawn.in", { n: mins }) + "</p>";
   }
@@ -1494,12 +1511,16 @@
   // on it -- the weekly cap, the 2x2, the km2 figures -- and the manual never stated it, so a
   // reader had "15 squares" and "23 km2" and no way to connect them. Derived from the floor,
   // which is a fixed fraction of the edge, at the rider's own latitude.
-  function squareKm() {
+  // The measurement, so the cap can use the same one the sentence prints.
+  function squareEdgeKm() {
     var lat = (ME && ME.home && ME.home.lat != null) ? ME.home.lat
             : (map && map.getCenter ? map.getCenter().lat : 59.9);
     var z = TERR ? TERR.z : 14;
-    var km = 360 / Math.pow(2, z) / 360 * EARTH_C_KM * Math.cos(lat * Math.PI / 180);
-    return fmtKm(Math.round(km * 10) / 10);
+    return 360 / Math.pow(2, z) / 360 * EARTH_C_KM * Math.cos(lat * Math.PI / 180);
+  }
+
+  function squareKm() {
+    return fmtKm(Math.round(squareEdgeKm() * 10) / 10);
   }
 
   function floorKm(y) {
@@ -1524,9 +1545,26 @@
   // mid-latitude default for a reader we know nothing about, and `/crews/me` carries the
   // rung for where THIS rider actually rides -- so `capKm()` and not a constant, because
   // the manual is usually opened after that has landed.
+  // The rungs `services/territory.py` snaps to, and why: the cap is five crossings of a
+  // square, and the square is not the same size everywhere. Mirrored here for the one case
+  // the server cannot answer -- a reader with no session, whose square size comes from the
+  // map they are looking at.
+  var CAP_RUNGS = [5, 8, 10, 13, 16];
+
   function capKm() {
     if (ME && ME.rider_week_cap_km != null) return ME.rider_week_cap_km;
-    return CFG.rider_week_cap_km != null ? CFG.rider_week_cap_km : 8;
+    // Signed out this fell back to a flat 8 while `squareKm()` two rules above printed the
+    // square at the map's own latitude -- so the manual told a signed-out reader a 1.1 km
+    // square has an 8 km cap, when 1.1 km snaps to 5. The same modal, 60% out, and only for
+    // the readers who have not signed in. Same formula as the server, same ladder.
+    var raw = Math.max(0.1, squareEdgeKm() * 5);
+    var best = CAP_RUNGS[0];
+    for (var i = 1; i < CAP_RUNGS.length; i++) {
+      if (Math.abs(Math.log(CAP_RUNGS[i] / raw)) < Math.abs(Math.log(best / raw))) {
+        best = CAP_RUNGS[i];
+      }
+    }
+    return best;
   }
   var MAX_MEMBERS = CFG.max_members != null ? CFG.max_members : 0;   // 0 = no cap
   var RIDER_CEILING_KM = 29;
@@ -3208,6 +3246,56 @@
   // table, and a crew the board does not list got a rank of its own anyway.
   var BOARD = null;
 
+  /* ---------- what changed since you last looked ----------
+
+     Every reviewer who scored FUN below 9 said a version of the same thing: the mode is
+     entirely pull. A square about to flip, a rival creeping up, a rank change -- all of it
+     exists, all of it is already on the client, and none of it is told to you. You have to
+     open the panel and go looking, which means the panel never pays you for opening it.
+
+     So the crew card leads with the diff. Per browser, in localStorage, because this is one
+     reader's "last time I looked" and nobody else's -- it is not state the server should hold
+     and not something another device should inherit. Written as it is read, so a line you
+     have seen does not greet you twice.
+  */
+  function seenKey(slug) { return "eucstats_crewseen_" + slug; }
+
+  function lastSeen(slug) {
+    try { return JSON.parse(localStorage.getItem(seenKey(slug)) || "null"); } catch (e) { return null; }
+  }
+
+  function markSeen(slug, snap) {
+    try { localStorage.setItem(seenKey(slug), JSON.stringify(snap)); } catch (e) {}
+  }
+
+  function rankOf(slug) {
+    var src = BOARD || (TERR && TERR.crews);
+    if (!src || !src.length) return null;
+    var rows = src.slice().sort(function (a, b) {
+      return (b.best_tiles || 0) - (a.best_tiles || 0);
+    });
+    for (var i = 0; i < rows.length; i++) if (rows[i].slug === slug) return i + 1;
+    return null;
+  }
+
+  function sinceLine(c, terr) {
+    if (!c || !c.slug) return "";
+    var now = { t: (terr && terr.best_tiles) || 0, r: rankOf(c.slug) };
+    var was = lastSeen(c.slug);
+    markSeen(c.slug, now);
+    if (!was) return "";                       // first visit has nothing to compare against
+    var bits = [];
+    var dt = now.t - (was.t || 0);
+    if (dt) bits.push(t(dt > 0 ? "crew.since.up" : "crew.since.down", { v: tiles(Math.abs(dt)) }));
+    // Climbing is a smaller number, which is the one place in this panel where down is good.
+    if (now.r && was.r && now.r !== was.r) {
+      bits.push(t(now.r < was.r ? "crew.since.rose" : "crew.since.fell",
+                  { a: ordinal(was.r), b: ordinal(now.r) }));
+    }
+    if (!bits.length) return "";
+    return '<p class="crewsince">' + t("crew.since.h") + " " + bits.join(" &middot; ") + "</p>";
+  }
+
   function standing(slug) {
     var src = BOARD || (TERR && TERR.crews);
     if (!src || !src.length) return "";
@@ -3850,7 +3938,9 @@
       // "in one piece" is a brag about a shape that does not exist yet. The line under it
       // already says the useful thing.
       var held = terr.best_tiles || terr.tiles || 0;
-      el.innerHTML = '<div class="crewbig">' + tiles(held)
+      // Before the figure, because it is the reason to have opened this at all.
+      el.innerHTML = sinceLine(c, terr)
+        + '<div class="crewbig">' + tiles(held)
         + (held ? " <span>" + t("crew.mine.ao") + "</span>" : "") + "</div>"
         + '<div class="crewsub">' + fmtKm2(terr.best_km2)
         + (terr.regions > 1 ? " · " + plural(null, "crew.patches.few", "crew.patches", terr.regions) : "")
@@ -4446,7 +4536,13 @@
       if (res[1].ok) BOARD = rank;
       var all = res[2].ok ? res[2].body.crews || [] : [];
       MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
+      // What the number under each name IS. `crew.board.sub` has existed since the board was
+      // written and was rendered nowhere -- a reviewer found it by grep. So the podium prints
+      // "Holmenkollen Climb / 91 / squares" with nothing saying 91 is the biggest patch held
+      // in one piece rather than the 119 they hold in total. The crew's own card says "in one
+      // piece"; the board, which is where strangers read it, never did.
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
+        + '<p class="hint crewboardsub">' + esc(t("crew.board.sub")) + "</p>"
         // The definition of the metric used to live here, permanently, above the board it
         // defines. It is a manual entry and it is in the manual now; see `explainer()`.
         

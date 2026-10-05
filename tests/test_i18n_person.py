@@ -118,6 +118,9 @@ CARDS = {
     # One word on the collapsed strip over the map. Names a thing; addresses nobody.
     # Colour words. Each names a hue; none addresses anybody. They exist so the swatch grid
     # says "dark red" rather than "Colour 4" to a reader who cannot see the difference.
+    # "Since you last looked: +3 squares, 12th -> 11th". Addressed to the reader of their
+    # own crew card, which is the same person `crew.mine.` speaks to.
+    "crew.since.": "rider",
     "crew.hue.": "none",
     "crew.key": "none",
     "crew.pop.": "none",
