@@ -290,6 +290,10 @@ EN: dict[str, str] = {
     "crew.mine.copied": "Copied",
     "crew.mine.settings": "Crew settings",
     "crew.mine.emblem": "Emblem (small, square)",
+    # The colours are a guess until the crew is on the map and a fact afterwards, so the
+    # picker goes away at the moment the rectangles appear. Doubles as the refusal if a
+    # request tries anyway.
+    "crew.mine.colourlock": "Your colours are on the map now, so they stay as they are.",
     "crew.mine.emblemp": "Leave it empty and we draw one from your name.",
     "crew.mine.generated": "Use the drawn one",
     "crew.mine.save": "Save",

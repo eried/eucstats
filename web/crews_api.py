@@ -806,6 +806,13 @@ def edit_crew(slug: str, payload: dict, request: Request, db: Session = Depends(
         clan.join_policy = payload["join_policy"]
     for field in ("colour", "pattern"):
         if field in payload:
+            # Only while the crew holds nothing. Before that the colour is a guess made without
+            # having seen a rival's; after it, the rectangles on the map are in that colour and
+            # other riders have learned them. The form stops offering the picker at the same
+            # moment, so reaching this is a hand-made request.
+            if (clan.terr_tiles or 0) > 0:
+                raise HTTPException(400, json.dumps({"code": "identity_locked",
+                                                     "detail": "Your colours are on the map."}))
             colour = payload.get("colour", clan.colour)
             pattern = payload.get("pattern", clan.pattern)
             if colour not in crews.PALETTE or pattern not in crews.PATTERNS:

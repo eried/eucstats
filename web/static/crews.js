@@ -2183,6 +2183,9 @@
     bad_invite: "crew.e.invite", bad_name: "crew.e.name", name_taken: "crew.e.taken",
     already_in_crew: "crew.e.increw", no_trips: "crew.e.notrips", cooldown: "crew.e.cooldown",
     bad_identity: "crew.e.identity", identity_taken: "crew.e.identity",
+    // The same sentence the form shows under the locked swatch, so a hand-made request is
+    // answered with the reason rather than with the generic failure.
+    identity_locked: "crew.mine.colourlock",
     no_crew: "crew.e.gone",
     not_member: "crew.e.left", not_in_crew: "crew.e.left",
     promote_first: "crew.e.promote",
@@ -2767,11 +2770,18 @@
         + esc(c.name) + '"></label>'
         + "<label>" + t("crew.new.desc") + '<input id="ce-desc" maxlength="280" value="'
         + esc(c.description || "") + '"></label>'
-        // The colours. `/crews/{slug}/edit` has taken these since it was written and
-        // `crew.e.identity` exists for them; the form never asked, so the one thing a crew
-        // IS on the map was an irreversible guess made before meeting a single rival's
-        // colour, and two of the nineteen error strings were unreachable.
-        + identBlock("ce", { colour: c.colour, pattern: c.pattern })
+        // The colours, while they are still a guess. The picker went in last round because
+        // choosing before meeting a single rival's colour made it "an irreversible guess" --
+        // true, right up until the crew is on the map. After that the rectangles out there are
+        // in this colour and other riders have learned them, so what was a guess is a fact and
+        // stays one. The swatch remains either way: a leader should always be able to see what
+        // their crew flies.
+        + ((c.tiles || 0) > 0
+           ? '<div class="crewidentrow"><div class=crewidentl>' + t("crew.new.colours")
+             + '<span class="crewpreview">' + swatch(c.colour, c.pattern, 34) + "</span>"
+             + "</div></div>"
+             + '<p class=hint>' + t("crew.mine.colourlock") + "</p>"
+           : identBlock("ce", { colour: c.colour, pattern: c.pattern }))
         + "<label>" + t("crew.new.who") + '<select id="ce-policy">'
         + ["approval", "open", "invite"].map(function (p) {
             return '<option value="' + p + '"' + (p === c.join_policy ? " selected" : "")
