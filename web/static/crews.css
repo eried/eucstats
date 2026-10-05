@@ -554,6 +554,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* The squares belong on the map, not in the panel. Cards sitting at radius 0 inside a 12px
    panel next to 7px tabs read as unfinished rather than as deliberate. */
 .crewcard, .crewmine-wrap, .crewhow { border-radius: 10px; }
+/* One box with a lid, not two rounded boxes stacked. Shut, the summary is the whole box and
+   takes all four corners; open, its bottom two go flat and the card's top two go flat to meet
+   them. Before this the title bar ended on a straight line and the card below it curved away,
+   which is what a disclosure looks like when the radius was put on the parts rather than on
+   the shape.
+   9px inside the wrapper's 1px border: an inner corner drawn at the outer radius runs at a
+   different rate from the border around it and leaves a lit sliver in the corner. */
+.crewmine-wrap > summary { border-radius: 9px; }
+.crewmine-wrap[open] > summary { border-radius: 9px 9px 0 0; }
+.crewmine-wrap > .crewcard { border-radius: 0 0 9px 9px; }
+
 /* kept square on purpose: these ARE the map's language */
 .crewsw, .crewpickc, .crewpickp, .crewemb img, .crewembsm { border-radius: 0; }
 /* the crew's own emblem at name size, in the standings rows and the join list */
@@ -754,6 +765,19 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      rows and 2074px; 62%: 34 and 2157px, worse than where this started. The shortest, most
      regular card is the one to want, and it is at 50%. */
   .crewtargets.crewlose { --kmc: min(var(--kmw, 96px), 50%); }
+
+  /* One column for the whole panel, not just for each card. The cap above gives every card the
+     same 466px measure, but flush left in a 719px body that is 19px of air on one side and 234
+     on the other, and the warning banner -- the one block never capped -- ran the full 673
+     above cards stopping 207px short of it. Capping the banner to the same measure gives the
+     stack a single right edge from the top of the panel down; centring the set splits the
+     slack instead of piling it beside the cards, which is the "scales by whitespace at its
+     edges" the cap block set out to do.
+     Here rather than beside the cap: `.crewmsg { margin: 9px 0 }` is declared further down the
+     file and a shorthand there beats `margin-inline` declared earlier. */
+  .crewmsg.warn, .crewmine-wrap { max-width: calc(31rem + 32px); }
+  .crewjoin, .crewmine, .crewboard, .crewhow, .crewmsg.warn, .crewmine-wrap
+    { margin-inline: auto; }
 }
 .crewtargets .hint { margin: 0 0 8px; }
 /* Top-aligned, because the phrase wraps and the other two columns do not: centred, the
@@ -978,6 +1002,11 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      split read as nine pixels. The number carried all the meaning and the bar was decoration.
      Full width on its own line it is about 292px, so the same split draws 190px against 102px.
      The target rows already wrap a part onto its own line at this width for the same reason. */
+  /* The row has to be allowed a second line, or the one above is a lie: `order` and a 100%
+     basis only mean anything where the row wraps, and `.crewcrow` is `nowrap`. Without this
+     the bar stayed inline at its full 292px, could not shrink back (`flex` shrink is 0), and
+     pushed the panel 232px wider than the phone it was measured on. */
+  .crewcrow { flex-wrap: wrap; }
   .crewcbar { flex: 1 0 100%; order: 3; min-width: 0; margin-top: 3px; }
 }
 

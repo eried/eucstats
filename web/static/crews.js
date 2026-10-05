@@ -2055,7 +2055,13 @@
     }
     if (yes) yes.addEventListener("keydown", cycle);
     if (no) no.addEventListener("keydown", cycle);
-    if (yes && yes.focus) { try { yes.focus(); } catch (e) {} }
+    // Cancel, not the acting button. Three of the four things this dialog asks about --
+    // removing a rider, disbanding the crew, taking the leadership -- cannot be undone by the
+    // person pressing, and this file notes eleven lines up that a keyboard user presses a
+    // confirm trigger twice when the first press seems to do nothing. Opening on `yes` made
+    // that second press the disband. The bright button is already the way out in the CSS;
+    // focus now says the same thing. Tab reaches the acting button in one press.
+    if (no && no.focus) { try { no.focus(); } catch (e) {} }
   }
 
   // One handler, wherever the button was rendered: inside the crew card's action row, or in
