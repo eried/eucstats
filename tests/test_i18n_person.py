@@ -81,6 +81,13 @@ CARDS = {
     # tells the one reader that what they build may be wiped
     "crew.wip": "rider",
     "crew.mine.": "rider",
+    # The hover explanations, which say what a button does TO THE READER: "You stop riding
+    # for this crew", "Signs this browser out".
+    "crew.tip.": "rider",
+    # "{n} riders want to join your crew" -- addressed to the leader reading the badge.
+    "crew.knock1": "rider",
+    "crew.knocks": "rider",
+    "crew.knocks.few": "rider",
     "crew.join.": "rider",
     "crew.how.": "rider",
     "crew.e.": "rider",

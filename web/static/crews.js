@@ -2077,16 +2077,26 @@
   }
 
   // An in-panel prompt, same reasoning.
-  function askFor(message, placeholder, ok, near) {
+  // `opts` carries what used to be this function's one caller's assumptions: `max` is the
+  // input's maxlength (16, the invite code's length -- a crew name runs to 28, so disbanding
+  // could not be confirmed by typing it while the box stopped four characters short of
+  // "Harbour Bridge Bombers"), `confirm` is the acting button's label, which said "Join" over
+  // a prompt about ending a crew, and `danger` swaps the weights so the quiet button acts and
+  // the bright one is the way out, the same way `ask()` treats everything irreversible.
+  function askFor(message, placeholder, ok, near, opts) {
+    opts = opts || {};
     var host = askHost(near);
     if (!host) { var v = window.prompt(message); if (v) ok(v); return; }
     function done() { if (host.id === "crewstatus") host.innerHTML = ""; else host.remove(); }
     host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
       + '<div class="crewmsg bad crewaskmsg" role="alert" aria-live="assertive"'
       + ' aria-atomic="true" hidden></div>'
-      + '<input id="crewask-in" placeholder="' + esc(placeholder) + '" maxlength="16">'
-      + '<button class="crewbtn mini" id="crewask-y">' + t("crew.join.btn") + "</button>"
-      + '<button class="crewbtn mini ghost" id="crewask-n">' + t("crew.cancel") + "</button>"
+      + '<input id="crewask-in" placeholder="' + esc(placeholder) + '" maxlength="'
+      + (opts.max || 16) + '">'
+      + '<button class="crewbtn mini' + (opts.danger ? " ghost" : "") + '" id="crewask-y">'
+      + esc(opts.confirm || t("crew.join.btn")) + "</button>"
+      + '<button class="crewbtn mini' + (opts.danger ? "" : " ghost") + '" id="crewask-n">'
+      + t("crew.cancel") + "</button>"
       + "</div>";
     host.scrollIntoView({ block: "nearest", behavior: "smooth" });
     var input = host.querySelector("#crewask-in");
@@ -2700,7 +2710,8 @@
                 + t(x.role === "officer" ? "crew.roles.demote" : "crew.roles.promote")
                 + "</button>"
                 + '<button class="crewbtn mini ghost" data-kick="'
-                + esc(x.store_id || "") + '" data-name="' + esc(x.name) + '">'
+                + esc(x.store_id || "") + '" data-name="' + esc(x.name) + '"'
+                + ' title="' + esc(t("crew.tip.remove")) + '">'
                 + t("crew.roles.remove") + "</button>";
             return '<div class="crewpendr"><span>' + esc(x.name) + mark + "</span>" + btn
               + "</div>";
@@ -2735,25 +2746,32 @@
         + "</details>";
     }
     h += '<div class="crewacts">'
-      + '<button class="crewbtn ghost" id="cm-leave">'
+      // `title` on each of these: the labels are in this feature's voice and the voice is only
+      // free when the plain meaning is one hover away. Pulling a request and leaving a crew
+      // are different acts, so they do not share an explanation.
+      + '<button class="crewbtn ghost" id="cm-leave" title="'
+      + esc(t(me.status === "pending" ? "crew.tip.cancel" : "crew.tip.leave")) + '">'
       // pulling a request you never got an answer to is not leaving a crew, and it does not
       // cost a cooldown any more either
       + t(me.status === "pending" ? "crew.mine.cancel" : "crew.mine.leave") + "</button>"
       // disband and claim-leadership were endpoints with no buttons. A solo leader who walks
       // out used to leave a crew with no riders on the board that nobody could clear up.
       + (me.role === "leader"
-         ? '<button class="crewbtn ghost danger" id="cm-disband">' + t("crew.mine.disband")
+         ? '<button class="crewbtn ghost danger" id="cm-disband" title="'
+           + esc(t("crew.tip.disband")) + '">' + t("crew.mine.disband")
            + "</button>"
          : "")
       + (me.role !== "leader" && me.leader_stale && me.can_claim
-         ? '<button class="crewbtn ghost" id="cm-claim">' + t("crew.mine.claim") + "</button>"
+         ? '<button class="crewbtn ghost" id="cm-claim" title="' + esc(t("crew.tip.claim"))
+           + '">' + t("crew.mine.claim") + "</button>"
          : "")
       + "</div>"
       // Its own bar, like every crewless state already has. In this row it was a plain ghost
       // button identical to "Leave crew" and two along from "Disband", so the control that
       // ends your session looked exactly like the one that leaves your crew, beside the
       // irreversible one.
-      + '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout">'
+      + '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout" title="'
+      + esc(t("crew.tip.signout")) + '">'
       + t("crew.mine.signout") + "</button></div>"
       + "</div>";
     return h;
@@ -2833,7 +2851,17 @@
     };
     var dis = document.getElementById("cm-disband");
     if (dis) dis.onclick = function () {
-      ask(t("crew.mine.disbandq", { name: c.name }), t("crew.mine.disband"), function () {
+      // The name, typed. Every other control in this card can be undone by doing it again;
+      // this one ends a crew other people rode for, and it used to be two taps where the
+      // second one opened under the cursor.
+      askFor(t("crew.mine.disbandq", { name: c.name }) + " " + t("crew.mine.disbandtype", { name: c.name }),
+             c.name, function (typed, ctl) {
+        // Composed on both sides, like `name_ok` does on the server: an accented name can be
+        // typed decomposed and stored composed, and the leader would be told that their own
+        // crew's name is not its name.
+        var norm = function (x) { x = (x || "").trim(); return x.normalize ? x.normalize("NFC") : x; };
+        if (norm(typed) !== norm(c.name)) { ctl.fail(t("crew.e.nomatch")); return; }
+        ctl.close();
         api("POST", "/api/v1/crews/" + c.slug + "/disband", {}).then(function (r) {
           if (r.ok) {
             // It landed at scrollTop 183 -- partway down somebody else's join list -- with no
@@ -2845,7 +2873,7 @@
             reloadTerritory();
           } else if (!onWrite(r)) setStatus(errMsg(r.err), true, dis);
         });
-      }, dis);
+      }, dis, { max: 28, confirm: t("crew.mine.disband"), danger: true });
     };
     var claim = document.getElementById("cm-claim");
     if (claim) claim.onclick = function () {
@@ -3408,12 +3436,17 @@
         var dot = document.querySelector(".crewsumdot");
         if (dot) {
           dot.textContent = String(n);
+          dot.title = n ? knockText(n) : "";
           dot.hidden = !n;
         }
         if (ME) ME.pending = r.body.pending || [];
       });
     }, KNOCK_POLL_MS);
   }
+
+  // "2 riders want to join your crew", in the one/few/many shape every counted phrase in
+  // this file uses -- the verb changes with the number and a `{v}` insertion cannot carry that.
+  function knockText(n) { return plural("crew.knock1", "crew.knocks.few", "crew.knocks", n); }
 
   function dockDot(n) {
     var dot = document.getElementById("crewsdot");
@@ -3425,7 +3458,12 @@
       // The label is hidden at phone widths, so the count has to reach a screen reader
       // through the button's own name.
       var base = t("dock.crews");
-      btn.setAttribute("aria-label", n ? base + " · " + t("crew.pending.h") + " " + n : base);
+      // The same sentence the hover gives, rather than a heading and a digit side by side:
+      // "Crews - Waiting 2" was two labels touching, and said nothing about who was waiting.
+      btn.setAttribute("aria-label", n ? base + " · " + knockText(n) : base);
+      // A badge capped at "9+" is a number you cannot read; the title always has the real one.
+      if (n) btn.setAttribute("title", knockText(n));
+      else btn.removeAttribute("title");
     }
   }
 
@@ -3543,7 +3581,8 @@
              // Its own class, not `.dockdot` as well: crews.css is linked BEFORE public.py's
              // inline <style>, so the inline `.dockdot { position: absolute }` would win at
              // equal specificity and this would be pinned to the summary's top-right corner.
-             ? '<span class="crewsumdot">' + me.pending.length + "</span>" : "")
+             ? '<span class="crewsumdot" title="' + esc(knockText(me.pending.length)) + '">'
+               + me.pending.length + "</span>" : "")
           + "</summary>"
           + myCrewHTML(me) + "</details>"
           // The one state that can last for days was the only one with nothing to move on to.

@@ -340,6 +340,27 @@ EN: dict[str, str] = {
     "crew.roles.promote": "Make officer",
     "crew.roles.demote": "Stand down",
     "crew.mine.signoutq": "Hand the pass back? You need your phone to get back in.",
+    # What each of these actually does, in plain words, for the hover and for a screen reader.
+    # The labels stay in this feature's voice; these say the same thing with nothing in it to
+    # work out. Deliberately not shown as body text: six explanatory lines under six buttons
+    # is a card nobody reads, and the question "what does this one do" is asked one button at
+    # a time.
+    "crew.tip.leave": "You stop riding for this crew. The rides you already did stay on the map.",
+    "crew.tip.cancel": "Takes your request back. You are not in the crew either way.",
+    "crew.tip.disband": "Ends the crew for everyone in it. This cannot be undone.",
+    "crew.tip.claim": "Makes you the leader, because the one you have has gone quiet.",
+    "crew.tip.signout": "Signs this browser out. The crew carries on without you here, and you need your phone to get back in.",
+    "crew.tip.remove": "Takes this rider out of the crew. They can ask to join again.",
+    # The knock count, on the dock badge and on the shut crew card. A number on its own says
+    # how many of something it never names.
+    "crew.knock1": "One rider wants to join your crew.",
+    "crew.knocks.few": "{n} riders want to join your crew.",
+    "crew.knocks": "{n} riders want to join your crew.",
+    # Disbanding asks for the name. Everything else here can be undone by doing it again --
+    # you can re-join, re-ask, sign back in -- and this one ends a thing other people rode for,
+    # so it is the one place worth making somebody prove they meant it.
+    "crew.mine.disbandtype": "Type {name} to end it.",
+    "crew.e.nomatch": "That is not the name, so nothing was ended.",
     "crew.closed.h": "Not taking new crews",
     "crew.closed.p": "New crews are off for now. Join one instead.",
     "crew.err": "That didn't work.",
