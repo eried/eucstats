@@ -96,6 +96,8 @@
 .crewbtn:disabled { opacity: .5; cursor: default; }
 /* The moment after a copy. Full strength, not the dimmed look of a button you cannot
    use yet: it is disabled because it just worked, which is the opposite thing. */
+/* The tick, sized to the line it replaces so the button keeps its height too. */
+.crewtick { width: 15px; height: 15px; display: block; margin: 0 auto; }
 .crewbtn.crewdone:disabled { opacity: 1; background: #3ddc84; color: #06220f;
   border-color: transparent; }
 .crewbtn.ghost.crewdone:disabled { background: transparent; color: #3ddc84;
@@ -525,13 +527,18 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
 .crewsumemb { width: 26px; height: 26px; flex: 0 0 26px;
-  transition: transform .16s ease; transform-origin: left center; position: relative; }
+  transition: transform .16s ease; transform-origin: left top; position: relative; }
 /* Big enough to see what somebody drew. `transform` only, so the line it sits in does not
    move; origin at the left so it opens into the card rather than off the panel's edge; and
    a z-index because it has to come up over the card beneath it.
    Focus as well as hover: an emblem is the one thing on this card worth looking at, and a
    mouse is not the only way people read. */
-.crewsumemb:hover, summary:focus-visible .crewsumemb {
+/* Only while the card is open, and only downward. On a shut summary the emblem is the first
+   thing in the panel, so scaling it from the centre pushed half of it past the top edge and
+   cut it off -- the one thing worth looking at was the one thing you could not see. An open
+   card has the room, and `transform-origin: left top` grows into it. */
+.crewmine-wrap[open] > summary .crewsumemb:hover,
+.crewmine-wrap[open] > summary:focus-visible .crewsumemb {
   transform: scale(3.5); z-index: 4; border-radius: 2px;
   box-shadow: 0 10px 30px rgba(0,0,0,.6);
 }

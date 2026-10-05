@@ -943,6 +943,11 @@
           // Only when there is one. With no cap there is no rule, and "unlimited" would be a
           // sentence about nothing.
           .concat(MAX_MEMBERS > 0 ? ["crew.how.size"] : []))
+      // The five states, in the order a square moves through them. They were defined only in
+      // the key below -- five chips of two words -- and two of those two words meant nothing
+      // to anybody who had not read the model.
+      + rulesSection("crew.how.s4", ["crew.how.c0", "crew.how.c1", "crew.how.c2",
+                                     "crew.how.c3", "crew.how.c4"])
       // Outside the list: this one is not a rule, it is what the standings MEAN, so it closes
       // the section rather than becoming a ninth instruction.
       + '<p class="crewrulesend">' + t("crew.board.sub") + "</p>"
@@ -2153,15 +2158,31 @@
   // it says so, because a second press has nothing new to do and a button that answers twice
   // reads as having failed the first time. Re-entrant: pressing again mid-flash restarts it
   // rather than leaving the label stuck on "Copied".
+  var TICK = '<svg class="crewtick" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M5 13l4 4L19 7"/></svg>';
+
   function flash(btn, word) {
     if (!btn) return;
     if (btn._flash) { clearTimeout(btn._flash); }
-    else { btn._was = btn.textContent; }
-    btn.textContent = word;
+    else {
+      btn._was = btn.innerHTML;
+      // Measured BEFORE anything is replaced. Read afterwards it measures a button that has
+      // already shrunk around a tick, which is the trap this pattern sets. Pinned, because
+      // "Copied" is wider than "Copy" in English and wider still in German and Russian, and a
+      // button that resizes reflows the row it sits in.
+      btn.style.minWidth = btn.offsetWidth + "px";
+    }
+    // A tick, not the word: nothing to translate, nothing to outgrow the button, and the
+    // live region below still says it in words for anyone who cannot see the button change.
+    btn.innerHTML = TICK;
+    btn.setAttribute("aria-label", word);
     btn.disabled = true;
     btn.classList.add("crewdone");
     btn._flash = setTimeout(function () {
-      btn.textContent = btn._was;
+      btn.innerHTML = btn._was;
+      btn.removeAttribute("aria-label");
+      btn.style.minWidth = "";
       btn.disabled = false;
       btn.classList.remove("crewdone");
       btn._flash = null;
