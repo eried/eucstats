@@ -2771,10 +2771,14 @@
         // The link first: it is what you paste into a chat for somebody to tap. The code
         // stays because it is what survives being read out, photographed, or typed on a
         // phone that reached the site some other way, which is what "Enter code" is for.
+        // One group, so the pair wraps together instead of the second one falling alone onto
+        // a line of its own: at 390 the label, the code and the first button exactly fill the
+        // row, and the break landed between the two things that belong side by side.
+        + '<span class="crewinvbtns">'
         + '<button class="crewbtn mini" id="cm-copylink" data-link="'
         + esc(inviteLink(c)) + '">' + t("crew.mine.copylink") + "</button>"
         + '<button class="crewbtn mini ghost" id="cm-copy" data-code="'
-        + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button></p>";
+        + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button></span></p>";
     }
     if (me.declined && me.declined.length) {
       h += '<div class="crewpend"><h4>' + t("crew.decl.h") + "</h4>"

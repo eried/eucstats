@@ -419,7 +419,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* The code and its copy button on one line, the button not stretched by the flex. */
 .crewinvite { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.crewinvite code { flex: 0 1 auto; }
+/* The label and the code take the first line together; the two buttons share the second. With
+   all four in one wrapping row the second button fell alone onto a line of its own and read as
+   an afterthought rather than as the other half of a pair. */
+.crewinvite code { flex: 1 0 auto; }
+/* The buttons are one item, not two. See the note where they are built: four separate children
+   in a wrapping row put the break between the pair. */
+.crewinvbtns { display: flex; gap: 8px; flex: 0 1 auto; }
+.crewinvite button { flex: 0 0 auto; margin-top: 0; }
 
 /* Narrowing sixteen crews, and the rest of them. */
 .crewfilter {
