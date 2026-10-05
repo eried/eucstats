@@ -112,6 +112,9 @@ CARDS = {
     # Two buttons on the popup over a square, naming what pressing them does. No person in
     # either: "Highlight", "Details".
     # One word on the collapsed strip over the map. Names a thing; addresses nobody.
+    # Colour words. Each names a hue; none addresses anybody. They exist so the swatch grid
+    # says "dark red" rather than "Colour 4" to a reader who cannot see the difference.
+    "crew.hue.": "none",
     "crew.key": "none",
     "crew.pop.": "none",
     "crew.pub.": "rider",

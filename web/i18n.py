@@ -98,7 +98,25 @@ EN: dict[str, str] = {
     "crew.pattern.rings": "rings",
     "crew.pattern.checker": "checks",
     "crew.pattern.bricks": "bricks",
-    "crew.new.colourn": "Colour {n}",
+    # The swatch's own name plus its index. Forty-eight of these said "Colour 1".."Colour 48"
+    # while the patterns beside them said "stripes" -- in the grid where somebody who cannot
+    # see the difference needs words most. The name is derived from the hex; see colourName.
+    "crew.new.colourn": "{v}, colour {n}",
+    "crew.hue.red": "red",
+    "crew.hue.orange": "orange",
+    "crew.hue.brown": "brown",
+    "crew.hue.yellow": "yellow",
+    "crew.hue.lime": "lime",
+    "crew.hue.green": "green",
+    "crew.hue.teal": "teal",
+    "crew.hue.blue": "blue",
+    "crew.hue.purple": "purple",
+    "crew.hue.pink": "pink",
+    "crew.hue.grey": "grey",
+    "crew.hue.white": "white",
+    "crew.hue.black": "black",
+    "crew.hue.pale": "pale {v}",
+    "crew.hue.dark": "dark {v}",
     # What a greyed swatch means, appended to its own name so the label reads
     # "stripes — another crew flies this" rather than needing a legend of its own.
     "crew.new.gone": "another crew flies this",

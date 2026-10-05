@@ -27,6 +27,7 @@
   // never fired. Two flags, because they are two questions.
   var visible = false;     // crew mode: the layers are on the map
   var panelOpen = false;   // the panel itself is on screen
+  var KEEPTOP = 0;         // #pbody scrollTop carried across an in-place refresh
   var pairTimer = null, pairToken = null;
   var ME = null;
 
@@ -2776,6 +2777,52 @@
     return want || PATTERNS[0];
   }
 
+  /* ---------- naming a colour ----------
+
+     Forty-eight swatches labelled "Colour 1" through "Colour 48", while the twelve patterns
+     beside them say "stripes" and "dots" -- in the one grid where a rider who cannot see the
+     difference needs the words most. A reviewer put it exactly there.
+
+     Derived from the hex rather than written out: forty-eight names in nineteen languages is
+     nine hundred strings, and they would be a second copy of the palette that nothing keeps
+     in step with it. Eleven hue words and two qualifiers describe any of them -- "dark red",
+     "pale green", "teal" -- and a colour added to the palette is named without anybody
+     writing anything. */
+  // Pink runs to 345, not 330: #ff4081 sits at 340 and came out "red", which is the one
+  // name nobody would give it.
+  var HUES = [[15, "red"], [45, "orange"], [70, "yellow"], [100, "lime"], [160, "green"],
+              [200, "teal"], [250, "blue"], [290, "purple"], [345, "pink"], [361, "red"]];
+
+  function colourName(hex) {
+    var r = parseInt(hex.substr(1, 2), 16) / 255,
+        g = parseInt(hex.substr(3, 2), 16) / 255,
+        b = parseInt(hex.substr(5, 2), 16) / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    var l = (mx + mn) / 2;
+    // 0.2, not 0.3: #4a4a4a sits at .29 and came out "black", which is a different colour
+    if (d < 0.09) return t("crew.hue." + (l > 0.72 ? "white" : l < 0.2 ? "black" : "grey"));
+    var h = 0;
+    if (mx === r) h = 60 * (((g - b) / d) % 6);
+    else if (mx === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+    if (h < 0) h += 360;
+    var name = "red";
+    for (var i = 0; i < HUES.length; i++) {
+      if (h < HUES[i][0]) { name = HUES[i][1]; break; }
+    }
+    // Brown is a dark, dull orange OR red -- #5d4037 is 11 degrees and came out "red".
+    // The saturation test is what separates it from a genuinely dark red like #800000,
+    // which is vivid and should keep its name.
+    var sat = d / (1 - Math.abs(2 * l - 1) || 1);
+    // 0.68 catches #9a6324 (ochre, sat .62) while #c2410c (burnt orange, sat .88) and the
+    // vivid oranges keep their name -- those are protected by the lightness test anyway.
+    if ((name === "orange" || name === "red") && l < 0.42 && sat < 0.68) name = "brown";
+    var word = t("crew.hue." + name);
+    if (l > 0.76) return t("crew.hue.pale", { v: word });
+    if (l < 0.26) return t("crew.hue.dark", { v: word });
+    return word;
+  }
+
   function identGrids(prefix, ident) {
     var cols = (window.__CREWCFG__ && window.__CREWCFG__.palette) || [];
     var chosenC = cols.indexOf(ident.colour);
@@ -2799,7 +2846,9 @@
         + esc(t("crew.new.colours")) + '">' + cols.map(function (c, i) {
           var on = c === ident.colour;
           var gone = colourGone(taken, c, own);
-          var label = t("crew.new.colourn", { n: i + 1 })
+          // The colour's own name, with its index after it: the name is what a reader needs
+          // and the number is what tells two near-identical pinks apart.
+          var label = t("crew.new.colourn", { v: colourName(c), n: i + 1 })
             + (gone ? " — " + t("crew.new.gone") : "");
           return '<button type="button" class="crewpickc' + (on ? " on" : "")
             + (gone ? " gone" : "")
@@ -4267,6 +4316,10 @@
     // was invisible to the mouse. Pressing Enter threw `H.setPanel is not a function`,
     // uncaught, three times out of three. The activation is held and drained by `init`.
     if (!H || typeof H.setPanel !== "function") { pendingShow = true; return; }
+    // Before `setPanel` replaces the panel body, and only when this panel was already the one
+    // on screen -- a fresh open belongs at the top. `render()` applies it.
+    var pb0 = document.getElementById("pbody");
+    KEEPTOP = (panelOpen && pb0) ? pb0.scrollTop : 0;
     visible = true;
     panelOpen = true;
     syncKey();
@@ -4449,6 +4502,24 @@
           + t("crew.mine.signout") + "</button></div>";
       }
       panel.innerHTML = h;
+      // Put the rider back where they were. Pressing Refresh threw the scroll away: a
+      // reviewer measured 2038px -- three and a half screens into an expanded join list --
+      // gone, with nothing saying anything had happened.
+      //
+      // `panel` is `#crewpanel`, which lives INSIDE the scroller and is replaced wholesale by
+      // `setPanel`; the scroll belongs to `#pbody`. My first attempt read and wrote it on this
+      // element, which never scrolls, and the restore was a no-op on the wrong node. Captured
+      // in `show()` before `setPanel` wipes it, applied here once the content it has to scroll
+      // through exists.
+      if (KEEPTOP) {
+        var pb = document.getElementById("pbody"), want = KEEPTOP;
+        KEEPTOP = 0;
+        if (pb) {
+          requestAnimationFrame(function () {
+            pb.scrollTop = Math.min(want, Math.max(0, pb.scrollHeight - pb.clientHeight));
+          });
+        }
+      }
       dockDot(me.pending ? me.pending.length : 0);
 
       if (!me.paired) startPairing();
