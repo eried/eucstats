@@ -1669,10 +1669,15 @@
     // opens this, and the summary names the count instead of characterising it -- "20 squares"
     // is true in the way "and 12 more going quiet" was not. `tiles()` carries the plural, so
     // no new string. Open while the list is short enough to be harmless.
-    var fold = LOSING.length > 6;
-    // Shut by default once the list would bury the controls under it -- unless the rider had
-    // it open, which survives the panel closing under them when they picked a square.
-    var cardOpen = LOSECARDOPEN === null ? !fold : LOSECARDOPEN;
+    // OPEN by default, with the groups shut. The card-level fold existed to tame a flat list
+    // thirty-seven rows long; the groups now do that, and folding at both levels hid the
+    // villains behind two clicks for no gain -- a reviewer measured the default read as 44px
+    // of "44 squares" with not one rival named, and said the ask was to shorten the read, not
+    // to remove it. That was my overshoot. Open, with the groups shut, the default read is the
+    // hint and four named threats in about 189px: the four entries that were asked for, at no
+    // clicks. The rider's own choice still wins over this, and survives the panel closing
+    // under them when they pick a square.
+    var cardOpen = LOSECARDOPEN === null ? true : LOSECARDOPEN;
     return '<details id="crewlosecard" style="--kmw:' + cols + 'ch" class="crewtargets crewlose'
       + (SHOW_NUMBERS ? " nums" : "") + '"' + (cardOpen ? " open" : "") + "><summary><h4>"
       + t("crew.lose.h")
@@ -1682,7 +1687,10 @@
       // `LOSING` is all of `rows`, so this number and the card's contents are the same thing
       // for the first time. It read 44 over a box holding 37 until the cap went, which broke
       // the rule the previous version of this comment stated.
-      + (fold ? ' <span class="crewlosen">' + tiles(rows.length) + "</span>" : "")
+      // Always, not only when shut. It was gated on the fold that no longer exists, so with
+      // the card open by default the total would never have been printed at all -- the number
+      // a leader wants first, removed by the line above it.
+      + ' <span class="crewlosen">' + tiles(rows.length) + "</span>"
       + "</h4></summary>"
       // eight crews in fourteen have nothing but fading ground, and telling them a rival is
       // closing in on it is simply untrue
