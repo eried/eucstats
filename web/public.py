@@ -1302,4 +1302,12 @@ def home(request: Request, db: Session = Depends(get_db)):
                         .replace("__BUILD__", _build_date())
                         .replace("__CLARITY__", _clarity_tag())
                         .replace("__HIDECFG__", _hide_cfg(db, admin, accept))
-                        .replace("__TESTWM__", testwm))
+                        .replace("__TESTWM__", testwm),
+                        # Revalidate, don't guess. The assets are cached for a week and busted
+                        # by `?v=<mtime>`, and that stamp is written into THIS document -- so a
+                        # browser holding an old copy of it holds an old stamp, and a deploy
+                        # never reaches them. With no header at all the browser picks its own
+                        # lifetime from `Last-Modified`, which is exactly that situation.
+                        # `no-cache` keeps the copy and asks first: one conditional request,
+                        # and the long asset cache becomes safe instead of a week-long trap.
+                        headers={"Cache-Control": "no-cache"})

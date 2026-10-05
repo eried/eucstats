@@ -71,7 +71,6 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
 
     on = " checked" if cfg["enabled"] else ""
     open_on = " checked" if cfg["creation_open"] else ""
-    warn_on = " checked" if cfg["test_notice"] else ""
     head = f"""
     <div class=card>
       <h1>Crews &amp; Territory</h1>
@@ -85,9 +84,6 @@ def _page(db: Session, msg: str = "", err: str = "") -> str:
               <td class=mut>Off: the dock button is gone and every crew endpoint 404s.</td></tr>
           <tr><td><label><input type=checkbox name=creation_open{open_on}> Anyone may found a crew</label></td>
               <td class=mut>Off: existing crews carry on, no new ones are created.</td></tr>
-          <tr><td><label><input type=checkbox name=test_notice{warn_on}> Warn that this is still a test</label></td>
-              <td class=mut>Puts a line on the sign-in card saying it is not finished and that
-              anything built here can be wiped. Untick it on launch day.</td></tr>
           <tr><td>Tile zoom <input name=zoom value="{cfg['zoom']}" size=4></td>
               <td class=mut>14 is about 1.2&nbsp;km across at Oslo and 2.4&nbsp;km at the
               equator. Lower is coarser. Changing this invalidates every held tile.</td></tr>
@@ -231,7 +227,6 @@ def _redir(msg: str = "", err: str = ""):
 @crews_admin_router.post("/settings")
 def save_settings(request: Request, db: Session = Depends(get_db),
                   enabled: str = Form(None), creation_open: str = Form(None),
-                  test_notice: str = Form(None),
                   zoom: int = Form(14), window_days: int = Form(90), seed: int = Form(2),
                   cooldown_days: int = Form(7), max_members: int = Form(0),
                   opacity: float = Form(0.75), heat_ghost: float = Form(0.30),
@@ -242,7 +237,7 @@ def save_settings(request: Request, db: Session = Depends(get_db),
     before = settings.get_crews(db)
     settings.set_crews(db, bool(enabled), zoom, window_days, seed, cooldown_days,
                        max_members, opacity, bool(creation_open), heat_ghost, bool(numbers),
-                       bool(test_notice))
+                       )
     after = settings.get_crews(db)
     note = "Saved."
     if (before["zoom"], before["window_days"], before["seed"]) != \

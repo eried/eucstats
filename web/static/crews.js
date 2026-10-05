@@ -3713,13 +3713,6 @@
       // the mode is, and until now they were only rendered to people who had already signed
       // in. `<details>` with no `open`, so the card you land on is still the sign-in alone.
       var h = me.paired ? own + board : signInHTML() + board;
-      // Above all of it, for everyone. On the sign-in card this reached nobody who had
-      // already paired -- and nobody at all on a public map, which is the whole panel for a
-      // visitor. `=== false` would hide it when `/crews/me` fell over and the flag never
-      // arrived, and showing it is the safe way to be wrong.
-      if (me.test_notice !== false) {
-        h = '<div class="crewmsg warn">' + t("crew.wip") + "</div>" + h;
-      }
       // The only sign-out button in the feature was emitted by `myCrewHTML`, which this
       // function calls on the `me.crew` branch alone -- so cooling off, removed, folded,
       // declined and no-ride-yet had no control of ANY kind on them. A reviewer pressed
