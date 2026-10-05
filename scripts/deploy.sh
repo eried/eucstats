@@ -21,9 +21,22 @@ URL="${EUCSTATS_URL:-https://eucstats.ried.no}"
 verify() {
     echo
     echo "--- verifying ---"
-    local code
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/health" || echo "000")
-    echo "  /health                 : $code $([ "$code" = 200 ] && echo OK || echo FAILED)"
+    # Wait for it, do not race it. `systemctl restart` returns when systemd has started the
+    # unit; gunicorn needs a few seconds more to boot its worker, and checking inside that gap
+    # reported a healthy deploy as a 502. A check that cries wolf is one nobody believes the
+    # day it is right.
+    local code waited
+    code=000
+    for waited in $(seq 0 20); do
+        code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL/health" || echo "000")
+        [ "$code" = 200 ] && break
+        sleep 1
+    done
+    if [ "$code" = 200 ]; then
+        echo "  /health                 : 200 OK${waited:+ (after ${waited}s)}"
+    else
+        echo "  /health                 : $code FAILED after ${waited}s"
+    fi
     local page
     page=$(curl -s --max-time 30 "$URL/" || true)
     case "$page" in
