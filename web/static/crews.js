@@ -901,10 +901,22 @@
       + esc(colour) + '" data-p="' + esc(pattern) + '"></span>';
   }
 
+  // "EUC Planet" wherever it appears in a translated line, turned into a link to it. The
+  // brand name is the one part of these strings no locale changes, which is what makes one
+  // replace enough.
+  var APP_URL = "https://eucplanet.ried.no";
+  function appLink(text) {
+    return String(text).replace(
+      "EUC Planet",
+      '<a href="' + APP_URL + '" target="_blank" rel="noopener">EUC Planet</a>');
+  }
+
   function explainer() {
     return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
+      // `crew.board.sub` last: it is what the standings mean, so it reads as the closing
+      // line of the rules rather than as a caption nailed above the table.
       + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.7", "crew.how.8", "crew.how.4",
-         "crew.how.5", "crew.how.6"]
+         "crew.how.5", "crew.how.6", "crew.board.sub"]
         .map(function (k) {
           return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS, c: RIDER_WEEK_CAP }) + "</p>";
         }).join("")
@@ -1864,7 +1876,9 @@
       // Which app, and which version of it. Without this a rider on 0.21.0 taps the button
       // and the app opens on whatever screen it opens on, with nothing to explain why.
       + '<p class="hint crewneeds">'
-      + t("crew.signin.needs", { v: (CFG && CFG.min_app) || "" })
+      // The app's name, linked, in whatever language the line is written in: the brand is not
+      // translated, so the same replace works for all nineteen without a second string.
+      + appLink(t("crew.signin.needs", { v: (CFG && CFG.min_app) || "" }))
       // And the other precondition, which was only legible on the phone: the pairing is
       // refused for a rider the site has never seen, and that refusal never reaches this card.
       + " " + t("crew.signin.ride") + "</p>"
@@ -3550,7 +3564,9 @@
       var all = res[2].ok ? res[2].body.crews || [] : [];
       MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
       var board = '<div class="crewcard crewboard"><h3>' + t("crew.board") + "</h3>"
-        + '<p class="hint crewboardsub">' + t("crew.board.sub") + "</p>"
+        // The definition of the metric used to live here, permanently, above the board it
+        // defines. It is a manual entry and it is in the manual now; see `explainer()`.
+        
         + firstRunNote()
         + (TERR && TERR.pending && !rank.length ? "" : rankingHTML(rank)) + "</div>";
       // What this rider can DO goes first and the standings go under it. The board used to
@@ -3659,8 +3675,11 @@
       // crew card; without one they go under the two things you can actually press.
       if (me.paired && !me.crew) own += explainer();
 
-      // Signed out is the one case with nothing of your own to put first.
-      var h = me.paired ? own + board : signInHTML() + board;
+      // Signed out is the one case with nothing of your own to put first. The rules come
+      // with it, shut: deciding whether to bother is exactly when somebody wants to read what
+      // the mode is, and until now they were only rendered to people who had already signed
+      // in. `<details>` with no `open`, so the card you land on is still the sign-in alone.
+      var h = me.paired ? own + board : signInHTML() + explainer() + board;
       // Above all of it, for everyone. On the sign-in card this reached nobody who had
       // already paired -- and nobody at all on a public map, which is the whole panel for a
       // visitor. `=== false` would hide it when `/crews/me` fell over and the flag never
