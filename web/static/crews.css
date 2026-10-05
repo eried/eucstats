@@ -261,9 +261,18 @@
 /* Amber, not the error pink: nothing has gone wrong, it is just not finished. */
 .crewmsg.warn { background: rgba(255,210,74,.12); border-left-color: #ffd24a; color: #ffe9a8; }
 
-.crewhow { font-size: 12px; line-height: 1.55; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); padding: 0 13px; }
+/* The same bottom margin every card has. Without it the board sat flush against this, 0px
+   between two bordered boxes, which reads as one box with a rule across it. */
+.crewhow { font-size: 12px; line-height: 1.55; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); padding: 0 13px; margin: 0 0 11px; }
 .crewhow summary { cursor: pointer; padding: 11px 0; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: #cfe0ff; }
 .crewhow p { margin: 0 0 10px; }
+/* The numbers are the point, so they get room and their own ink rather than sitting in the
+   muted body colour where they read as punctuation. */
+.crewrules { margin: 0 0 10px; padding: 0 0 0 1.6em; }
+.crewrules li { margin: 0 0 9px; padding-left: 2px; }
+.crewrules li::marker { color: var(--sec, #ff8ad8); font-weight: 700; }
+/* Not a rule: the closing line, set apart from the list it follows. */
+.crewrulesend { margin: 0 0 10px; padding-top: 2px; border-top: 1px solid var(--line, #243055); }
 .crewhow b { color: #e6eeff; }
 .crewedit summary, .crewfile { cursor: pointer; }
 .crewedit { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 4px; }
@@ -736,9 +745,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 
 .crewboardsub { margin: -2px 0 10px; }
-.crewnoapp { margin-top: 10px; }
-.crewnoapp a { color: var(--sec, #ff8ad8); text-decoration: none; }
-.crewnoapp a:hover { text-decoration: underline; }
+/* Every link in a crew card. There was no rule for one, so an anchor fell through to the
+   browser's own `rgb(0, 0, 238)` on a navy card -- the default blue, unreadable here, and
+   invisible to anyone who had never put a link in one of these. `--acc` is what this site
+   means by a link; the underline waits for hover so a link inside a sentence does not fence
+   the sentence. */
+.crewcard a:not(.crewbtn):not(.crewqr) { color: var(--acc, #2ea8ff); text-decoration: none; }
+.crewcard a:not(.crewbtn):not(.crewqr):hover,
+.crewcard a:not(.crewbtn):not(.crewqr):focus-visible { text-decoration: underline; }
 
 
 /* Where to ride next. The distance leads, because that is the thing a rider weighs. One

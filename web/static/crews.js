@@ -913,13 +913,19 @@
 
   function explainer() {
     return '<details class="crewhow"><summary>' + t("crew.how.h") + "</summary>"
-      // `crew.board.sub` last: it is what the standings mean, so it reads as the closing
-      // line of the rules rather than as a caption nailed above the table.
+      // Numbered, because eight paragraphs at one weight is a wall however good the words
+      // are, and these are the rules of a game. The numbering is markup, so it costs no
+      // translation.
+      + '<ol class="crewrules">'
       + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.7", "crew.how.8", "crew.how.4",
-         "crew.how.5", "crew.how.6", "crew.board.sub"]
+         "crew.how.5", "crew.how.6"]
         .map(function (k) {
-          return "<p>" + t(k, { n: SEED, d: WINDOW_DAYS, c: RIDER_WEEK_CAP }) + "</p>";
+          return "<li>" + t(k, { n: SEED, d: WINDOW_DAYS, c: RIDER_WEEK_CAP }) + "</li>";
         }).join("")
+      + "</ol>"
+      // Outside the list: this one is not a rule, it is what the standings MEAN, so it closes
+      // the section rather than becoming a ninth instruction.
+      + '<p class="crewrulesend">' + t("crew.board.sub") + "</p>"
       // The five shades belong here rather than under the board. It is a key, and a key is
       // something you look up once, not a row of swatches on screen every time you visit.
       + legendHTML()
@@ -1882,11 +1888,10 @@
       // And the other precondition, which was only legible on the phone: the pairing is
       // refused for a rider the site has never seen, and that refusal never reaches this card.
       + " " + t("crew.signin.ride") + "</p>"
-      // Straight to the app, not to another tab of this site: somebody with no app cannot
-      // install one from the Tech tab, which is what "the App tab" was pointing at.
-      + '<p class="hint crewnoapp"><a href="https://eucplanet.ried.no" target="_blank"'
-      + ' rel="noopener" id="crewgetapp">'
-      + t("crew.signin.noapp") + "</a></p>"
+      // No second link to the same place. The version line above says "EUC Planet" and links
+      // it; this line existed because that one did not, and two links three lines apart is one
+      // link and a repetition.
+
       + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"
       + '<a class="crewbtn crewopen" id="crewopen" href="#">' + t("crew.signin.open") + "</a>"
       + "</div>";

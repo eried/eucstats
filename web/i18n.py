@@ -307,7 +307,7 @@ EN: dict[str, str] = {
     "crew.decline": "No",
     "crew.pending.h": "Knocking",
     # how it works
-    "crew.how.h": "How ground works",
+    "crew.how.h": "How crews work",
     "crew.how.1": "Ride it, it turns your colour. Most km in a square over the last {d} days holds it.",
     "crew.how.2": "You need a {n}x{n} block before anything shows. One ride down one street gets you nothing.",
     "crew.how.3": "It grows out from what your crew already holds. Close the gap between two patches and they count as one. That is the biggest move there is. Ride a full loop around something and you get the inside too, up to about double what you rode.",
