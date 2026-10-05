@@ -523,12 +523,21 @@
       // The floor was 0.55 x 0.5 = 0.275 composite, which is readable for cyan and gone for
       // navy, maroon and olive. Half the palette is dark. The ladder still descends, it just
       // stops bottoming out: 0.70 keeps the darkest crew on the map while it fades.
-      var pat = Math.min(1, op + 0.15);
+      // The stencil, capped at 0.65 and never heavier than the colour it sits on.
+      //
+      // This was `op + 0.15`, so with the admin default of 0.75 the PATTERN rendered at 0.90
+      // over a 0.75 fill -- the hatch was the most opaque thing on the map and read louder
+      // than the colour it is supposed to qualify. Erwin called it looking at the real map.
+      //
+      // `min`, not a constant: an admin who dials the crews layer down to 0.3 should not get
+      // patterns at twice the weight of the ground they are printed on. The pattern is the
+      // second channel for telling two crews apart; it is not the first.
+      var pat = Math.min(op, 0.65);
       map.setPaintProperty("crew-fill", "fill-opacity", bandOp(op, 1));
-      // 0.65, not 0.9. The stencil sat close to the ceiling and the hatch was reading as
-      // loudly as the colour underneath it -- Erwin's call, looking at the real map. The
-      // pattern is the second channel for telling two crews apart; it is not the first.
-      map.setPaintProperty("crew-pattern", "fill-opacity", bandOp(pat, 0.65));
+      // 0.9 here is the FADING band's own multiplier, which is a different decision from how
+      // heavy the stencil is -- I changed this one first by mistake, and it only ever touched
+      // band 3.
+      map.setPaintProperty("crew-pattern", "fill-opacity", bandOp(pat, 0.9));
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
