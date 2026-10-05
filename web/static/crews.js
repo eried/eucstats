@@ -912,10 +912,10 @@
   }
 
   function explainer() {
-    // No summary row: the way in is the (?) in the panel title, and a disclosure with two
-    // triggers is a disclosure whose state you have to look in two places to read. `id`
-    // because the button points at it with `aria-controls`.
-    return '<details class="crewhow" id="crewhow"><summary></summary>'
+    // Content only. This is what the (?) hands to the modal; it used to be a <details> in
+    // the card stack, which is a disclosure pretending to be a dialog -- it still took its
+    // place in the flow and the page behind it was still usable.
+    return '<div class="crewhow" id="crewhow">'
       // Numbered, because eight paragraphs at one weight is a wall however good the words
       // are, and these are the rules of a game. The numbering is markup, so it costs no
       // translation.
@@ -932,7 +932,7 @@
       // The five shades belong here rather than under the board. It is a key, and a key is
       // something you look up once, not a row of swatches on screen every time you visit.
       + legendHTML()
-      + "</details>";
+      + "</div>";
   }
 
   // What changed, not only what is. The payload already marks ground taken inside FRESH_DAYS,
@@ -2097,15 +2097,16 @@
   // and this button lives OUTSIDE it, so the handler survives but the block it opens does not.
   function bindHelp() {
     var btn = document.getElementById("phelp");
-    var how = document.getElementById("crewhow");
     if (!btn) return;
-    if (!how) { btn.setAttribute("aria-expanded", "false"); return; }
-    btn.setAttribute("aria-expanded", how.open ? "true" : "false");
+    // `aria-haspopup`, not `aria-expanded`: it opens a dialog somewhere else, it does not
+    // expand a region of its own. `aria-controls` went with the disclosure for the same
+    // reason -- the thing it named is built when the dialog opens and does not exist before.
+    btn.removeAttribute("aria-expanded");
+    btn.removeAttribute("aria-controls");
+    btn.setAttribute("aria-haspopup", "dialog");
     btn.onclick = function () {
-      how.open = !how.open;
-      btn.setAttribute("aria-expanded", how.open ? "true" : "false");
-      if (how.open) reveal("#crewhow");
-      doReveal();
+      if (typeof window.openModal !== "function") return;   // older shell, nothing to open
+      window.openModal(t("crew.how.h"), explainer());
     };
   }
 
@@ -3637,8 +3638,7 @@
           // that this state had taken away. Look-only, because `join()` refuses while the
           // request stands: the rider reads what is out there and the card above says how to
           // free themselves to act on it.
-          + (me.status === "pending" ? joinHTML(all, me) : "")
-          + explainer();
+          + (me.status === "pending" ? joinHTML(all, me) : "");
       } else if (me.removed_by) {
         own += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
           + '<p class=hint>' + t("crew.removed.p", { name: esc(me.removed_by) })
@@ -3697,13 +3697,12 @@
       }
       // Act, then the rules, then the standings. In a crew the rules are already above the
       // crew card; without one they go under the two things you can actually press.
-      if (me.paired && !me.crew) own += explainer();
 
       // Signed out is the one case with nothing of your own to put first. The rules come
       // with it, shut: deciding whether to bother is exactly when somebody wants to read what
       // the mode is, and until now they were only rendered to people who had already signed
       // in. `<details>` with no `open`, so the card you land on is still the sign-in alone.
-      var h = me.paired ? own + board : signInHTML() + explainer() + board;
+      var h = me.paired ? own + board : signInHTML() + board;
       // Above all of it, for everyone. On the sign-in card this reached nobody who had
       // already paired -- and nobody at all on a public map, which is the whole panel for a
       // visitor. `=== false` would hide it when `/crews/me` fell over and the flag never

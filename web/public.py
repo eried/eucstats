@@ -239,6 +239,19 @@ td.sub{color:var(--mut)}
 #gear.show{opacity:.45;transition:opacity .3s ease,color .2s}#gear.show:hover{opacity:1}
 .cfgpop{position:fixed;left:14px;bottom:60px;z-index:900;display:none;flex-direction:column;gap:12px;min-width:264px;max-width:calc(100vw - 28px);background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);padding:14px}
 .cfgpop.open{display:flex}
+/* The site's modal. Nothing here was reusable: `.cfgpop` is an anchored popover and the
+   crews confirms are inline by design, so neither takes the page away from you. */
+.scrim{position:fixed;inset:0;z-index:2600;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(4,7,16,.72);backdrop-filter:blur(3px)}
+.scrim.open{display:flex}
+.sheet{width:min(96vw,560px);max-height:min(84dvh,860px);display:flex;flex-direction:column;background:linear-gradient(158deg,rgba(26,40,78,.96),rgba(8,12,26,.97));border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.7)}
+.sheethead{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.sheethead b{flex:1;font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:#cfe0ff}
+.sheethead button{background:none;border:0;color:var(--mut);cursor:pointer;padding:0}
+.sheethead button:hover{color:var(--acc)}
+.sheethead button svg{width:18px;height:18px;display:block}
+/* The body scrolls, not the dialog: a capped sheet whose CONTENT grows is a sheet
+   whose close button leaves the screen. */
+.sheetbody{overflow:auto;padding:15px;-webkit-overflow-scrolling:touch}
 .crow{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:10px;font-size:12px;color:var(--mut);letter-spacing:.4px}
 .crow>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:3px}
@@ -304,6 +317,7 @@ __TESTWM__
 </div>
 <button id="gear" class="intro" data-i18n-title="aria.settings" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg></button>
 <div id="cfg" class="cfgpop"></div>
+<div class="scrim" id="scrim" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheettitle"><div class="sheethead"><b id="sheettitle"></b><button id="sheetclose" data-i18n-aria="panel.close" data-i18n-title="panel.close" title="Close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="sheetbody" id="sheetbody"></div></div></div>
 <div id="tip"></div>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
@@ -1023,6 +1037,57 @@ function setupCfg(){
     if(ib) ib.onclick=()=>{ if(ib.disabled)return; try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; location.reload(); };
   }
   render(); gear.onclick=()=>cfg.classList.toggle("open");
+// The site's modal. `openModal(title, html)` puts a sheet over everything and gives it back
+// when it closes; nothing else here does that, and the crews manual is the first thing that
+// wanted it. Exposed on `window` because crews.js is a separate file.
+window.openModal=function(title,html){
+  const sc=document.getElementById("scrim");
+  const body=document.getElementById("sheetbody");
+  document.getElementById("sheettitle").textContent=title||"";
+  body.innerHTML=html||"";
+  // Who to give focus back to. The panel learned this the hard way: closing without it drops
+  // the keyboard on BODY and starts again at the top of the document.
+  sc._opener=document.activeElement;
+  sc.hidden=false;sc.classList.add("open");
+  body.scrollTop=0;
+  const close=document.getElementById("sheetclose");
+  close.focus();
+  // A cycle, or Tab walks out of a dialog into a page the reader cannot see. The focusables
+  // are read each time: the body's content is whatever the caller passed.
+  sc._keys=function(e){
+    if(e.key==="Escape"){
+      // Stopped, not just defaulted. The page closes the panel on Escape, and this
+      // handler closes the modal first, so anything downstream reading "is the modal
+      // open" would already be told no -- Escape shut the dialog and the panel under
+      // it in one press. This listener is on `document` in the capture phase, so for a
+      // real keypress it runs before the event reaches whatever has focus in the sheet.
+      e.preventDefault();e.stopPropagation();window.closeModal();return;}
+    if(e.key!=="Tab")return;
+    const f=[...sc.querySelectorAll('a[href],button:not([disabled]),input,select,textarea,summary,[tabindex]:not([tabindex="-1"])')].filter(x=>x.offsetParent!==null);
+    if(!f.length)return;
+    const first=f[0],last=f[f.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  };
+  document.addEventListener("keydown",sc._keys,true);
+};
+window.closeModal=function(){
+  const sc=document.getElementById("scrim");
+  if(!sc||sc.hidden)return;
+  sc.classList.remove("open");sc.hidden=true;
+  document.getElementById("sheetbody").innerHTML="";
+  if(sc._keys)document.removeEventListener("keydown",sc._keys,true);
+  sc._keys=null;
+  // Back where it came from, so the keyboard carries on from the control that opened it.
+  if(sc._opener&&sc._opener.focus){try{sc._opener.focus();}catch(e){}}
+  sc._opener=null;
+};
+document.getElementById("sheetclose").onclick=()=>window.closeModal();
+// The scrim itself, and only the scrim: a click that started inside the sheet must not close
+// it on the way out.
+document.getElementById("scrim").addEventListener("mousedown",function(e){
+  if(e.target===this)window.closeModal();
+});
 }
 
 (function(){function sv(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty("--appvh",h+"px");/* the matching half of @media(max-height:620px): the champion card drops to its badge, because below that height the panel needs the 110px more than the stats strip does. */var tb=document.querySelector(".topbar");if(tb)tb.classList.toggle("tight",h<=620);fitDock();}sv();addEventListener("resize",sv);addEventListener("orientationchange",sv);if(window.visualViewport)window.visualViewport.addEventListener("resize",sv);})();

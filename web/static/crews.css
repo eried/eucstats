@@ -273,12 +273,11 @@
 /* Amber, not the error pink: nothing has gone wrong, it is just not finished. */
 .crewmsg.warn { background: rgba(255,210,74,.12); border-left-color: #ffd24a; color: #ffe9a8; }
 
-/* Shut, the manual is not in the panel at all: it answers to the (?) in the title now, and a
-   collapsed card in the stack would be a second way in and one more thing to scroll past. Its
-   `<summary>` goes with it -- a disclosure with two triggers has a state you must look in two
-   places to read. */
-.crewhow > summary { display: none; }
-.crewhow:not([open]) { display: none; }
+/* Inside the dialog the sheet draws the box, so the manual brings none of its own. The two
+   rules that used to hide the collapsed disclosure are gone with it -- and one of them had to
+   go: `.crewhow:not([open])` matches a plain <div>, which this now is, so it would have hidden
+   the manual inside the dialog too. */
+.sheetbody .crewhow { border: 0; padding: 0; margin: 0; }
 /* The same bottom margin every card has. Without it the board sat flush against this, 0px
    between two bordered boxes, which reads as one box with a rule across it. */
 .crewhow { font-size: 12px; line-height: 1.55; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); padding: 0 13px; margin: 0 0 11px; }
@@ -483,7 +482,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      Declared HERE rather than in a rule of its own: the cascade checker caught the second
      rule cancelling this one's `position` and refused the stylesheet, which is exactly what
      it is for. */
-  position: sticky; top: 0; z-index: 3;
+  /* -12px, not 0: `#pbody` is `padding: 12px 18px` (public.py, one rule, every width),
+     and sticky `top: 0` pins to the CONTENT box -- so the panel's top padding stayed
+     open above the stuck bar and the rows scrolling past showed through it. */
+  position: sticky; top: -12px; z-index: 3;
   background: var(--pan, #0b1020);
 }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
