@@ -288,6 +288,7 @@ EN_FINGERPRINT = {
     'crew.mine.colourlock': 'a9d8bbeee74e',
     'crew.mine.copied': '8e3df45a49db',
     'crew.mine.copy': 'af74f7c5362a',
+    'crew.mine.copylink': '2f84eea5d45d',
     'crew.mine.disband': 'd8136ce64dbd',
     'crew.mine.disbanded': 'ba97976f9643',
     'crew.mine.disbandq': '80a42d766fcf',

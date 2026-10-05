@@ -2406,6 +2406,29 @@
   }
 
   // The identity block, label and preview and both grids, for whichever form asks.
+  // The invite link. `#crews` is the panel deep-link the host already understands -- it
+  // opens this panel and skips the intro -- and the two parameters are read back by
+  // `pendingInvite()` on arrival. The crew is carried as well as the code because joining is
+  // per-crew: `/crews/{slug}/join` takes the code in the body, so a code alone names nothing.
+  // Encoded, because a slug is whatever the crew's name slugified to and that is not always
+  // ASCII -- "Zurich Night 21" with an umlaut slugs to one.
+  function inviteLink(c) {
+    var base = location.origin + location.pathname;
+    return base + "?crew=" + encodeURIComponent(c.slug)
+         + "&code=" + encodeURIComponent(c.invite_code) + "#crews";
+  }
+
+  // What this page was opened with, read once. Held rather than acted on immediately: a rider
+  // arriving on an invite link is usually not signed in yet, and the code has to survive the
+  // pairing and the re-render that follows it.
+  var INVITE = (function () {
+    try {
+      var q = new URLSearchParams(location.search);
+      var slug = q.get("crew"), code = q.get("code");
+      return (slug && code) ? { slug: slug, code: code } : null;
+    } catch (e) { return null; }
+  })();
+
   function identBlock(prefix, ident) {
     var g = identGrids(prefix, ident);
     return '<div class="crewidentrow">'
@@ -2709,30 +2732,10 @@
 
   function myCrewHTML(me) {
     var c = me.crew, lead = me.role === "leader" || me.role === "officer";
-    var h = '<div class="crewcard crewmine">'
-      + '<div class="crewhead">'
-      + '<img class="crewlogo" src="' + c.emblem + '" alt=""/>'
-      // No <h3> with the name in it. This card only ever renders inside the accordion whose
-      // summary names the crew eighteen pixels above it, so the panel said "Peripherique"
-      // and then "PERIPHERIQUE". The summary is the title; this is what is true about it.
-      + "<div>"
-      // A literal " · " here as well: the rest of this line already uses one, and without
-      // it the line read back as "6 off 8th4 riders · you run it".
-      // Joined from the parts that exist. `standing()` returns "" for a crew the board does
-      // not list -- which is every crew holding nothing, including the one a leader has just
-      // founded -- and this concatenated the separator regardless, so the first line of the
-      // first card a new leader sees opened with a middot hard against the emblem.
-      + '<div class="crewmeta">' + [standing(c.slug), riders(c.members)]
-          .filter(Boolean).join(" &middot; ")
-      // Nothing about your standing in a crew that has not answered you yet.
-      // `me.role` is "member" for a pending row, so this badged them MEMBER and said
-      // "you ride for them" -- while current_clan_id requires an active membership, so
-      // every trip they uploaded was stamped with no crew at all. A week of riding for
-      // nobody, with the card saying it counted.
-      + (me.status === "pending" ? ""
-         : " &middot; " + t(me.role === "leader" ? "crew.mine.youare"
-             : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember"))
-      + "</div></div></div>";
+    // No head block. It held the emblem and the line with the standing, the members and your
+    // role; all of that is in the accordion's title now, which is eighteen pixels above and is
+    // what names the crew. What was left was two nested divs with nothing between them.
+    var h = '<div class="crewcard crewmine">';
     if (me.status === "pending") {
       // The payload knew `leader_gone` all along and the card said "Waiting on a leader to
       // let you in" regardless, to a rider whose crew has nobody who could ever answer them.
@@ -2765,6 +2768,11 @@
       h += '<p class="hint crewinvite">'
         + t(c.join_policy === "invite" ? "crew.mine.invite" : "crew.mine.invite2")
         + ': <code id="cm-invite">' + esc(c.invite_code) + "</code>"
+        // The link first: it is what you paste into a chat for somebody to tap. The code
+        // stays because it is what survives being read out, photographed, or typed on a
+        // phone that reached the site some other way, which is what "Enter code" is for.
+        + '<button class="crewbtn mini" id="cm-copylink" data-link="'
+        + esc(inviteLink(c)) + '">' + t("crew.mine.copylink") + "</button>"
         + '<button class="crewbtn mini ghost" id="cm-copy" data-code="'
         + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button></p>";
     }
@@ -3010,6 +3018,33 @@
     });
 
     var save = document.getElementById("ce-save");
+
+    var cl = document.getElementById("cm-copylink");
+    if (cl) cl.onclick = function () {
+      var link = cl.dataset.link || "";
+      function said() { setStatus(t("crew.mine.copied"), false, cl); flash(cl, t("crew.mine.copied")); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(said, function () { fallback(); });
+        return;
+      }
+      fallback();
+      function fallback() {
+        // No `<code>` holding the URL to select, so the offscreen textarea is the only route;
+        // if that fails too the status line says nothing happened rather than claiming it did.
+        var ta = document.createElement("textarea");
+        ta.value = link;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        if (ok) said();
+        else setStatus(t("crew.err"), true, cl);
+      }
+    };
 
     var cp = document.getElementById("cm-copy");
     if (cp) cp.onclick = function () {
@@ -3463,6 +3498,35 @@
     paint();
   }
 
+  // An invite link, once the rider is signed in and has no crew of their own. It brings the
+  // crew on screen and fills the prompt; it does not press Join. Clicking a link somebody sent
+  // you is not the same as deciding to join their crew.
+  function offerInvite(me) {
+    if (!INVITE || !me || !me.paired || me.crew) return;
+    var btn = document.querySelector('[data-join="' + cssEscape(INVITE.slug) + '"]');
+    if (!btn) return;                      // that crew is not in the list; leave it alone
+    // Spent, whether or not the rider goes through with it: a refresh should not reopen this.
+    var inv = INVITE;
+    INVITE = null;
+    // The row may be one of the fifteen the list folds away, in which case the button exists
+    // and cannot be pressed. Unfold first.
+    var more = document.getElementById("cj-more");
+    if (more && btn.closest("[hidden]")) more.click();
+    btn.scrollIntoView({ block: "center" });
+    if (btn.dataset.pol === "invite") {
+      btn.click();                          // opens the code prompt beside the row
+      var box = document.getElementById("crewask-in");
+      if (box) { box.value = inv.code; box.focus(); box.select(); }
+    }
+  }
+
+  // `CSS.escape` is absent in older engines and this runs on whatever a rider has. A slug is
+  // letters, numbers and hyphens after `slugify`, plus whatever non-ASCII the name carried, so
+  // the only characters worth refusing are the ones that would end the attribute selector.
+  function cssEscape(v) {
+    return String(v).replace(/["\\\]]/g, "");
+  }
+
   function bindJoin() {
     document.querySelectorAll("[data-join]").forEach(function (b) {
       b.onclick = function () {
@@ -3689,11 +3753,19 @@
           + "<span>" + esc(me.crew.name) + "</span>"
           // read back as "Harbour Bridge Bombersleader" without this
           + '<span class="crewsumsep"> &middot; </span>'
-          // `/crews/me` answers `role: "member"` with `status: "pending"`, and this read the
-          // role alone -- so a rider still knocking had MEMBER over the top of a card saying
-          // "Waiting on a leader to let you in".
+          // What the card used to open with, moved up beside the name: where the crew stands,
+          // how many ride for it, and what you are to it. "LEADER" alone spent the width on
+          // the least interesting true thing on the line.
+          // `/crews/me` answers `role: "member"` with `status: "pending"`, so a rider still
+          // knocking reads "waiting" here rather than being badged a member of a crew that
+          // has not answered them.
           + '<span class="crewsumrole">'
-          + t(me.status === "pending" ? "crew.role.waiting" : "crew.role." + me.role)
+          + (me.status === "pending"
+             ? t("crew.role.waiting")
+             : [standing(me.crew.slug), riders(me.crew.members),
+                t(me.role === "leader" ? "crew.mine.youare"
+                  : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember")]
+               .filter(Boolean).join(" \u00b7 "))
           + "</span>"
           // The accordion can be shut, and a leader who shut it had no way at all to learn
           // that somebody was waiting.
@@ -3800,6 +3872,7 @@
       } else { bindCreate(); bindJoin(); bindList(); }
       bindSignOut();
       bindHelp();
+      offerInvite(me);
       doReveal();
       if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {

@@ -287,6 +287,7 @@ EN: dict[str, str] = {
     # Eight hex characters a new leader had to select by hand, inside a
     # panel that scrolls under your finger.
     "crew.mine.copy": "Copy",
+    "crew.mine.copylink": "Copy link",
     "crew.mine.copied": "Copied",
     "crew.mine.settings": "Crew settings",
     "crew.mine.emblem": "Emblem (small, square)",

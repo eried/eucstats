@@ -386,6 +386,12 @@ SHARED = {
     # no-ride-yet had no control of any kind on them. Both strings are about the reader's own
     # pass and say the same thing on every one of those cards, which is why the move is safe.
     "crew.mine.signout": {"render", "bindSignOut"},
+    # The standing, the member count and what you are to the crew moved out of the
+    # card's meta line and into the accordion summary that titles it, which `render`
+    # builds. Same card, same reader, one line higher.
+    "crew.mine.youare": {"render"},
+    "crew.mine.youofficer": {"render"},
+    "crew.mine.youmember": {"render"},
     # The line under the locked swatch, reused as the refusal if a hand-made request
     # tries to repaint a crew that is already on the map. Same reader, same fact, and
     # the `ERRS` table it is named in sits inside `askFor`'s span, which is why it is

@@ -508,19 +508,32 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      Declared HERE rather than in a rule of its own: the cascade checker caught the second
      rule cancelling this one's `position` and refused the stylesheet, which is exactly what
      it is for. */
-  /* -12px, not 0: `#pbody` is `padding: 12px 18px` (public.py, one rule, every width),
-     and sticky `top: 0` pins to the CONTENT box -- so the panel's top padding stayed
-     open above the stuck bar and the rows scrolling past showed through it. */
-  position: sticky; top: -12px; z-index: 3;
+  /* It scrolls away. This was sticky so a long card would not leave you wondering whose crew
+     you were reading -- a real problem, and not worth a bar pinned over your content on every
+     scroll, which is what Erwin kept noticing. The card opens with the emblem, the standing
+     and the member line directly under this, so the identity is still the first thing in it. */
+  z-index: 3;
   background: var(--pan, #0b1020);
 }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
 .crewmine-wrap > summary span:first-of-type { flex: 1; font-weight: 700; }
-.crewsumemb { width: 26px; height: 26px; flex: 0 0 26px; }
+.crewsumemb { width: 26px; height: 26px; flex: 0 0 26px;
+  transition: transform .16s ease; transform-origin: left center; position: relative; }
+/* Big enough to see what somebody drew. `transform` only, so the line it sits in does not
+   move; origin at the left so it opens into the card rather than off the panel's edge; and
+   a z-index because it has to come up over the card beneath it.
+   Focus as well as hover: an emblem is the one thing on this card worth looking at, and a
+   mouse is not the only way people read. */
+.crewsumemb:hover, summary:focus-visible .crewsumemb {
+  transform: scale(3.5); z-index: 4; border-radius: 2px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.6);
+}
 /* Shut, this is what identifies the crew. Open, the card's own 52px emblem is 50px below it
    and they are the same picture twice -- the duplicated NAME was taken out of the card for
    this reason and the emblem was one element along. */
-.crewmine-wrap[open] > summary .crewsumemb { display: none; }
+/* The emblem stays when the card opens. It was hidden because the card below showed a bigger
+   one and two of the same picture in one column is one too many -- so the card's went instead,
+   and this is the one that keeps it, because this is the line that names the crew. */
 /* this one is wanted at every width: the name and the role share one line */
 /* For the text layer only. The name span is `flex: 1`, so a visible separator is dragged
    to the far right and reads as an orphan bullet in front of the role -- measured 440px from
@@ -530,7 +543,11 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip-path: inset(50%); white-space: nowrap;
 }
-.crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-transform: uppercase; letter-spacing: .5px; }
+/* Not a badge any more: it carries the standing, the member count and your role, so it is a
+   line of text and wants to read as one. No uppercase, no tracking, and it may shrink before
+   the crew's name does. */
+.crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-align: right;
+  min-width: 0; flex: 0 1 auto; }
 /* No border at all: the wrapper draws one on all four sides and the card sits inside it.
    The 2px accent that used to be here ran the full height of the tallest card in the
    panel, which is a pull quote however the rest of it is styled. */
