@@ -146,7 +146,14 @@ svg.ic{width:18px;height:18px;display:block}
 /* Somebody is waiting for an answer from you. The count lives on the dock because the
    panel it belongs to is shut when it matters, and the icons-only phone layout drops the
    label but keeps this. */
-.dockdot{position:absolute;top:4px;right:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#ff8ad8;color:#140a11;font:700 11px/17px Orbitron,ui-sans-serif,sans-serif;text-align:center;pointer-events:none}
+/* The corner, not the word. `right:4px` put the knock count on top of the "Crews" label by
+   7x10px wherever the label is visible, which is every width above 560 -- and invisible to
+   anyone testing at 390, where the label is hidden, which is how four reviewers missed it.
+   Translated half its own width up and out so it sits on the button's corner, and the button
+   keeps room for it on the right. */
+.dockdot{position:absolute;top:0;right:0;transform:translate(35%,-35%);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#ff8ad8;color:#140a11;font:700 11px/17px Orbitron,ui-sans-serif,sans-serif;text-align:center;pointer-events:none}
+/* Room for the dot's overhang, so a button with a count is not clipped by its neighbour. */
+.dock button:has(.dockdot:not([hidden])){margin-right:6px}
 .dock button{position:relative}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}

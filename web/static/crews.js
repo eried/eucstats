@@ -2615,8 +2615,10 @@
     if (me.status === "pending") {
       // The payload knew `leader_gone` all along and the card said "Waiting on a leader to
       // let you in" regardless, to a rider whose crew has nobody who could ever answer them.
-      h += '<div class="crewmsg' + (me.leader_gone ? " bad" : "") + '">'
+      h += '<div id="crewwhywait" class="crewmsg' + (me.leader_gone ? " bad" : "") + '">'
         + t(me.leader_gone ? "crew.join.pending.none" : "crew.join.pending") + "</div>";
+      // An id, because the browse list below this has a row of shut buttons whose reason is
+      // this sentence, and a button has to carry its own reason -- see `whyShut` in joinHTML.
     }
     // First inside the card, not last. This used to sit below the description, the territory
     // figures, the invite code and the refusal list -- 4.6 screenfuls down at 390x844 -- and
@@ -3093,8 +3095,19 @@
     // the third, and it is per row rather than per rider.
     var cooling = !!me.cooldown_until;
     var pending = !cooling && me.status === "pending";
+    // Where the reason for a shut button lives. A reviewer scrolled past the cooldown banner
+    // and found six disabled buttons with no `title`, no `aria-disabled` and nothing pointing
+    // at the explanation -- which is what a list does: it scrolls, and the banner leaves.
+    // `crewwhycool` is this card's own message; `crewwhywait` is the crew card's waiting line
+    // above it, which is why that one is not repeated here.
+    var whyId = cooling ? "crewwhycool" : pending ? "crewwhywait" : null;
+    // The same sentence as plain text, for `title`. `t()` returns the string the card prints,
+    // so the tooltip and the banner cannot drift apart.
+    var whyReason = cooling
+      ? t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) })
+      : pending ? t("crew.join.pending") : "";
     var msg = cooling
-      ? '<div class="crewmsg">'
+      ? '<div id="crewwhycool" class="crewmsg">'
         + t("crew.join.wait.p", { n: days(daysUntil(me.cooldown_until)) })
         // The date itself, which the server has known all along: a join attempt during the
         // cooldown is refused with "You can join a crew after 11 Oct 12:14." and the card
@@ -3104,9 +3117,11 @@
         // than a sentence of its own in nineteen tables.
         + whenAgain(me.cooldown_until)
         + "</div>"
-      : pending
-        ? '<div class="crewmsg">' + t("crew.join.pending") + "</div>"
-        : "";
+      // Nothing for `pending`: the crew card directly above already says "Waiting on a
+      // leader to let you in", and printing it again two lines down was the same sentence
+      // twice on one screen. The shut buttons point at that line instead, so the reason is
+      // still one `aria-describedby` away from every control it governs.
+      : "";
     if (!crews.length) {
       return cooling
         ? '<div class="crewcard"><h3>' + t("crew.join.wait.h") + "</h3>" + msg + "</div>"
@@ -3190,7 +3205,13 @@
                // wait is, once. Same argument I made for the waiting state two commits ago;
                // it applies here and I only applied it there. A member cap is different: that
                // IS a fact about the crew in the row, so it still replaces the label.
-               ? '<button class="crewbtn mini ghost" disabled>'
+               // Its own reason, not just the banner's. `aria-describedby` is how a reader
+               // is told and `title` is how a pointer is; both name the sentence this card
+               // already shows, so there is nothing new to translate.
+               ? '<button class="crewbtn mini ghost" disabled'
+                 + (whyId && !capped ? ' aria-describedby="' + whyId + '"' : "")
+                 + (whyId && !capped ? ' title="' + esc(whyReason) + '"' : "")
+                 + ">"
                  + (capped ? t("crew.join.full") : label)
                  + "</button>"
                : '<button class="crewbtn mini' + (open ? "" : " ghost") + '" data-join="'

@@ -114,7 +114,14 @@
      cropped, which is exactly what it was. 31rem of content plus this card's own 15px
      padding and 1px border on each side, so the chrome and the content share one edge and
      the slack falls outside the card, which is where the note above wanted it. */
-  .crewjoin, .crewmine { max-width: calc(31rem + 32px); }
+  /* The board too, or two stacked cards share a left border and disagree about the right one.
+     Capping `.crewjoin` and `.crewmine` and not this closed the dead band INSIDE the crew card
+     and opened a 206px step between it and the board beneath -- crew card 299 to 765, board
+     299 to 971 -- which a reviewer called the most visible flaw in the build. Capping rather
+     than lifting both: the cap is here because these rows were measured with 380px of nothing
+     in the middle of them, and the board's own grid needs about 293px, so 466 is room to
+     spare. One measure for every card in the panel. */
+  .crewjoin, .crewmine, .crewboard, .crewhow { max-width: calc(31rem + 32px); }
 }
 /* Full width, so it reads as more list rather than a stray action: it was the only control in
    the join card not in the button column the six rows above it end with. `.crewshowall` and
