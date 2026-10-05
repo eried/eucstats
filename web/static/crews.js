@@ -1635,10 +1635,20 @@
     // does not defend them. Everything in band 1 or 2 is shown; only ground going cold on its
     // own is ever folded into the count, which is the one thing that sentence can truthfully
     // describe.
+    // No cap. This used to be `cold.slice(0, max(0, 5 - urgent.length))`, which with 37
+    // urgent rows clamps to zero -- so the seven squares going cold on their own were never
+    // rendered at all: no place, no distance, no bearing, not clickable, just a muted "and 7
+    // squares more" where a fourth group heading would be. The cold group and
+    // `crew.lose.cold.n` were unreachable for any crew with five or more squares under attack,
+    // which is any crew under pressure.
+    //
+    // The cap was mercy on a flat list thirty-seven rows long. The GROUPING is what answers
+    // length now -- 44px closed, 189px open -- so the cap had nothing left to do but hide
+    // squares, and it made this function's own promise at the top ("Nothing is hidden from a
+    // leader who opens this") false.
     var urgent = rows.filter(function (r) { return r.band !== 3; });
     var cold = rows.filter(function (r) { return r.band === 3; });
-    LOSING = urgent.concat(cold.slice(0, Math.max(0, 5 - urgent.length)));
-    var hidden = rows.length - LOSING.length;
+    LOSING = urgent.concat(cold);
     // bearings from the middle of everything the crew holds, not from the middle of the five
     // rows: with one row those are the same point and the direction comes out empty
     var cx = 0, cy = 0;
@@ -1660,15 +1670,18 @@
     // is true in the way "and 12 more going quiet" was not. `tiles()` carries the plural, so
     // no new string. Open while the list is short enough to be harmless.
     var fold = LOSING.length > 6;
-    return '<details style="--kmw:' + cols + 'ch" class="crewtargets crewlose'
-      + (SHOW_NUMBERS ? " nums" : "") + '"' + (fold ? "" : " open") + "><summary><h4>"
+    // Shut by default once the list would bury the controls under it -- unless the rider had
+    // it open, which survives the panel closing under them when they picked a square.
+    var cardOpen = LOSECARDOPEN === null ? !fold : LOSECARDOPEN;
+    return '<details id="crewlosecard" style="--kmw:' + cols + 'ch" class="crewtargets crewlose'
+      + (SHOW_NUMBERS ? " nums" : "") + '"' + (cardOpen ? " open" : "") + "><summary><h4>"
       + t("crew.lose.h")
       // A space in the markup, not only a flex gap. The gap separates them on screen and
       // not in the text layer, which is how this file already read "6 off 8th4 riders" once.
-      // Everything at risk, not the rows that happen to be shown. `LOSING.length` is the
-      // length of an array; the footer below already admits to the rest ("and 7 squares
-      // more"), so the summary read "37 squares" over a card that totals 44. A number on a
-      // disclosure has to count what the disclosure contains.
+      // Everything at risk, which is now also everything inside: with the cold cap gone
+      // `LOSING` is all of `rows`, so this number and the card's contents are the same thing
+      // for the first time. It read 44 over a box holding 37 until the cap went, which broke
+      // the rule the previous version of this comment stated.
       + (fold ? ' <span class="crewlosen">' + tiles(rows.length) + "</span>" : "")
       + "</h4></summary>"
       // eight crews in fourteen have nothing but fading ground, and telling them a rival is
@@ -1714,8 +1727,11 @@
             + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" + '<span class="crewtsep"> &middot; </span>' : "")
             + '<i class="' + (rs ? "rpt" : "") + '">' + state + "</i></span></div>" };
         }))
-      // 85 squares are losable across the world and 45 were shown, with nothing saying so
-      + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { v: tiles(hidden) }) + "</p>" : "")
+      // No footer: every row is in the card now, so there is nothing left over to admit to.
+      // It used to read "and 7 squares more" and sat where a fourth group heading would, which
+      // a reviewer read as a group that had failed to render. `crew.lose.more` is unused by
+      // this card as a result -- left in the tables rather than pulled, since removing a
+      // translated string to save a line is not worth a nineteen-locale diff.
       + "</details>";
   }
 
@@ -1729,10 +1745,35 @@
   // EVERY rival gets a group, not the three the summary named. A summary may stop at three; a
   // group list that stopped at three would hide the fourth rival's squares, which is the one
   // thing this card must never do.
+  // Which losses groups the rider had open, and whether the card itself was open, across a
+  // re-render. At phone widths picking a square CLOSES the panel -- otherwise you cannot see
+  // the square -- and the rebuild used to come back entirely shut, so comparing two squares
+  // cost four taps where the old flat list cost two.
+  //
+  // Keyed by the group's own heading, not its position: the groups re-sort as counts change,
+  // and restoring by index would open the wrong rival. In the process rather than in storage,
+  // because this is where you were a moment ago, not a preference you set.
+  // `#cold` rather than a NUL sentinel: the key is written into `data-grp` and read back from
+  // it by the toggle listener, and a NUL does not survive an HTML attribute -- it comes back as
+  // U+FFFD, so the listener wrote one key while the renderer read another and the cold group's
+  // state silently never persisted. `#` cannot appear in a crew name (letters, numbers, marks
+  // and `_ -'&.`), so it cannot collide with a real group.
+  var LOSEOPEN = {};
+  var LOSECARDOPEN = null;
+
+  // The group holding the square just flown to, so coming back from the map lands you where
+  // you were rather than on a shut card.
+  function rememberLoseGroup(x) {
+    if (!x || !TERR) return;
+    var who = x.rival == null ? null : (TERR.crews[x.rival] || {}).name;
+    LOSEOPEN[who || "#cold"] = true;
+    LOSECARDOPEN = true;
+  }
+
   function groupedRows(entries) {
     var order = [], byWho = {};
     entries.forEach(function (e) {
-      var key = e.who || "\u0000cold";
+      var key = e.who || "#cold";
       if (!byWho[key]) { byWho[key] = { who: e.who, rows: [] }; order.push(byWho[key]); }
       byWho[key].rows.push(e.html);
     });
@@ -1751,10 +1792,13 @@
         ? esc(t("crew.lose.threat", { name: g.who, v: tiles(g.rows.length) }))
         : esc(t("crew.lose.cold.n", { v: tiles(g.rows.length) }));
       // Small groups stay open: folding three rows behind a click buys nothing and costs a
-      // click. Big ones fold, which is the whole point of doing this.
-      var open = g.rows.length <= 3 ? " open" : "";
+      // click. Big ones fold, which is the whole point of doing this -- unless the rider had
+      // this one open before the panel closed under them, in which case it is theirs.
+      var key = g.who || "#cold";
+      var open = (LOSEOPEN[key] || g.rows.length <= 3) ? " open" : "";
       return '<details class="crewlosegrp' + (g.who ? "" : " crewcold") + '"' + open
-        + "><summary>" + head + "</summary>" + g.rows.join("") + "</details>";
+        + ' data-grp="' + esc(key) + '"><summary>' + head + "</summary>"
+        + g.rows.join("") + "</details>";
     }).join("");
   }
 
@@ -2956,10 +3000,26 @@
           flyToTile(TARGETS[+row.dataset.t], +row.dataset.t);
         });
       });
+      // A rider opening or shutting a group by hand is also telling us where they want to
+      // be; without this only the fly-to path was remembered and a hand-opened group still
+      // vanished on the next render.
+      el.querySelectorAll(".crewlosegrp").forEach(function (g) {
+        g.addEventListener("toggle", function () {
+          var k = g.dataset.grp;
+          if (k) LOSEOPEN[k] = g.open;
+        });
+      });
+      var card = el.querySelector("#crewlosecard");
+      if (card) {
+        card.addEventListener("toggle", function () { LOSECARDOPEN = card.open; });
+      }
       el.querySelectorAll("[data-l]").forEach(function (row) {
         // no second argument: ground you are losing is already breathing on the map, and
         // redrawing the target rings here only cleared whichever one was marked
         pressable(row, rowLabel(row), function () {
+          // Before the flight, because at phone widths this closes the panel and the next
+          // render has to put the rider back where they were.
+          rememberLoseGroup(LOSING[+row.dataset.l]);
           flyToTile(LOSING[+row.dataset.l]);
         });
       });
