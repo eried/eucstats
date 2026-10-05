@@ -61,7 +61,7 @@ EN: dict[str, str] = {
     "crew.wip": "Not open for public testing yet. Anything you build here can be wiped without warning.",
     "crew.signin.h": "Get your pass",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",
-    "crew.signin.scan": "Scan it with EUC Planet, or type the code in. Good for 3 minutes.",
+    "crew.signin.scan": "Scan it with EUC Planet, or type the code in.",
     # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
     # from services.pairing.MIN_APP, so a release is one line and not nineteen.
     "crew.signin.needs": "Needs EUC Planet {v} or newer.",
@@ -318,7 +318,7 @@ EN: dict[str, str] = {
     "crew.how.8": "One rider can only put {c} km a week into one square, however far they go. So a square is held by how many of the crew ride it. Two riders can hold off one of theirs for ever. Nothing ridden alone will take it back.",
     "crew.empty": "Nobody holds anything yet.",
     "crew.board.sub": "Biggest patch a crew holds in one piece. A square is the same ride wherever you are.",
-    "crew.signin.noapp": "No app yet? Grab it from the App tab.",
+    "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.invite2": "Invite link code",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
     "crew.days.few": "{n} days",

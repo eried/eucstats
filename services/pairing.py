@@ -55,7 +55,11 @@ from models import PairToken, Rider, WebSession, utcnow
 # holding a phone in the other hand.
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 CODE_LEN = 6
-CODE_TTL = timedelta(minutes=3)
+# Fifteen, not three. Three minutes is long enough to scan and short enough to be a
+# deadline the reader has to hold, and the card had to print it to be fair. Fifteen is
+# past caring, so the number comes off the card and the expiry keeps its own message for
+# the case where it actually matters.
+CODE_TTL = timedelta(minutes=15)
 SESSION_TTL = timedelta(days=90)        # renewed on use, so an active rider never signs in twice
 COOKIE = "crew_session"
 

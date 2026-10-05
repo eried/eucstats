@@ -10,8 +10,10 @@
    by its border, and a nested card, whose border is removed, by nothing at all. */
 .crewcard {
   background: rgba(255, 255, 255, .035);
+  /* One border, not three sides and an accent. A 2px coloured left edge is the shape of a
+     pull quote, and the panel is six cards stacked: it read as six quotations rather than six
+     blocks. */
   border: 1px solid var(--line, #243055);
-  border-left: 2px solid var(--sec, #ff8ad8);
   padding: 14px 15px;
   margin: 0 0 11px;
 }
@@ -218,12 +220,14 @@
    had no left edge in common with its own subtitle. Left throughout, with the code and the QR
    centring themselves inside the text column rather than against the card. `.crewsign .hint`
    used to force left against a centred parent and is now what everything inherits. */
-.crewsign { text-align: left; }
+/* Centred, which is the axis Erwin wants and still only ONE axis -- the rule that fixed this
+   card was never "left", it was "stop mixing five of them in one card". */
+.crewsign { text-align: center; }
 /* Left, like its six siblings. Centred it put a 26px code with 7px of tracking, and the
    QR beside it, about 250px right of the heading's left edge -- and in the expired state the
    masked six dots floated alone in a 649x188 empty box. */
-.crewsign .crewcode { text-align: left; }
-.crewsign .crewqr { justify-content: flex-start; }
+.crewsign .crewcode { text-align: center; }
+.crewsign .crewqr { justify-content: center; }
 /* The version requirement is a precondition, not a footnote. It was the second of three
    identical hint lines with a pink one below it, so the newest and hardest requirement was
    the least visible thing in its own group. */

@@ -305,7 +305,7 @@ def _pair_html(qr: str, code: str, error: str = "") -> str:
       <p class=hint>To continue, scan with <b title="Needs EUC Planet {minapp} or newer">EUC Planet</b> on your phone.</p>
       {err}
       <img class=qr src="data:image/png;base64,{qr}" alt="admin pairing QR code"/>
-      <p class=hint>or type <code title="Expires in 3 minutes">{html.escape(code)}</code> in the app</p>
+      <p class=hint>or type <code>{html.escape(code)}</code> in the app</p>
       <form method=post action="/admin/logout"><button class="ghost mini">Start over</button></form>
     </div>
     <script>

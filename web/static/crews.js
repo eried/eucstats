@@ -1868,7 +1868,10 @@
       // And the other precondition, which was only legible on the phone: the pairing is
       // refused for a rider the site has never seen, and that refusal never reaches this card.
       + " " + t("crew.signin.ride") + "</p>"
-      + '<p class="hint crewnoapp"><a href="#" id="crewgetapp">'
+      // Straight to the app, not to another tab of this site: somebody with no app cannot
+      // install one from the Tech tab, which is what "the App tab" was pointing at.
+      + '<p class="hint crewnoapp"><a href="https://eucplanet.ried.no" target="_blank"'
+      + ' rel="noopener" id="crewgetapp">'
       + t("crew.signin.noapp") + "</a></p>"
       + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"
       + '<a class="crewbtn crewopen" id="crewopen" href="#">' + t("crew.signin.open") + "</a>"
@@ -1876,7 +1879,7 @@
   }
 
   var pairRolls = 0;
-  var PAIR_MAX_ROLLS = 5;        // about fifteen minutes of waiting, then it asks
+  var PAIR_MAX_ROLLS = 1;        // the code itself now lasts the fifteen minutes
 
   // Both ways a code can die end up here. The error path used to stop the timer and return
   // without rendering anything, so a dead six-character code sat on screen looking live with
@@ -1943,7 +1946,9 @@
       }
       if (open) open.href = deep;
       if (code) code.textContent = r.body.code;
-      var get = document.getElementById("crewgetapp");
+      // No handler on the app link any more: it is an ordinary outbound link now. Kept as a
+      // lookup so the block below still finds its other controls.
+      var get = null;
       if (get) get.onclick = function (ev) {
         ev.preventDefault();
         var tab = document.querySelector('.dock button[data-p=tech]');
