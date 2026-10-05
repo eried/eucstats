@@ -20,7 +20,13 @@
   var map = null;
   var H = {};               // helpers handed in by the page
   var markers = [];
-  var visible = false;
+  // Crew mode is on, which is not the same as the panel being open, and conflating the two
+  // made "Details" on the map popup a no-op on a phone. Tapping a ride target closes the
+  // panel (`H.closePanel`) and so does the header X, and neither runs `hide()` -- that is a
+  // MODE change -- so `visible` stayed true with no panel on screen and `if (!visible) show()`
+  // never fired. Two flags, because they are two questions.
+  var visible = false;     // crew mode: the layers are on the map
+  var panelOpen = false;   // the panel itself is on screen
   var pairTimer = null, pairToken = null;
   var ME = null;
 
@@ -865,7 +871,6 @@
     if (det) det.onclick = function () {
       var slug = det.getAttribute("data-det");
       if (POPUP) { POPUP.remove(); POPUP = null; }
-      if (!visible) show();
       openCrewDetail(slug);
     };
   }
@@ -901,11 +906,33 @@
       var r = Math.round(Math.hypot(q[0] - cx, q[1] - cy) / far * SHINE_RINGS);
       (rings[r] = rings[r] || []).push(q);
     });
-    var step = 70;
-    Object.keys(rings).forEach(function (r) {
-      setTimeout(function () { paintShine(rings[r]); }, Number(r) * step);
+    // Bring the patch into view first. Without this the button was a literal no-op whenever
+    // the crew's biggest patch was not the one under your finger -- tap a Berlin square of a
+    // crew whose biggest patch is in Oslo and the whole animation played off screen. And on a
+    // phone the popup sits directly over the square you tapped, so even the right patch was
+    // partly behind it.
+    var b = new maplibregl.LngLatBounds();
+    patch.forEach(function (q) {
+      b.extend([tileLon(q[0], TERR.z), tileLat(q[1], TERR.z)]);
+      b.extend([tileLon(q[0] + 1, TERR.z), tileLat(q[1] + 1, TERR.z)]);
     });
-    setTimeout(function () { paintShine([]); }, (SHINE_RINGS + 3) * step);
+    try {
+      map.fitBounds(b, { padding: { top: 90, bottom: 120, left: 50, right: 50 },
+                         maxZoom: 12.5, duration: 700, essential: true });
+    } catch (e) {}
+
+    // Each ring holds, rather than flashing past. The whole thing used to be over in 770ms
+    // with the rings 70ms apart, which is below the threshold at which anybody registers a
+    // deliberate animation: a reviewer screenshotted it at one second and got an identical
+    // frame, and had to force a capture at 250ms to see anything at all. It starts after the
+    // camera has moved, for the same reason.
+    var step = 150, lead = 760;
+    Object.keys(rings).forEach(function (r) {
+      setTimeout(function () { paintShine(rings[r]); }, lead + Number(r) * step);
+    });
+    // and the last ring is left lit for a beat before it clears
+    setTimeout(function () { paintShine(patch); }, lead + (SHINE_RINGS + 1) * step);
+    setTimeout(function () { paintShine([]); }, lead + (SHINE_RINGS + 7) * step);
   }
 
   var SHINE_RINGS = 10;
@@ -1060,9 +1087,12 @@
     return "<h5>" + t(heading) + "</h5>"
       + '<ol class="crewrules">'
       + keys.map(function (k) {
+          // `{v}` means the cooldown on the one rule that is about the cooldown, and the
+          // size of a square everywhere else. Two meanings for one placeholder is a trap, so
+          // it is keyed on the rule rather than passed blind.
+          var v = (k === "crew.how.cool") ? days(COOLDOWN_DAYS) : squareKm();
           return "<li>" + t(k, { n: k === "crew.how.size" ? MAX_MEMBERS : SEED,
-                                 d: WINDOW_DAYS, c: capKm(),
-                                 v: days(COOLDOWN_DAYS) }) + "</li>";
+                                 d: WINDOW_DAYS, c: capKm(), v: v }) + "</li>";
         }).join("")
       + "</ol>";
   }
@@ -1080,18 +1110,26 @@
       // the cooldown, the weekly cap or the member limit in admin and this changes with it.
       + rulesSection("crew.how.s1", ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.6"])
       + rulesSection("crew.how.s2", ["crew.how.4", "crew.how.7", "crew.how.8"])
-      + rulesSection("crew.how.s3", ["crew.how.5", "crew.how.cool"]
+      // "Your crew" was two lines and both were about leaving it. Nothing said who runs a
+      // crew, what an officer is, or who can change what -- while the roster offers a
+      // "Make officer" button, and the glyph it produces is explained nowhere.
+      + rulesSection("crew.how.s3", ["crew.how.roles", "crew.how.5", "crew.how.cool"]
           // Only when there is one. With no cap there is no rule, and "unlimited" would be a
           // sentence about nothing.
           .concat(MAX_MEMBERS > 0 ? ["crew.how.size"] : []))
       // The five states, in the order a square moves through them. They were defined only in
       // the key below -- five chips of two words -- and two of those two words meant nothing
       // to anybody who had not read the model.
+      // Six chips in the key, six entries here. There were five: "Taken this week" had a
+      // swatch and no explanation, for the state that is the most interesting thing on the map.
       + rulesSection("crew.how.s4", ["crew.how.c0", "crew.how.c1", "crew.how.c2",
-                                     "crew.how.c3", "crew.how.c4"])
-      // Outside the list: this one is not a rule, it is what the standings MEAN, so it closes
-      // the section rather than becoming a ninth instruction.
-      + '<p class="crewrulesend">' + t("crew.board.sub") + "</p>"
+                                     "crew.how.c3", "crew.how.c4", "crew.how.c5"])
+      // What the figures mean. `crew.board.sub` used to close the manual as a bare paragraph
+      // with no heading and no antecedent -- it is the BOARD's subtitle, printed where
+      // nothing had mentioned the board. Two reviewers read it as a non-sequitur, and
+      // separately asked why a crew shows "91 squares", "2 patches", "23 km2" and "77 km2"
+      // with nothing reconciling them. That is this section.
+      + rulesSection("crew.how.s5", ["crew.how.n1", "crew.how.n2"])
       // The five shades belong here rather than under the board. It is a key, and a key is
       // something you look up once, not a row of swatches on screen every time you visit.
       + legendHTML()
@@ -1381,6 +1419,18 @@
   // the same amount of riding in Tromso as in Singapore even though the squares differ
   // fourfold in area.
   var MIN_LEAD_EDGE = 0.42, EARTH_C_KM = 40075.016686;
+
+  // How far it is across one square where this rider rides. Every number in the manual rests
+  // on it -- the weekly cap, the 2x2, the km2 figures -- and the manual never stated it, so a
+  // reader had "15 squares" and "23 km2" and no way to connect them. Derived from the floor,
+  // which is a fixed fraction of the edge, at the rider's own latitude.
+  function squareKm() {
+    var lat = (ME && ME.home && ME.home.lat != null) ? ME.home.lat
+            : (map && map.getCenter ? map.getCenter().lat : 59.9);
+    var z = TERR ? TERR.z : 14;
+    var km = 360 / Math.pow(2, z) / 360 * EARTH_C_KM * Math.cos(lat * Math.PI / 180);
+    return fmtKm(Math.round(km * 10) / 10);
+  }
 
   function floorKm(y) {
     if (!TERR) return 0.5;
@@ -2421,9 +2471,21 @@
     }
     function go() {
       var v = input.value.trim();
-      if (!v) { done(); return; }
+      // An empty box used to run `done()` -- the CLOSE path -- so pressing Join on a blank
+      // invite code silently destroyed the prompt, the row it opened beside, and 4.5 screens
+      // of scrolling back to it, with nothing said. The box two lines up exists for exactly
+      // this and was never used for it. Pressing the affirmative on an empty field is a
+      // mistake, not a cancellation; Cancel is the cancellation and it is right there.
+      if (!v) { fail(t("crew.e.empty")); return; }
       ok(v, { close: done, fail: fail });
     }
+    // Clearing the message the moment the field changes. Leaving a red box over a field the
+    // rider has already fixed makes them read their own correct typing looking for the
+    // mistake -- and this prompt is where a mistyped invite code lands.
+    input.oninput = function () {
+      var box = host.querySelector(".crewaskmsg");
+      if (box && !box.hidden) { box.hidden = true; box.textContent = ""; }
+    };
     host.querySelector("#crewask-y").onclick = go;
     input.onkeydown = function (e) { if (e.key === "Enter") go(); };
   }
@@ -2527,6 +2589,24 @@
     statusSlot.setAttribute("aria-atomic", "true");
     near.parentNode.insertBefore(statusSlot, near.nextSibling);
     return statusSlot;
+  }
+
+  // Every red box this panel can be showing, gone. The forms call it the moment the field
+  // changes: leaving "Give it a name." over a name the rider has already typed makes them
+  // read their own correct work looking for the mistake, and three separate forms did it.
+  // Both the permanent regions and any anchored copy, because `setStatus` writes to both.
+  function clearStatus() {
+    ["crewstatus", "crewalert"].forEach(function (id) {
+      var r = document.getElementById(id);
+      if (r) r.innerHTML = "";
+    });
+    // The anchored copy is the one the rider is actually looking at, and `statusHost` already
+    // keeps the handle to it -- removed the same way it removes the previous one.
+    if (statusSlot && statusSlot.parentNode) {
+      statusSlot.parentNode.removeChild(statusSlot);
+    }
+    statusSlot = null;
+    clearTimeout(statusTimer);
   }
 
   function setStatus(msg, bad, near) {
@@ -2903,6 +2983,7 @@
         var out = document.getElementById(pair[1]);
         if (!box || !out) return;
         box.oninput = function () {
+          clearStatus();          // the submit error is about text that has just changed
           out.textContent = box.value.length + "/" + pair[2];
           // The name's rule, while there is still something to do about it. Silent: see the
           // note on `#cf-namewhy`. Nothing is said about an empty field -- a form that
@@ -3089,7 +3170,14 @@
         + esc(inviteLink(c)) + '">' + t("crew.mine.copylink") + "</button>"
         + '<button class="crewbtn mini ghost" id="cm-copy" title="'
         + esc(t("crew.tip.copycode")) + '" data-code="'
-        + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button></span></p>";
+        + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button>"
+        // Leader only: an officer lets riders in one at a time, which somebody reviews.
+        // Turning the code over changes who can get in with nobody reviewing anything.
+        + (me.role === "leader"
+           ? '<button class="crewbtn mini ghost" id="cm-newcode" title="'
+             + esc(t("crew.tip.newcode")) + '">' + t("crew.mine.newcode") + "</button>"
+           : "")
+        + "</span></p>";
     }
     if (me.declined && me.declined.length) {
       h += '<div class="crewpend"><h4>' + t("crew.decl.h") + "</h4>"
@@ -3147,10 +3235,20 @@
     }
     if (lead) {
       h += '<details class="crewedit"><summary>' + t("crew.mine.settings") + "</summary>"
+        // The same two fields as the create form, with the same affordances. These were an
+        // `<input>` apiece with no counter: a 280-character description in a single-line box
+        // 294px wide shows about thirty-five characters at a time, so the field a leader uses
+        // to EDIT what they wrote was the one they could not read back. Create had a counted
+        // textarea for the identical value.
         + "<label>" + t("crew.new.name") + '<input id="ce-name" maxlength="28" value="'
-        + esc(c.name) + '"></label>'
-        + "<label>" + t("crew.new.desc") + '<input id="ce-desc" maxlength="280" value="'
-        + esc(c.description || "") + '"></label>'
+        + esc(c.name) + '" aria-describedby="ce-namewhy">'
+        + '<span class="crewcount" id="ce-namecount">' + (c.name || "").length + "/28</span>"
+        + '<span class="crewwhy" id="ce-namewhy"></span></label>'
+        + "<label>" + t("crew.new.desc")
+        + '<textarea id="ce-desc" maxlength="280" rows="2">'
+        + esc(c.description || "") + "</textarea>"
+        + '<span class="crewcount" id="ce-desccount">'
+        + (c.description || "").length + "/280</span></label>"
         // The colours, while they are still a guess. The picker went in last round because
         // choosing before meeting a single rival's colour made it "an irreversible guess" --
         // true, right up until the crew is on the map. After that the rectangles out there are
@@ -3328,6 +3426,25 @@
       }, claim);
     };
     bindSignOut();
+    // Same wiring as the create form: the counters, the name rule while there is still
+    // something to do about it, and clearing the submit error the moment the text changes.
+    [["ce-desc", "ce-desccount", 280], ["ce-name", "ce-namecount", 28]]
+      .forEach(function (pair) {
+        var box = document.getElementById(pair[0]);
+        var out = document.getElementById(pair[1]);
+        if (!box || !out) return;
+        box.oninput = function () {
+          clearStatus();
+          out.textContent = box.value.length + "/" + pair[2];
+          if (pair[0] !== "ce-name") return;
+          var why = document.getElementById("ce-namewhy");
+          if (!why) return;
+          var problem = box.value.trim() ? nameProblem(box.value) : null;
+          why.textContent = problem ? t(problem) : "";
+          if (problem) box.setAttribute("aria-invalid", "true");
+          else box.removeAttribute("aria-invalid");
+        };
+      });
     bindIdent("ce", function () {
       var hid = document.getElementById("ce-colour");
       var pat = document.getElementById("ce-pattern");
@@ -3375,6 +3492,20 @@
       copyVia(cl.dataset.link || "",
         function () { setStatus(t("crew.mine.copied"), false, cl); flash(cl, t("crew.mine.copied")); },
         function () { setStatus(t("crew.err"), true, cl); });
+    };
+
+    // A new invite code, retiring the old one. Confirmed, because it breaks every link and
+    // every screenshot already handed out -- and says so, rather than asking "are you sure".
+    var nc = document.getElementById("cm-newcode");
+    if (nc) nc.onclick = function () {
+      ask(t("crew.mine.newcodeq"), t("crew.mine.newcode"), function () {
+        api("POST", "/api/v1/crews/" + encodeURIComponent(ME.crew.slug) + "/newcode")
+          .then(function (r) {
+            if (!r.ok) { setStatus(errMsg(r.err), true, nc); return; }
+            setStatus(t("crew.mine.newcoded"), false, nc);
+            render();
+          });
+      }, nc);
     };
 
     var cp = document.getElementById("cm-copy");
@@ -3558,12 +3689,19 @@
   // Kilometres from the middle of the view to the nearest square a crew holds, or null when
   // the crew holds nothing yet. Straight-line, which is all this has to be: the question is
   // "is this my city" and the answer is off by a factor of ten thousand when it is not.
+  // How far this crew's nearest ground is FROM THE RIDER -- the place they last rode, which
+  // `/crews/me` carries. It used to be from `map.getCenter()`, so "74 km from here" meant
+  // "from wherever you last panned", and the join list is sorted by it: pan to Copenhagen and
+  // the recommendation of which crew to join silently reshuffles. Falls back to the camera
+  // when we have never seen a ride, which is the only honest answer then.
   function groundAway(slug) {
     if (!TERR || !map) return null;
     var idx = -1;
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
     if (idx < 0) return null;
-    var c = map.getCenter(), best = null;
+    var home = ME && ME.home;
+    var c = home ? { lat: home.lat, lng: home.lon } : map.getCenter();
+    var best = null;
     for (var i = 0; i < TERR.cells.length; i += 5) {
       if (TERR.cells[i] !== idx) continue;
       var lon = (tileLon(TERR.cells[i + 1], TERR.z) + tileLon(TERR.cells[i + 1] + 1, TERR.z)) / 2;
@@ -4010,6 +4148,7 @@
     // uncaught, three times out of three. The activation is held and drained by `init`.
     if (!H || typeof H.setPanel !== "function") { pendingShow = true; return; }
     visible = true;
+    panelOpen = true;
     H.setPanel("crews", (H.t ? H.t("title.crews") : "Crews & Territory"),
       // TWO regions, not one whose role flips. Changing `role` and `aria-live` on an
       // already-registered region in the same mutation as the text is the registration
@@ -4237,7 +4376,7 @@
   }
 
   function openCrew(slug) {
-    if (!visible) show();
+    if (!panelOpen) show();
     flyToCrew(slug);
   }
 
@@ -4248,7 +4387,7 @@
   // names. The flash matters: the panel can be a long scroll, and landing silently in the
   // middle of a table leaves you looking for what just happened.
   function openCrewDetail(slug) {
-    if (!visible) show();
+    if (!panelOpen) show();
     setTimeout(function () {
       var row = panel.querySelector('.crewboard [data-slug="' + slug.replace(/"/g, "") + '"]');
       if (!row) return;
@@ -4522,10 +4661,13 @@
     show: show,
     // closing the panel leaves the territory drawn, but there is nothing to poll for once
     // nobody is looking at the code
-    panelClosed: function () { stopPairing(); },
+    // The panel slid away; the mode is still on and the map is still painted. Recording it
+    // is what lets anything reopen the panel -- see the two flags at the top.
+    panelClosed: function () { panelOpen = false; stopPairing(); },
     hide: function () {
       if (!visible) return;
       visible = false;
+      panelOpen = false;
       stopPairing();
       clearLayers();          // rectangles belong to this mode and nowhere else
       setHeat(true);

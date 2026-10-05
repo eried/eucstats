@@ -237,6 +237,9 @@ EN: dict[str, str] = {
     "crew.removed.p": "{name} took you off the crew. No waiting, join another whenever you like.",
     # the server has written the better sentence since this code existed; the
     # panel was printing the generic failure over the top of it
+    # Pressing the affirmative on an empty box. It used to run the CLOSE path, which threw
+    # away the prompt and your place in the list without a word.
+    "crew.e.empty": "Type it in first.",
     "crew.e.wrongscreen": "That code is for the admin screen, not this one.",
     "crew.e.expired": "That code has run out. Here is a fresh one.",
     "crew.e.norider": "The app has not sent us a ride yet. Upload one and try again.",
@@ -326,28 +329,33 @@ EN: dict[str, str] = {
     "crew.how.h": "How crews work",
     # What the mode IS, before any of the rules for playing it. The manual opened on "Ride it,
     # it turns your colour", which is a rule and not an answer.
-    "crew.how.intro": "The world is carved into squares. Ride through one and it flips to your crew's colour. Link enough of them together and your crew owns a patch of the map, with every other crew out there coming to take it back.",
+    "crew.how.intro": "The world is carved into squares. Ride the same ones harder than anyone else and they turn your crew's colour. Hold a block of them and your crew is on the map, with every other crew out there coming to take it.",
     "crew.how.s1": "Conquering territory",
     "crew.how.s2": "Losing ground",
     "crew.how.s3": "Your crew",
     "crew.how.c4": "Surrounded. You never rode this one. You rode all the way around it.",
+    "crew.how.c5": "Taken this week. Somebody just turned it over, and it is the newest thing on the map.",
     "crew.how.c3": "Going cold. Nobody has been back, so it sits at its floor. It stays yours until somebody rides it.",
     "crew.how.c2": "About to flip. One more ride by them and it changes hands.",
     "crew.how.c1": "Contested. Another crew is putting km into it.",
     "crew.how.c0": "Uncontested. Nobody else has put a wheel in it lately.",
     "crew.how.s4": "What the colours mean",
+    "crew.how.s5": "What the numbers mean",
+    "crew.how.n1": "The board ranks a crew on its biggest patch in one piece, not on everything it holds. Two patches of ten lose to one of eleven.",
+    "crew.how.n2": "Squares and km² are the same thing counted twice: one square is about {v} across where you ride, wherever that is.",
     # Both from the settings that enforce them. The cooldown was only ever said in the leave
     # prompt, where you read it after deciding; the size cap was never said anywhere.
     "crew.how.cool": "Walk out of a crew and you wait {v} before joining another.",
     "crew.how.size": "A crew holds {n} riders at most.",
     "crew.how.1": "Ride a square and it turns your colour. Whoever put the most km into it over the last {d} days holds it.",
-    "crew.how.2": "Nothing shows until you hold a {n}x{n} block. One street gets you nothing.",
+    "crew.how.2": "Nothing shows until you hold a {n}x{n} block of them, about {v} across. One street gets you nothing.",
     "crew.how.3": "Ground grows out of ground. Close the gap between two patches and they count as one, which is the biggest move there is. Ride a full loop around something and the inside is yours too, up to about double what you rode.",
-    "crew.how.4": "Nothing holds itself. Stop riding and your claim fades until it is the cheapest ground on the map, but nobody takes it from you by waiting. Ride more than someone and you take theirs.",
+    "crew.how.4": "Nothing holds itself. Stop riding and your claim fades until one ride is enough to take it off you, but nobody takes it by waiting. Ride more than someone and you take theirs.",
     "crew.how.5": "Rides you did for a crew stay with that crew. Walking out does not wipe the map.",
+    "crew.how.roles": "Whoever starts a crew runs it. They can make anyone an officer, and an officer can let riders in and turn them away — but only the leader changes the crew itself, or ends it.",
     "crew.how.7": "A block needs its {n}x{n}. Take the square holding one together and everything leaning on it goes down with it.",
     "crew.how.6": "A new crew's first fortnight counts what its riders were already doing, so nobody starts on an empty map.",
-    "crew.how.8": "One rider can only put {c} km a week into one square, however far they go. So a square belongs to whoever brings more people: two riders hold off one for ever, and nothing ridden alone takes it back.",
+    "crew.how.8": "One rider can only put {c} km a week into one square, however far they go. So a square goes to whoever brings more people: while two of them keep riding it, one cannot out-ride them. If they stop, it fades like anything else.",
     "crew.empty": "Nobody holds anything yet.",
     "crew.board.sub": "Biggest patch a crew holds in one piece. A square is the same ride wherever you are.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
@@ -381,7 +389,7 @@ EN: dict[str, str] = {
     "crew.pub.folded": "This crew has folded.",
     "crew.pub.print": "Printable code",
     "crew.share": "Share crew",
-    "crew.share.p": "Print it, stick it on your backpack. This link keeps working even if you change your invite code.",
+    "crew.share.p": "Print it, stick it on your backpack. It points at the crew and not at a code, so a new code does not kill it.",
     "crew.roles.h": "The crew",
     "crew.roles.promote": "Make officer",
     "crew.roles.demote": "Stand down",
@@ -397,6 +405,12 @@ EN: dict[str, str] = {
     # "Copy link" and "Copy" sat side by side with nothing on either saying which was which.
     "crew.tip.copylink": "A link that opens this crew with the code already filled in. Good for one person, today.",
     "crew.tip.copycode": "Just the code, for reading out loud or typing in by hand.",
+    # Turning the invite code over. It was generated once and could never be changed, so a
+    # code in an old screenshot let somebody into an invite-only crew for ever.
+    "crew.mine.newcode": "New code",
+    "crew.tip.newcode": "Retires the old code. Anyone still holding it is locked out.",
+    "crew.mine.newcodeq": "Make a new invite code? Every link and screenshot of the old one stops working.",
+    "crew.mine.newcoded": "New code. The old one is dead.",
     "crew.tip.claim": "Makes you the leader, because the one you have has gone quiet.",
     "crew.tip.signout": "Signs this browser out. The crew carries on without you here, and you need your phone to get back in.",
     "crew.tip.remove": "Takes this rider out of the crew. They can ask to join again.",

@@ -372,7 +372,9 @@
 .crewrules li { margin: 0 0 9px; padding-left: 2px; }
 .crewrules li::marker { color: var(--sec, #ff8ad8); font-weight: 700; }
 /* Not a rule: the closing line, set apart from the list it follows. */
-.crewrulesend { margin: 0 0 10px; padding-top: 2px; border-top: 1px solid var(--line, #243055); }
+/* `.crewrulesend` stood here: the rule for the bare paragraph that used to close the manual.
+   That paragraph was the BOARD's subtitle printed under the colours section with no heading
+   and no antecedent, and it is a proper section now -- see "What the numbers mean". */
 .crewhow b { color: #e6eeff; }
 .crewedit summary, .crewfile { cursor: pointer; }
 .crewedit { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 4px; }
@@ -825,9 +827,22 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* dashed, because the ring it stands for is dashed: the crews own the whole
    colour spectrum, so shape is the only channel a mark can keep to itself */
 .crewlegend .bl i { background: transparent; border: 2px dotted #ff9f6b; }
-/* 5.2s and half a cycle apart, which is what the map actually does */
-.crewlegend .bf i { opacity: .55;
-  animation: crewbreathe 5.2s ease-in-out infinite; animation-delay: -2.6s; }
+/* 5.2s and half a cycle apart, which is what the map actually does -- but on its OWN range.
+   `crewbreathe` runs .15 to .85, and a key chip is read at whatever instant you happen to
+   look at it: a reviewer measured this one at .156, DIMMER than "going cold" at .3, for the
+   state that is the most interesting thing on the map. It also passes straight through .72,
+   which is exactly the resting opacity of "someone else is riding it", so one chip
+   impersonated another twice a cycle.
+   Bright, in a narrow band, with a ring of its own so the still frame reads too. */
+.crewlegend .bf i { opacity: 1;
+  animation: crewfresh 5.2s ease-in-out infinite; animation-delay: -2.6s; }
+@keyframes crewfresh {
+  0%, 100% { opacity: .82; box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
+  50% { opacity: 1; box-shadow: 0 0 0 3px rgba(255,255,255,.85); }
+}
+/* Band 0 is the baseline every other chip is read against, so it says plainly that it has
+   no mark at all -- it was the same border as "taken this week" and told apart by nothing. */
+.crewlegend .b0 i { border-color: rgba(255,255,255,.25); box-shadow: none; }
 
 
 
@@ -851,7 +866,8 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      name the three key chips and nothing else, which left the one animation the query exists
      for -- a pulsing ring that grabs the eye on purpose -- running. */
   .crewlegend .b1 i, .crewlegend .b2 i, .crewlegend .bf i { animation: none; }
-  .crewlegend .bf i { opacity: .55; }
+  /* the ring is the channel that survives when the animation stops */
+  .crewlegend .bf i { opacity: 1; box-shadow: 0 0 0 3px rgba(255,255,255,.85); }
   .panel[data-sec=crews] *, .panel[data-sec=crews] *::before, .panel[data-sec=crews] *::after,
   .crewtip, .crewtip *, .crewpop, .crewpop * {
     animation-duration: .01ms !important; animation-iteration-count: 1 !important;

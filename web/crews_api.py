@@ -13,6 +13,7 @@ from datetime import timedelta
 
 import re
 import secrets
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import JSONResponse
@@ -354,7 +355,7 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
     # config carries a mid-latitude default for anybody we know nothing about; this is the
     # real figure for the reader, from the last place they actually rode.
     out_cap = territory.rider_week_cap_km()
-    _t = (db.query(Trip.start_lat)
+    _t = (db.query(Trip.start_lat, Trip.start_lon)
           .filter(Trip.rider_store_id == ws.store_id,
                   Trip.validation_status == "validated", Trip.start_lat.isnot(None))
           .order_by(Trip.start_utc.desc()).first())
@@ -369,6 +370,12 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
            "can_found": crews.can_found(db, ws.store_id),
            "creation_open": cfg["creation_open"],
            "rider_week_cap_km": out_cap,
+           # Where this rider last rode. "74 km from here" in the join list was measured from
+           # the MAP CENTRE, so it changed every time the camera moved and the list is sorted
+           # by it: a reviewer watched one crew go 38 km -> 227 km and fall from first to
+           # fourth, and another go 175 -> 74 and take its place, without either crew or the
+           # rider moving at all. "Here" has to mean the rider.
+           "home": ({"lat": _t[0], "lon": _t[1]} if _t and _t[1] is not None else None),
            "cooldown_until": None, "crew": None, "role": None, "status": None}
     until = crews.cooldown_until(db, ws.store_id)
     if until:
@@ -814,6 +821,36 @@ def claim_leadership(slug: str, request: Request, db: Session = Depends(get_db))
     except crews.CrewError as e:
         raise _err(e)
     return {"ok": True}
+
+
+@router.post("/crews/{slug}/newcode")
+def new_invite_code(slug: str, request: Request, db: Session = Depends(get_db)):
+    """A fresh invite code, retiring the old one.
+
+    The code was generated once when the crew was founded and could never be changed, which
+    makes it an unrevocable credential: anybody who ever saw it -- a screenshot in a chat, a
+    photo of somebody's phone, a rider who has since left -- could let themselves into an
+    invite-only crew for the rest of the crew's life, and the leader had no way to stop them.
+
+    A leader only, not an officer. Officers can let riders in one at a time, which is a
+    decision somebody reviews; turning over the code changes who can get in without anybody
+    reviewing anything, and it breaks every link already handed out.
+
+    This is also what makes the printed code on a backpack worth having: it carries the slug,
+    so it goes on working across a rotation. The Share card says so, and until now that was a
+    promise about something that could not happen.
+    """
+    _gate(db)
+    ws = _require_session(request, db)
+    clan = _clan_by_slug(db, slug)
+    m = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == clan.clan_id, ClanMember.store_id == ws.store_id,
+                 ClanMember.left_at.is_(None)).first())
+    if m is None or m.role != "leader":
+        raise HTTPException(403, "forbidden")
+    clan.invite_code = uuid.uuid4().hex[:8].upper()
+    db.commit()
+    return {"ok": True, "invite_code": clan.invite_code}
 
 
 @router.post("/crews/{slug}/edit")
