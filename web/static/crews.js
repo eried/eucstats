@@ -234,9 +234,31 @@
   // added now, so the two cannot drift again.
   var LAYERS = [];
 
+  // Underneath the basemap's labels. Every layer this file adds is a fill or a line -- there
+  // is not one symbol layer among the thirteen -- and they were all appended on top of the
+  // style, which put a crew's colour over the place names. At the zooms the mode itself flies
+  // you to, "OSLO" under Holmenkollen's tan and the neighbourhood name under Cykelslangen's
+  // lilac were effectively unreadable while identical labels a hundred pixels outside the
+  // fill read fine. That is the one screen whose entire job is answering "where do I ride",
+  // and the answer is a place name.
+  //
+  // Lowering the opacity was the wrong lever -- it has been tuned twice already and the
+  // territory is meant to read as solid ground. A choropleth belongs under the labels, which
+  // is what `beforeId` is for. Recomputed per call rather than cached: a style switch wipes
+  // the layer list and `buildLayers` runs again against a different basemap.
+  function labelsStart() {
+    try {
+      var ls = map.getStyle().layers || [];
+      for (var i = 0; i < ls.length; i++) {
+        if (ls[i].type === "symbol") return ls[i].id;
+      }
+    } catch (e) {}
+    return undefined;        // no labels in this style: append, as before
+  }
+
   function addLayer(spec) {
     if (LAYERS.indexOf(spec.id) < 0) LAYERS.push(spec.id);
-    map.addLayer(spec);
+    map.addLayer(spec, labelsStart());
   }
 
   function cursorPointer() { map.getCanvas().style.cursor = "pointer"; }
@@ -337,6 +359,7 @@
 
   function clearLayers() {
     map.off("zoom", onZoom);
+    map.off("moveend", onZoom);
     map.off("click", "crew-fill", onCellClick);
     map.off("mouseenter", "crew-fill", cursorPointer);
     map.off("mouseleave", "crew-fill", cursorDefault);
@@ -561,6 +584,15 @@
     // left three more delegated listeners behind, each running its own hit test on every
     // mouse move.
     map.on("zoom", onZoom);
+    // `zoom` fires throughout an ease and stops when the ease does, so the last one lands
+    // somewhere short of the camera's resting position -- and `declutterEmblems` compares
+    // SCREEN positions, which keep moving after it. A reviewer measured the consequence:
+    // two 34px badges 8px and 24px apart at rest, well inside the 27.2px the overlap test
+    // uses, both still visible, one covering the corner of the other. The computation was
+    // right and was never run at the position it was judging. `moveend` fires once the
+    // camera has actually stopped, for a wheel ease, a drag, a `flyTo` and the `fitBounds`
+    // that Highlight and the standings rows use.
+    map.on("moveend", onZoom);
     map.on("click", "crew-fill", onCellClick);
     map.on("mouseenter", "crew-fill", cursorPointer);
     map.on("mouseleave", "crew-fill", cursorDefault);
@@ -599,7 +631,10 @@
       // The biggest patch, like the board, the join list and the crew's own page. This was
       // `crew.km2` -- everything they hold anywhere -- so the marker printed 209 km2 beside a
       // join row reading 137 for the same crew at the same moment.
-      el.title = crew.name + " · " + fmtKm2(crew.best_km2 != null ? crew.best_km2 : crew.km2);
+      // Both numbers, same order as the join list and for the same reason: the tooltip was
+      // quoting km2 alone, which is not what the standings are built on.
+      el.title = crew.name + " · " + tiles(crew.best_tiles || crew.tiles || 0)
+        + " · " + fmtKm2(crew.best_km2 != null ? crew.best_km2 : crew.km2);
       el.dataset.s = s;
       el.dataset.n = r.n || 1;              // region size, which decides how long it survives
       // NOT a tab stop. `pressable` gives a div a role, a name, Enter and Space, which is
@@ -690,13 +725,23 @@
       var hide = false;
       if (e.px >= 16) {
         for (var i = 0; i < kept.length; i++) {
-          // Both boxes are squares centred on their point, so they collide when the centres
-          // are closer than the mean half-width in BOTH axes. 0.8 of it, so two badges that
-          // merely graze at a corner both survive -- the complaint is about a badge sitting
-          // on top of another one, not about them being near each other.
-          var reach = (e.px + kept[i].px) / 2 * 0.8;
-          if (Math.abs(e.p.x - kept[i].p.x) < reach
-              && Math.abs(e.p.y - kept[i].p.y) < reach) { hide = true; break; }
+          // How much of the smaller badge is actually covered, rather than how close the two
+          // centres are. The first version of this compared centre distance against 0.8 of
+          // the mean half-width, which sounds equivalent and is not: at 34px it tolerates
+          // nearly 7px of real overlap in each axis before it fires. A reviewer found the
+          // gap it leaves -- two 34px badges overlapping 25x6, one sitting on the corner of
+          // the other, 28px apart vertically against a 27.2px threshold, so it missed by
+          // eight tenths of a pixel. Area answers the question the eye is asking.
+          //
+          // 8%: the 25x6 case is 13% and goes; a genuine corner graze of a few pixels is
+          // about 1% and stays, which is the tolerance the old factor was reaching for.
+          var ox = Math.min(e.p.x + e.px / 2, kept[i].p.x + kept[i].px / 2)
+                 - Math.max(e.p.x - e.px / 2, kept[i].p.x - kept[i].px / 2);
+          var oy = Math.min(e.p.y + e.px / 2, kept[i].p.y + kept[i].px / 2)
+                 - Math.max(e.p.y - e.px / 2, kept[i].p.y - kept[i].px / 2);
+          if (ox <= 0 || oy <= 0) continue;
+          var small = Math.min(e.px, kept[i].px);
+          if ((ox * oy) / (small * small) > 0.08) { hide = true; break; }
         }
       }
       if (hide) {
@@ -3490,6 +3535,44 @@
     return '<p class="crewsince">' + t("crew.since.h") + " " + bits.join(" &middot; ") + "</p>";
   }
 
+  // One of the three one-shot notices has just been built into the HTML about to go on
+  // screen, so tell the server it has been said. `/crews/me` used to retire the notice as it
+  // reported it, which only works if exactly one GET is ever made per page -- and the panel
+  // makes three, two of them 3ms apart. The first spent the news and the render saw nothing,
+  // so being turned down, being removed and having your crew fold under you were all
+  // written, translated nineteen times, and never shown to anybody.
+  //
+  // Fired once per notice per panel build; the endpoint is idempotent, so a repaint costs
+  // nothing and a dropped request only means the card appears again, which is the safe way
+  // round for news this reader has to act on.
+  var noticeAcked = null;
+  // And held, for the life of the panel. Making the GET idempotent fixed the server half and
+  // left a client half: the panel fires four requests in `render()` and `primeDock` fires its
+  // own, so a fetch ISSUED after the acknowledgement comes back without the notice and the
+  // render it drives blanks the card the previous render just put up. Measured: the ack went
+  // out, and the finished page showed the plain join list with no mention of the refusal.
+  // So once a notice has been seen it stays on screen until the rider is in a crew or the
+  // panel is closed, whatever later responses say.
+  var heldNotice = null;
+
+  function ackNotice(kind) {
+    if (!kind || noticeAcked === kind) return;
+    noticeAcked = kind;
+    api("POST", "/api/v1/crews/notices/seen", { kind: kind });
+  }
+
+  // Remember whichever notice a response carried, and put it back into one that has stopped
+  // carrying it. Order matches the render chain below, so the card that wins here is the card
+  // that would have won there.
+  function holdNotice(me) {
+    if (!me || !me.paired) return;
+    if (me.crew) { heldNotice = null; noticeAcked = null; return; }
+    if (me.removed_by) heldNotice = { k: "removed_by", v: me.removed_by };
+    else if (me.folded) heldNotice = { k: "folded", v: me.folded };
+    else if (me.declined_by) heldNotice = { k: "declined_by", v: me.declined_by };
+    else if (heldNotice) me[heldNotice.k] = heldNotice.v;
+  }
+
   // The same comparison, read-only, for the dock badge.
   function sinceNews(c, terr) {
     if (!c || !c.slug) return false;
@@ -4341,7 +4424,15 @@
           // instead, which separates them at every width and has nothing to strand. The
           // single space in the markup keeps the text layer from reading `6 off 8th4 riders`,
           // which is why a separator was put here in the first place.
+          // Squares BEFORE km2, because squares is what the board ranks on and this list was
+          // printing only the other one. A rider choosing a crew here read "Five Borough Crew
+          // 103 km2" next to "Ringbahn Runners 67 km2" and had no way to see that the board
+          // has them level on 30 squares each -- or that Equator Express, third-largest in
+          // km2 on screen, sits 13th. `_crew_brief` has carried `tiles` all along; the row
+          // simply never rendered it. The board, the crew's own card and its public page all
+          // lead with squares; the two surfaces a stranger actually chooses from did not.
           var sub = [riders(c.members), policy]
+            .concat(c.tiles ? [tiles(c.tiles)] : [])
             .concat(c.km2 ? [fmtKm2(c.km2)] : [])
             .concat(c._km == null ? [] : [t("crew.join.away", { v: fmtKm(c._km) })])
             .map(function (f) { return '<span class="crewfact">' + f + "</span>"; })
@@ -4396,13 +4487,23 @@
 
   // The filter and the toggle, over rows already in the DOM: the list is at most sixty and
   // the whole point is that neither costs a request.
+  // Whether the join list is unfolded, and the current list's repaint. Both used to live
+  // inside `bindList`'s closure, which is rebuilt on every render -- so an unfolded list
+  // silently re-folded itself whenever anything repainted the panel, and `offerInvite`'s
+  // `more.click()` was undone a few milliseconds after it ran. A reviewer scanned the sticker
+  // of an invite-only crew -- the only discovery path those crews have -- and landed in a
+  // list of six crews that did not contain it, with the row present at 0x0 inside `[hidden]`
+  // and nothing on screen naming the crew. That is the whole arrival, silently dropped, for
+  // any crew outside the nearest six.
+  var listOpen = false;
+  var paintList = null;
+
   function bindList() {
     var list = document.getElementById("cj-list");
-    if (!list) return;
+    if (!list) { paintList = null; return; }
     var rows = [].slice.call(list.querySelectorAll(".crewrow"));
     var more = document.getElementById("cj-more");
     var box = document.getElementById("cj-filter");
-    var open = false;
 
     function paint() {
       var q = box ? box.value.trim().toLowerCase() : "";
@@ -4410,7 +4511,7 @@
       rows.forEach(function (r, i) {
         var hit = !q || (r.dataset.name || "").indexOf(q) >= 0;
         // Typing searches the whole set; without a query the six nearest stand alone.
-        r.hidden = !hit || (!q && !open && r.classList.contains("crewrest"));
+        r.hidden = !hit || (!q && !listOpen && r.classList.contains("crewrest"));
         if (hit) shown++;
       });
       // Nothing to expand while a query is narrowing the list.
@@ -4446,7 +4547,7 @@
           // Expanded, not merely unfiltered. Clearing alone dropped the list back to its six
           // nearest with a second "Show all 22" immediately below it -- two presses for what
           // one button names, and the second is the very duplicate this card suppresses.
-          open = true;
+          listOpen = true;
           if (more) {
             more.setAttribute("aria-expanded", "true");
             more.textContent = t("crew.join.fewer");
@@ -4460,11 +4561,20 @@
       }
     }
 
+    // Reachable from `offerInvite`, which must not depend on a click handler being bound
+    // yet, and must not be undone by the next repaint.
+    paintList = paint;
+    // The button is rebuilt with its default label, so the remembered state has to be put
+    // back onto it or the list and its own control disagree.
+    if (more && listOpen) {
+      more.setAttribute("aria-expanded", "true");
+      more.textContent = t("crew.join.fewer");
+    }
     if (box) box.oninput = paint;
     if (more) more.onclick = function () {
-      open = !open;
-      more.setAttribute("aria-expanded", open ? "true" : "false");
-      more.textContent = open ? t("crew.join.fewer")
+      listOpen = !listOpen;
+      more.setAttribute("aria-expanded", listOpen ? "true" : "false");
+      more.textContent = listOpen ? t("crew.join.fewer")
                               : t("crew.join.all", { n: rows.length });
       paint();
       // Expanding pushed the button 1,225px down the panel, so "Show fewer" was below the
@@ -4484,10 +4594,20 @@
     // Spent, whether or not the rider goes through with it: a refresh should not reopen this.
     var inv = INVITE;
     INVITE = null;
-    // The row may be one of the fifteen the list folds away, in which case the button exists
-    // and cannot be pressed. Unfold first.
-    var more = document.getElementById("cj-more");
-    if (more && btn.closest("[hidden]")) more.click();
+    // The row may be one of the twenty-eight the list folds away, in which case the button
+    // exists and cannot be pressed. Unfold by setting the state and repainting, rather than
+    // by synthesising a click on a control whose handler belongs to a closure that the next
+    // render replaces: `more.click()` unfolded the list and the following repaint folded it
+    // straight back, so the row stayed 0x0 and hidden and the arrival went nowhere.
+    if (btn.closest("[hidden]")) {
+      listOpen = true;
+      if (paintList) paintList();
+      var more = document.getElementById("cj-more");
+      if (more) {
+        more.setAttribute("aria-expanded", "true");
+        more.textContent = t("crew.join.fewer");
+      }
+    }
     btn.scrollIntoView({ block: "center" });
     // Say which row. Arriving from a sticker and being dropped at a scroll position in a list
     // of thirty-four is the same as being dropped at the top of it.
@@ -4771,6 +4891,7 @@
         return;
       }
       var me = res[0].ok ? res[0].body : { paired: false };
+      holdNotice(me);
       ME = me;
       // The pulse layer is built before this resolves, so without re-applying the filter it
       // always took the "every crew" branch and your own ground never stood out.
@@ -4845,6 +4966,7 @@
           // free themselves to act on it.
           + (me.status === "pending" ? joinHTML(all, me) : "");
       } else if (me.removed_by) {
+        ackNotice("removed");
         own += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
           + '<p class=hint>' + t("crew.removed.p", { name: esc(me.removed_by) })
           + "</p></div>"
@@ -4855,6 +4977,7 @@
           + (me.can_found && me.creation_open && !me.cooldown_until
              ? createHTML(window.__CREWIDENT__ || null) : "")
       } else if (me.folded) {
+        ackNotice("folded");
         own += '<div class="crewcard"><h3>' + t("crew.folded.h") + "</h3>"
           + '<p class=hint>' + t("crew.folded.p", { name: esc(me.folded) }) + "</p></div>"
           // Joining first. A reviewer's tap-count table puts "newcomer to in a crew" as the
@@ -4874,6 +4997,7 @@
         // says what the rider can do, so it is the one that stays; the decline was already
         // announced when it happened. Splitting the sentence to keep the half that is still
         // true would be a new string in nineteen tables for a card nobody can act on.
+        ackNotice("declined");
         own += '<div class="crewcard"><h3>' + t("crew.declined.h") + "</h3>"
           + '<p class=hint>' + t("crew.declined.p", { name: esc(me.declined_by) })
           + "</p></div>"
@@ -5333,7 +5457,13 @@
     // nobody is looking at the code
     // The panel slid away; the mode is still on and the map is still painted. Recording it
     // is what lets anything reopen the panel -- see the two flags at the top.
-    panelClosed: function () { panelOpen = false; stopPairing(); syncKey(); },
+    // `heldNotice` goes with it: the notice has been read and acknowledged, so holding it
+    // past the close of the panel would resurrect a spent card on the next visit. Held for
+    // this reading, not for ever.
+    panelClosed: function () {
+      panelOpen = false; heldNotice = null; noticeAcked = null;
+      stopPairing(); syncKey();
+    },
     hide: function () {
       if (!visible) return;
       visible = false;

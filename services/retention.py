@@ -16,17 +16,29 @@ def free_gb(path: str) -> float:
 
 
 def _sweep_spent_notices(db, now) -> int:
-    """Membership rows whose only job was to carry one notice, long since read.
+    """Membership rows whose only job was to carry one notice, long since unreadable.
 
     `*_seen` means a rider has been told their request was declined, their crew folded or
     they were removed. The notice is bounded to a week, so after that the row cannot be read
     again by anything -- it is a tombstone, one per rider per crew per event, kept for ever.
+
+    The WAITING statuses go the same way at the same age, and have to. While a notice was
+    retired by the act of reading it, almost every row reached `*_seen` within a page load
+    and this sweep saw nearly all of them. Reading is a peek now -- it had to become one, or
+    the notice never reached the reader at all; see `crews.last_answer` -- so a rider who is
+    turned down and never comes back leaves a row that stays `declined` for ever. Its own
+    seven-day window has already made it unreadable, which is the whole of the argument
+    above: at thirty days an unacknowledged notice is exactly as dead as an acknowledged one,
+    and keeping it is keeping a tombstone with a different name on it.
+
+    `left_at IS NOT NULL` is what makes this safe: an active membership never has one.
     """
     from datetime import timedelta
     from models import ClanMember
     cutoff = now - timedelta(days=30)
     n = (db.query(ClanMember)
-         .filter(ClanMember.status.in_(("declined_seen", "disbanded_seen", "removed_seen")),
+         .filter(ClanMember.status.in_(("declined_seen", "disbanded_seen", "removed_seen",
+                                        "declined", "disbanded", "removed")),
                  ClanMember.left_at.isnot(None), ClanMember.left_at < cutoff)
          .delete(synchronize_session=False))
     if n:

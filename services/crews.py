@@ -145,7 +145,10 @@ def slugify(name: str) -> str:
     return s or uuid.uuid4().hex[:8]
 
 
-RESERVED_SLUGS = {"drawn", "identity", "me", "signout", "ranking", "all", "new", "search"}
+RESERVED_SLUGS = {"drawn", "identity", "me", "signout", "ranking", "all", "new", "search",
+                  # `POST /crews/notices/seen` -- a crew on this slug would shadow the route
+                  # that retires the turned-down / removed / folded notices.
+                  "notices"}
 
 
 def free_slug(db, name: str) -> str:
@@ -543,7 +546,8 @@ def decide(db, actor: str, clan_id: str, store_id: str, accept: bool) -> None:
 def last_fold(db, store_id: str) -> dict | None:
     """A crew that folded under this rider and has not been mentioned to them yet.
 
-    Same channel as last_answer and the same rule: said once, and only while it is news.
+    Same channel as last_answer and the same rule: said once, and only while it is news --
+    but "said" means SHOWN, which this function cannot know. See `mark_notice_seen`.
     """
     m = (db.query(ClanMember)
          .filter(ClanMember.store_id == store_id, ClanMember.status == "disbanded",
@@ -553,8 +557,6 @@ def last_fold(db, store_id: str) -> dict | None:
     if m is None:
         return None
     clan = db.get(Clan, m.clan_id)
-    m.status = "disbanded_seen"
-    db.commit()
     if clan is None:
         return None
     tag = f" (folded {clan.clan_id[:6]})"
@@ -576,7 +578,18 @@ def is_full(db, clan_id: str) -> bool:
 def last_answer(db, store_id: str) -> dict | None:
     """A decision this rider has not been shown yet, if there is one.
 
-    Read once and cleared, because a crew saying no is news briefly and clutter after that.
+    This used to clear the flag as it read it, and a GET that mutates is only safe when
+    exactly one caller ever makes it. The panel makes three per load -- `primeDock`, `show`
+    and the territory pass, two of them 3ms apart -- so whichever landed first spent the
+    news and the one whose response actually reaches `render()` saw nothing. A reviewer
+    pressed "No" on a request, loaded the page as the applicant, polled for three seconds
+    and never saw the card; two curl fetches back to back returned the crew name and then
+    an empty object. All three notices -- turned down, removed, folded under you -- are the
+    only moments in this feature that carry any weight, and all three had been written,
+    translated into nineteen languages, and were unreachable.
+
+    So reading is a peek now, and `mark_notice_seen` is what spends it -- called by the
+    client once the card is on screen, which is the only place that knows it was shown.
     """
     m = (db.query(ClanMember)
          .filter(ClanMember.store_id == store_id, ClanMember.status == "declined",
@@ -589,9 +602,7 @@ def last_answer(db, store_id: str) -> dict | None:
     if m is None:
         return None
     clan = db.get(Clan, m.clan_id)
-    m.status = "declined_seen"
-    db.commit()
-    # Nothing to say if the crew folded in the meantime, and the row is spent either way.
+    # Nothing to say if the crew folded in the meantime.
     return {"crew": clan.name} if clan and clan.disbanded_at is None else None
 
 
@@ -662,7 +673,8 @@ def remove(db, actor: str, clan_id: str, store_id: str) -> None:
 
 
 def last_removal(db, store_id: str) -> dict | None:
-    """Told once, like a decline and like a crew folding under you."""
+    """Told once, like a decline and like a crew folding under you -- and, like both of
+    them, told once means told once it has been SHOWN. See `mark_notice_seen`."""
     m = (db.query(ClanMember)
          .filter(ClanMember.store_id == store_id, ClanMember.status == "removed",
                  ClanMember.left_at.isnot(None),
@@ -671,9 +683,40 @@ def last_removal(db, store_id: str) -> dict | None:
     if m is None:
         return None
     clan = db.get(Clan, m.clan_id)
-    m.status = "removed_seen"
-    db.commit()
     return {"crew": clan.name} if clan and clan.disbanded_at is None else None
+
+
+# The three one-shot notices, by the status they are waiting in and the status they move to
+# once the rider has actually been shown them.
+NOTICE_STATUS = {
+    "declined": ("declined", "declined_seen"),
+    "removed": ("removed", "removed_seen"),
+    "folded": ("disbanded", "disbanded_seen"),
+}
+
+
+def mark_notice_seen(db, store_id: str, kind: str) -> bool:
+    """Spend one notice, now that the panel has drawn it.
+
+    Separated from the readers above so that reading is idempotent: any number of concurrent
+    GETs report the same news, and the single client that renders it is what retires it.
+    Idempotent itself -- a second call finds nothing in the waiting status and says so -- so
+    a double render or a retried request costs nothing.
+    """
+    pair = NOTICE_STATUS.get(kind)
+    if not pair:
+        return False
+    waiting, seen = pair
+    m = (db.query(ClanMember)
+         .filter(ClanMember.store_id == store_id, ClanMember.status == waiting,
+                 ClanMember.left_at.isnot(None),
+                 ClanMember.left_at >= utcnow() - timedelta(days=7))
+         .order_by(ClanMember.left_at.desc()).first())
+    if m is None:
+        return False
+    m.status = seen
+    db.commit()
+    return True
 
 
 def claim_eligible(db, store_id: str, clan_id: str) -> bool:

@@ -417,6 +417,14 @@
 /* The tip was hidden for tidiness, which on a map where every square looks like every other
    square left the box ambiguous about which one it was describing. */
 .crewpop .maplibregl-popup-tip { display: block; }
+/* Above the map key. The key is `z-index: 3` and the popup had none, so at 390px the key's
+   panel covered the bottom 10px of a 44px "Highlight" button -- `elementFromPoint` at the
+   button's lower edge returned the key's own `<summary>`, so a tap along that strip collapsed
+   the key instead of highlighting the patch, and the real target was 91x34. The key is
+   furniture that is always there; the popup is a thing the reader has just asked for, so the
+   popup wins. `.crewpop` is on the MARKER wrapper -- maplibre puts the class on the outer
+   `.maplibregl-popup` -- which is the element that carries the stacking. */
+.maplibregl-popup.crewpop { z-index: 4; }
 .crewpop-in { display: flex; align-items: center; gap: 10px; }
 .crewpop-in img { width: 34px; height: 34px; }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
@@ -522,6 +530,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* Somebody is waiting on an answer. The count repeats on the shut accordion summary and
    beside the heading, because the list itself used to be 4.6 screenfuls down a panel. */
 .crewknock h4 { display: flex; align-items: center; gap: 8px; }
+/* Both decisions get a real target. A reviewer measured "No" at 39x44 -- under the 44px
+   minimum on its short axis -- sitting 8px from a 56px "Let in", which is a mis-tap waiting
+   to happen on the one row where the two outcomes are opposite. The decision is reversible
+   (the declined list carries an Undo), so the answer is a bigger target rather than a confirm
+   in front of an act that can be taken back. */
+.crewknock .crewbtn { min-width: 44px; }
 .crewknockn, .crewsumdot {
   min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
   background: var(--sec, #ff8ad8); color: #140a11; text-align: center;
@@ -1015,6 +1029,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewtrow {
   display: flex; align-items: flex-start; gap: 9px; padding: 6px 8px; margin: 0 -8px;
   border-top: 1px solid rgba(255,255,255,.05); cursor: pointer; font-size: 13px;
+  /* So a consequence clause with nowhere left on the line drops to its own line instead of
+     being squeezed into a 53px column -- see `.crewtquiet`. Declared here, in the base rule,
+     rather than appended at the end of the file: the phone block sets its own `row-gap: 3px`
+     and a later top-level declaration would outrank it. The cascade checker caught exactly
+     that, which is the second time this file's media block has been the thing I broke. */
+  flex-wrap: wrap; row-gap: 2px;
 }
 .crewtrow:first-of-type { border-top: 0; }
 .crewtrow:hover { background: rgba(255,138,216,.1); }
@@ -1459,7 +1479,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    `drückt sie auf 90` needs 85px against 81, `les fait tomber à 90` 98 against 94 and
    `збиває їх до 90` 76 against 74 -- two to four pixels short, two lines each, and the first
    row of the list opened ragged in three locales and square in the rest. */
-.crewtquiet { flex: 0 1 auto; margin-left: auto; max-width: 50%; font-size: 11px;
+/* `flex-shrink: 1` let this be squeezed to whatever the two columns before it left over,
+   and on a desktop that was 53px -- so "drops them to 90", the consequence clause that is the
+   whole point of the row, set as "drops / them to / 90" across three lines, 41px tall, inside
+   a 450px row with slack in the middle column. The same string sits on one line at 390px,
+   where the phone rule below gives it a line of its own, so the wide layout was reading worse
+   than the narrow one.
+   It keeps its content width now (`flex-shrink: 0`) up to half the row, and the row wraps so
+   that a clause with nowhere to go drops to its own line instead of being milled into a
+   column. `flex-wrap` on the row rather than `flex-basis: 100%` on this: most rows have room
+   for it on the first line and should keep it there, beside the number it qualifies. */
+.crewtquiet { flex: 0 0 auto; margin-left: auto; max-width: 50%; font-size: 11px;
   text-align: right; line-height: 1.25; color: var(--mut, #9aa6c8); opacity: .8; }
 @media (max-width: 560px) {
   .crewtquiet { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }

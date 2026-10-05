@@ -354,7 +354,17 @@ def test_a_rider_is_told_once_that_their_crew_folded(db):
     crews.disband(db, "tf1", c.clan_id)
     first = crews.last_fold(db, "tf2")
     assert first and first["crew"] == "Here Today", "and without the retirement tag"
+    # Reading it again still reports it. This assertion used to be `is None` -- the reader
+    # retired the notice as it read it -- and that is exactly the bug: the panel makes three
+    # `/crews/me` requests per load, so the first one spent the news and the render that
+    # reached the screen saw nothing. All three of these notices were written, translated into
+    # nineteen languages, and shown to nobody. The reader is a peek now.
+    assert crews.last_fold(db, "tf2") == first, "a read must not spend it"
+    assert crews.last_fold(db, "tf2") == first, "however many times it is read"
+    # Told once still holds -- it is the panel that says when, once the card is on screen.
+    assert crews.mark_notice_seen(db, "tf2", "folded") is True
     assert crews.last_fold(db, "tf2") is None, "news once, not for ever"
+    assert crews.mark_notice_seen(db, "tf2", "folded") is False, "and spending it twice is a no-op"
 
 
 def test_restoring_a_crew_gives_back_its_name_and_its_riders(db):
@@ -402,6 +412,10 @@ def test_a_leader_can_take_somebody_off_the_crew(db):
     assert crews.cooldown_until(db, "kk2") is None, "being removed is not walking out"
     gone = crews.last_removal(db, "kk2")
     assert gone and gone["crew"] == "House Rules"
+    # Same contract as the folded notice above, and for the same reason: reading reports,
+    # acknowledging retires. See `crews.last_answer` for the measurement.
+    assert crews.last_removal(db, "kk2") == gone, "a read must not spend it"
+    assert crews.mark_notice_seen(db, "kk2", "removed") is True
     assert crews.last_removal(db, "kk2") is None, "told once"
 
 

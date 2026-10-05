@@ -259,8 +259,26 @@ def test_a_declined_rider_is_told_once(client, db):
     client.cookies.set(pairing.COOKIE, asker)
     first = client.get("/api/v1/crews/me").json()
     assert first.get("declined_by") == "Picky"
+    # GET is idempotent. It used to retire the notice as it reported it, which is only safe
+    # when exactly one caller ever makes it -- and the panel makes three per load, two of them
+    # 3ms apart. The first spent the news and the render that reached the screen saw nothing,
+    # so a rider was never told they had been turned down. A reviewer polled for three seconds
+    # and never saw the card.
     again = client.get("/api/v1/crews/me").json()
-    assert again.get("declined_by") is None, "news once, not for ever"
+    assert again.get("declined_by") == "Picky", "a GET must not spend the notice"
+    third = client.get("/api/v1/crews/me").json()
+    assert third.get("declined_by") == "Picky", "however many times it is fetched"
+
+    # The panel says when it has been shown, and THEN it is spent.
+    ack = client.post("/api/v1/crews/notices/seen", json={"kind": "declined"})
+    assert ack.status_code == 200 and ack.json()["spent"] is True, ack.text
+    after = client.get("/api/v1/crews/me").json()
+    assert after.get("declined_by") is None, "news once, not for ever"
+    # Idempotent too, so a repaint or a retried request costs nothing.
+    assert client.post("/api/v1/crews/notices/seen",
+                       json={"kind": "declined"}).json()["spent"] is False
+    assert client.post("/api/v1/crews/notices/seen",
+                       json={"kind": "nonsense"}).status_code == 400
 
 
 def test_being_turned_down_costs_no_cooldown(client, db):
@@ -365,6 +383,9 @@ def test_a_rider_is_told_their_crew_folded(client, db):
     client.cookies.set(pairing.COOKIE, member)
     me = client.get("/api/v1/crews/me").json()
     assert me.get("folded") == "Here Today"
+    # Read, not spent -- the panel's three concurrent `/crews/me` calls must all see it.
+    assert client.get("/api/v1/crews/me").json().get("folded") == "Here Today"
+    assert client.post("/api/v1/crews/notices/seen", json={"kind": "folded"}).json()["spent"]
     assert client.get("/api/v1/crews/me").json().get("folded") is None
 
 

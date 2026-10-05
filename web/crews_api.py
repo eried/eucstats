@@ -570,6 +570,24 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
 
 # --- crews --------------------------------------------------------------------------------
 
+@router.post("/crews/notices/seen")
+def notice_seen(payload: dict, request: Request, db: Session = Depends(get_db)):
+    """The panel confirming it has drawn one of the three one-shot notices.
+
+    Declared ahead of the `/crews/{slug}/...` routes so no crew slug can shadow it, and
+    `notices` is reserved in `crews.RESERVED_SLUGS` so none can be minted that would.
+
+    `/crews/me` used to retire these notices as it reported them, which made the whole
+    mechanism depend on exactly one GET per page -- and the panel makes three. See
+    `crews.last_answer` for the measurement.
+    """
+    ws = _require_session(request, db)
+    kind = (payload.get("kind") or "").strip()
+    if kind not in crews.NOTICE_STATUS:
+        raise HTTPException(400, "bad_kind")
+    return {"ok": True, "spent": crews.mark_notice_seen(db, ws.store_id, kind)}
+
+
 @router.get("/crews")
 def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
     _gate(db)

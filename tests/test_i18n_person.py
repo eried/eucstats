@@ -439,7 +439,10 @@ SHARED = {
 HOME = {
     "crew.signin.": {"signInHTML", "startPairing", "offerRetry", "qrGrid", "inviteNote"},
     "crew.mine.": {"myCrewHTML", "bindMine", "leaveQuestion", "contributorsHTML", "errMsg"},
-    "crew.join.": {"joinHTML", "bindJoin", "bindList", "askFor"},
+    # `offerInvite` is the join card's arrival path: it unfolds the list and has to put the
+    # list's own "Show fewer" label back on the toggle, because it changed the state that
+    # label describes. Same card, same reader.
+    "crew.join.": {"joinHTML", "bindJoin", "bindList", "askFor", "offerInvite"},
     # `bindHelp` renders `crew.how.h` as the modal's title; `explainer` builds the body
     # it titles. One card, split across the control that opens it and the content it
     # opens, which is what a dialog is.

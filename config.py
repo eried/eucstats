@@ -109,7 +109,14 @@ RATE_TRIP_PER_IP = int(os.environ.get("EUCSTATS_RATE_TRIP_PER_IP", "200"))      
 # Crew pairing. The confirm limit is the one that matters: it is what stops a six-character
 # pairing code being guessed. Tunable rather than hard-coded, because a limit that cannot be
 # adjusted while something is happening is a limit that gets commented out instead.
-RATE_PAIR_START_PER_IP = int(os.environ.get("EUCSTATS_RATE_PAIR_START_PER_IP", "30"))      # pairings opened / hour / IP
+# 30 was far too tight, because opening a code is not a deliberate act: the signed-out Crews
+# panel shows a QR, so SHOWING the panel spends one. Thirty curious visits an hour behind one
+# office, cafe or household NAT and everybody on that address is locked out of signing in for
+# the rest of the hour -- and what they get where the QR was is an em dash. A reviewer hit it
+# twice in one review from a single machine. This is flood protection only; per the note above,
+# the limit that stops a six-character code being guessed is the CONFIRM one, which is
+# unchanged at 20/hour/IP and 20/hour/rider. 300/hour is still five a minute sustained.
+RATE_PAIR_START_PER_IP = int(os.environ.get("EUCSTATS_RATE_PAIR_START_PER_IP", "300"))     # pairings opened / hour / IP
 RATE_PAIR_CONFIRM_PER_IP = int(os.environ.get("EUCSTATS_RATE_PAIR_CONFIRM_PER_IP", "20"))  # confirmations / hour / IP
 RATE_PAIR_CONFIRM_PER_RIDER = int(os.environ.get("EUCSTATS_RATE_PAIR_CONFIRM_PER_RIDER", "20"))
 RATE_CREW_WRITE_PER_SESSION = int(os.environ.get("EUCSTATS_RATE_CREW_WRITE_PER_SESSION", "60"))

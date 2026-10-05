@@ -118,7 +118,10 @@ def test_the_spent_notice_rows_do_not_pile_up_for_ever(db):
     c = crews.create(db, "sw1", "Old News", join_policy="approval")
     crews.join(db, "sw2", c.clan_id)
     crews.decide(db, "sw1", c.clan_id, "sw2", accept=False)
-    crews.last_answer(db, "sw2")             # read it, which marks it spent
+    # Reading reports; acknowledging is what spends it. Reading used to do both, which is
+    # why a rider was never told they had been turned down -- see `crews.last_answer`.
+    assert crews.last_answer(db, "sw2")      # reported
+    crews.mark_notice_seen(db, "sw2", "declined")      # and now spent
 
     row = (db.query(ClanMember)
            .filter(ClanMember.store_id == "sw2", ClanMember.clan_id == c.clan_id).one())
@@ -129,6 +132,34 @@ def test_the_spent_notice_rows_do_not_pile_up_for_ever(db):
     assert _sweep_spent_notices(db, utcnow()) == 1
     assert (db.query(ClanMember)
             .filter(ClanMember.store_id == "sw2", ClanMember.clan_id == c.clan_id)
+            .count()) == 0
+
+
+def test_a_notice_nobody_ever_read_is_swept_too(db):
+    """The row a rider who never came back leaves behind.
+
+    While reading a notice retired it, essentially every one of these reached `*_seen` within
+    a page load, so the sweep saw them all. Reading is a peek now -- it had to become one or
+    the notice never reached anybody -- which means a rider who is turned down and never opens
+    the panel again leaves a row sitting in `declined` for ever. It stopped being readable
+    after seven days, so past thirty it is a tombstone under a different name.
+    """
+    from datetime import timedelta
+    from services.retention import _sweep_spent_notices
+    _rider(db, "nv1")
+    _rider(db, "nv2")
+    c = crews.create(db, "nv1", "Never Looked", join_policy="approval")
+    crews.join(db, "nv2", c.clan_id)
+    crews.decide(db, "nv1", c.clan_id, "nv2", accept=False)
+    # nobody reads it, nobody acknowledges it
+    row = (db.query(ClanMember)
+           .filter(ClanMember.store_id == "nv2", ClanMember.clan_id == c.clan_id).one())
+    assert row.status == "declined", "still waiting to be shown"
+    row.left_at = utcnow() - timedelta(days=40)
+    db.commit()
+    assert _sweep_spent_notices(db, utcnow()) == 1
+    assert (db.query(ClanMember)
+            .filter(ClanMember.store_id == "nv2", ClanMember.clan_id == c.clan_id)
             .count()) == 0
 
 
