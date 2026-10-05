@@ -476,7 +476,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   clip-path: inset(50%); white-space: nowrap;
 }
 .crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-transform: uppercase; letter-spacing: .5px; }
-.crewmine-wrap .crewcard { border: 0; border-left: 2px solid var(--sec, #ff8ad8); margin: 0; }
+/* No border at all: the wrapper draws one on all four sides and the card sits inside it.
+   The 2px accent that used to be here ran the full height of the tallest card in the
+   panel, which is a pull quote however the rest of it is styled. */
+.crewmine-wrap .crewcard { border: 0; margin: 0; }
 
 .crewcontrib { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
 .crewcrow { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12px; }
