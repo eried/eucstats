@@ -1245,6 +1245,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   font-size: 12px; font-weight: 600; color: #ff8ad8;
   margin-top: 3px; overflow-wrap: anywhere;
 }
+/* Ground nobody is taking is not a threat, so it is not in the threat's ink. Orange, which is
+   the colour this card already uses for the effort of getting back to a square -- the problem
+   here is that nobody has. */
+.crewthreats li.crewcold { color: #ff9f6b; font-weight: 400; }
 
 /* The exact moment a cooldown lifts, beside the sentence that says how long is left. Quieter
    than the sentence, because it is the precise version of something already said. */

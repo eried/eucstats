@@ -1619,6 +1619,12 @@
     }
     LOSING = [];
     if (!rows.length || !all.length) return "";
+    // A SUMMARY, not a decomposition of the headline. It names the biggest few threats and
+    // the cold remainder; a rival holding a single square, or a fourth rival below the top
+    // three, is left to the rows. The numbers happened to add to the total exactly on the
+    // dataset this was built against, which is luck rather than a property -- so it must not
+    // be relied on, and the headline stays the honest total of everything at risk.
+    //
     // Who is actually taking ground, and how much of it. Thirty-seven rows reading "a few
     // streets 1.1 km and it's theirs" with only the decimal changing is not thirty-seven
     // pieces of news; it is three or four crews closing in, said over and over. Grouped from
@@ -1633,6 +1639,15 @@
       byRival[who].n += 1;
       byRival[who].near = Math.min(byRival[who].near, r.need);
     });
+    // Ground going cold on its own: at risk, but with nobody coming for it. These are exactly
+    // the rows the rival lines above cannot speak for, which is why the numbers did not add up.
+    //
+    // NOT `cold`. There is already a `var cold` further down this same function -- the ARRAY
+    // of band-3 rows that `LOSING` is built from -- and `var` hoists, so naming this one
+    // `cold` meant the array had overwritten my count by the time the card rendered: the line
+    // came out as "[object Object],[object Object],... squares going cold". Same shape as the
+    // `.crewmore` class two cards shared, and `crewrow` against `crewrown`.
+    var noRival = rows.filter(function (r) { return r.rival == null; }).length;
     var threats = Object.keys(byRival)
       // More than one square, or the summary is the row again in different words.
       .filter(function (w) { return byRival[w].n > 1; })
@@ -1694,12 +1709,23 @@
       // The shape of the threat, before the thirty-seven instances of it. `tiles()` carries
       // the plural, the way `crew.board.gained` does, so this is one string rather than a
       // noun agreement in nineteen languages.
-      + (threats.length
+      + (threats.length || noRival > 1
          ? '<ul class="crewthreats">'
            + threats.map(function (w) {
                return "<li>" + esc(t("crew.lose.threat",
                                      { name: w, v: tiles(byRival[w].n) })) + "</li>";
              }).join("")
+           // The squares no rival is taking, so the lines above and the headline's total
+           // reconcile. A reviewer added 22 + 9 + 6 under "44 squares" and was seven short
+           // with nothing on the card accounting for it.
+           // More than one, like the rival lines above, and for a second reason as well as
+           // theirs: every locale's wording of this agrees with a PLURAL `{v}` -- "going cold
+           // with nobody on them", "{v} werden kalt" -- so a single square would read "1
+           // square ... on them" here and "1 Feld werden kalt" in German. The same shape as
+           // the two plural keys already pinned as xfails. One cold square is a row in the
+           // list below and needs no line of its own.
+           + (noRival > 1 ? '<li class="crewcold">'
+                            + esc(t("crew.lose.cold.n", { v: tiles(noRival) })) + "</li>" : "")
            + "</ul>"
          : "")
       + LOSING.map(function (x, i) {

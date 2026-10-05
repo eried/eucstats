@@ -258,6 +258,7 @@ EN_FINGERPRINT = {
     'crew.legend.note': 'a86cba7e49e9',
     'crew.legend.note.calm': 'fdc091fe268e',
     'crew.lose.cold': '6ce07de7b9cc',
+    'crew.lose.cold.n': 'c237f102e77d',
     'crew.lose.gap': '21c1b09b4118',
     'crew.lose.h': '694cf45fb4a4',
     'crew.lose.more': '4e0a069eef68',

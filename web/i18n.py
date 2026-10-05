@@ -163,6 +163,13 @@ EN: dict[str, str] = {
     # arrives already pluralised from `tiles()`, like `crew.board.gained`, so the noun
     # agreement is not nineteen translators' problem.
     "crew.lose.threat": "{name} is closing in on {v}.",
+    # The rest of the card's total, which the rival lines cannot account for: ground nobody is
+    # taking, that the crew has simply stopped riding. Without it the three threat numbers sat
+    # under a headline seven squares larger with nothing nearby to explain the gap. Its own
+    # string rather than `tiles()` plus the per-row `crew.lose.cold` fragment -- a counted
+    # sentence assembled out of another string's words is how `crew.how.7` shipped broken
+    # grammar to German and Russian. `{v}` arrives pluralised, like its sibling above.
+    "crew.lose.cold.n": "{v} going cold with nobody on them.",
     "crew.lose.gap": "{v} and it's theirs",
     "crew.lose.now": "this week",
     "crew.lose.soon": "creeping up",
