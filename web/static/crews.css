@@ -1240,15 +1240,26 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    ink this panel already uses for a rival breaking a block, so the summary reads as the same
    kind of news as the rows under it -- louder than the rows, because it is fewer lines and
    somebody has to read it first. */
-.crewthreats { margin: 0 0 8px; padding: 0; list-style: none; }
-.crewthreats li {
+/* One group per rival, headed by the sentence that used to be printed above the flat list.
+   The summary became the structure: closed, the card is four lines; opened, every square it
+   was ever going to show is still in it. */
+.crewlosegrp { margin-top: 4px; }
+.crewlosegrp > summary {
+  cursor: pointer; list-style: none;
   font-size: 12px; font-weight: 600; color: #ff8ad8;
-  margin-top: 3px; overflow-wrap: anywhere;
+  padding: 3px 0; overflow-wrap: anywhere;
 }
-/* Ground nobody is taking is not a threat, so it is not in the threat's ink. Orange, which is
-   the colour this card already uses for the effort of getting back to a square -- the problem
-   here is that nobody has. */
-.crewthreats li.crewcold { color: #ff9f6b; font-weight: 400; }
+.crewlosegrp > summary::-webkit-details-marker { display: none; }
+.crewlosegrp > summary::after {
+  content: ""; display: inline-block; margin-left: 7px;
+  border: 4px solid transparent; border-left-color: currentColor;
+  transition: transform .15s ease;
+}
+.crewlosegrp[open] > summary::after { transform: rotate(90deg); }
+/* Ground nobody is taking is not a threat, so it is not in the threat ink. Orange, which this
+   card already uses for the effort of getting back to a square -- the problem here is that
+   nobody has. */
+.crewlosegrp.crewcold > summary { color: #ff9f6b; font-weight: 400; }
 
 /* The exact moment a cooldown lifts, beside the sentence that says how long is left. Quieter
    than the sentence, because it is the precise version of something already said. */

@@ -1619,41 +1619,11 @@
     }
     LOSING = [];
     if (!rows.length || !all.length) return "";
-    // A SUMMARY, not a decomposition of the headline. It names the biggest few threats and
-    // the cold remainder; a rival holding a single square, or a fourth rival below the top
-    // three, is left to the rows. The numbers happened to add to the total exactly on the
-    // dataset this was built against, which is luck rather than a property -- so it must not
-    // be relied on, and the headline stays the honest total of everything at risk.
-    //
-    // Who is actually taking ground, and how much of it. Thirty-seven rows reading "a few
-    // streets 1.1 km and it's theirs" with only the decimal changing is not thirty-seven
-    // pieces of news; it is three or four crews closing in, said over and over. Grouped from
-    // the rows themselves -- `rival` is already on each one -- so this is arithmetic over what
-    // the card is about to print anyway.
-    var byRival = {};
-    rows.forEach(function (r) {
-      if (r.rival == null) return;                 // ground going cold has nobody to name
-      var who = (TERR.crews[r.rival] || {}).name;
-      if (!who) return;
-      if (!byRival[who]) byRival[who] = { n: 0, near: Infinity };
-      byRival[who].n += 1;
-      byRival[who].near = Math.min(byRival[who].near, r.need);
-    });
-    // Ground going cold on its own: at risk, but with nobody coming for it. These are exactly
-    // the rows the rival lines above cannot speak for, which is why the numbers did not add up.
-    //
-    // NOT `cold`. There is already a `var cold` further down this same function -- the ARRAY
-    // of band-3 rows that `LOSING` is built from -- and `var` hoists, so naming this one
-    // `cold` meant the array had overwritten my count by the time the card rendered: the line
-    // came out as "[object Object],[object Object],... squares going cold". Same shape as the
-    // `.crewmore` class two cards shared, and `crewrow` against `crewrown`.
-    var noRival = rows.filter(function (r) { return r.rival == null; }).length;
-    var threats = Object.keys(byRival)
-      // More than one square, or the summary is the row again in different words.
-      .filter(function (w) { return byRival[w].n > 1; })
-      .sort(function (a, b) { return byRival[b].n - byRival[a].n || byRival[a].near - byRival[b].near; })
-      // Three at most. Four lines of summary above a list IS the list.
-      .slice(0, 3);
+    // The grouping that used to live here -- a summary of the top three rivals printed above
+    // the flat list -- is gone, because `groupedRows` below now groups the rows themselves and
+    // heads each group with the same sentence. Keeping both would print every sentence twice,
+    // and a summary that stopped at three rivals above a list that showed all of them was the
+    // half-measure a reviewer named: it "names the villain without shortening the read".
     // about to flip first, then being ridden, then going cold on its own
     var urgency = { 2: 0, 1: 1, 3: 2 };
     rows.sort(function (a, b) {
@@ -1706,29 +1676,12 @@
       + '<p class=hint>'
       + t(LOSING.every(function (x) { return x.band === 3; }) ? "crew.lose.p3" : "crew.lose.p")
       + "</p>"
-      // The shape of the threat, before the thirty-seven instances of it. `tiles()` carries
-      // the plural, the way `crew.board.gained` does, so this is one string rather than a
-      // noun agreement in nineteen languages.
-      + (threats.length || noRival > 1
-         ? '<ul class="crewthreats">'
-           + threats.map(function (w) {
-               return "<li>" + esc(t("crew.lose.threat",
-                                     { name: w, v: tiles(byRival[w].n) })) + "</li>";
-             }).join("")
-           // The squares no rival is taking, so the lines above and the headline's total
-           // reconcile. A reviewer added 22 + 9 + 6 under "44 squares" and was seven short
-           // with nothing on the card accounting for it.
-           // More than one, like the rival lines above, and for a second reason as well as
-           // theirs: every locale's wording of this agrees with a PLURAL `{v}` -- "going cold
-           // with nobody on them", "{v} werden kalt" -- so a single square would read "1
-           // square ... on them" here and "1 Feld werden kalt" in German. The same shape as
-           // the two plural keys already pinned as xfails. One cold square is a row in the
-           // list below and needs no line of its own.
-           + (noRival > 1 ? '<li class="crewcold">'
-                            + esc(t("crew.lose.cold.n", { v: tiles(noRival) })) + "</li>" : "")
-           + "</ul>"
-         : "")
-      + LOSING.map(function (x, i) {
+      // Grouped under the sentence that used to sit above them. A reviewer measured the
+      // first version and said the summary "names the villain without shortening the read" --
+      // thirty-seven rows were still thirty-seven rows. Closed, this is four lines; opened,
+      // every square is still in it, which is the constraint the note above `LOSING` exists
+      // for. The headings are the same two strings the summary used, so no new copy.
+      + groupedRows(LOSING.map(function (x, i) {
           // their gap, not your effort, and the third column carries urgency rather than
           // restating the heading. Band 3 has no rival, so its number is days left.
           // The km goes INSIDE {v}, with the phrase it qualifies. Appended after the
@@ -1751,7 +1704,7 @@
           // no ditto on the distance: see the note in the targets card above
           var rs = seenState[state] ? " rpt" : "";
           seenState[state] = 1;
-          return '<div class="crewtrow sel" data-l="' + i + '">'
+          return { i: i, who: who, html: '<div class="crewtrow sel" data-l="' + i + '">'
             // Not "0.0 km". A gap under 50 m prints as 0.0 and that is a number saying
             // nothing, in the most urgent slot in the feature; the phrase ("one lap and it's
             // theirs") already carries it. See `reach` above, which is where it is decided.
@@ -1759,11 +1712,50 @@
             + '<span class="crewtdir">' + bearing(compass(x.x - cx, x.y - cy)) + "</span>"
             + '<span class="crewtwho">'
             + (x.at ? '<b class="crewtat">' + esc(x.at) + "</b>" + '<span class="crewtsep"> &middot; </span>' : "")
-            + '<i class="' + (rs ? "rpt" : "") + '">' + state + "</i></span></div>";
-        }).join("")
+            + '<i class="' + (rs ? "rpt" : "") + '">' + state + "</i></span></div>" };
+        }))
       // 85 squares are losable across the world and 45 were shown, with nothing saying so
       + (hidden ? '<p class="hint crewmore">' + t("crew.lose.more", { v: tiles(hidden) }) + "</p>" : "")
       + "</details>";
+  }
+
+  // One disclosure per rival, holding that rival's squares, headed by the sentence the summary
+  // used to print above the flat list.
+  //
+  // Each entry carries the index it had in `LOSING`, because `bindMine` finds these rows by
+  // `data-l` and flies the map to `LOSING[i]`: renumbering inside groups would point every row
+  // at the wrong square, which is a feature that works and lies.
+  //
+  // EVERY rival gets a group, not the three the summary named. A summary may stop at three; a
+  // group list that stopped at three would hide the fourth rival's squares, which is the one
+  // thing this card must never do.
+  function groupedRows(entries) {
+    var order = [], byWho = {};
+    entries.forEach(function (e) {
+      var key = e.who || "\u0000cold";
+      if (!byWho[key]) { byWho[key] = { who: e.who, rows: [] }; order.push(byWho[key]); }
+      byWho[key].rows.push(e.html);
+    });
+    // Biggest threat first, ground nobody is taking last: it is the only group that is
+    // nobody's fault but the crew's.
+    order.sort(function (a, b) {
+      if (!a.who !== !b.who) return a.who ? -1 : 1;
+      return b.rows.length - a.rows.length;
+    });
+    return order.map(function (g) {
+      // A group of one is a bare row. A one-row accordion is silly, and the counted headings
+      // agree with a plural `{v}` in several locales -- "1 Feld werden kalt" -- which is the
+      // trap a translator caught in the cold line and the reason it is gated on more than one.
+      if (g.rows.length === 1) return g.rows[0];
+      var head = g.who
+        ? esc(t("crew.lose.threat", { name: g.who, v: tiles(g.rows.length) }))
+        : esc(t("crew.lose.cold.n", { v: tiles(g.rows.length) }));
+      // Small groups stay open: folding three rows behind a click buys nothing and costs a
+      // click. Big ones fold, which is the whole point of doing this.
+      var open = g.rows.length <= 3 ? " open" : "";
+      return '<details class="crewlosegrp' + (g.who ? "" : " crewcold") + '"' + open
+        + "><summary>" + head + "</summary>" + g.rows.join("") + "</details>";
+    }).join("");
   }
 
   // Who actually rode for the crew, over the same window the territory is measured on, so the

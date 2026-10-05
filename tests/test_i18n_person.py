@@ -394,7 +394,11 @@ HOME = {
     "crew.join.": {"joinHTML", "bindJoin", "bindList", "askFor"},
     "crew.how.": {"explainer"},
     "crew.targets.": {"targetsHTML", "ringTip", "bearing", "widest"},
-    "crew.lose.": {"loseHTML", "ringTip"},
+    # `groupedRows` is part of the losses card, not another card: `loseHTML` hands it that
+    # card's own rows and it heads each group with that card's own sentences. It is listed here
+    # rather than in SHARED because this is not a reuse across cards -- it is the same card,
+    # split into a second function when the flat list became a set of groups.
+    "crew.lose.": {"loseHTML", "groupedRows", "ringTip"},
     "crew.decl.": {"myCrewHTML"},
     "crew.tile.": {"tileWords", "legendHTML", "fadesIn", "onCellClick", "onCellHover",
                    "ringTip", "targetsHTML"},
