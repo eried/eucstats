@@ -89,6 +89,39 @@ def _is_authenticated(request: Request) -> bool:
     return adminauth.is_authenticated(request)
 
 
+def _flagged_more(total: int, shown: int) -> str:
+    """Said out loud when the table is a page of the queue rather than the queue.
+
+    Without it the button reads "approve all 342" above a table of fifty rows, which looks like
+    one of the two numbers is wrong."""
+    if total <= shown:
+        return ""
+    return " Showing the newest %d of %d." % (shown, total)
+
+
+def _bulk_flagged(n: int) -> str:
+    """Clear the whole queue, both ways.
+
+    Nothing to offer when there is nothing in it, and the count is in the label because
+    "approve all" with no number is a press into the dark.
+    """
+    if not n:
+        return ""
+    ok = ("Approve all %d flagged trip(s)? They start counting toward leaderboards. "
+          "No Telegram posts are sent for a bulk approval." % n)
+    no = "Reject all %d flagged trip(s)? They are dropped and stop showing here." % n
+    return (
+        '<form method=post action="/admin/trips/flagged/approve-all"'
+        ' style="display:inline-flex;margin-right:6px"'
+        " onsubmit=\"return confirm('" + ok + "')\">"
+        '<button class="mini">' + _IC["check"] + " approve all %d</button></form>" % n
+        + '<form method=post action="/admin/trips/flagged/reject-all"'
+        ' style="display:inline-flex"'
+        " onsubmit=\"return confirm('" + no + "')\">"
+        '<button class="mini danger">' + _IC["x"] + " reject all %d</button></form>" % n
+    )
+
+
 def _counts(db: Session) -> dict:
     q = db.query(func.count(Trip.trip_uuid))
     return {
@@ -364,7 +397,11 @@ def _dash_html(db: Session) -> str:
                  f'<div class=n style="color:#ffca8a">{n_orph}</div>'
                  f'<div class=l>no wheel · {orphans.orphan_km(db)} km</div></a>')
 
-    flagged = db.query(Trip).filter(Trip.validation_status == "flagged").order_by(desc(Trip.created_at)).limit(50).all()
+    flagged_q = db.query(Trip).filter(Trip.validation_status == "flagged")
+    # The table shows the newest 50; the bulk buttons move every one of them, so the
+    # count on the button is the whole queue and not the page of it being displayed.
+    flagged_total = flagged_q.count()
+    flagged = flagged_q.order_by(desc(Trip.created_at)).limit(50).all()
     _fr = {r.store_id: r for r in db.query(Rider).filter(
         Rider.store_id.in_({t.rider_store_id for t in flagged if t.rider_store_id})).all()} if flagged else {}
 
@@ -421,8 +458,10 @@ def _dash_html(db: Session) -> str:
       </div>
     </div>
     <div class=card>
-      <h2>Flagged trips, review queue</h2>
-      <p class=hint>Trips held back by plausibility checks. Click a row's <b>view</b> (or the id) to see the full trip and its GPS track, then approve to count it toward leaderboards or reject to drop it.</p>
+      <h2>Flagged trips, review queue
+        <span class=mut style="float:right;font-size:12px;font-weight:400">{_bulk_flagged(flagged_total)}</span>
+      </h2>
+      <p class=hint>Trips held back by plausibility checks. Click a row's <b>view</b> (or the id) to see the full trip and its GPS track, then approve to count it toward leaderboards or reject to drop it.{_flagged_more(flagged_total, len(flagged))}</p>
       <div class=scrollbox><table><tr><th>id</th><th>rider</th><th>when</th><th>distance</th><th>top speed</th><th>reasons</th><th>action</th></tr>{fhtml}</table></div>
     </div>
     <div class=card>
@@ -505,6 +544,48 @@ def approve_trip(trip_uuid: str, request: Request, background_tasks: BackgroundT
         from services import telegram      # first-ride announce if this approval is their 1st
         background_tasks.add_task(telegram.notify_first_ride, t.rider_store_id)
         background_tasks.add_task(telegram.check_records)   # approval may create a new #1
+    return RedirectResponse("/admin", status_code=303)
+
+
+@admin_router.post("/trips/flagged/approve-all")
+def approve_all_flagged(request: Request, background_tasks: BackgroundTasks,
+                        db: Session = Depends(get_db)):
+    """Everything in the queue, counted.
+
+    Deliberately silent on Telegram. The single-trip route announces a rider's first ride and
+    checks for a new record, which is right for one approval and is fifty posts for a backlog.
+    One record check at the end, so a new #1 that came out of the batch is still announced.
+    """
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    rows = db.query(Trip).filter(Trip.validation_status == "flagged").all()
+    for t in rows:
+        t.validation_status = "validated"
+        t.flag_reasons = None
+    db.commit()
+    agg = Aggregator(db)
+    for t in rows:
+        agg.apply(t)
+    if rows:
+        from services import telegram
+        background_tasks.add_task(telegram.check_records)
+    return RedirectResponse("/admin", status_code=303)
+
+
+@admin_router.post("/trips/flagged/reject-all")
+def reject_all_flagged(request: Request, db: Session = Depends(get_db)):
+    """Everything in the queue, dropped.
+
+    No rebuild: a flagged trip has never been aggregated, so there is nothing to take back out.
+    The single-trip route rebuilds because it also accepts a trip that was already validated.
+    """
+    if not _is_authenticated(request):
+        return RedirectResponse("/admin", status_code=303)
+    rows = db.query(Trip).filter(Trip.validation_status == "flagged").all()
+    for t in rows:
+        t.validation_status = "rejected"
+        t.flag_reasons = None
+    db.commit()
     return RedirectResponse("/admin", status_code=303)
 
 
