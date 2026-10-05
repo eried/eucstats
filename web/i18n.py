@@ -59,9 +59,9 @@ EN: dict[str, str] = {
     "panel.close": "Close",
     "panel.peek": "Preview as a normal visitor",
     "crew.wip": "Not open for public testing yet. Anything you build here can be wiped without warning.",
-    "crew.signin.h": "Get your pass",
+    "crew.signin.h": "Get started",
     "crew.signin.p": "Your app vouches for you once. Then you can start a crew and go take ground.",
-    "crew.signin.scan": "Scan it with EUC Planet, or type the code in.",
+    "crew.signin.scan": "Scan it with EUC Planet {v} or newer, or type the code in.",
     # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
     # from services.pairing.MIN_APP, so a release is one line and not nineteen.
     "crew.signin.needs": "Needs EUC Planet {v} or newer.",
@@ -312,6 +312,16 @@ EN: dict[str, str] = {
     "crew.pending.h": "Knocking",
     # how it works
     "crew.how.h": "How crews work",
+    # What the mode IS, before any of the rules for playing it. The manual opened on "Ride it,
+    # it turns your colour", which is a rule and not an answer.
+    "crew.how.intro": "The map is cut into squares. Ride inside one and it turns your crew's colour. String enough of them together and your crew is on the board, with every other crew out there trying to take them back.",
+    "crew.how.s1": "Taking ground",
+    "crew.how.s2": "Losing it",
+    "crew.how.s3": "The crew",
+    # Both from the settings that enforce them. The cooldown was only ever said in the leave
+    # prompt, where you read it after deciding; the size cap was never said anywhere.
+    "crew.how.cool": "Walk out of a crew and you wait {v} before joining another.",
+    "crew.how.size": "A crew holds {n} riders at most.",
     "crew.how.1": "Ride it, it turns your colour. Most km in a square over the last {d} days holds it.",
     "crew.how.2": "You need a {n}x{n} block before anything shows. One ride down one street gets you nothing.",
     "crew.how.3": "It grows out from what your crew already holds. Close the gap between two patches and they count as one. That is the biggest move there is. Ride a full loop around something and you get the inside too, up to about double what you rode.",

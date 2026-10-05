@@ -407,7 +407,7 @@ HOME = {
     # `bindHelp` renders `crew.how.h` as the modal's title; `explainer` builds the body
     # it titles. One card, split across the control that opens it and the content it
     # opens, which is what a dialog is.
-    "crew.how.": {"explainer", "bindHelp"},
+    "crew.how.": {"explainer", "bindHelp", "rulesSection"},
     "crew.targets.": {"targetsHTML", "ringTip", "bearing", "widest"},
     # `groupedRows` is part of the losses card, not another card: `loseHTML` hands it that
     # card's own rows and it heads each group with that card's own sentences. It is listed here

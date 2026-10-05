@@ -75,7 +75,7 @@ PASS_NOUN = {
 # which is the answer to whether a metaphor is carrying -- so neither string mentions a
 # pass and neither should be asked to. What is left are the two that really do fetch and
 # return one: the sign-in heading, and the error for acting without one.
-PASS_KEYS = ["crew.signin.h", "crew.e.pass"]
+PASS_KEYS = ["crew.e.pass", "crew.signin.qralt"]
 
 
 @pytest.mark.parametrize("loc", sorted(PASS_NOUN))

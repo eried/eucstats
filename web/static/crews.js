@@ -911,21 +911,38 @@
       '<a href="' + APP_URL + '" target="_blank" rel="noopener">EUC Planet</a>');
   }
 
+  // One section of the manual: a heading and its rules. The substitutions are listed once,
+  // here, so a rule added to any section gets them without anybody remembering to pass them.
+  // `{v}` on the cooldown arrives pre-pluralised from `days()` -- a sentence using it must not
+  // force a case on it, which is the trap this file has notes about elsewhere.
+  function rulesSection(heading, keys) {
+    return "<h5>" + t(heading) + "</h5>"
+      + '<ol class="crewrules">'
+      + keys.map(function (k) {
+          return "<li>" + t(k, { n: k === "crew.how.size" ? MAX_MEMBERS : SEED,
+                                 d: WINDOW_DAYS, c: RIDER_WEEK_CAP,
+                                 v: days(COOLDOWN_DAYS) }) + "</li>";
+        }).join("")
+      + "</ol>";
+  }
+
   function explainer() {
     // Content only. This is what the (?) hands to the modal; it used to be a <details> in
     // the card stack, which is a disclosure pretending to be a dialog -- it still took its
     // place in the flow and the page behind it was still usable.
     return '<div class="crewhow" id="crewhow">'
-      // Numbered, because eight paragraphs at one weight is a wall however good the words
-      // are, and these are the rules of a game. The numbering is markup, so it costs no
-      // translation.
-      + '<ol class="crewrules">'
-      + ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.7", "crew.how.8", "crew.how.4",
-         "crew.how.5", "crew.how.6"]
-        .map(function (k) {
-          return "<li>" + t(k, { n: SEED, d: WINDOW_DAYS, c: RIDER_WEEK_CAP }) + "</li>";
-        }).join("")
-      + "</ol>"
+      // What it IS, before any rule for playing it.
+      + '<p class="crewintro">' + t("crew.how.intro") + "</p>"
+      // Three sections, each a numbered list, because these are the rules of a game and eight
+      // paragraphs at one weight is a wall however good the words are. Every number is read
+      // here, at render time, from the config the server sent: change the window, the block,
+      // the cooldown, the weekly cap or the member limit in admin and this changes with it.
+      + rulesSection("crew.how.s1", ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.6"])
+      + rulesSection("crew.how.s2", ["crew.how.4", "crew.how.7", "crew.how.8"])
+      + rulesSection("crew.how.s3", ["crew.how.5", "crew.how.cool"]
+          // Only when there is one. With no cap there is no rule, and "unlimited" would be a
+          // sentence about nothing.
+          .concat(MAX_MEMBERS > 0 ? ["crew.how.size"] : []))
       // Outside the list: this one is not a rule, it is what the standings MEAN, so it closes
       // the section rather than becoming a ninth instruction.
       + '<p class="crewrulesend">' + t("crew.board.sub") + "</p>"
@@ -1226,7 +1243,10 @@
   // What one rider can put into one square in a week, and where that settles under decay.
   // Mirrors RIDER_TILE_WEEK_CAP_KM and HALF_LIFE_DAYS in services/territory.py; the panel
   // needs it to tell a crew which rows are arithmetic rather than a plan.
-  var RIDER_WEEK_CAP = 6;
+  // From the server, not from here. This used to be a 6 typed beside the sentence that
+  // prints it, while `territory.RIDER_TILE_WEEK_CAP_KM` is what the model enforces.
+  var RIDER_WEEK_CAP = CFG.rider_week_cap_km != null ? CFG.rider_week_cap_km : 6;
+  var MAX_MEMBERS = CFG.max_members != null ? CFG.max_members : 0;   // 0 = no cap
   var RIDER_CEILING_KM = 29;
 
   // A square needing more than the crew can physically bank is not somewhere to ride, it is
@@ -1878,19 +1898,16 @@
       // The test warning used to be here, which meant a rider only ever saw it before they
       // had anything to lose. It is at the top of the panel now, for everybody.
       + "<h3>" + t("crew.signin.h") + "</h3>"
-      + '<p class=hint>' + t("crew.signin.p") + "</p>"
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
-      + '<p class=hint id="crewcodehint">' + t("crew.signin.scan") + "</p>"
-      // Which app, and which version of it. Without this a rider on 0.21.0 taps the button
-      // and the app opens on whatever screen it opens on, with nothing to explain why.
-      + '<p class="hint crewneeds">'
-      // The app's name, linked, in whatever language the line is written in: the brand is not
-      // translated, so the same replace works for all nineteen without a second string.
-      + appLink(t("crew.signin.needs", { v: (CFG && CFG.min_app) || "" }))
-      // And the other precondition, which was only legible on the phone: the pairing is
-      // refused for a rider the site has never seen, and that refusal never reaches this card.
-      + " " + t("crew.signin.ride") + "</p>"
+      // One line: what to point at it, which app, and which version. The version used to be a
+      // paragraph of its own and the app's name is a link in whatever language the sentence is
+      // written in -- the brand is the one part no locale translates, so one replace covers
+      // all nineteen. `crew.signin.p` and `crew.signin.ride` are gone: the first was a sentence
+      // about what the app does for you, and the second stated a precondition to everybody in
+      // order to reach the few who do not meet it, who find out by trying and are told why.
+      + '<p class=hint id="crewcodehint">'
+      + appLink(t("crew.signin.scan", { v: (CFG && CFG.min_app) || "" })) + "</p>"
       // No second link to the same place. The version line above says "EUC Planet" and links
       // it; this line existed because that one did not, and two links three lines apart is one
       // link and a repetition.
@@ -2108,6 +2125,25 @@
       if (typeof window.openModal !== "function") return;   // older shell, nothing to open
       window.openModal(t("crew.how.h"), explainer());
     };
+  }
+
+  // A button that confirms on itself: its own label for a moment, then back. Disabled while
+  // it says so, because a second press has nothing new to do and a button that answers twice
+  // reads as having failed the first time. Re-entrant: pressing again mid-flash restarts it
+  // rather than leaving the label stuck on "Copied".
+  function flash(btn, word) {
+    if (!btn) return;
+    if (btn._flash) { clearTimeout(btn._flash); }
+    else { btn._was = btn.textContent; }
+    btn.textContent = word;
+    btn.disabled = true;
+    btn.classList.add("crewdone");
+    btn._flash = setTimeout(function () {
+      btn.textContent = btn._was;
+      btn.disabled = false;
+      btn.classList.remove("crewdone");
+      btn._flash = null;
+    }, 1400);
   }
 
   function bindSignOut() {
@@ -2959,7 +2995,13 @@
       // `navigator.clipboard` is absent on an insecure origin and in some embedded webviews,
       // so there are two fallbacks and the last one is "select it for you", which is still
       // better than the hand-selection this replaces.
-      function done() { setStatus(t("crew.mine.copied"), false, cp); }
+      // On the button, not in a strip elsewhere on the card. `setStatus` still runs because
+      // it is the live region and a reader who cannot see the button needs telling; what
+      // changes is that the eye is answered where the thumb was.
+      function done() {
+        setStatus(t("crew.mine.copied"), false, cp);
+        flash(cp, t("crew.mine.copied"));
+      }
       function pick() {
         var node = document.getElementById("cm-invite");
         if (!node || !window.getSelection) return;

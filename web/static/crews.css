@@ -94,6 +94,12 @@
 
 .crewbtn:hover { filter: brightness(1.12); }
 .crewbtn:disabled { opacity: .5; cursor: default; }
+/* The moment after a copy. Full strength, not the dimmed look of a button you cannot
+   use yet: it is disabled because it just worked, which is the opposite thing. */
+.crewbtn.crewdone:disabled { opacity: 1; background: #3ddc84; color: #06220f;
+  border-color: transparent; }
+.crewbtn.ghost.crewdone:disabled { background: transparent; color: #3ddc84;
+  border-color: #3ddc84; }
 .crewbtn.ghost { background: transparent; color: var(--mut, #9aa6c8); border: 1px solid var(--line, #243055); }
 .crewbtn.ghost:hover { color: #fff; border-color: var(--sec, #ff8ad8); }
 .crewbtn.mini { margin: 0; padding: 5px 11px; font-size: 12px; }
@@ -285,7 +291,14 @@
 .crewhow p { margin: 0 0 10px; }
 /* The numbers are the point, so they get room and their own ink rather than sitting in the
    muted body colour where they read as punctuation. */
-.crewrules { margin: 0 0 10px; padding: 0 0 0 1.6em; }
+/* The answer, before the rules. Set apart from them so it reads as the thing it is rather
+   than as rule zero. */
+.crewintro { margin: 0 0 14px; color: var(--ink, #eef1fb); }
+/* A section heading inside the manual. Quiet, because the numbers under it are the content. */
+.crewhow h5 { margin: 0 0 7px; font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
+  color: #cfe0ff; font-weight: 700; }
+.crewhow h5 + .crewrules { margin-top: 0; }
+.crewrules { margin: 0 0 14px; padding: 0 0 0 1.6em; }
 .crewrules li { margin: 0 0 9px; padding-left: 2px; }
 .crewrules li::marker { color: var(--sec, #ff8ad8); font-weight: 700; }
 /* Not a rule: the closing line, set apart from the list it follows. */

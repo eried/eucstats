@@ -1282,11 +1282,18 @@ def _crew_cfg(db):
     """
     from services.crews import PALETTE, PATTERNS
     from services.pairing import MIN_APP
+    from services.territory import RIDER_TILE_WEEK_CAP_KM
     c = settings.get_crews(db)
     return {"enabled": c["enabled"], "opacity": c["opacity"], "zoom": c["zoom"],
             "window_days": c["window_days"], "seed": c["seed"],
             "creation_open": c["creation_open"], "cooldown_days": c["cooldown_days"],
             "heat_ghost": c["heat_ghost"], "numbers": c["numbers"],
+            # Both of these are rules the panel STATES. `max_members` never crossed at all, and
+            # the weekly cap was a 6 typed into crews.js beside the sentence that prints it --
+            # in another file, in another language, from the model that enforces it. The manual
+            # has to read the thing that decides, or it is a rule only by coincidence.
+            "max_members": c["max_members"],
+            "rider_week_cap_km": RIDER_TILE_WEEK_CAP_KM,
             "palette": PALETTE, "patterns": list(PATTERNS),
             "min_app": MIN_APP}
 
