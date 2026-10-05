@@ -262,6 +262,19 @@
 .crewfact { white-space: nowrap; }
 .crewqr { min-height: 188px; display: flex; align-items: center; justify-content: center; margin: 12px 0 8px; }
 .crewqr img { width: 188px; height: 188px; image-rendering: pixelated; background: #fff; padding: 7px; }
+/* The same square, drawn as its own modules so they can land one at a time. White behind them
+   and the quiet zone already in the matrix, so this needs no padding of its own -- a border a
+   reader needs is data here, not decoration. */
+.crewqrg { width: 188px; height: 188px; display: grid; background: #fff; }
+.crewqrg i { background: #0b0f1a; }
+.crewqrg i.o { background: transparent; }
+/* Each module drops in, delayed by row + column, which `qrGrid` writes on the element: the
+   sweep comes off the top-left corner as one movement. Short, because this is in front of
+   somebody holding a phone up at it. */
+@keyframes crewmod { from { opacity: 0; transform: scale(.25); } to { opacity: 1; transform: none; } }
+.crewqrg i { animation: crewmod .26s ease both; }
+/* A code that has expired is not arriving, so it does not animate in. */
+.crewqr.dead .crewqrg i { animation: none; }
 .crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
 
 .crewmsg { margin: 9px 0; padding: 8px 11px; border-radius: 7px;
@@ -719,6 +732,9 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 @keyframes crewbreathe { 0%, 100% { opacity: .15; } 50% { opacity: .85; } }
 @media (prefers-reduced-motion: reduce) {
+  /* A QR that fades in is a QR that is briefly not a QR. With this setting on it is
+     simply there, which is the only correct answer for something being scanned. */
+  .crewqrg i { animation: none; }
   /* The map stops for these readers, so everything in the panel stops with it. This used to
      name the three key chips and nothing else, which left the one animation the query exists
      for -- a pulsing ring that grabs the eye on purpose -- running. */

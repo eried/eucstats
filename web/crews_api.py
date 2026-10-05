@@ -150,7 +150,10 @@ def pair_start(request: Request, db: Session = Depends(get_db)):
     base = str(request.base_url).rstrip("/")
     url = f"{base}/p/{p['code']}"
     return {"token": p["token"], "code": p["code"], "expires_in": p["expires_in"],
-            "url": url, "qr": pairing.qr_png_b64(url)}
+            "url": url, "qr": pairing.qr_png_b64(url),
+            # The modules themselves, for a panel that draws them. The PNG stays as the
+            # fallback for anything that cannot.
+            "qr_rows": pairing.qr_rows(url)}
 
 
 @router.get("/pair/poll")

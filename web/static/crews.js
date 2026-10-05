@@ -1917,6 +1917,27 @@
       + "</div>";
   }
 
+  // The code drawn as its own modules, so they can land one after another. Returns "" when
+  // the server did not send them, and the caller falls back to the PNG.
+  //
+  // One element per module and the delay carried on each: 33x33 is 1,089 nodes, built once per
+  // sign-in and thrown away with the card. A CSS-only diagonal is not possible here -- the
+  // delay depends on row PLUS column, which no selector can express -- and an inline style is
+  // cheaper than 1,089 rules.
+  function qrGrid(rows) {
+    if (!rows || !rows.length) return "";
+    var n = rows[0].length, cells = [], y, x;
+    for (y = 0; y < rows.length; y++) {
+      for (x = 0; x < n; x++) {
+        cells.push('<i' + (rows[y].charAt(x) === "1" ? "" : ' class="o"')
+                   + ' style="animation-delay:' + ((x + y) * 0.012).toFixed(3) + 's"></i>');
+      }
+    }
+    // `role="img"` with a name, because a thousand empty elements have neither.
+    return '<div class="crewqrg" role="img" aria-label="' + esc(t("crew.signin.qralt")) + '"'
+      + ' style="grid-template-columns:repeat(' + n + ',1fr)">' + cells.join("") + "</div>";
+  }
+
   var pairRolls = 0;
   var PAIR_MAX_ROLLS = 1;        // the code itself now lasts the fifteen minutes
 
@@ -1979,8 +2000,9 @@
       var deep = "eucplanet://pair?code=" + encodeURIComponent(r.body.code)
         + "&host=" + encodeURIComponent(location.origin);
       if (qr) {
-        qr.innerHTML = '<img alt="' + esc(t("crew.signin.qralt")) + '" src="data:image/png;base64,'
-          + r.body.qr + '"/>';
+        qr.innerHTML = qrGrid(r.body.qr_rows)
+          || ('<img alt="' + esc(t("crew.signin.qralt")) + '" src="data:image/png;base64,'
+              + r.body.qr + '"/>');
         qr.href = deep;
       }
       if (open) open.href = deep;

@@ -243,6 +243,25 @@ def sweep(db) -> int:
     return n
 
 
+def qr_rows(text: str) -> list[str]:
+    """The code's own modules, one string of 0/1 per row.
+
+    The panel draws these as squares rather than scaling a bitmap: it is sharper at any size,
+    and it is the only form the modules can be animated in, which is what they are for.
+
+    It is not smaller. Measured at a typical pairing URL: 33x33 rows is about 1.2 kB of JSON
+    against 0.6 kB for the base64 PNG beside it. Worth it for a card shown once per sign-in,
+    and worth writing down so nobody repeats the guess.
+
+    The quiet zone is included, because a QR without its border is a QR that readers refuse.
+    """
+    import qrcode
+    q = qrcode.QRCode(border=2)
+    q.add_data(text)
+    q.make(fit=True)
+    return ["".join("1" if cell else "0" for cell in row) for row in q.get_matrix()]
+
+
 def qr_png_b64(text: str, scale: int = 6) -> str:
     """A QR code as a base64 PNG, for embedding straight into the page.
 

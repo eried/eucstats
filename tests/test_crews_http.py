@@ -773,3 +773,34 @@ def test_the_panel_costs_the_same_number_of_queries_whatever_the_crew_holds(clie
     assert small == large, (
         f"the panel cost {small} statements with a small crew and {large} with a crew four "
         f"times the size: something in it is asking one question per row again")
+
+
+def test_the_drawn_qr_is_the_same_code_as_the_picture_of_it(db):
+    """The panel draws the modules now instead of scaling a PNG, so the two have to agree.
+
+    A prettier QR that encodes something else, or nothing, is worse than the bitmap it
+    replaced -- and the only person who would find out is a rider holding a phone up at it.
+    """
+    import qrcode
+    from services import pairing
+    url = "https://eucstats.ried.no/p/ABC123"
+    ref = qrcode.QRCode(box_size=6, border=2)
+    ref.add_data(url)
+    ref.make(fit=True)
+    expected = ["".join("1" if c else "0" for c in row) for row in ref.get_matrix()]
+    assert pairing.qr_rows(url) == expected
+
+    # and the quiet zone travels with it: a QR without its border is one readers refuse
+    rows = pairing.qr_rows(url)
+    assert set(rows[0]) == {"0"} and set(rows[-1]) == {"0"}, "no quiet zone at top or bottom"
+    assert all(r[0] == "0" and r[-1] == "0" for r in rows), "no quiet zone at the sides"
+
+
+def test_pair_start_sends_both_forms(client, db):
+    """The modules for a panel that can draw them, the PNG for anything that cannot."""
+    r = client.post("/api/v1/pair/start")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("qr"), "the PNG fallback is gone"
+    rows = body.get("qr_rows")
+    assert rows and len(rows) == len(rows[0]), "the matrix is missing or not square"
