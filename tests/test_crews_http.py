@@ -84,6 +84,43 @@ def test_crews_switched_off_answers_with_the_code_the_panel_matches_on(client, d
     assert r.json()["detail"] == "crews_disabled"
 
 
+def test_crews_switched_off_does_not_lock_the_console_that_switches_them_on(client, db):
+    """The admin console's second factor is a pairing scanned with the same app, completed
+    through these two endpoints. Gating them on the kill switch meant: crews off -> the phone
+    cannot confirm -> the admin cannot finish signing in -> nobody can turn crews on. Erwin hit
+    it on the first real sign-in with the mode off, which is the first time anybody had tried.
+
+    A rider code stays refused, because that is what the switch is for."""
+    from services import adminauth
+    _set_crews(db, enabled=False)
+
+    admin = adminauth.start_pairing(db)
+    r = client.get("/api/v1/pair/describe", params={"code": admin["code"]})
+    assert r.status_code == 200, "an admin pairing cannot be described with crews off: " + r.text
+    assert r.json()["grants"] == ["admin_console"], r.json()
+
+    # and the rider path is gated exactly as before
+    rider = pairing.start(db, purpose="rider")
+    r = client.get("/api/v1/pair/describe", params={"code": rider["code"]})
+    assert r.status_code == 404 and r.json()["detail"] == "crews_disabled", r.text
+
+    # a code nobody issued is gated too, so this is not a liveness probe for the endpoint
+    r = client.get("/api/v1/pair/describe", params={"code": "ZZZZZZ"})
+    assert r.status_code == 404 and r.json()["detail"] == "crews_disabled", r.text
+
+
+def test_the_admin_phone_can_confirm_with_crews_off(client, db):
+    """The other half: describing it is no use if confirming it is refused."""
+    from services import adminauth
+    _rider(db, "adm1")
+    _set_crews(db, enabled=False)
+    admin = adminauth.start_pairing(db)
+    r = client.post("/api/v1/pair/confirm",
+                    json={"code": admin["code"], "store_id": "adm1"})
+    assert r.status_code == 200, "the admin phone cannot confirm with crews off: " + r.text
+    assert r.json()["purpose"] == "admin", r.json()
+
+
 def test_a_write_without_a_pass_is_a_401(client, db):
     r = client.post("/api/v1/crews", json={"name": "No Pass"})
     assert r.status_code == 401

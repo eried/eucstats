@@ -188,10 +188,28 @@ def pair_poll(token: str, response: Response, db: Session = Depends(get_db)):
     return res
 
 
+def _gate_unless_admin(db, code: str) -> None:
+    """The kill switch, except for the pairing that reaches the switch.
+
+    The admin console's second factor is scanned with the same app and completed through these
+    two endpoints. Gating them on `crews_enabled` meant turning crews off locked the console
+    that is the only way to turn crews back on.
+
+    An admin code grants `admin_console` and never `crew_membership`, so letting it through is
+    not letting the rider feature through. Anything else -- a rider code, an expired code, a
+    code that never existed -- is gated exactly as before, so this is not a way to ask whether
+    the endpoint is alive while the mode is off.
+    """
+    pt = db.query(PairToken).filter(PairToken.code == (code or "").strip().upper()).first()
+    if pt is not None and pt.purpose == "admin":
+        return
+    _gate(db)
+
+
 @router.get("/pair/describe")
 def pair_describe(code: str, db: Session = Depends(get_db)):
     """What the app shows the rider before asking them to approve it."""
-    _gate(db)
+    _gate_unless_admin(db, code)
     try:
         return pairing.describe(db, code)
     except pairing.PairError as e:
@@ -201,8 +219,8 @@ def pair_describe(code: str, db: Session = Depends(get_db)):
 @router.post("/pair/confirm")
 def pair_confirm(payload: dict, request: Request, db: Session = Depends(get_db)):
     """The app's side of the handshake: this code belongs to this rider."""
-    _gate(db)
     code = (payload.get("code") or "").strip().upper()
+    _gate_unless_admin(db, code)
     store_id = (payload.get("store_id") or "").strip()
     if not code or not store_id:
         raise HTTPException(400, "code and store_id are required")
