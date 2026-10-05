@@ -1619,6 +1619,26 @@
     }
     LOSING = [];
     if (!rows.length || !all.length) return "";
+    // Who is actually taking ground, and how much of it. Thirty-seven rows reading "a few
+    // streets 1.1 km and it's theirs" with only the decimal changing is not thirty-seven
+    // pieces of news; it is three or four crews closing in, said over and over. Grouped from
+    // the rows themselves -- `rival` is already on each one -- so this is arithmetic over what
+    // the card is about to print anyway.
+    var byRival = {};
+    rows.forEach(function (r) {
+      if (r.rival == null) return;                 // ground going cold has nobody to name
+      var who = (TERR.crews[r.rival] || {}).name;
+      if (!who) return;
+      if (!byRival[who]) byRival[who] = { n: 0, near: Infinity };
+      byRival[who].n += 1;
+      byRival[who].near = Math.min(byRival[who].near, r.need);
+    });
+    var threats = Object.keys(byRival)
+      // More than one square, or the summary is the row again in different words.
+      .filter(function (w) { return byRival[w].n > 1; })
+      .sort(function (a, b) { return byRival[b].n - byRival[a].n || byRival[a].near - byRival[b].near; })
+      // Three at most. Four lines of summary above a list IS the list.
+      .slice(0, 3);
     // about to flip first, then being ridden, then going cold on its own
     var urgency = { 2: 0, 1: 1, 3: 2 };
     rows.sort(function (a, b) {
@@ -1671,6 +1691,17 @@
       + '<p class=hint>'
       + t(LOSING.every(function (x) { return x.band === 3; }) ? "crew.lose.p3" : "crew.lose.p")
       + "</p>"
+      // The shape of the threat, before the thirty-seven instances of it. `tiles()` carries
+      // the plural, the way `crew.board.gained` does, so this is one string rather than a
+      // noun agreement in nineteen languages.
+      + (threats.length
+         ? '<ul class="crewthreats">'
+           + threats.map(function (w) {
+               return "<li>" + esc(t("crew.lose.threat",
+                                     { name: w, v: tiles(byRival[w].n) })) + "</li>";
+             }).join("")
+           + "</ul>"
+         : "")
       + LOSING.map(function (x, i) {
           // their gap, not your effort, and the third column carries urgency rather than
           // restating the heading. Band 3 has no rival, so its number is days left.

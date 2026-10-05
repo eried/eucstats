@@ -158,6 +158,11 @@ EN: dict[str, str] = {
     "crew.mine.claim": "Take over",
     "crew.mine.claimq.none": "Nobody is running this crew. Take it over?",
     "crew.mine.claimq": "Your leader has gone quiet. Take the crew over?",
+    # The shape of the threat, above the squares it is made of. Three reviewers all said the
+    # same thing about this card: thirty-odd near-identical rows stop reading as urgency. `{v}`
+    # arrives already pluralised from `tiles()`, like `crew.board.gained`, so the noun
+    # agreement is not nineteen translators' problem.
+    "crew.lose.threat": "{name} is closing in on {v}.",
     "crew.lose.gap": "{v} and it's theirs",
     "crew.lose.now": "this week",
     "crew.lose.soon": "creeping up",

@@ -1224,6 +1224,16 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    which is why this has to be structural. */
 #pbody [hidden] { display: none; }
 
+/* The three crews actually taking ground, above the squares they are taking. Hot pink is the
+   ink this panel already uses for a rival breaking a block, so the summary reads as the same
+   kind of news as the rows under it -- louder than the rows, because it is fewer lines and
+   somebody has to read it first. */
+.crewthreats { margin: 0 0 8px; padding: 0; list-style: none; }
+.crewthreats li {
+  font-size: 12px; font-weight: 600; color: #ff8ad8;
+  margin-top: 3px; overflow-wrap: anywhere;
+}
+
 /* The exact moment a cooldown lifts, beside the sentence that says how long is left. Quieter
    than the sentence, because it is the precise version of something already said. */
 .crewwhen { font-variant-numeric: tabular-nums; opacity: .8; white-space: nowrap; }

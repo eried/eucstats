@@ -267,6 +267,7 @@ EN_FINGERPRINT = {
     'crew.lose.p3': '2c17ba42804f',
     'crew.lose.soon': 'a8d667c285d0',
     'crew.lose.soonwho': '5661e1fe08ff',
+    'crew.lose.threat': 'f7d321b271c0',
     'crew.mine.ao': '5477cfb7fddb',
     'crew.mine.cancel': '9b1244aac4b0',
     'crew.mine.cancelq': 'e1bdb8cac9ec',
