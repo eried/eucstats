@@ -348,6 +348,18 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
 }
     rider = db.get(Rider, ws.store_id)
     m = crews.membership(db, ws.store_id)
+    # What one rider may put into one square in a week, WHERE THIS RIDER RIDES. The cap scales
+    # with the square and a square is 0.85 km across at Tromso against 2.45 at the equator, so
+    # there is no single number to print -- and rule eight of the manual prints one. The page
+    # config carries a mid-latitude default for anybody we know nothing about; this is the
+    # real figure for the reader, from the last place they actually rode.
+    out_cap = territory.rider_week_cap_km()
+    _t = (db.query(Trip.start_lat)
+          .filter(Trip.rider_store_id == ws.store_id,
+                  Trip.validation_status == "validated", Trip.start_lat.isnot(None))
+          .order_by(Trip.start_utc.desc()).first())
+    if _t:
+        out_cap = territory.rider_week_cap_km(lat=_t[0])
     # The handle, never `ws.store_id`: `pair/confirm` takes a store_id as proof of identity,
     # so a readable copy in this body is a bearer token that outlives every sign-out. The
     # panel also needs it to tell its own roster row apart from everybody else's.
@@ -356,6 +368,7 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
            "flag": rider.flag if rider else None,
            "can_found": crews.can_found(db, ws.store_id),
            "creation_open": cfg["creation_open"],
+           "rider_week_cap_km": out_cap,
            "cooldown_until": None, "crew": None, "role": None, "status": None}
     until = crews.cooldown_until(db, ws.store_id)
     if until:

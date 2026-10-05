@@ -581,7 +581,8 @@ def test_the_weekly_cap_cannot_be_doubled_by_riding_at_midnight(db):
     from datetime import timedelta
     from ingest.downsample import encode_track
     from models import Clan, ClanMember, Rider, Trip, TripTrack, utcnow
-    from services.territory import accumulate, RIDER_TILE_WEEK_CAP_KM as CAP
+    from services.territory import accumulate, rider_week_cap_km
+    CAP = rider_week_cap_km(lat=59.9139)      # these ride at Oslo; see the ladder
 
     db.add(Clan(clan_id="cap-c", name="Midnight Oil", slug="midnight-oil",
                 colour="#e6194b", pattern="solid", join_policy="open", invite_code="C"))
@@ -629,7 +630,8 @@ def test_the_weekly_cap_still_pays_for_honest_riding(db):
     or closing the boundary hole would have quietly halved what regular riding is worth."""
     from datetime import timedelta
     from models import Clan, ClanMember, Rider, Trip, TripTrack, utcnow
-    from services.territory import accumulate, RIDER_TILE_WEEK_CAP_KM as CAP
+    from services.territory import accumulate, rider_week_cap_km
+    CAP = rider_week_cap_km(lat=59.9139)      # these ride at Oslo; see the ladder
 
     db.add(Clan(clan_id="cap-h", name="Every Week", slug="every-week",
                 colour="#3cb44b", pattern="solid", join_policy="open", invite_code="H"))
@@ -756,3 +758,85 @@ def test_the_suggestion_says_which_pairs_are_gone(db):
     # and the suggestion itself is never one of them
     assert (got["colour"], got["pattern"]) not in taken, (got["colour"], got["pattern"])
     assert all(isinstance(p, list) and len(p) == 2 for p in got["taken"]), "pairs, for JSON"
+
+
+def test_an_uncontested_square_is_never_lost_to_nobody(db):
+    """Stop riding and your claim decays to the floor and stays there. It does not expire.
+
+    This is the winter rule. Kilometres fade on a 21-day half-life and a square used to be
+    dropped the moment they crossed its floor, which from a full week's cap is about 74 days
+    at Oslo and 85 at Tromso -- both shorter than a Norwegian winter. A crew that packed up in
+    November came back in March to an empty map that no rival had taken a single square of.
+
+    So an uncontested incumbent is pinned at the floor instead. They keep the ground, the map
+    draws it cold, and because the claim is sitting exactly ON the floor the first rival to
+    ride the floor's worth takes it outright -- which is the half of the old rule worth
+    keeping, and the half this verifies second.
+    """
+    from services.territory import min_lead_km, winners
+
+    tile = "14/8700/4600"
+    floor = min_lead_km(tile)
+
+    # a holder whose kilometres have decayed to well under the floor, and nobody else at all
+    faded = {tile: {"cold-crew": [floor * 0.01, {"r1"}]}}
+    out = winners(faded, previous={tile: "cold-crew"})
+    assert tile in out, "a square with no rival fell to nobody"
+    assert out[tile][0] == "cold-crew"
+    assert abs(out[tile][1] - floor) < 1e-9, "the claim should be pinned at the floor"
+
+    # and with nothing recorded at all this window, which is what ninety days off looks like
+    out = winners({}, previous={tile: "cold-crew"})
+    assert out.get(tile, (None,))[0] == "cold-crew", "ninety days of winter took the square"
+
+    # but anybody who actually rides it takes it, which is the whole point of the floor
+    out = winners({tile: {"cold-crew": [floor * 0.01, {"r1"}],
+                          "riding-crew": [floor * 1.1, {"r2"}]}},
+                  previous={tile: "cold-crew"})
+    assert out[tile][0] == "riding-crew", "a cold square has to be cheap, not safe"
+
+    # a claim that has been withdrawn this rebuild -- a disbanded crew, or one that cannot
+    # seed -- must not be resurrected by the fallback
+    out = winners(faded, previous={tile: "cold-crew"}, skip={(tile, "cold-crew")})
+    assert tile not in out, "a withdrawn claim came back through the incumbent fallback"
+
+
+def test_where_to_ride_next_stays_off_the_water():
+    """A square nobody has ever ridden in, or beside, is not somewhere to ride.
+
+    Everything that puts a square on this list is geometry -- touching held ground, within
+    REACH of a rival, on the road between two patches -- and geometry does not know about
+    fjords. Erwin found it pointing at open water outside Tromso, and a row that cannot be
+    ridden is worse than no row, because it is the one somebody tries first: its shortfall is
+    the smallest on the card.
+
+    There is no coastline dataset here and none is needed. The board already knows where EUC
+    riders go, so a square with riding in it or next to it is one somebody has been down, and
+    open water has neither.
+    """
+    from services.territory import targets_for
+
+    # a crew holding a 2x2, with a rival square two along and open water the other way
+    held = {(10, 10), (11, 10), (10, 11), (11, 11)}
+    acc = {f"14/{x}/{y}": {"us": [9.0, {"r1"}]} for (x, y) in held}
+    acc["14/13/10"] = {"them": [9.0, {"r2"}]}
+    kept = {"us": held, "them": {(13, 10), (14, 10), (13, 11), (14, 11)}}
+    won = {t: ("us", 9.0, 1) for t in acc}
+    won["14/13/10"] = ("them", 9.0, 1)
+
+    ridden = {(10, 10), (11, 10), (10, 11), (11, 11), (13, 10), (14, 10), (13, 11), (14, 11)}
+    rideable = {(x + dx, y + dy) for (x, y) in ridden for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
+
+    rows = targets_for(acc, kept, "us", won, 14, rideable=rideable)
+    picked = {(r["x"], r["y"]) for r in rows}
+    assert picked, "the filter emptied a card that should have had rows"
+    assert picked <= rideable, (
+        "pointed at squares nobody has ridden in or beside: "
+        f"{sorted(picked - rideable)}")
+
+    # and far out to sea stays out however the geometry is arranged
+    assert not any(abs(x - 11) > 4 or abs(y - 11) > 4 for (x, y) in picked), sorted(picked)
+
+    # with nothing known, the card is not emptied -- a crew in a city nobody else rides still
+    # needs telling where to go
+    assert targets_for(acc, kept, "us", won, 14, rideable=set()), "empty knowledge emptied the card"

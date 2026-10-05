@@ -180,11 +180,11 @@ EN: dict[str, str] = {
     # string rather than `tiles()` plus the per-row `crew.lose.cold` fragment -- a counted
     # sentence assembled out of another string's words is how `crew.how.7` shipped broken
     # grammar to German and Russian. `{v}` arrives pluralised, like its sibling above.
-    "crew.lose.cold.n": "{v} going cold with nobody on them.",
+    "crew.lose.cold.n": "{v} gone cold. Anyone could take them with one ride.",
     "crew.lose.gap": "{v} and it's theirs",
     "crew.lose.now": "this week",
     "crew.lose.soon": "creeping up",
-    "crew.lose.cold": "going cold on its own",
+    "crew.lose.cold": "cold, and cheap for anyone",
     "crew.lose.more": "and {v} more",
     "crew.tile.since": "held for {d}",
     "crew.ago.new": "a day or two",
@@ -331,7 +331,7 @@ EN: dict[str, str] = {
     "crew.how.s2": "Losing ground",
     "crew.how.s3": "Your crew",
     "crew.how.c4": "Surrounded. You never rode this one. You rode all the way around it.",
-    "crew.how.c3": "Going cold. Nobody has been back, so it is fading on its own.",
+    "crew.how.c3": "Going cold. Nobody has been back, so it sits at its floor. It stays yours until somebody rides it.",
     "crew.how.c2": "About to flip. One more ride by them and it changes hands.",
     "crew.how.c1": "Contested. Another crew is putting km into it.",
     "crew.how.c0": "Uncontested. Nobody else has put a wheel in it lately.",
@@ -343,7 +343,7 @@ EN: dict[str, str] = {
     "crew.how.1": "Ride a square and it turns your colour. Whoever put the most km into it over the last {d} days holds it.",
     "crew.how.2": "Nothing shows until you hold a {n}x{n} block. One street gets you nothing.",
     "crew.how.3": "Ground grows out of ground. Close the gap between two patches and they count as one, which is the biggest move there is. Ride a full loop around something and the inside is yours too, up to about double what you rode.",
-    "crew.how.4": "Nothing is permanent. Stop riding and it fades. Ride more than someone and you take theirs.",
+    "crew.how.4": "Nothing holds itself. Stop riding and your claim fades until it is the cheapest ground on the map, but nobody takes it from you by waiting. Ride more than someone and you take theirs.",
     "crew.how.5": "Rides you did for a crew stay with that crew. Walking out does not wipe the map.",
     "crew.how.7": "A block needs its {n}x{n}. Take the square holding one together and everything leaning on it goes down with it.",
     "crew.how.6": "A new crew's first fortnight counts what its riders were already doing, so nobody starts on an empty map.",
@@ -371,6 +371,10 @@ EN: dict[str, str] = {
     # The public crew page at /c/<slug> and the Share card that hands out its address. This
     # one is meant to be PRINTED -- on a backpack, on a sticker -- so it points at the slug
     # and never at the invite code: a code can be rotated, and a sticker cannot.
+    # The two actions on the popup you get by tapping a square on the map. Not behind a hover
+    # delay: a phone has no hover, and a long press is the OS's own gesture.
+    "crew.pop.highlight": "Highlight",
+    "crew.pop.details": "Details",
     "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
     "crew.pub.scan": "Scan to find this crew",
     "crew.pub.open": "Open in EUC Stats",
@@ -415,8 +419,6 @@ EN: dict[str, str] = {
     "crew.tile.slipping": "About to flip",
     "crew.tile.free": "Up for grabs",
     "crew.tile.fading": "Going cold",
-    "crew.tile.days": "fades in {v}",
-    "crew.tile.day1": "fades tomorrow",
     "crew.tile.ringed": "Surrounded",
     "crew.tile.ringedp": "taken by riding right round it",
     "crew.tile.clear": "{v} ahead of anyone else",

@@ -143,7 +143,23 @@
      than lifting both: the cap is here because these rows were measured with 380px of nothing
      in the middle of them, and the board's own grid needs about 293px, so 466 is room to
      spare. One measure for every card in the panel. */
-  .crewjoin, .crewmine, .crewboard, .crewhow { max-width: calc(31rem + 32px); }
+  /* `.crewcard`, not the three cards that happened to be measured. The list above named
+     `.crewjoin`, `.crewmine` and `.crewboard` and missed `.crewsign` and the eight bare
+     `<div class="crewcard">`s -- the create-a-crew form and seven state cards. So at 1280 a
+     signed-out visitor met a 673px sign-in card sitting directly on a 466px board: a 103px
+     step on each side, on the first screen anybody sees. A crewless rider got JOIN A CREW at
+     466, START A CREW at 673 and the board at 466 again.
+     Every card in the panel is a `.crewcard`, so this is the rule the comment above always
+     described. */
+  /* `margin-inline: auto` with it, or they share a width and still disagree about where it
+     starts: the board already centred itself and the sign-in card did not, so capping both
+     left them the same size and 103px apart. One width and one position. */
+  .crewcard, .crewhow { max-width: calc(31rem + 32px); }
+  /* The centring is on the cards alone. `.crewhow` carries a `margin` SHORTHAND at the top
+     level, which resets the inline sides whatever a longhand in here says -- the cascade
+     checker caught it, which is what it is for. It does not need centring anyway: it is the
+     manual, and the manual lives in the modal now. */
+  .crewcard { margin-inline: auto; }
 }
 /* Full width, so it reads as more list rather than a stray action: it was the only control in
    the join card not in the button column the six rows above it end with. `.crewshowall` and
@@ -1519,3 +1535,31 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    pixels taller than the button beside it. */
 .crewshare .crewacts .crewbtn { display: inline-flex; align-items: center;
   justify-content: center; text-decoration: none; }
+
+/* ---------- the two actions on a tapped square ----------
+   In the popup rather than behind a hover delay or a long press: this mode is used with a
+   thumb, phones have no hover, and a long press is the OS's gesture before it is ours. The
+   popup is already on screen and already names the crew, so it is where the actions belong. */
+.crewpopacts { display: flex; gap: 6px; margin-top: 8px; }
+/* Wraps rather than `nowrap`. Two buttons share about 200px of popup, so each gets ~95px,
+   and "Подсветить" next to "Подробнее" does not fit on one line at 12px. A button on
+   two lines is fine; a button with its word cut in half is not. */
+.crewpopb { flex: 1 1 0; min-width: 0; padding: 7px 8px; font: inherit; font-size: 12px;
+  line-height: 1.15; cursor: pointer; border-radius: 6px;
+  border: 1px solid var(--line, #243055); background: rgba(255,255,255,.06);
+  color: var(--ink, #e8edfb); }
+.crewpopb:hover { background: rgba(255,255,255,.12); }
+.crewpopb:focus-visible { outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8); }
+
+/* The board row "Details" lands on. The panel can be a long scroll, and arriving silently in
+   the middle of a table leaves you hunting for what just happened. */
+.crewlit { animation: crewlit 2.2s ease-out 1; }
+@keyframes crewlit {
+  0% { background: rgba(255,138,216,.42); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No wave and no flash: the Highlight button still works, it simply lights the whole patch
+     at once rather than sweeping, which `shine` does by its rings landing together. */
+  .crewlit { animation: none; background: rgba(255,138,216,.22); }
+}

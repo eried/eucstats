@@ -112,8 +112,48 @@ HALF_LIFE_DAYS = 21.0
 # other, so the real limit was twice the stated one for anybody who noticed where the
 # boundary was. It is not measured from *now* either: that let a score climb on its own as
 # trips aged into fresh buckets, and a score may only ever decay. See accumulate().
-RIDER_TILE_WEEK_CAP_KM = 6.0
+# A flat 6.0 km used to live here, and it was the one quantity in this file that did NOT
+# scale with the square it applies to, while `min_lead_km` and `min_visit_km` both do -- with
+# a comment on the first of them saying an absolute clamp was removed for inverting exactly
+# this above 70 degrees north. A square is 0.85 km across at Tromso and 2.45 km at the
+# equator, so 6 km was about seven crossings of a square in one and two and a half in the
+# other: the cap was nearly three times tighter on the equator than in the Arctic, for the
+# same riding.
+#
+# So it is five crossings everywhere -- and then snapped to a rung, because this number is
+# PRINTED. Rule eight of the manual states it, and `edge x 5` is 4.26 km at Tromso and 6.13 at
+# Oslo, which is not a rule, it is a measurement. Every rung is a whole number of kilometres
+# AND lands within 3.4% of a whole number of miles, so the sentence reads properly in both
+# units wherever a rider is:
+#
+#     5 km = 3 mi    8 km = 5 mi    10 km = 6 mi    13 km = 8 mi    16 km = 10 mi
+#
+# (3 km / 2 mi is 7% out and is not a rung; nothing reaches down to it anyway, since the
+# smallest inhabited squares are Arctic ones at about 4.3 km raw.)
+CAP_CROSSINGS = 5.0
+CAP_RUNGS_KM = (5.0, 8.0, 10.0, 13.0, 16.0)
+# What the manual falls back to when nobody knows where the reader rides: the rung for a
+# mid-latitude city, which is where most of them are.
+RIDER_TILE_WEEK_CAP_KM = 8.0
 CAP_WINDOW_S = 7 * 86400
+
+
+def rider_week_cap_km(tile: str | None = None, lat: float | None = None) -> float:
+    """What one rider may put into one square in a week, where that square is.
+
+    Snapped geometrically rather than linearly: the rungs span 5 to 16, and on a ladder that
+    wide the nearest rung by subtraction is not the nearest by ratio, which is what "about the
+    same number of crossings" means.
+    """
+    if tile is not None:
+        edge = _tile_edge_km(tile)
+    elif lat is not None:
+        edge = (T.EARTH_C_KM * math.cos(math.radians(max(-85.0, min(85.0, lat))))
+                / (2 ** T.DEFAULT_ZOOM))
+    else:
+        return RIDER_TILE_WEEK_CAP_KM
+    raw = max(0.1, edge * CAP_CROSSINGS)
+    return min(CAP_RUNGS_KM, key=lambda v: abs(math.log(v / raw)))
 
 
 def _out_path(zoom: int) -> Path:
@@ -248,7 +288,8 @@ def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -
                 if seen[i][0] - when >= CAP_WINDOW_S:
                     break
                 used += seen[i][1]
-            room = RIDER_TILE_WEEK_CAP_KM - used
+            # Per square, not one figure for the planet: see rider_week_cap_km.
+            room = rider_week_cap_km(tile) - used
             if room <= 0:
                 continue
             counted = min(ridden, room)
@@ -310,7 +351,11 @@ def winners(acc: dict, previous: dict | None = None,
     blocked = skip or set()
     last_seen = last_seen or {}
     out = {}
-    for tile, per in acc.items():
+    # Previously-held squares are considered even when nobody has ridden them this window --
+    # see the incumbent fallback at the bottom of the loop. Without this the iteration is over
+    # `acc` alone and a square nobody has touched for ninety days simply is not asked about.
+    for tile in set(acc) | set(prev):
+        per = acc.get(tile, {})
         best = None
         floor = min_lead_km(tile)
         for clan_id, (km, riders) in per.items():
@@ -328,6 +373,22 @@ def winners(acc: dict, previous: dict | None = None,
                 best = (key, clan_id, km, len(riders))
         if best:
             out[tile] = (best[1], best[2], best[3])
+            continue
+        # Nobody is above the floor -- but a square with no rival has nobody to lose it to.
+        #
+        # It used to fall out here, so a crew that stopped riding lost ground to NOBODY: from
+        # a full week's cap, decay crosses the floor in about 74 days at Oslo and 85 at Tromso,
+        # and a Norwegian winter is longer than either. A crew that packed up in November came
+        # back in March to an empty map that no rival had taken a square of.
+        #
+        # So the incumbent keeps it, pinned at the floor. Their claim still decayed -- the map
+        # draws it cold and `_pressure` says so -- and because it is AT the floor, the first
+        # rival to ride the floor's worth takes it outright. Ride it or lose it to somebody
+        # survives intact; lose it to nobody is gone.
+        inc = prev.get(tile)
+        if inc and (tile, inc) not in blocked:
+            km, riders = per.get(inc, (0.0, ()))
+            out[tile] = (inc, max(km, floor), len(riders))
     return out
 
 
@@ -669,8 +730,9 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
       0 nobody near it        the number is how far clear the holder is, in tenths of a km
       1 somebody is riding it      ... the number is what the rival still needs
       2 about to flip              ... same
-      3 fading                     near the floor with nobody else wanting it; the number is
-                                   days until it goes, which is what a rider can plan around
+      3 gone cold                  at the floor with nobody else wanting it; the number is
+                                   what a rival would need to ride to take it, which is all
+                                   of it -- a cold square is the cheapest ground on the map
       4 ringed                     held because the crew rode all the way around it
 
     Rivals under the tile's own floor, rivals whose claim here was withdrawn for failing to
@@ -699,11 +761,16 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
         slack = held_km - floor
         if slack > floor * 0.35:
             return 0, max(0, int(round(slack * 10))), None
-        # Days left, not slack. The slack on a fading tile is tiny by definition, so printing
-        # it could only ever say "0.0 km", which is a label rather than something to plan
-        # around. At a HALF_LIFE_DAYS half-life this is exact.
-        days = HALF_LIFE_DAYS * math.log2(held_km / floor) if held_km > floor else 0.0
-        return 3, max(0, int(round(days))), None
+        # This used to be days-until-it-goes, computed off the half-life. It no longer goes:
+        # an uncontested square is pinned at the floor by `winners` rather than dropped, so a
+        # countdown here would have been a deadline that never arrives -- the one kind of
+        # warning worse than none.
+        #
+        # What is true, and more useful than the old number ever was: this is now the cheapest
+        # square on the map. The holder is sitting exactly on the floor, so whatever they have
+        # is the whole of what a rival has to ride to take it. Same meaning as the number on
+        # bands 1 and 2, which is what a rival still needs.
+        return 3, max(0, int(round(held_km * 10))), None
 
     best = max(rivals)
     need = max(0.0, held_km - best)          # what the rival still has to find
@@ -788,7 +855,8 @@ def _one_square_short(pts: set, seed: int = SEED) -> bool:
 def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                 limit: int = 8, seed: int = SEED, holder_of: dict | None = None,
                 mine: set | None = None, leads: set | None = None, names: dict | None = None,
-                patches: list | None = None, buckets: dict | None = None) -> list[dict]:
+                patches: list | None = None, buckets: dict | None = None,
+                rideable: set | None = None) -> list[dict]:
     """The ground this crew could take next, and what taking it would do.
 
     This is the one question the mode has to answer and did not. A rider could see that a tile
@@ -899,6 +967,27 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         # city is as useless as one that points at the next street.
         cand |= _rivals_near(held, buckets, clan_id)
     cand -= held
+
+    # --- squares somebody could actually ride --------------------------------------------
+    #
+    # Everything above this line is geometry: touching, within REACH, on the road between two
+    # patches. None of it knows what is on the ground, so the card cheerfully pointed riders
+    # at the middle of a fjord, at farmland and at the sea, and a row that cannot be ridden is
+    # worse than no row -- it is the one somebody tries first, because it is always the
+    # cheapest.
+    #
+    # No coastline dataset, and none needed: the board already knows where EUC riders go. A
+    # square with riding recorded in it, or next to one, is a square somebody has been down.
+    # Open water has neither. `rideable` is that set plus its neighbours -- the fringe matters
+    # because growing by one square past the edge of known ground is the ordinary move, and a
+    # strict filter would forbid the whole game.
+    #
+    # Falls back to unfiltered rather than handing a crew an empty card: a brand-new crew in a
+    # city nobody else rides should still be told where to go.
+    if rideable:
+        plausible = {q for q in cand if q in rideable}
+        if plausible:
+            cand = plausible
 
     patch_of = {}
     for i, comp in enumerate(patches):
@@ -1164,6 +1253,20 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     # 36. Built once out here it is 1.2 seconds and nothing holds the lock.
     holder_of = {xy: cid for cid, pts in kept.items() for xy in pts}
     buckets = bucket(holder_of)
+    # Where anybody has actually ridden this window, plus every square touching it. This is
+    # what keeps "where to ride next" off the water -- see the filter in targets_for. Built
+    # here because it is one pass over `acc` for the whole board rather than one per crew.
+    _ridden = set()
+    for tile in acc:
+        pt = T.parse(tile)
+        if pt:
+            _ridden.add((pt[1], pt[2]))
+    _ridden |= set(holder_of)
+    rideable = set(_ridden)
+    for (x, y) in _ridden:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                rideable.add((x + dx, y + dy))
     mine_by_clan: dict[str, set] = {}
     for tile, per in acc.items():
         pt = T.parse(tile)
@@ -1194,7 +1297,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                 holder_of=holder_of, mine=mine_by_clan.get(clan_id, set()),
                 leads=leads_by_clan.get(clan_id),
                 patches=patches_by_clan.get(clan_id, []), buckets=buckets,
-                names=names_for))
+                names=names_for, rideable=rideable))
         except Exception:
             # A silent failure here empties every crew's list and then tells crews that hold
             # ground that they hold none, which is the opposite of the truth.

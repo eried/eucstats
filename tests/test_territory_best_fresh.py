@@ -208,14 +208,24 @@ def test_the_ranking_carries_the_counted_delta(db):
 
 def test_a_crew_that_loses_everything_reports_no_gain(db):
     """The column is cleared with the others. Left stale, a crew with nothing would keep
-    last hour's delta beside a figure of zero."""
+    last hour's delta beside a figure of zero.
+
+    The ground is taken by a rival, which is now the only way to lose any: a crew whose rides
+    simply age out keeps what it held, pinned at the floor, because a square with nobody
+    contesting it has nobody to fall to. This test used to age the rides out and expect an
+    empty crew, and it was testing the old rule rather than the column.
+    """
     _settings(db)
     c = _crew(db, "ital-6", "Rifredi")
     _ride(db, "ital-6", c.clan_id, "r-1", _square(0, 0, 3), km=90.0, days_ago=2)
     _rebuild(db)
     _rebuild(db)
+    assert db.get(models.Clan, c.clan_id).terr_best_tiles > 0, "fixture never held anything"
 
-    # Nothing inside the window any more.
+    # Somebody else rides the same ground harder, and the first crew's own rides fall out of
+    # the window: every square changes hands.
+    rival = _crew(db, "ital-6b", "Peretola")
+    _ride(db, "ital-6b", rival.clan_id, "r-2", _square(0, 0, 3), km=400.0, days_ago=1)
     for trip in db.query(models.Trip).filter(models.Trip.clan_id == c.clan_id).all():
         trip.start_utc = models.utcnow() - timedelta(days=900)
         trip.end_utc = trip.start_utc

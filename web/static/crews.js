@@ -39,15 +39,10 @@
   var SEED = CFG.seed || 2;
   var WINDOW_DAYS = CFG.window_days || 90;
 
-  // "1 days" is not a thing
-  function fadesIn(n) {
-    // The `ago.days` family, not `days`: this reads "fades in …", a duration, and German
-    // wants the dative there (`in 3 Tagen`, not `in 3 Tage`) -- which is the whole
-    // difference between the two families. `heldFor()` uses the same one. n is never 1
-    // here, so the absent singular cannot be reached.
-    return n <= 1 ? t("crew.tile.day1")
-      : t("crew.tile.days", { v: plural(null, "crew.ago.days.few", "crew.ago.days", n) });
-  }
+  // `fadesIn` stood here: "fades in 3 days", the countdown on a cold square. It is gone
+  // because the square no longer goes -- an uncontested holder is pinned at the floor rather
+  // than dropped, so the only honest thing to say about a cold square is how little it costs
+  // somebody else, which is what bands 1 and 2 already say.
 
   // With the cooldown switched off there is no waiting to describe, so the sentence changes
   // rather than the number. "No new crew for right now" is what came out before.
@@ -349,6 +344,7 @@
     if (map.getSource("crew-hot")) map.removeSource("crew-hot");
     if (map.getSource("crew-targets")) map.removeSource("crew-targets");
     if (map.getSource("crew-pulse")) map.removeSource("crew-pulse");
+    if (map.getSource("crew-shine-src")) map.removeSource("crew-shine-src");
     stopPulse();
     markers.forEach(function (m) { m.remove(); });
     markers = [];
@@ -465,6 +461,18 @@
       filter: ["!=", ["get", "p"], "crewpat-solid"],
       paint: { "fill-pattern": ["get", "p"], "fill-opacity": 0,
                "fill-opacity-transition": { duration: 600 } }
+    });
+    // The Highlight wave. One layer over the fill, filtered to the ring currently lit, so
+    // the whole effect is a handful of `setFilter` calls and nothing is added to the style
+    // while it runs. It starts matching nothing. Registered through `addLayer` like every
+    // other id here -- a layer this file adds without recording took the whole mode down
+    // once, see the note on LAYERS.
+    map.addSource("crew-shine-src",
+      { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    addLayer({
+      id: "crew-shine", type: "fill", source: "crew-shine-src",
+      paint: { "fill-color": "#ffffff", "fill-opacity": 0.5, "fill-antialias": false,
+               "fill-opacity-transition": { duration: 240 } }
     });
     // the glow sits under the hairline so a border reads at low zoom without being fat
     // Pressure needs a second channel. A shade on a dark map is something you notice
@@ -639,13 +647,14 @@
       [t("crew.tile.safe"), t("crew.tile.pushed"), t("crew.tile.slipping"),
        t("crew.tile.fading"), t("crew.tile.ringed")][band],
       band === 4 ? t("crew.tile.ringedp")
-        : band === 3 ? fadesIn(tenths)
-        : band === 1 || band === 2 ? t("crew.tile.needw", { v: effort(km, y) })
+        // 3 joins 1 and 2 rather than counting down to a deadline that no longer arrives:
+        // a cold square is pinned at its floor, so what the holder has IS what a rival needs.
+        : band >= 1 && band <= 3 ? t("crew.tile.needw", { v: effort(km, y) })
         // the words version is already a whole clause; only the figures need a sentence
         : SHOW_NUMBERS ? t("crew.tile.clear", { v: fmtKm(km) }) : margin(km, y),
       // the third slot is the figure behind the phrase, the same one the two cards print.
       // With the setting on the phrase is already the figure, and 3 and 4 have no distance.
-      SHOW_NUMBERS || band === 3 || band === 4 ? "" : fmtKm(km)
+      SHOW_NUMBERS || band === 4 ? "" : fmtKm(km)
     ];
   }
 
@@ -771,8 +780,7 @@
       el.className = "crewtip " + (losing ? "bl" : "bt") + (sticky ? " tap" : "");
       el.innerHTML = (row.at ? '<b class="crewtipat">' + esc(row.at) + "</b>" : "")
         + "<b>" + esc(losing
-            ? (row.band === 3 ? fadesIn(Math.round(row.need * 10))
-               : t("crew.lose.gap", { v: effort(row.need, row.y) }))
+            ? t("crew.lose.gap", { v: effort(row.need, row.y) })
             : row.blocked ? t(row.first ? "crew.targets.got" : "crew.targets.blocked")
             : effort(row.need, row.y)) + "</b>"
         + "<span>" + esc(losing
@@ -833,8 +841,89 @@
         + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)
         + "</span><span>" + esc(detail) + (fig ? " <i>" + esc(fig) + "</i>" : "")
         + '</span><span class="crewpop-since"></span>'
-        + "</div></div>")
+        + "</div></div>"
+        // The two things there are to do with a crew you just tapped. In the popup rather
+        // than behind a hover delay or a long press: this is a phone-first mode, phones have
+        // no hover, and a long press is both undiscoverable and the OS's own gesture. The
+        // popup is already on screen and already names the crew, so it is where the actions
+        // belong -- and it works identically with a thumb and with a mouse.
+        + '<div class="crewpopacts">'
+        + '<button type="button" class="crewpopb" data-hl="' + esc(p.slug) + '">'
+        + esc(t("crew.pop.highlight")) + "</button>"
+        + '<button type="button" class="crewpopb" data-det="' + esc(p.slug) + '">'
+        + esc(t("crew.pop.details")) + "</button></div>")
       .addTo(map);
+    bindPopActs();
+  }
+
+  // Wired after the popup is in the DOM; MapLibre builds its element on `addTo`.
+  function bindPopActs() {
+    var el = POPUP && POPUP.getElement && POPUP.getElement();
+    if (!el) return;
+    var hl = el.querySelector("[data-hl]"), det = el.querySelector("[data-det]");
+    if (hl) hl.onclick = function () { shine(hl.getAttribute("data-hl")); };
+    if (det) det.onclick = function () {
+      var slug = det.getAttribute("data-det");
+      if (POPUP) { POPUP.remove(); POPUP = null; }
+      if (!visible) show();
+      openCrewDetail(slug);
+    };
+  }
+
+  /* ---------- Highlight ----------
+     The crew's biggest patch lit from its middle outward. Scoped to the patch under the
+     finger rather than every square the crew holds: a crew with ground in two cities would
+     spend most of the animation off screen, lighting up places you cannot see.
+     The wave is a per-square delay keyed on distance from the patch's centre, which is the
+     same trick the sign-in QR uses on its modules. Nothing moves under prefers-reduced-motion;
+     the CSS decides that, not this. */
+  function shine(slug) {
+    if (!TERR || !map.getLayer("crew-fill")) return;
+    var idx = -1;
+    TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
+    if (idx < 0) return;
+    var pts = [], i;
+    for (i = 0; i < TERR.cells.length; i += 5) {
+      if (TERR.cells[i] === idx) pts.push([TERR.cells[i + 1], TERR.cells[i + 2]]);
+    }
+    var patch = biggestPatch(pts);
+    if (!patch.length) return;
+    var cx = 0, cy = 0;
+    patch.forEach(function (q) { cx += q[0]; cy += q[1]; });
+    cx /= patch.length; cy /= patch.length;
+    var far = 1;
+    patch.forEach(function (q) {
+      far = Math.max(far, Math.hypot(q[0] - cx, q[1] - cy));
+    });
+    // Rings outward from the middle: each square waits for the ring it is on.
+    var rings = {};
+    patch.forEach(function (q) {
+      var r = Math.round(Math.hypot(q[0] - cx, q[1] - cy) / far * SHINE_RINGS);
+      (rings[r] = rings[r] || []).push(q);
+    });
+    var step = 70;
+    Object.keys(rings).forEach(function (r) {
+      setTimeout(function () { paintShine(rings[r]); }, Number(r) * step);
+    });
+    setTimeout(function () { paintShine([]); }, (SHINE_RINGS + 3) * step);
+  }
+
+  var SHINE_RINGS = 10;
+
+  // The ring currently lit, as one polygon set on its own source. A filter on `crew-cells`
+  // cannot do this: that source merges every square of a crew and band into a single
+  // MultiPolygon, so there is no per-square feature there to match.
+  function paintShine(cells) {
+    var src = map.getSource && map.getSource("crew-shine-src");
+    if (!src) return;
+    src.setData(cells.length
+      ? { type: "FeatureCollection", features: [{
+            type: "Feature", properties: {},
+            geometry: { type: "MultiPolygon",
+                        coordinates: cells.map(function (q) {
+                          return tileRing(q[0], q[1], TERR.z);
+                        }) } }] }
+      : { type: "FeatureCollection", features: [] });
   }
 
   // Every visible string goes through the page's translator. They live in web/i18n.py EN,
@@ -972,7 +1061,7 @@
       + '<ol class="crewrules">'
       + keys.map(function (k) {
           return "<li>" + t(k, { n: k === "crew.how.size" ? MAX_MEMBERS : SEED,
-                                 d: WINDOW_DAYS, c: RIDER_WEEK_CAP,
+                                 d: WINDOW_DAYS, c: capKm(),
                                  v: days(COOLDOWN_DAYS) }) + "</li>";
         }).join("")
       + "</ol>";
@@ -1087,7 +1176,13 @@
     if (!H.podList) return plainRank(rows);
     // 560 is the phone breakpoint the stylesheet and the fly-to already use. The podium is
     // exempt: podList hands the same val and sub to the cards and to the rows below them.
-    var tight = window.innerWidth <= 560;
+    // The CARD this renders into, not the window. `window.innerWidth <= 560` meant that at
+    // 1280 the board asked for the long labels -- "55 squares", "+55 squares this week" --
+    // and got a 435px table to put them in, because every card in this panel is capped at a
+    // 31rem measure however wide the window is. Rows wrapped to three and four lines and ran
+    // 75px tall against a 22px line box. The question was never how big the window is.
+    var col = Math.min(panel ? panel.clientWidth : window.innerWidth, 528) - 32;
+    var tight = col <= 520;
     var top3 = rows.slice(0, 3);
     // below the podium, which draws its own emblem above the name
     var isRow = function (e) { return top3.indexOf(e) < 0; };
@@ -1202,7 +1297,8 @@
 
   function plainRank(rows) {
     return '<table class="crewrank"><tbody>' + rows.map(function (r, i) {
-      return '<tr class="sel" data-i="' + i + '"><td class=rk>' + (i + 1) + "</td>"
+      return '<tr class="sel" data-i="' + i + '" data-slug="' + esc(r.slug || "")
+        + '"><td class=rk>' + (i + 1) + "</td>"
         + '<td><span class="celln">' + emb(r.slug, 16)
         + "<span>" + esc(r.name) + "</span></span></td>"
         + "<td class=val>" + tiles(r.best_tiles || r.tiles) + "</td>"
@@ -1302,7 +1398,16 @@
   // needs it to tell a crew which rows are arithmetic rather than a plan.
   // From the server, not from here. This used to be a 6 typed beside the sentence that
   // prints it, while `territory.RIDER_TILE_WEEK_CAP_KM` is what the model enforces.
-  var RIDER_WEEK_CAP = CFG.rider_week_cap_km != null ? CFG.rider_week_cap_km : 6;
+  //
+  // There is no single figure any more: the cap scales with the square, and a square is
+  // 0.85 km across at Tromso against 2.45 at the equator. The page config carries a
+  // mid-latitude default for a reader we know nothing about, and `/crews/me` carries the
+  // rung for where THIS rider actually rides -- so `capKm()` and not a constant, because
+  // the manual is usually opened after that has landed.
+  function capKm() {
+    if (ME && ME.rider_week_cap_km != null) return ME.rider_week_cap_km;
+    return CFG.rider_week_cap_km != null ? CFG.rider_week_cap_km : 8;
+  }
   var MAX_MEMBERS = CFG.max_members != null ? CFG.max_members : 0;   // 0 = no cap
   var RIDER_CEILING_KM = 29;
 
@@ -1755,8 +1860,7 @@
     // Same three columns as "where to ride next", so the two cards read as a pair: how hard,
     // which way, what about it.
     var cols = widestOf(LOSING, function (x) {
-      return x.band === 3 ? fadesIn(Math.round(x.need * 10))
-                          : t("crew.lose.gap", { v: effort(x.need, x.y) });
+      return t("crew.lose.gap", { v: effort(x.need, x.y) });
     });
     var seenState = {};
     // A disclosure once the list would bury what is under it. Twenty-odd rows sat between
@@ -1807,11 +1911,9 @@
           // whole string it landed past "and it's theirs", so eleven rows read "a few
           // streets and it's theirs 1.0 km" and the eye attached the number to "theirs".
           // The targets card above does it this way and the two are built as the same read.
-          var reach = x.band === 3 || x.need < 0.05 ? null : fmtKm(x.need);
-          var gap = x.band === 3
-            ? fadesIn(Math.round(x.need * 10))
-            : t("crew.lose.gap", { v: effort(x.need, x.y)
-                                      + (reach ? ' <i>' + reach + "</i>" : "") });
+          var reach = x.need < 0.05 ? null : fmtKm(x.need);
+          var gap = t("crew.lose.gap", { v: effort(x.need, x.y)
+                                            + (reach ? ' <i>' + reach + "</i>" : "") });
           // "creeping up" twice told you nothing about who. The attacking card has named its
           // victim since the first round; this one named nobody, so there was no grudge in a
           // game that runs on them.
@@ -4113,6 +4215,11 @@
         // in the row, which is what the target rows have always done.
         // No ordinal prefix: the row's first child IS the rank, so `rowLabel` already has
         // it and prefixing produced "2nd · 2ND · Polar Night Riders".
+        // Stamped here rather than in the markup: the board is drawn by the host's shared
+        // `podList`, the same renderer every other panel's table uses, so there is nowhere in
+        // this file to put an attribute on its rows. `plainRank` below carries it inline for
+        // the fallback path. `openCrewDetail` finds a row by it.
+        if (r && r.slug) el.dataset.slug = r.slug;
         pressable(el, r && rowLabel(el), function () {
           if (r) flyToCrew(r.slug);
         });
@@ -4134,25 +4241,78 @@
     flyToCrew(slug);
   }
 
+  // What "Details" on a tapped square opens: the panel, scrolled to that crew's row on the
+  // board and lit for a moment. The board row is everything the panel knows about a crew
+  // that is not yours -- where it stands, how much it holds, how it is moving -- and before
+  // this there was no way to get from a colour on the map to it except by reading sixteen
+  // names. The flash matters: the panel can be a long scroll, and landing silently in the
+  // middle of a table leaves you looking for what just happened.
+  function openCrewDetail(slug) {
+    if (!visible) show();
+    setTimeout(function () {
+      var row = panel.querySelector('.crewboard [data-slug="' + slug.replace(/"/g, "") + '"]');
+      if (!row) return;
+      try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {
+        row.scrollIntoView();
+      }
+      row.classList.add("crewlit");
+      setTimeout(function () { row.classList.remove("crewlit"); }, 2400);
+    }, 280);
+  }
+
+  // The crew's BIGGEST patch, not every square it holds.
+  //
+  // This used to fit bounds over all of them, which for a crew with ground in two cities
+  // framed both and showed neither: Nordlys hold squares in Oslo and Tromso, and clicking
+  // them on the board flew you to a view of Norway. The board ranks crews on their biggest
+  // single connected patch, so that patch is both the thing the row is about and the thing
+  // worth looking at.
   function flyToCrew(slug) {
     if (!TERR) return;
     var idx = -1;
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
     if (idx < 0) return;
-    var b = new maplibregl.LngLatBounds(), any = false;
-    for (var i = 0; i < TERR.cells.length; i += 5) {
-      if (TERR.cells[i] !== idx) continue;
-      var x = TERR.cells[i + 1], y = TERR.cells[i + 2];
-      b.extend([tileLon(x, TERR.z), tileLat(y, TERR.z)]);
-      b.extend([tileLon(x + 1, TERR.z), tileLat(y + 1, TERR.z)]);
-      any = true;
+    var pts = [], i;
+    for (i = 0; i < TERR.cells.length; i += 5) {
+      if (TERR.cells[i] === idx) pts.push([TERR.cells[i + 1], TERR.cells[i + 2]]);
     }
-    if (any) {
-      try {
-        map.fitBounds(b, { padding: { top: 90, bottom: 320, left: 50, right: 50 },
-                           maxZoom: 11.5, duration: 1800, essential: true });
-      } catch (e) {}
+    if (!pts.length) return;
+    var patch = biggestPatch(pts);
+    var b = new maplibregl.LngLatBounds();
+    patch.forEach(function (q) {
+      b.extend([tileLon(q[0], TERR.z), tileLat(q[1], TERR.z)]);
+      b.extend([tileLon(q[0] + 1, TERR.z), tileLat(q[1] + 1, TERR.z)]);
+    });
+    try {
+      map.fitBounds(b, { padding: { top: 90, bottom: 320, left: 50, right: 50 },
+                         maxZoom: 11.5, duration: 1800, essential: true });
+    } catch (e) {}
+  }
+
+  // Connected components over a list of squares, four-way, returning the largest. The server
+  // computes the same thing for the board (`territory.regions`); doing it again here is a
+  // flood fill over one crew's squares rather than another field on every payload.
+  function biggestPatch(pts) {
+    var own = Object.create(null), i;
+    for (i = 0; i < pts.length; i++) own[pts[i][0] + ":" + pts[i][1]] = pts[i];
+    var seen = Object.create(null), best = [];
+    for (i = 0; i < pts.length; i++) {
+      var k0 = pts[i][0] + ":" + pts[i][1];
+      if (seen[k0]) continue;
+      var stack = [pts[i]], comp = [];
+      seen[k0] = 1;
+      while (stack.length) {
+        var q = stack.pop();
+        comp.push(q);
+        var nbs = [[q[0] + 1, q[1]], [q[0] - 1, q[1]], [q[0], q[1] + 1], [q[0], q[1] - 1]];
+        for (var j = 0; j < 4; j++) {
+          var k = nbs[j][0] + ":" + nbs[j][1];
+          if (own[k] && !seen[k]) { seen[k] = 1; stack.push(own[k]); }
+        }
+      }
+      if (comp.length > best.length) best = comp;
     }
+    return best;
   }
 
   // Where on screen there is room to put the marked square.

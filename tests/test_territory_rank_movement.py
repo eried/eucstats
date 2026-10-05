@@ -142,7 +142,12 @@ def test_the_rank_follows_the_order_the_board_sorts_on(db):
 
 def test_a_crew_that_loses_everything_keeps_where_it_came_from(db):
     """Dropping off the board is the case where movement is most worth saying, so the previous
-    position must not be cleared with the rest of the standings."""
+    position must not be cleared with the rest of the standings.
+
+    A rival takes the ground, which is now the only way to lose it: letting the rides age out
+    leaves the crew holding everything it held, cold, because an uncontested square is pinned
+    at its floor rather than dropped.
+    """
     _settings(db)
     a = _crew(db, "par-7", "Canal Saint-Martin")
     _ride(db, "par-7", a.clan_id, "c1", _square(0, 0, 3), days_ago=3)
@@ -150,6 +155,8 @@ def test_a_crew_that_loses_everything_keeps_where_it_came_from(db):
     was = db.get(models.Clan, a.clan_id).terr_rank
     assert was == 1
 
+    b = _crew(db, "par-7b", "Quai de Valmy")
+    _ride(db, "par-7b", b.clan_id, "c2", _square(0, 0, 3), km=400.0, days_ago=1)
     for trip in db.query(models.Trip).filter(models.Trip.clan_id == a.clan_id).all():
         trip.start_utc = models.utcnow() - timedelta(days=900)
         trip.end_utc = trip.start_utc
