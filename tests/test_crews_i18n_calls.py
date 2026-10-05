@@ -44,6 +44,11 @@ NO_AGREEMENT = {
     "crew.targets.drops": "`drops them to {n}` -- ends the clause",
     "crew.drawn.in": "`{n} min` -- every locale abbreviates the unit, so nothing inflects",
     "crew.who.share": "`{n}%`",
+    # The roster's fold. Read in all three: ru `Показать всех {n}`, pl `Pokaż wszystkich {n}`,
+    # uk `Показати всіх {n}` -- the number ENDS the clause in every one, and the word
+    # before it is a fixed form that does not agree with it. Turkish, Japanese and Chinese
+    # put a counter after it (`kişi`, `人`) which never pluralises after a numeral.
+    "crew.roles.all": "the number ends the clause; nothing after it inflects",
     "crew.rank.nth": "the ordinal template itself, which is what `ordinal()` formats",
     # the two a ternary key hid from this scan until it stopped requiring a literal
     "crew.rank.off": "`{n} off {v}` -- read in ru, uk and pl: `на {n} меньше`, `{n} do`, "

@@ -1299,6 +1299,53 @@
       + (ink[1] ? ' data-p="' + esc(ink[1]) + '"' : "") + "></i>" + t(key) + "</span>";
   }
 
+  /* ---------- the key, on the map ----------
+
+     Both reviewers put this at the top of why the mode is not fun: the thing you are
+     looking at means nothing. Gold outlines, white dashed outlines, a cyan halo, six shades
+     of one colour and two hatch patterns, and the only explanation was behind the panel,
+     behind a (?) and a scroll. "The game is illegible while you're playing it."
+
+     So the key is on the map, and exactly when the map is what you can see: crew mode on and
+     the panel closed. It is the same `legendHTML` the manual prints -- one definition, so the
+     key and the manual cannot drift -- and it starts shut, because a permanent six-row
+     overlay on a phone is worse than no key at all. Whether it is open is remembered per
+     browser; it is a convenience, not state anybody else needs.
+  */
+  var KEYBOX = null;
+
+  function keyOpenPref() {
+    try { return localStorage.getItem("eucstats_crewkey") === "1"; } catch (e) { return false; }
+  }
+
+  function mountKey() {
+    if (KEYBOX || !map) return;
+    var host = map.getContainer && map.getContainer();
+    if (!host) return;
+    KEYBOX = document.createElement("details");
+    KEYBOX.className = "crewkey";
+    if (keyOpenPref()) KEYBOX.open = true;
+    KEYBOX.innerHTML = "<summary>" + esc(t("crew.key")) + "</summary>"
+      + '<div class="crewkeyb">' + legendHTML() + "</div>";
+    KEYBOX.addEventListener("toggle", function () {
+      try { localStorage.setItem("eucstats_crewkey", KEYBOX.open ? "1" : "0"); } catch (e) {}
+    });
+    host.appendChild(KEYBOX);
+  }
+
+  function unmountKey() {
+    if (KEYBOX && KEYBOX.parentNode) KEYBOX.parentNode.removeChild(KEYBOX);
+    KEYBOX = null;
+  }
+
+  // On when the map is the thing on screen. This doubles as the answer to "the panel is
+  // closed and nothing says you are still in crew mode" -- the key being there is what says
+  // so, and it is the only thing on screen that could.
+  function syncKey() {
+    if (visible && !panelOpen) mountKey();
+    else unmountKey();
+  }
+
   function legendHTML() {
     return '<div class="crewlegend">'
       + band(0, "crew.tile.safe") + band(1, "crew.tile.pushed")
@@ -2071,9 +2118,24 @@
     // this crew -- so the bar measures it too, and at a third of the width the track behind
     // it is finally visible.
     var total = rows.reduce(function (a, r) { return a + (r.km || 0); }, 0) || 1;
-    return '<div class="crewcontrib"><h4>' + t("crew.mine.who") + "</h4>" + rows.map(function (c) {
-      var share = Math.round((c.km / total) * 100);
-      var pct = Math.max(2, share);
+    // Largest remainder, not `Math.round` each. Rounding every row on its own let the column
+    // add up to 101%, which on a card asking "who carries this crew" is the one number a
+    // reader checks by adding it up. The floors always sum to 100 minus a whole number of
+    // points, and those points go to the rows that were rounded down hardest.
+    var exact = rows.map(function (c) { return ((c.km || 0) / total) * 100; });
+    var shares = exact.map(Math.floor);
+    var left = 100 - shares.reduce(function (a, b) { return a + b; }, 0);
+    exact.map(function (v, i) { return [v - Math.floor(v), i]; })
+      .sort(function (a, b) { return b[0] - a[0]; })
+      .slice(0, Math.max(0, left))
+      .forEach(function (pair) { shares[pair[1]] += 1; });
+    return '<div class="crewcontrib"><h4>' + t("crew.mine.who") + "</h4>" + rows.map(function (c, i) {
+      var share = shares[i];
+      // The bar IS the number. It used to be `Math.max(2, share)`, so a row reading 1% drew
+      // twice its own figure -- on exactly the rows where a rider is checking whether they
+      // count at all. A tiny bar stays visible through `min-width` in the stylesheet, which
+      // is pixels and does not claim to be a percentage.
+      var pct = share;
       return '<div class="crewcrow">'
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
         + (H.cc && c.flag ? H.cc(c.flag) : "")
@@ -2121,8 +2183,12 @@
       // it; this line existed because that one did not, and two links three lines apart is one
       // link and a repetition.
 
-      + '<p class="hint crewsame">' + t("crew.signin.same") + "</p>"
-      + '<a class="crewbtn crewopen" id="crewopen" href="#">' + t("crew.signin.open") + "</a>"
+      // The QR itself is the link -- `qr.href` is set the moment the code lands -- so a
+      // sentence explaining that you cannot scan your own screen, followed by a button that
+      // goes exactly where the code goes, was the same control twice with an apology between
+      // them. One caption under the code says what tapping it does, and the code is the
+      // control. Erwin: "why is not just tap the qr".
+      + '<p class="hint crewsame">' + t("crew.signin.tap") + "</p>"
       + "</div>";
   }
 
@@ -2199,15 +2265,18 @@
       qr.removeAttribute("href");
       qr.setAttribute("aria-hidden", "true");
     }
-    var open = document.getElementById("crewopen");
-    if (open) {
-      open.classList.add("dead");
-      open.removeAttribute("href");
-      // `aria-hidden` on the QR is right -- it is decoration once it cannot be scanned -- but
-      // this is a labelled button, and hiding it left a reader with a card whose only
-      // announced content was the heading. Disabled says the same thing and stays readable.
-      open.setAttribute("aria-disabled", "true");
+    // The code is dead, so the thing it links to is dead with it. The QR IS the link now --
+    // there is no separate button to disable -- so the href comes off and the caption under
+    // it goes quiet. `aria-disabled` rather than `aria-hidden`: hiding it left a reader with
+    // a card whose only announced content was its heading.
+    var qrl = document.getElementById("crewqr");
+    if (qrl) {
+      qrl.classList.add("dead");
+      qrl.removeAttribute("href");
+      qrl.setAttribute("aria-disabled", "true");
     }
+    var tapn = document.querySelector(".crewsame");
+    if (tapn) tapn.remove();
     var el = document.getElementById("crewcodehint");
     if (!el) return;
     // A bare `<a>` on this card computes to the browser default #0000EE, underlined, 13px, on
@@ -2229,18 +2298,25 @@
       pairToken = r.body.token;
       var qr = document.getElementById("crewqr");
       var code = document.getElementById("crewcode");
-      var open = document.getElementById("crewopen");
       // the app-scheme form of the same link, so a tap on this device hands the code to the
       // app without a round trip through the web page
+      // The host goes in RAW. `encodeURIComponent` turns it into https%3A%2F%2F..., and the
+      // app's parser splits on & and = and never decodes -- so `looksLikeOrigin()` saw a
+      // string that does not begin with "http://", the whole link parsed to null, and the
+      // pairing screen fell back to the camera. Tapping "Open EUC Planet" opened a SCANNER,
+      // on the one device that cannot scan the code it is looking at. Erwin hit it on his
+      // own phone.
+      // An origin has no & and no = in it, so raw is unambiguous here, and it is also what a
+      // decoding parser gets after decoding -- this works on the app already installed and on
+      // the one that fixes its side.
       var deep = "eucplanet://pair?code=" + encodeURIComponent(r.body.code)
-        + "&host=" + encodeURIComponent(location.origin);
+        + "&host=" + location.origin;
       if (qr) {
         qr.innerHTML = qrGrid(r.body.qr_rows)
           || ('<img alt="' + esc(t("crew.signin.qralt")) + '" src="data:image/png;base64,'
               + r.body.qr + '"/>');
         qr.href = deep;
       }
-      if (open) open.href = deep;
       if (code) code.textContent = r.body.code;
       // No handler on the app link any more: it is an ordinary outbound link now. Kept as a
       // lookup so the block below still finds its other controls.
@@ -3205,10 +3281,22 @@
     // stays a leader's call, and the server enforces that.
     if (me.roster && me.roster.length > 1
         && (me.role === "leader" || me.role === "officer")) {
+      // Folded at six, like the join list directly above it. Six members ran 83px each --
+      // 529px of a 590px screen for twelve buttons and no information -- while the list above
+      // folds at six and says so. The leader's row is always inside the fold.
+      var ROSTER_SHOWN = 6;
       h += '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
-        + me.roster.map(function (x) {
+        + me.roster.map(function (x, ri) {
+            // The ROLE, in words, not only a glyph with a `title`. A phone has no hover, so
+            // the star beside a name was unreadable on the device this is built for -- and
+            // "Make officer" is a button whose result was explained nowhere on screen.
             var mark = x.role === "leader" || x.role === "officer"
-              ? " " + roleMark(x.role) : "";
+              ? " " + roleMark(x.role)
+                + '<b class="crewrolew">' + esc(t("crew.role." + x.role)) + "</b>"
+              : "";
+            // The flag the payload has carried all along. A list of riders that says nothing
+            // about any rider is a list of buttons.
+            var flag = (H.cc && x.flag) ? H.cc(x.flag) : "";
             // the leader is listed, because a section called "The crew" that leaves them out
             // is a section header telling a lie
             // Your own row. Remove answered 400 `not_yourself` on every press, and Stand
@@ -3229,9 +3317,18 @@
                 + esc(x.store_id || "") + '" data-name="' + esc(x.name) + '"'
                 + ' title="' + esc(t("crew.tip.remove")) + '">'
                 + t("crew.roles.remove") + "</button>";
-            return '<div class="crewpendr"><span>' + esc(x.name) + mark + "</span>" + btn
+            // `hidden` and `crewrest`, the same two the join list folds with: one pattern
+            // for the two folding lists in this card rather than two.
+            return '<div class="crewpendr' + (ri >= ROSTER_SHOWN ? ' crewrest" hidden' : '"')
+              + '><span>' + flag + esc(x.name) + mark + "</span>" + btn
               + "</div>";
-          }).join("") + "</div>";
+          }).join("")
+        + (me.roster.length > ROSTER_SHOWN
+           ? '<button class="crewbtn mini ghost crewshowall" id="cr-more"'
+             + ' aria-expanded="false">' + t("crew.roles.all", { n: me.roster.length })
+             + "</button>"
+           : "")
+        + "</div>";
     }
     if (lead) {
       h += '<details class="crewedit"><summary>' + t("crew.mine.settings") + "</summary>"
@@ -3496,6 +3593,14 @@
 
     // A new invite code, retiring the old one. Confirmed, because it breaks every link and
     // every screenshot already handed out -- and says so, rather than asking "are you sure".
+    // The roster's fold. Six rows and a count, like the join list above it.
+    var rmore = document.getElementById("cr-more");
+    if (rmore) rmore.onclick = function () {
+      panel.querySelectorAll(".crewpendr.crewrest").forEach(function (r) { r.hidden = false; });
+      rmore.setAttribute("aria-expanded", "true");
+      rmore.hidden = true;
+    };
+
     var nc = document.getElementById("cm-newcode");
     if (nc) nc.onclick = function () {
       ask(t("crew.mine.newcodeq"), t("crew.mine.newcode"), function () {
@@ -4149,6 +4254,7 @@
     if (!H || typeof H.setPanel !== "function") { pendingShow = true; return; }
     visible = true;
     panelOpen = true;
+    syncKey();
     H.setPanel("crews", (H.t ? H.t("title.crews") : "Crews & Territory"),
       // TWO regions, not one whose role flips. Changing `role` and `aria-live` on an
       // already-registered region in the same mutation as the text is the registration
@@ -4360,7 +4466,9 @@
         // the fallback path. `openCrewDetail` finds a row by it.
         if (r && r.slug) el.dataset.slug = r.slug;
         pressable(el, r && rowLabel(el), function () {
-          if (r) flyToCrew(r.slug);
+          if (!r) return;
+          flyToCrew(r.slug);
+          closeIfCovering();
         });
       });
     });
@@ -4373,6 +4481,26 @@
         if (document.getElementById("cf-colours")) show();
       });
     }
+  }
+
+  // Tapping a row flies the map, and on a phone the map is entirely behind the panel: the
+  // whole thing happens where you cannot see it, so it reads as nothing having happened.
+  // `flyToRider` and `flyToCountry` in the host have closed the panel on a tap since they
+  // were written -- this is the same act in a different panel, and it did not.
+  //
+  // Measured rather than a width: the question is whether the panel is covering the map, and
+  // `flyToTile` beside it hardcoded 560px for the same decision. At 390x844 the panel is 367
+  // x641, which is 71% of the screen; at 1280 it is 720 of 1280 wide and leaves the map in
+  // view, so it stays open and the row keeps its highlight.
+  function panelCovers() {
+    var el = panel && panel.closest ? panel.closest(".panel") : null;
+    if (!el || !window.innerWidth) return window.innerWidth <= 560;
+    var r = el.getBoundingClientRect();
+    return (r.width * r.height) / (window.innerWidth * window.innerHeight) > 0.55;
+  }
+
+  function closeIfCovering() {
+    if (panelCovers() && H.closePanel) H.closePanel();
   }
 
   function openCrew(slug) {
@@ -4541,7 +4669,7 @@
     // a losing square is drawn too, in the colour its card uses, because flying there and
     // marking nothing left you on a map with no way to tell which square you were sent to
     showTargets(TARGETS, i == null ? x : null);
-    if (window.innerWidth <= 560) H.closePanel && H.closePanel();
+    closeIfCovering();
     // On a phone the panel is gone by now and the centre is the centre. On a desktop it is
     // still there and the square was flying to dead centre, behind the card that had just
     // said "Tap it to find it".
@@ -4663,11 +4791,12 @@
     // nobody is looking at the code
     // The panel slid away; the mode is still on and the map is still painted. Recording it
     // is what lets anything reopen the panel -- see the two flags at the top.
-    panelClosed: function () { panelOpen = false; stopPairing(); },
+    panelClosed: function () { panelOpen = false; stopPairing(); syncKey(); },
     hide: function () {
       if (!visible) return;
       visible = false;
       panelOpen = false;
+      unmountKey();
       stopPairing();
       clearLayers();          // rectangles belong to this mode and nowhere else
       setHeat(true);

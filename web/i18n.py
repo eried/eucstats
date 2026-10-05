@@ -72,8 +72,10 @@ EN: dict[str, str] = {
     "crew.signin.ride": "Upload a ride first. Crews are for riders the site already knows.",
     # the QR image's only name: the first card a new rider sees
     "crew.signin.qralt": "Crew pass code",
-    "crew.signin.same": "Reading this on your phone? You can't scan your own screen. Tap below.",
-    "crew.signin.open": "Open EUC Planet",
+    # One caption under the code, because the code IS the link. This was a sentence saying you
+    # cannot scan your own screen followed by a button going where the code goes -- the same
+    # control twice, with an apology between them.
+    "crew.signin.tap": "On this phone? Tap the code to open EUC Planet.",
     # starting one
     "crew.new.h": "Start a crew",
     "crew.new.p": "We picked colours nobody else is flying. Change them if you like.",
@@ -381,6 +383,9 @@ EN: dict[str, str] = {
     # and never at the invite code: a code can be rotated, and a sticker cannot.
     # The two actions on the popup you get by tapping a square on the map. Not behind a hover
     # delay: a phone has no hover, and a long press is the OS's own gesture.
+    # The collapsed strip on the map that explains the colours. One word, because it sits in
+    # a 230px box over the map and competes with the map for attention.
+    "crew.key": "Key",
     "crew.pop.highlight": "Highlight",
     "crew.pop.details": "Details",
     "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
@@ -391,6 +396,10 @@ EN: dict[str, str] = {
     "crew.share": "Share crew",
     "crew.share.p": "Print it, stick it on your backpack. It points at the crew and not at a code, so a new code does not kill it.",
     "crew.roles.h": "The crew",
+    # The roster's fold. NOT `crew.join.all`, which folds a list of CREWS: Polish wants the
+    # masculine-personal "wszystkich" for people and Russian the animate "всех", and the
+    # guard caught the reuse before either shipped.
+    "crew.roles.all": "Show all {n}",
     "crew.roles.promote": "Make officer",
     "crew.roles.demote": "Stand down",
     "crew.mine.signoutq": "Sign out? You need your phone to get back in.",

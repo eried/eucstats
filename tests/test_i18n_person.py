@@ -111,6 +111,8 @@ CARDS = {
     # what printing it will get them, which is the same person `crew.tip.` speaks to.
     # Two buttons on the popup over a square, naming what pressing them does. No person in
     # either: "Highlight", "Details".
+    # One word on the collapsed strip over the map. Names a thing; addresses nobody.
+    "crew.key": "none",
     "crew.pop.": "none",
     "crew.pub.": "rider",
     "crew.share": "rider",
