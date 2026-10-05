@@ -154,12 +154,51 @@
 /* a crew's identity at a glance: the colour, with its pattern drawn over it, exactly as the
    map draws it — so the swatch beside a name is the same thing you see on the ground */
 .crewsw { display: inline-block; vertical-align: middle; border: 1px solid rgba(255,255,255,.55); position: relative; }
-.crewsw::after { content: ""; position: absolute; inset: 0; }
-.crewsw[data-p=hatch]::after {
-  background: repeating-linear-gradient(45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px),
-              repeating-linear-gradient(-45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px);
+
+/* ---------- the twelve patterns, written once ----------
+   A crew's identity is a colour with a pattern over it, and it is drawn in four places: the
+   inline swatch beside a name, the key under the manual, the picker grid in the two forms,
+   and the map itself. The map gets a canvas tile from crews.js; the other three each had
+   their own copy of these gradients, which is how `stripes` came to exist at three different
+   alphas in one stylesheet, `solid` was defined nowhere, and adding a pattern meant
+   remembering three selectors in three parts of the file.
+   Now a pattern sets `--pat` and whoever draws it paints `var(--pat)`. Going from four
+   patterns to twelve touched this block and nothing else. */
+.crewsw[data-p]::after, .crewlegend i[data-p]::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: var(--pat, none);
+  background-size: var(--patsize, auto);
+  background-position: var(--patpos, 0 0);
 }
-.crewsw[data-p=dots]::after { background-image: radial-gradient(rgba(0,0,0,.5) 28%, transparent 30%); background-size: 5px 5px; }
+/* One ink for all of them. The three copies used .42, .45 and .5 with nothing choosing
+   between them, so two patterns on the same colour printed at different weights. */
+[data-p] { --patink: rgba(0,0,0,.45); }
+
+[data-p=solid] { --pat: none; }
+[data-p=stripes] { --pat: repeating-linear-gradient(45deg, var(--patink) 0 2px, transparent 2px 5px); }
+[data-p=backslash] { --pat: repeating-linear-gradient(-45deg, var(--patink) 0 2px, transparent 2px 5px); }
+[data-p=vert] { --pat: repeating-linear-gradient(90deg, var(--patink) 0 2px, transparent 2px 5px); }
+[data-p=horiz] { --pat: repeating-linear-gradient(0deg, var(--patink) 0 2px, transparent 2px 5px); }
+[data-p=hatch] { --pat: repeating-linear-gradient(45deg, var(--patink) 0 2px, transparent 2px 6px),
+                        repeating-linear-gradient(-45deg, var(--patink) 0 2px, transparent 2px 6px); }
+[data-p=grid] { --pat: repeating-linear-gradient(90deg, var(--patink) 0 2px, transparent 2px 6px),
+                       repeating-linear-gradient(0deg, var(--patink) 0 2px, transparent 2px 6px); }
+[data-p=dots] { --pat: radial-gradient(var(--patink) 28%, transparent 30%); --patsize: 5px 5px; }
+/* the one that has to stay apart from `dots` at fourteen pixels: one big spot per cell,
+   not texture */
+[data-p=bigdots] { --pat: radial-gradient(var(--patink) 40%, transparent 42%); --patsize: 9px 9px; }
+[data-p=rings] { --pat: radial-gradient(transparent 24%, var(--patink) 26% 38%, transparent 40%);
+                 --patsize: 9px 9px; }
+[data-p=checker] { --pat: conic-gradient(var(--patink) 0 25%, transparent 0 50%,
+                          var(--patink) 0 75%, transparent 0); --patsize: 8px 8px; }
+/* Three layers, because bricks are courses with the joints offset row to row -- the whole
+   thing that separates them from `horiz`. Layer one is the courses; two and three are the
+   joints, one per row, half a brick apart. The canvas tile draws the same 16px cell. */
+[data-p=bricks] { --pat: repeating-linear-gradient(0deg, var(--patink) 0 2px, transparent 2px 8px),
+                         linear-gradient(90deg, var(--patink) 0 2px, transparent 2px),
+                         linear-gradient(90deg, var(--patink) 0 2px, transparent 2px);
+                  --patsize: auto, 16px 8px, 16px 8px;
+                  --patpos: 0 0, 4px 0, 12px 8px; }
 
 .crewhead { display: flex; gap: 12px; align-items: center; }
 .crewlogo { width: 52px; height: 52px; flex: 0 0 52px; border: 1px solid var(--line, #243055); background: rgba(0,0,0,.3); }
@@ -687,10 +726,36 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewcount { display: block; margin-top: 2px; font-size: 11px; color: var(--mut, #9aa6c8);
   font-variant-numeric: tabular-nums; text-align: right; }
 .crewcard textarea { resize: vertical; min-height: 46px; }
-#cf-patterns { grid-template-columns: repeat(6, 24px); }
 
-/* patterns have to be separable at swatch size */
-.crewsw[data-p=stripes]::after { background: repeating-linear-gradient(45deg, rgba(0,0,0,.5) 0 2px, transparent 2px 5px); }
+/* patterns have to be separable at swatch size -- all twelve are defined in one block
+   further up, beside `.crewsw` itself */
+
+/* `#cf-patterns { grid-template-columns: repeat(6, 24px) }` used to sit here, directly under
+   the comment above explaining that the cap had been taken off this very grid. It had not:
+   the comment described the fix and the rule put it straight back, so the create form drew
+   24px pattern chips under 36px colour chips while crew settings drew both at full size.
+   Gone, so `.crewpick` governs both grids and the two share a pitch. */
+
+/* ---------- a pair another crew already flies ----------
+   Not hidden and not removed: forty-eight colours with gaps in the grid reads as a rendering
+   fault, and a founder who liked one of them deserves to know it is spoken for rather than
+   wonder where it went. So it stays in place, drained and crossed, with the reason in its
+   title and its `aria-label`. `disabled` carries the rest: no press, no tab stop, and the
+   arrow keys step over it. */
+.crewpickc.gone, .crewpickp.gone { cursor: not-allowed; opacity: .34; position: relative; }
+/* A hairline through the chip, drawn in both inks so it reads on a pale swatch and a dark one.
+   Opacity alone was not enough: on the darker half of the palette a drained chip just looks
+   like a slightly darker chip, which is a difference you can only see by comparing it with
+   its neighbours -- and the neighbours are forty-seven other colours. Both grids get it; the
+   pattern chips needed it most, since they are all drawn in the SAME colour and dimming was
+   the only thing separating them. */
+.crewpickc.gone::after, .crewpickp.gone::after {
+  content: ""; position: absolute; inset: -1px; pointer-events: none;
+  background: linear-gradient(to top right, transparent calc(50% - 1.4px),
+    rgba(255,255,255,.85) calc(50% - 1.4px) 50%, rgba(0,0,0,.85) 50% calc(50% + 1.4px),
+    transparent calc(50% + 1.4px));
+}
+.crewpickc.gone:hover, .crewpickp.gone:hover { outline: 0; }
 
 /* the join list was nine identical filled buttons shouting over the crews themselves */
 .crewrow .crewbtn.mini { min-width: 86px; text-align: center; }
@@ -1114,8 +1179,8 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 @media (max-width: 560px) {
   /* A contributor row is read, not tapped: six riders at 44px is 264px of panel spent on a
      bar chart nobody can press. */
-  /* the same track as the colours above it, so the two grids share a left edge and a size */
-  #cf-patterns { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
+  /* The `#cf-patterns` copy of the line below was here to beat a base rule that no longer
+     exists, so `.crewpick` now sets the track for both grids once. */
   .crewcard { padding: 12px 12px; }
   .crewhead { gap: 9px; }
   .crewlogo { width: 42px; height: 42px; flex: 0 0 42px; }
@@ -1222,16 +1287,9 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .crewtargets.nums .crewtkm i { display: none; }
 
-/* the key carries the crew's pattern, the same way every other swatch in the panel does */
-.crewlegend i[data-p]::after { content: ""; position: absolute; inset: 0; }
-.crewlegend i[data-p=stripes]::after {
-  background: repeating-linear-gradient(45deg, rgba(0,0,0,.45) 0 2px, transparent 2px 5px); }
-.crewlegend i[data-p=dots]::after {
-  background-image: radial-gradient(rgba(0,0,0,.5) 28%, transparent 30%);
-  background-size: 5px 5px; }
-.crewlegend i[data-p=hatch]::after {
-  background: repeating-linear-gradient(45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px),
-              repeating-linear-gradient(-45deg, rgba(0,0,0,.42) 0 2px, transparent 2px 6px); }
+/* the key carries the crew's pattern, the same way every other swatch in the panel does --
+   and from the same `--pat` definitions, so the key cannot print a pattern differently from
+   the swatch two cards above it */
 
 /* the figure behind the phrase, on the square itself: same weight as in the two cards */
 .crewtip span i, .crewpop-in span i { font-style: normal; font-size: 11px; opacity: .62;

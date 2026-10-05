@@ -88,7 +88,18 @@ EN: dict[str, str] = {
     "crew.pattern.stripes": "stripes",
     "crew.pattern.dots": "dots",
     "crew.pattern.hatch": "hatch",
+    "crew.pattern.backslash": "back stripes",
+    "crew.pattern.vert": "vertical",
+    "crew.pattern.horiz": "horizontal",
+    "crew.pattern.grid": "grid",
+    "crew.pattern.bigdots": "spots",
+    "crew.pattern.rings": "rings",
+    "crew.pattern.checker": "checks",
+    "crew.pattern.bricks": "bricks",
     "crew.new.colourn": "Colour {n}",
+    # What a greyed swatch means, appended to its own name so the label reads
+    # "stripes — another crew flies this" rather than needing a legend of its own.
+    "crew.new.gone": "another crew flies this",
     "crew.new.who": "Who can join",
     "crew.new.approval": "A leader says yes",
     "crew.new.open": "Anyone",

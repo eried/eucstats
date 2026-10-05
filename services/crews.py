@@ -16,23 +16,49 @@ from datetime import timedelta
 
 from models import Clan, ClanMember, ClanCell, Trip, utcnow
 
-# 24 colours chosen to stay apart from each other on a map and to survive the common forms of
+# 48 colours chosen to stay apart from each other on a map and to survive the common forms of
 # colour blindness — no red/green pair carries meaning on its own, which is why every crew also
 # has a pattern and an emblem.
 # Sorted by hue with the greys at the end, rather than in the order the 20-colour
 # categorical data-viz list ships in -- which put brown, cream, maroon and mint on one row and
 # olive, apricot, navy and grey on the next, in the one grid in the product whose whole job is
-# to be looked at. The SET is unchanged: crews hold these values in the database and
-# `colour not in PALETTE` validates against it, so dropping or adding one is a migration.
+# to be looked at.
+#
+# Twenty-four became forty-eight, and four patterns twelve, because 24x4 is ninety-six and
+# forty-four crews already held forty of them. A founder was offered a grid where every swatch
+# looked available and about two in five were not, and the only way to find out was to submit
+# the form. 48x12 is five hundred and seventy-six, which puts the same forty-four crews at
+# under eight per cent -- and the grid now says which ones are gone, so the rate stopped
+# mattering.
+#
+# All twenty-four of the original colours are still here, at their original values: crews hold
+# these in the database and `colour not in PALETTE` validates against it, so dropping one is a
+# migration and adding one is not. The new entries lean on value as much as hue, which is what
+# the first twenty-four were short of -- #8d6e63 next to #5d4037 separates on lightness, where
+# a twenty-fifth magenta would have separated on nothing. The closest pair in the set is .014
+# apart in a rough luma/opponent space, and no pair is closer than that.
 PALETTE = [
-    "#fabebe", "#800000", "#ff7043", "#c2410c", "#ffd8b1", "#f58231",
-    "#9a6324", "#ffe119", "#fffac8", "#808000", "#bcf60c", "#3cb44b",
-    "#aaffc3", "#7bd389", "#46f0f0", "#008080", "#56c5f0", "#4363d8",
-    "#000075", "#e6beff", "#911eb4", "#f032e6", "#e6194b", "#a9a9a9",
+    "#800000", "#a52a2a", "#fabebe", "#5d4037", "#ff7043", "#ff5722",
+    "#8d6e63", "#c2410c", "#f58231", "#ffd8b1", "#9a6324", "#ffab40",
+    "#d4a017", "#bfae48", "#ffe119", "#fffac8", "#808000", "#bcf60c",
+    "#6b8e23", "#7cb342", "#2e7d32", "#3cb44b", "#7bd389", "#aaffc3",
+    "#00a86b", "#26a69a", "#008080", "#46f0f0", "#00bcd4", "#56c5f0",
+    "#607d8b", "#0288d1", "#4363d8", "#7986cb", "#5c6bc0", "#000075",
+    "#4a148c", "#e6beff", "#911eb4", "#ba68c8", "#f032e6", "#c51162",
+    "#b03060", "#ff4081", "#e6194b", "#ff8fa3", "#a9a9a9", "#4a4a4a",
 ]
 # Patterns cost one sprite each, not one per crew: the fill layer paints the colour and a
-# second layer paints the pattern over it. A fifth pattern is one more image, not twenty-four.
-PATTERNS = ["solid", "stripes", "dots", "hatch"]
+# second layer paints the pattern over it. A fifth pattern is one more image, not twenty-four,
+# which is why going to twelve costs eight canvases and nothing else.
+#
+# Ordered so that the two that are hardest to tell apart are never adjacent in the grid, and
+# so the first four are the four that existed -- every crew in the database holds one of those
+# and they keep their position.
+PATTERNS = [
+    "solid", "stripes", "dots", "hatch",
+    "backslash", "vert", "horiz", "grid",
+    "bigdots", "rings", "checker", "bricks",
+]
 
 JOIN_POLICIES = ("open", "approval", "invite")
 COOLDOWN_DAYS = 7          # the default; the admin's figure comes from settings, see _cooldown_days
@@ -225,7 +251,12 @@ def suggest_identity(db, near: tuple[float, float] | None = None) -> dict:
             # only if it leaves anything: a crowded city must not block a founder entirely
             pool = far or pool
     colour, pattern = random.choice(pool)
-    return {"colour": colour, "pattern": pattern, "free": len(pool), "used": len(taken)}
+    # Which pairs are gone, so the grid can say so. Every swatch used to look available while
+    # forty of ninety-six were not, and the only way to find out was to submit the form and
+    # read "Another crew already flies those colours" -- about two founders in five.
+    # One row per live crew, so this is the same scan the counting above already did.
+    return {"colour": colour, "pattern": pattern, "free": len(pool), "used": len(taken),
+            "taken": sorted([c, p] for c, p in taken)}
 
 
 def identity_taken(db, colour: str, pattern: str, exclude: str | None = None) -> bool:

@@ -705,3 +705,54 @@ def test_the_square_you_cannot_ride_does_not_head_the_card():
             seen_blocked = True
         elif seen_blocked:
             raise AssertionError("a rideable square sorted below a finished one: " + repr(t))
+
+
+def test_the_palette_is_wide_enough_that_a_founder_is_not_guessing(db):
+    """Forty-eight colours by twelve patterns, with every original colour still in the set.
+
+    This was twenty-four by four, which is ninety-six pairs, and forty-four crews already held
+    forty of them: a founder was shown a grid where every swatch looked available and about two
+    in five were not, and the only way to find out was to submit the form. The sizes are the
+    fix, so they are the thing worth pinning -- and the ORIGINAL twenty-four have to survive
+    verbatim, because crews hold these strings in the database and `colour not in PALETTE` is
+    what validates a write. Adding to the list is free; dropping from it is a migration.
+    """
+    from services.crews import PALETTE, PATTERNS
+    assert len(PALETTE) == 48, len(PALETTE)
+    assert len(set(PALETTE)) == len(PALETTE), "a duplicate colour is a swatch nobody can pick"
+    assert len(PATTERNS) == 12, PATTERNS
+    assert len(set(PATTERNS)) == len(PATTERNS), PATTERNS
+    # the four that shipped, in their original places: every crew in the database holds one
+    assert PATTERNS[:4] == ["solid", "stripes", "dots", "hatch"], PATTERNS[:4]
+    original = {
+        "#fabebe", "#800000", "#ff7043", "#c2410c", "#ffd8b1", "#f58231",
+        "#9a6324", "#ffe119", "#fffac8", "#808000", "#bcf60c", "#3cb44b",
+        "#aaffc3", "#7bd389", "#46f0f0", "#008080", "#56c5f0", "#4363d8",
+        "#000075", "#e6beff", "#911eb4", "#f032e6", "#e6194b", "#a9a9a9",
+    }
+    missing = original - set(PALETTE)
+    assert not missing, f"dropping a colour orphans every crew flying it: {sorted(missing)}"
+    assert all(c.startswith("#") and len(c) == 7 for c in PALETTE), "six-digit hex, no alpha"
+
+
+def test_the_suggestion_says_which_pairs_are_gone(db):
+    """`taken` is what lets the grid draw a pair as unavailable instead of letting the founder
+    discover it by pressing Create crew. It has to list every live crew's pair and nothing
+    else: a disbanded crew's colours go back in the pool, so reporting them would retire a
+    colour permanently every time a crew folded."""
+    from models import Clan, utcnow
+    from services.crews import suggest_identity
+    db.add(Clan(clan_id="t-taken-live", name="Live", slug="live",
+                colour="#800000", pattern="hatch", join_policy="open", invite_code="L1"))
+    db.add(Clan(clan_id="t-taken-dead", name="Dead", slug="dead",
+                colour="#008080", pattern="dots", join_policy="open", invite_code="L2",
+                disbanded_at=utcnow()))
+    db.commit()
+
+    got = suggest_identity(db)
+    taken = {tuple(p) for p in got["taken"]}
+    assert ("#800000", "hatch") in taken, "a live crew's pair has to be reported"
+    assert ("#008080", "dots") not in taken, "a disbanded crew's pair is free again"
+    # and the suggestion itself is never one of them
+    assert (got["colour"], got["pattern"]) not in taken, (got["colour"], got["pattern"])
+    assert all(isinstance(p, list) and len(p) == 2 for p in got["taken"]), "pairs, for JSON"

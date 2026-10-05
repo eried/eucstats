@@ -531,12 +531,24 @@ def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
 
 
 @router.get("/crews/identity")
-def crew_identity(request: Request, db: Session = Depends(get_db)):
-    """A suggested colour and pattern: one of the least-used combinations.
+def crew_identity(request: Request, response: Response, db: Session = Depends(get_db)):
+    """A suggested colour and pattern: one of the least-used combinations, and which are gone.
 
-    Nobody is shown ninety-six swatches. The least-used pair spreads the palette across the
-    map on its own, and a founder who does not care never has to think about it.
+    Nobody is shown five hundred and seventy-six swatches. The least-used pair spreads the
+    palette across the map on its own, and a founder who does not care never has to think
+    about it. `taken` is for the ones who do: the grid draws those drained and crossed rather
+    than letting the founder find out by submitting the form.
+
+    Not cached, for the same reason as `/crews/me` beside it and one more. It depends on a
+    cookie -- the suggestion avoids the colours on the ground where THIS rider rides -- and
+    `taken` goes out of date the moment another crew is founded. Served from a browser cache
+    it would mark a pair free that had just gone, which is the exact error the list exists to
+    prevent. It had no cache header at all, and a browser reusing it is what this was first
+    noticed as: a form whose grid had no availability in it, five minutes after the field
+    shipped.
     """
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
     _gate(db)
     # Where this rider rides, so the suggestion can avoid the colours already on the ground
     # around them rather than only the ones rare worldwide.

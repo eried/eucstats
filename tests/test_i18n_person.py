@@ -402,6 +402,13 @@ SHARED = {
     # "Still cooling off from the last one." while `cooldown_until` was in the payload all
     # along. Same reader, same fact, and the dated wording already existed.
     "crew.join.wait.p": {"errMsg"},
+    # The pattern names and the "another crew flies this" clause, relabelled by `bindIdent`
+    # after a colour press. `identGrids` draws the grid once with the pattern names and the
+    # availability of the pair the form opened with; pressing a colour changes which pairs are
+    # free, so the same buttons have to be relabelled in place. Same grid, same reader, same
+    # words -- the alternative is re-rendering the form under the founder's cursor.
+    "crew.pattern.": {"bindIdent"},
+    "crew.new.gone": {"bindIdent"},
 }
 
 # The functions that build each card. Anything rendering a key from another card has to appear

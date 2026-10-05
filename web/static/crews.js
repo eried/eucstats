@@ -24,8 +24,15 @@
   var pairTimer = null, pairToken = null;
   var ME = null;
 
-  var PATTERNS = ["solid", "stripes", "dots", "hatch"];
   var CFG = window.__CREWCFG__ || {};
+  // From the server, which is the only place the set is decided -- `services.crews.PATTERNS`
+  // validates every write against it. Typed out here as well, this went from four to twelve on
+  // the server and stayed at four in the grid a founder actually picks from, which is the same
+  // bug as the weekly cap that was a 6 in this file. The literal is a fallback for a page
+  // served before the config carried the field, nothing more.
+  var PATTERNS = (CFG.patterns && CFG.patterns.length)
+    ? CFG.patterns.slice()
+    : ["solid", "stripes", "dots", "hatch"];
   // `|| 7` turned a configured 0 into 7, so an admin who switched the cooldown off was still
   // telling riders to wait a week. Same class of bug as the hardcoded "7 days" it replaced.
   var COOLDOWN_DAYS = CFG.cooldown_days != null ? CFG.cooldown_days : 7;
@@ -118,28 +125,73 @@
   // Four images, not one per crew. The fill layer paints the colour and a second layer paints
   // a translucent stencil over it, so adding a fifth pattern costs one more image and
   // ninety-six crews cost none.
+  // One 16x16 tile per pattern, drawn so that it repeats seamlessly: every stroke that leaves
+  // one edge has to arrive at the opposite one, which is why the diagonals run from -S to 2S
+  // and the dots are placed on the diagonal rather than in the corners.
   function patternImage(kind) {
     var S = 16, cv = document.createElement("canvas");
     cv.width = cv.height = S;
     var g = cv.getContext("2d");
+    var i, j;
     g.clearRect(0, 0, S, S);
     g.strokeStyle = "rgba(0,0,0,.42)";
     g.fillStyle = "rgba(0,0,0,.42)";
     g.lineWidth = 3;
-    if (kind === "stripes") {
-      for (var i = -S; i < S * 2; i += 8) {
-        g.beginPath(); g.moveTo(i, 0); g.lineTo(i + S, S); g.stroke();
+
+    function diag(back) {
+      for (i = -S; i < S * 2; i += 8) {
+        g.beginPath();
+        if (back) { g.moveTo(i + S, 0); g.lineTo(i, S); } else { g.moveTo(i, 0); g.lineTo(i + S, S); }
+        g.stroke();
       }
-    } else if (kind === "hatch") {
-      g.lineWidth = 2;
-      for (var j = -S; j < S * 2; j += 8) {
-        g.beginPath(); g.moveTo(j, 0); g.lineTo(j + S, S); g.stroke();
-        g.beginPath(); g.moveTo(j + S, 0); g.lineTo(j, S); g.stroke();
+    }
+    function lines(horiz) {
+      for (i = 2; i < S; i += 8) {
+        g.beginPath();
+        if (horiz) { g.moveTo(0, i); g.lineTo(S, i); } else { g.moveTo(i, 0); g.lineTo(i, S); }
+        g.stroke();
       }
-    } else if (kind === "dots") {
-      [[4, 4], [12, 12]].forEach(function (p) {
-        g.beginPath(); g.arc(p[0], p[1], 2.6, 0, 6.2832); g.fill();
+    }
+    function discs(pts, r) {
+      pts.forEach(function (p) {
+        g.beginPath(); g.arc(p[0], p[1], r, 0, 6.2832); g.fill();
       });
+    }
+
+    if (kind === "stripes") {
+      diag(false);
+    } else if (kind === "backslash") {
+      diag(true);
+    } else if (kind === "hatch") {
+      g.lineWidth = 2; diag(false); diag(true);
+    } else if (kind === "vert") {
+      lines(false);
+    } else if (kind === "horiz") {
+      lines(true);
+    } else if (kind === "grid") {
+      g.lineWidth = 2; lines(false); lines(true);
+    } else if (kind === "dots") {
+      discs([[4, 4], [12, 12]], 2.6);
+    } else if (kind === "bigdots") {
+      // One disc per tile, big enough to read as a spot rather than as texture -- this is the
+      // pattern that has to stay apart from `dots` at fourteen pixels.
+      discs([[8, 8]], 5);
+    } else if (kind === "rings") {
+      g.lineWidth = 2.4;
+      g.beginPath(); g.arc(8, 8, 4.6, 0, 6.2832); g.stroke();
+    } else if (kind === "checker") {
+      g.fillRect(0, 0, S / 2, S / 2);
+      g.fillRect(S / 2, S / 2, S / 2, S / 2);
+    } else if (kind === "bricks") {
+      g.lineWidth = 2;
+      for (i = 0; i <= S; i += 8) {
+        g.beginPath(); g.moveTo(0, i); g.lineTo(S, i); g.stroke();
+      }
+      // the cross joints, offset row to row, which is what makes it bricks and not `horiz`
+      for (j = 0; j < 2; j++) {
+        var x = j === 0 ? 4 : 12;
+        g.beginPath(); g.moveTo(x, j * 8); g.lineTo(x, j * 8 + 8); g.stroke();
+      }
     }
     return g.getImageData(0, 0, S, S);
   }
@@ -2395,31 +2447,93 @@
   // 28 presses in a form with two text fields, and reaching Leave crew took 56. One stop in,
   // arrows to move, one stop out, which is what a grid of toggles is supposed to do.
   // `aria-pressed` is unchanged; it is the state, and this is only the focus order.
+  /* ---------- which identities are still free ----------
+
+     Every swatch used to look available. Forty of ninety-six pairs were not, so about two
+     founders in five pressed Create crew and got "Another crew already flies those colours",
+     with no indication of which ones were free and the error still sitting under the field
+     while they guessed again. The palette is forty-eight by twelve now, which makes the same
+     forty-four crews a far smaller share, but the grid says it either way: a pair that is
+     gone is not something to discover by submitting a form. */
+
+  // "colour|pattern" keys, from the same payload that suggests a free pair. An object, not a
+  // scan: this is asked once per swatch per redraw, and the pattern grid re-asks on every
+  // colour press.
+  function takenPairs() {
+    var list = (window.__CREWIDENT__ && window.__CREWIDENT__.taken) || [];
+    var s = Object.create(null);
+    list.forEach(function (p) { s[p[0] + "|" + p[1]] = 1; });
+    return s;
+  }
+
+  // A colour is only really gone when every pattern on it is gone -- with twelve patterns
+  // that takes twelve crews agreeing on one colour, which is the point of widening the grid.
+  function colourGone(taken, c, own) {
+    return PATTERNS.every(function (p) {
+      return taken[c + "|" + p] && !(own && own === c + "|" + p);
+    });
+  }
+
+  // The pattern to land on for a colour: keep the one they have if it survives the move,
+  // otherwise the first that is free. Pressing a colour must never leave the form holding a
+  // pair the server will refuse.
+  function freePattern(taken, c, want, own) {
+    function ok(p) { return !taken[c + "|" + p] || (own && own === c + "|" + p); }
+    if (want && ok(want)) return want;
+    for (var i = 0; i < PATTERNS.length; i++) {
+      if (ok(PATTERNS[i])) return PATTERNS[i];
+    }
+    return want || PATTERNS[0];
+  }
+
   function identGrids(prefix, ident) {
     var cols = (window.__CREWCFG__ && window.__CREWCFG__.palette) || [];
     var chosenC = cols.indexOf(ident.colour);
     if (chosenC < 0) chosenC = 0;
     var chosenP = PATTERNS.indexOf(ident.pattern);
     if (chosenP < 0) chosenP = 0;
+    var taken = takenPairs();
+    // The pair this form opened with is always allowed. For the settings form that is the
+    // crew's OWN colours, which the server excludes from the clash check -- greying them out
+    // would tell a leader their own identity was unavailable to them.
+    var own = ident.colour + "|" + ident.pattern;
+    // The tab stop cannot sit on a disabled button: it is not focusable, so the grid would
+    // have no tab stop at all and keyboard users could not reach it.
+    if (colourGone(taken, cols[chosenC], own)) {
+      for (var k = 0; k < cols.length; k++) {
+        if (!colourGone(taken, cols[k], own)) { chosenC = k; break; }
+      }
+    }
     return {
       colours: '<div class="crewpick" id="' + prefix + '-colours" role="group" aria-label="'
         + esc(t("crew.new.colours")) + '">' + cols.map(function (c, i) {
           var on = c === ident.colour;
+          var gone = colourGone(taken, c, own);
+          var label = t("crew.new.colourn", { n: i + 1 })
+            + (gone ? " — " + t("crew.new.gone") : "");
           return '<button type="button" class="crewpickc' + (on ? " on" : "")
+            + (gone ? " gone" : "")
             + '" aria-pressed="' + (on ? "true" : "false")
+            + (gone ? '" disabled aria-disabled="true' : "")
             + '" tabindex="' + (i === chosenC ? "0" : "-1")
             + '" data-c="' + c + '" style="background:' + c + '" title="'
-            + esc(t("crew.new.colourn", { n: i + 1 })) + '" aria-label="'
-            + esc(t("crew.new.colourn", { n: i + 1 })) + '"></button>';
+            + esc(label) + '" aria-label="' + esc(label) + '"></button>';
         }).join("") + "</div>",
-      patterns: '<div class="crewpick" id="' + prefix + '-patterns" role="group" aria-label="'
+      // `data-own` so the live update in `bindIdent` knows which pair to keep allowed without
+      // re-deriving it from a hidden input that by then has already moved.
+      patterns: '<div class="crewpick" id="' + prefix + '-patterns" role="group" data-own="'
+        + esc(own) + '" aria-label="'
         + esc(t("crew.new.patterns")) + '">' + PATTERNS.map(function (pt, i) {
           var on = pt === ident.pattern;
+          var gone = taken[ident.colour + "|" + pt] && own !== ident.colour + "|" + pt;
+          var label = t("crew.pattern." + pt) + (gone ? " — " + t("crew.new.gone") : "");
           return '<button type="button" class="crewpickp' + (on ? " on" : "")
+            + (gone ? " gone" : "")
             + '" aria-pressed="' + (on ? "true" : "false")
+            + (gone ? '" disabled aria-disabled="true' : "")
             + '" tabindex="' + (i === chosenP ? "0" : "-1")
-            + '" data-p="' + pt + '" title="' + esc(t("crew.pattern." + pt))
-            + '" aria-label="' + esc(t("crew.pattern." + pt)) + '">'
+            + '" data-p="' + pt + '" title="' + esc(label)
+            + '" aria-label="' + esc(label) + '">'
             + '<span class="crewsw" data-p="' + pt + '" style="background:' + ident.colour
             + '"></span></button>';
         }).join("") + "</div>"
@@ -2468,7 +2582,45 @@
 
   // Wire one form's grids: selection, the preview, the hidden inputs, and arrow keys.
   function bindIdent(prefix, onChange) {
-    function wire(sel, attr, hidden) {
+    // After a colour press the pattern grid is a question about a different colour, so which
+    // patterns are free changes with it. This lives here rather than in either form's own
+    // `sync` because both forms need it and only one of them has a `sync` at all.
+    function refreshPatterns() {
+      var wrap = document.getElementById(prefix + "-patterns");
+      var hidC = document.getElementById(prefix + "-colour");
+      var hidP = document.getElementById(prefix + "-pattern");
+      if (!wrap || !hidC || !hidP) return;
+      var taken = takenPairs(), own = wrap.dataset.own || "", c = hidC.value;
+      // Move off a pattern this colour has already lost BEFORE anything is drawn. The form
+      // must never be left sitting on a pair the server is going to refuse.
+      var keep = freePattern(taken, c, hidP.value, own);
+      if (keep !== hidP.value) hidP.value = keep;
+      var btns = [].slice.call(wrap.querySelectorAll("button")), stop = -1;
+      btns.forEach(function (b, i) {
+        var pt = b.dataset.p, key = c + "|" + pt;
+        var gone = !!taken[key] && own !== key, on = pt === hidP.value;
+        var label = t("crew.pattern." + pt) + (gone ? " — " + t("crew.new.gone") : "");
+        b.disabled = gone;
+        b.classList.toggle("gone", gone);
+        b.classList.toggle("on", on);
+        if (gone) b.setAttribute("aria-disabled", "true");
+        else b.removeAttribute("aria-disabled");
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+        b.title = label;
+        b.setAttribute("aria-label", label);
+        if (on) stop = i;
+      });
+      // A roving tab stop has to land on something focusable, or the grid has no tab stop
+      // and a keyboard cannot reach it at all.
+      btns.forEach(function (b, i) { b.tabIndex = (i === stop && !b.disabled) ? 0 : -1; });
+      if (stop < 0 || btns[stop].disabled) {
+        for (var j = 0; j < btns.length; j++) {
+          if (!btns[j].disabled) { btns[j].tabIndex = 0; break; }
+        }
+      }
+    }
+
+    function wire(sel, attr, hidden, isColour) {
       var all = [].slice.call(document.querySelectorAll("#" + prefix + sel + " button"));
       if (!all.length) return;
       function mark(chosen) {
@@ -2481,19 +2633,27 @@
       }
       all.forEach(function (b, i) {
         b.onclick = function () {
+          if (b.disabled) return;
           var h = document.getElementById(prefix + hidden);
           if (h) h.value = b.dataset[attr];
           mark(b);
+          // order matters: the pattern may have to move before the preview is repainted,
+          // or the preview shows the pair the form just stopped holding
+          if (isColour) refreshPatterns();
           if (onChange) onChange();
         };
         b.onkeydown = function (e) {
-          var step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
-                   : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1
-                   : e.key === "Home" ? -all.length
-                   : e.key === "End" ? all.length : 0;
-          if (!step) return;
+          var dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
+                  : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1
+                  : e.key === "Home" ? 1 : e.key === "End" ? -1 : 0;
+          if (!dir) return;
           e.preventDefault();
-          var j = Math.max(0, Math.min(all.length - 1, i + step));
+          // Step over the ones that are gone. They are `disabled`, so focusing one is a
+          // no-op that leaves the tab stop on an unfocusable button -- the grid would look
+          // like it had simply stopped responding to the arrow keys.
+          var j = e.key === "Home" ? -1 : e.key === "End" ? all.length : i;
+          do { j += dir; } while (j >= 0 && j < all.length && all[j].disabled);
+          if (j < 0 || j >= all.length) return;
           // Focus only. Clicking here too meant a swatch could never be focused WITHOUT
           // being selected, so the `:focus-visible` rule written for exactly this case could
           // never match -- an unreachable rule is not a fixed one. Arrows move, Space or
@@ -2504,8 +2664,8 @@
         };
       });
     }
-    wire("-colours", "c", "-colour");
-    wire("-patterns", "p", "-pattern");
+    wire("-colours", "c", "-colour", true);
+    wire("-patterns", "p", "-pattern", false);
   }
 
   // The same shape the server checks, so a typo costs a keystroke instead of a round trip
