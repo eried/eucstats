@@ -1373,7 +1373,13 @@ _CREW_PAGE = r"""<!doctype html>
   @media print {
     body { background: #fff; color: #000; }
     .card { background: #fff; border: 0; padding: 0; }
-    .go, .foot, .desc, .nums { display: none; }
+    .go, .nums, .desc { display: none; }
+    /* `.foot` used to go with them, which dropped the only line telling a passer-by what
+       they are looking at: "Crews cut the map into squares. Ride inside one and it turns
+       your crew's colour." On a sticker that is the whole pitch, and it was the one thing
+       the printed version threw away. */
+    .foot { color: #000; margin-top: 14px; }
+    .foot a { display: none; }
     .qr svg { width: 260px; height: 260px; padding: 0; }
     .url { color: #000; }
   }
@@ -1516,7 +1522,14 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         .replace("__TILES__", f"{tiles:,}".replace(",", " "))
         .replace("__TILESW__", _e(t("crew.tile1" if tiles == 1 else "crew.tiles", n="").strip()))
         .replace("__KM2__", f"{clan.terr_km2 or 0:.0f}")
-        .replace("__OPEN__", _e(t("crew.pub.open")))
+        # The page a stranger reaches by scanning a backpack is a recruitment page, and
+        # its only control said "Open in EUC Stats" -- it stated "anyone can join" and
+        # then offered no way to. One button, labelled by the policy it will meet:
+        # an open crew says join, an approval crew says ask, and an invite-only crew
+        # says open, because without a code that is honestly all this can do.
+        .replace("__OPEN__", _e(t("crew.pub.join" if clan.join_policy == "open"
+                                  else "crew.pub.ask" if clan.join_policy == "approval"
+                                  else "crew.pub.open")))
         .replace("__QRSVG__", _qr_svg(url))
         .replace("__SCAN__", _e(t("crew.pub.scan")))
         .replace("__URL__", _e(url))

@@ -2391,12 +2391,16 @@
     return slot;
   }
 
-  function ask(message, confirmLabel, ok, near) {
+  // `danger` decides which button is bright. Every confirm in the feature used to put the
+  // affirmative in a ghost and Cancel in pink -- right for Leave, Disband and a new invite
+  // code, where a stray tap should not be the easy path, and wrong for everything else. A
+  // reviewer measured it against "Let in", which IS pink, and read the emphasis as flipping
+  // between screens. The rule is the act, not the dialog: irreversible asks quietly.
+  function ask(message, confirmLabel, ok, near, danger) {
     var host = askHost(near);
     if (!host) { if (window.confirm(message)) ok(); return; }
     function done() { if (host.id === "crewstatus") host.innerHTML = ""; else host.remove(); }
-    // The quiet button is the one that acts and the bright one is the way out. Leaving costs
-    // a crew and a cooldown, and a stray tap should not be the easy path.
+    // A dialog, named by its own question. Without this the trigger did not change, focus
     // A dialog, named by its own question. Without this the trigger did not change, focus
     // did not move and nothing was announced, so pressing Disband gave a keyboard or screen
     // reader user no signal whatsoever -- on every irreversible action in the feature, and
@@ -2404,9 +2408,11 @@
     var qid = "crewask-q";
     host.innerHTML = '<div class="crewask" role="alertdialog" aria-labelledby="' + qid + '">'
       + '<p id="' + qid + '">' + esc(message) + "</p>"
-      + '<button class="crewbtn mini ghost" id="crewask-y" aria-describedby="' + qid + '">'
+      + '<button class="crewbtn mini' + (danger ? " ghost" : "")
+      + '" id="crewask-y" aria-describedby="' + qid + '">'
       + esc(confirmLabel) + "</button>"
-      + '<button class="crewbtn mini" id="crewask-n">' + t("crew.cancel") + "</button>"
+      + '<button class="crewbtn mini' + (danger ? "" : " ghost") + '" id="crewask-n">'
+      + t("crew.cancel") + "</button>"
       + "</div>";
     host.scrollIntoView({ block: "nearest", behavior: "smooth" });
     function shut() {
@@ -2501,7 +2507,7 @@
     so.onclick = function () {
       ask(t("crew.mine.signoutq"), t("crew.mine.signout"), function () {
         api("POST", "/api/v1/crews/signout", {}).then(function () { ME = null; show(); });
-      }, so);
+      }, so, true);
     };
   }
 
@@ -3460,7 +3466,7 @@
                 if (r.ok) { reveal(".crewmine-wrap"); show(); }
                 else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
               });
-            }, b);
+            }, b, true);
       };
     });
     document.querySelectorAll("[data-role]").forEach(function (b) {
@@ -3484,7 +3490,7 @@
           if (r.ok) { reveal(".crewcard:not(.crewboard)"); show(); reloadTerritory(); }
           else if (!onWrite(r)) setStatus(errMsg(r.err), true, leave);
         });
-      }, leave);
+      }, leave, true);
     };
     var dis = document.getElementById("cm-disband");
     if (dis) dis.onclick = function () {
@@ -3610,7 +3616,7 @@
             setStatus(t("crew.mine.newcoded"), false, nc);
             render();
           });
-      }, nc);
+      }, nc, true);
     };
 
     var cp = document.getElementById("cm-copy");
@@ -4120,6 +4126,15 @@
           // panel, so by the time you read it you could no longer see which crew you tapped
           askFor(t("crew.join.codeask", { name: b.dataset.name || "" }), "ABC12345",
                  function (code, ctl) { send({ invite_code: code }, ctl); }, b);
+        } else if (COOLDOWN_DAYS > 0) {
+          // Joining is the act with a price on it: walk out again and you wait, and the
+          // manual says so. It took one unguarded tap, while PULLING a request -- which the
+          // dialog itself says "costs you nothing" -- got a confirmation. The budget was
+          // being spent on the wrong one. Not `danger`: this is a thing you want to do, so
+          // the affirmative is the bright button.
+          ask(t("crew.join.confirm", { name: b.dataset.name || "", v: days(COOLDOWN_DAYS) }),
+              t(b.dataset.pol === "approval" ? "crew.join.ask" : "crew.join.btn"),
+              function () { send({}); }, b);
         } else {
           send({});
         }

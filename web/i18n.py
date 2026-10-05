@@ -122,6 +122,9 @@ EN: dict[str, str] = {
     "crew.join.ask": "Ask",
     "crew.join.code": "Enter code",
     "crew.join.codeask": "{name}'s invite code?",
+    # Joining costs a cooldown on the way back out, and took one tap with nothing said,
+    # while pulling a request -- which costs nothing -- opened a dialog.
+    "crew.join.confirm": "Ride for {name}? If you leave again you wait {v} before joining another.",
     "crew.cancel": "Cancel",
     "crew.join.pending": "Waiting on a leader to let you in.",
     "crew.join.wait.h": "Cooling off",
@@ -391,6 +394,11 @@ EN: dict[str, str] = {
     "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
     "crew.pub.scan": "Scan to find this crew",
     "crew.pub.open": "Open in EUC Stats",
+    # What the button on a crew's own page says, chosen by how that crew lets people in.
+    # It used to say "Open in EUC Stats" for all three, on a page whose whole job is
+    # recruitment and which states "anyone can join" two lines above it.
+    "crew.pub.join": "Join this crew",
+    "crew.pub.ask": "Ask to join",
     "crew.pub.folded": "This crew has folded.",
     "crew.pub.print": "Printable code",
     "crew.share": "Share crew",
