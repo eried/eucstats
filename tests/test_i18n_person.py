@@ -437,7 +437,7 @@ SHARED = {
 # The functions that build each card. Anything rendering a key from another card has to appear
 # in SHARED above.
 HOME = {
-    "crew.signin.": {"signInHTML", "startPairing", "offerRetry", "qrGrid"},
+    "crew.signin.": {"signInHTML", "startPairing", "offerRetry", "qrGrid", "inviteNote"},
     "crew.mine.": {"myCrewHTML", "bindMine", "leaveQuestion", "contributorsHTML", "errMsg"},
     "crew.join.": {"joinHTML", "bindJoin", "bindList", "askFor"},
     # `bindHelp` renders `crew.how.h` as the modal's title; `explainer` builds the body

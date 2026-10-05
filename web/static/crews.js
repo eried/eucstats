@@ -655,6 +655,58 @@
       // the name goes when the badge is too small to carry it, not when the crew is big: the
       // floor above means a large crew can sit at 34px and still want its name
       el.classList.toggle("tiny", px < Math.max(44, floor + 10));
+      el.dataset.px = px;
+    });
+    declutterEmblems();
+  }
+
+  /* One badge per place on the screen.
+
+     The floors above keep a big crew legible as you zoom out, and nothing stopped two of them
+     landing on the same pixels. Measured at 390x844 at the default world view: Holmenkollen
+     Climb (rank 1, 137 km2) at (193, 489) 34px with Nordlys Collective (rank 12, 23 km2) at
+     (197, 495) 28px -- the smaller crew's badge sitting ENTIRELY inside the bigger one's,
+     leaving a 4px ring of the crew underneath; two Nordlys regions 1px and 5px apart; and
+     Peripherique dropping three badges within 5px of each other. Ten emblems inside the
+     viewport, four of them legible.
+
+     So the biggest region in a cluster keeps the spot and the rest stand down until a zoom
+     separates them. Region size rather than rank, for the same reason the floors use it: the
+     badge worth seeing from a distance is the one labelling the most ground, and it is also
+     the one whose own shape is still visible underneath. Hidden rather than merely stacked --
+     a badge drawn under another badge is not a badge, and leaving it pressable means a tap
+     landing on a crew the reader cannot see.
+
+     O(n^2) over a few dozen markers, every frame, which is a few thousand comparisons and far
+     cheaper than the `project` calls it already needs. */
+  function declutterEmblems() {
+    var kept = [];
+    var all = markers.map(function (m) {
+      var el = m.getElement();
+      var px = +el.dataset.px || 0;
+      return { el: el, px: px, n: +el.dataset.n || 1, p: map.project(m.getLngLat()) };
+    }).sort(function (a, b) { return (b.n - a.n) || (b.px - a.px); });
+    all.forEach(function (e) {
+      var hide = false;
+      if (e.px >= 16) {
+        for (var i = 0; i < kept.length; i++) {
+          // Both boxes are squares centred on their point, so they collide when the centres
+          // are closer than the mean half-width in BOTH axes. 0.8 of it, so two badges that
+          // merely graze at a corner both survive -- the complaint is about a badge sitting
+          // on top of another one, not about them being near each other.
+          var reach = (e.px + kept[i].px) / 2 * 0.8;
+          if (Math.abs(e.p.x - kept[i].p.x) < reach
+              && Math.abs(e.p.y - kept[i].p.y) < reach) { hide = true; break; }
+        }
+      }
+      if (hide) {
+        e.el.classList.add("crewembhid");
+        e.el.setAttribute("aria-hidden", "true");
+      } else {
+        e.el.classList.remove("crewembhid");
+        e.el.removeAttribute("aria-hidden");
+        if (e.px >= 16) kept.push(e);
+      }
     });
   }
 
@@ -893,7 +945,16 @@
     var el = POPUP && POPUP.getElement && POPUP.getElement();
     if (!el) return;
     var hl = el.querySelector("[data-hl]"), det = el.querySelector("[data-det]");
-    if (hl) hl.onclick = function () { shine(hl.getAttribute("data-hl")); };
+    // The popup goes, same as its sibling below. Highlight means "show me this patch on the
+    // map", and on a phone the popup is 188x161 parked directly over the ground it has just
+    // lit -- so the one gesture whose entire output is an animation on the map covered the
+    // animation with the control that started it. The asymmetry was two adjacent lines: one
+    // handler dismissed the popup and the other did not.
+    if (hl) hl.onclick = function () {
+      var slug = hl.getAttribute("data-hl");
+      if (POPUP) { POPUP.remove(); POPUP = null; }
+      shine(slug);
+    };
     if (det) det.onclick = function () {
       var slug = det.getAttribute("data-det");
       if (POPUP) { POPUP.remove(); POPUP = null; }
@@ -1615,6 +1676,24 @@
       + esc(t("crew.role." + role)) + '">' + ROLEGLYPH[role] + "</span>";
   }
 
+  // The marks, named in the open. `title=` was the only thing explaining them, which is no
+  // explanation at all on a phone -- there is no hover -- and the manual names none of the
+  // three. A reader met a gold star, a mint diamond and a cross beside their crewmates' names
+  // with nothing anywhere saying what they meant, and the cross is the one that matters most:
+  // it marks somebody who has left, whose kilometres stay on the list.
+  //
+  // Only the marks actually in the list it sits under, so a crew with no officers and nobody
+  // gone is not handed a key to symbols it does not use.
+  function roleKey(rows) {
+    var bits = [];
+    ["leader", "officer", "past"].forEach(function (role) {
+      var present = (rows || []).some(function (c) { return c.role === role; });
+      if (present) bits.push(ROLEGLYPH[role] + " " + t("crew.role." + role));
+    });
+    if (!bits.length) return "";
+    return '<p class="hint crewrolekey">' + esc(bits.join(" · ")) + "</p>";
+  }
+
   // The squares this crew could take next. Until this existed the mode could say a tile was
   // contested but never where to go, which is the one thing a map mode about choosing routes
   // has to do. A tile that joins two patches leads, because the board ranks on the biggest
@@ -1915,13 +1994,22 @@
   // phrasing with "and it's theirs" appended. German wrapped and French missed by a pixel.
   // `--kmc` clamps the result to `min(--kmw, 46%)` anyway, so the cap is a safety net and
   // belongs in one place.
+  // The `+1` used to be the whole allowance, and `ch` is the width of the ZERO glyph -- which
+  // is wider than most lowercase letters and narrower than the spaces and `w`s and `g`s in a
+  // phrase like "the long way round 1.4 km". Measured at 1280: that string is 25 characters,
+  // so this returned 26ch = 143.2px, and the string needs 156.6px. Six rows of eight wrapped
+  // to double height inside a column sized by the very phrase that was overflowing it.
+  //
+  // So the allowance is proportional rather than flat: a long phrase is short by more pixels
+  // than a short one, because the error compounds per character. 15% covers the worst case I
+  // could measure with room to spare, and the cap in the stylesheet still has the last word.
   function widestOf(rows, phrase) {
     var n = 7;
     (rows || []).forEach(function (x) {
       var w = chWidth(phrase(x));
       if (w > n) n = w;
     });
-    return Math.min(n + 1, 38);
+    return Math.min(Math.ceil(n * 1.15) + 1, 44);
   }
 
   function widest(rows) {
@@ -2207,7 +2295,7 @@
         + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
         + '<span class="crewckm">' + fmtKm(c.km)
         + ' <i>' + t("crew.who.share", { n: share }) + "</i></span></div>";
-    }).join("") + "</div>";
+    }).join("") + roleKey(rows) + "</div>";
   }
 
   // Build an optional section, or nothing. A section that cannot render is a section
@@ -2223,6 +2311,17 @@
   }
 
   /* ---------- sign-in ---------- */
+
+  // Why THIS reader is on the sign-in card: the crew whose poster sent them, named.
+  function inviteNote() {
+    if (!INVITE) return "";
+    var nm = crewName(INVITE.slug);
+    // Nothing rather than a slug. A crew holding no ground is off the board, so the name can
+    // genuinely be unknown here, and "You came here for nordlys-collective-456c" is worse
+    // than the generic card this is meant to improve on.
+    if (!nm) return "";
+    return '<p class="crewinvnote">' + esc(t("crew.signin.invited", { name: nm })) + "</p>";
+  }
 
   function signInHTML() {
     // Same phone as the browser? Then there is nothing to point a camera at — you cannot scan
@@ -2241,6 +2340,13 @@
       + '<p class="crewhook">' + esc(t("crew.hook." + (1 + Math.floor(Math.random() * 6))))
       + "</p>"
       + '<p class="hint crewwhat">' + esc(t("crew.pub.what")) + "</p>"
+      // Why THIS reader is here. Pressing "Join this crew" on a crew's poster while signed
+      // out lands on `/?crew=<slug>#crews`, and the intent does survive -- `offerInvite`
+      // holds `INVITE` until the pairing completes and then scrolls to that crew's row and
+      // flashes it. But the screen in between, the one that asks you to go and fetch your
+      // phone, was the generic GET STARTED card with no mention of the crew whose sticker you
+      // had just scanned. The errand is the reason to finish the errand.
+      + inviteNote()
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
       + '<div class="crewcode" id="crewcode">······</div>'
       // One line: what to point at it, which app, and which version. The version used to be a
@@ -2317,7 +2423,11 @@
   // Both ways a code can die end up here. The error path used to stop the timer and return
   // without rendering anything, so a dead six-character code sat on screen looking live with
   // nothing polling, no message and no link, and the only way out was closing the panel.
-  function offerRetry() {
+  // `err` so this can tell the two refusals apart. An EXPIRED code is a retry -- press it and
+  // you get a fresh one. A spent rate limit is not: a reviewer pressed "Still waiting? Get a
+  // fresh code" against a live 429 and got the identical screen back, which is a control whose
+  // only function is to fail. The wait is what that reader needs, and `setStatus` has it.
+  function offerRetry(err) {
     stopPairing();
     var code = document.getElementById("crewcode");
     // Not dots. Six middot characters where a code goes read as LOADING, and the spinner
@@ -2351,6 +2461,13 @@
     if (tapn) tapn.remove();
     var el = document.getElementById("crewcodehint");
     if (!el) return;
+    var ecode = (err && (err.code || err.detail)) || "";
+    if (ecode.indexOf("rate_limited") === 0) {
+      // Nothing to press. The message `startPairing` just set says how long, and offering a
+      // button next to it would say the opposite.
+      el.innerHTML = "";
+      return;
+    }
     // A bare `<a>` on this card computes to the browser default #0000EE, underlined, 13px, on
     // near-black -- and in this state it is the only control left.
     el.innerHTML = '<a href="#" class="crewbtn mini" id="crewagain">'
@@ -2366,7 +2483,7 @@
   function startPairing() {
     stopPairing();
     api("POST", "/api/v1/pair/start").then(function (r) {
-      if (!r.ok) { setStatus(errMsg(r.err), true); offerRetry(); return; }
+      if (!r.ok) { setStatus(errMsg(r.err), true); offerRetry(r.err); return; }
       pairToken = r.body.token;
       var qr = document.getElementById("crewqr");
       var code = document.getElementById("crewcode");
@@ -2676,7 +2793,21 @@
 
   function errMsg(err) {
     var code = (err && (err.code || err.detail)) || "";
-    if (code.indexOf("rate_limited") === 0) return t("crew.e.rate");
+    if (code.indexOf("rate_limited") === 0) {
+      // The server knows the figure and now sends it. "Slow down a second." was understating
+      // an hour-long window by three orders of magnitude -- and the limit is per IP, so a
+      // household or a cafe behind one address can spend each other's allowance with nothing
+      // on screen admitting it. Minutes up to an hour, then hours, in the same compact shapes
+      // `crew.drawn.in` and `crew.drawn.old` already use for the two units.
+      var secs = err && err.retry_after;
+      if (typeof secs === "number" && secs > 0) {
+        if (secs < 3600) {
+          return t("crew.e.rate.in", { n: Math.max(1, Math.round(secs / 60)) });
+        }
+        return t("crew.e.rate.inh", { n: Math.max(1, Math.round(secs / 3600)) });
+      }
+      return t("crew.e.rate");
+    }
     var k = ERRS[code];
     // One error names a button, and a string that restates another string's text cannot stay
     // true across nineteen files: it quoted "Lascia la squadra" where the button says "Esci
@@ -2732,8 +2863,13 @@
       statusSlot.parentNode.removeChild(statusSlot);
     }
     statusSlot = null;
-    var top = document.getElementById("crewstatus");
-    if (!near || !near.parentNode) return top;
+    // Null, not `#crewstatus`. Returning the polite region here collided with `setStatus`'s
+    // own choice of region: for a BAD message `top` is `#crewalert`, so an un-anchored
+    // failure wrote the bare announcement into `#crewalert` and the styled `.crewmsg bad`
+    // copy into `#crewstatus` -- both of them visible regions, 42px apart. The first screen a
+    // stranger sees printed "Slow down a second." twice, in two different styles. The caller
+    // falls back to `top` itself, which is the one region that message belongs in.
+    if (!near || !near.parentNode) return null;
     statusSlot = document.createElement("div");
     statusSlot.className = "crewstatusnear crewaskslot";
     // The live attributes go on BEFORE any text does. A region created and filled in the same
@@ -2979,6 +3115,18 @@
       return slug ? { slug: slug, code: code || null } : null;
     } catch (e) { return null; }
   })();
+
+  // The crew's name from whatever the browser already holds. `reloadTerritory()` runs from
+  // `init`, so this is populated on page load whether or not the panel has ever been opened.
+  // Null when the slug is not on the map -- a crew holding nothing is off the board -- and
+  // every caller treats that as "say nothing" rather than printing a slug at somebody.
+  function crewName(slug) {
+    var src = BOARD || (TERR && TERR.crews) || [];
+    for (var i = 0; i < src.length; i++) {
+      if (src[i].slug === slug) return src[i].name || null;
+    }
+    return null;
+  }
 
   function identBlock(prefix, ident) {
     var g = identGrids(prefix, ident);
@@ -3227,6 +3375,37 @@
         go.disabled = false;
         if (r.ok) { reveal(".crewmine-wrap"); show(); reloadTerritory(); }
         else if (!onWrite(r)) {
+          var ecode = (r.err && (r.err.code || r.err.detail)) || "";
+          if (ecode === "identity_taken" || ecode === "bad_identity") {
+            // `taken` goes out of date the moment another crew is founded -- the endpoint
+            // says so in its own comment -- so this refusal means the browser's copy is
+            // stale, and nothing was re-fetching it. The form went on holding the pair the
+            // server had just refused, the grid went on drawing that pattern as free, and
+            // Create failed identically on every press after. One GET fixes all of it,
+            // because the picker already moves the selection off a taken pair before it
+            // draws the grid.
+            //
+            // And the message goes under the COLOUR, not under the name. Every server error
+            // in this form was anchored to `#cf-name` and then focused and selected it, so
+            // "Another crew already flies those colours." arrived under the one field that
+            // was fine, with its text highlighted ready to be typed over.
+            // Everything they typed, carried across the rebuild. Only the identity is
+            // allowed to change, because the identity is the thing that was refused.
+            var draft = {};
+            ["cf-name", "cf-desc", "cf-policy"].forEach(function (id) {
+              var el = document.getElementById(id);
+              if (el) draft[id] = el.value;
+            });
+            api("GET", "/api/v1/crews/identity").then(function (ir) {
+              if (ir.ok) window.__CREWIDENT__ = ir.body;
+              pendingDraft = draft;
+              pendingStatus = errMsg(r.err);
+              pendingBad = true;
+              pendingNear = "cf-colours";
+              show();
+            });
+            return;
+          }
           // Anchored to the FIELD, not the button. Anchoring to the button and then focusing
           // the field is two scrolls, and `focus()` runs last and wins, so the message ended
           // up at top 794 of a 492px viewport -- a focused empty box and no words.
@@ -3278,13 +3457,17 @@
     return null;
   }
 
-  function sinceLine(c, terr) {
-    if (!c || !c.slug) return "";
-    var now = { t: (terr && terr.best_tiles) || 0, r: rankOf(c.slug) };
-    var was = lastSeen(c.slug);
-    markSeen(c.slug, now);
-    if (!was) return "";                       // first visit has nothing to compare against
+  function sinceSnap(slug, terr) {
+    return { t: (terr && terr.best_tiles) || 0, r: rankOf(slug) };
+  }
+
+  // The phrases, from two snapshots and nothing else. Split out of `sinceLine` because the
+  // dock dot has to ask the same question WITHOUT answering it: `sinceLine` marks as it
+  // reads, which is right for a line you have now seen and fatal for a badge -- the first
+  // peek would consume the news it exists to announce.
+  function sinceBits(was, now) {
     var bits = [];
+    if (!was) return bits;                     // first visit has nothing to compare against
     var dt = now.t - (was.t || 0);
     if (dt) bits.push(t(dt > 0 ? "crew.since.up" : "crew.since.down", { v: tiles(Math.abs(dt)) }));
     // Climbing is a smaller number, which is the one place in this panel where down is good.
@@ -3292,8 +3475,25 @@
       bits.push(t(now.r < was.r ? "crew.since.rose" : "crew.since.fell",
                   { a: ordinal(was.r), b: ordinal(now.r) }));
     }
+    return bits;
+  }
+
+  function sinceLine(c, terr) {
+    if (!c || !c.slug) return "";
+    var now = sinceSnap(c.slug, terr);
+    var bits = sinceBits(lastSeen(c.slug), now);
+    markSeen(c.slug, now);
+    // Read, so the badge that sent them here has nothing left to announce.
+    dockNews = false;
+    dockDot(dockKnocks, false);
     if (!bits.length) return "";
     return '<p class="crewsince">' + t("crew.since.h") + " " + bits.join(" &middot; ") + "</p>";
+  }
+
+  // The same comparison, read-only, for the dock badge.
+  function sinceNews(c, terr) {
+    if (!c || !c.slug) return false;
+    return sinceBits(lastSeen(c.slug), sinceSnap(c.slug, terr)).length > 0;
   }
 
   function standing(slug) {
@@ -4369,6 +4569,18 @@
   // staring at the top of the board with no sign it worked. Whatever is new gets scrolled to.
   var revealNext = null;
   var pendingStatus = null;
+  // A pending message that is a FAILURE, and the id of the control it belongs under.
+  // `pendingStatus` alone goes through `setStatus(msg)` with no `bad` flag, so it paints as a
+  // confirmation and auto-clears after five seconds -- which is wrong for an error that
+  // survived a repaint, and wrong twice over for one the reader has to act on.
+  var pendingBad = false;
+  var pendingNear = null;
+  // What was typed into the create form, to be put back after a rebuild. The identity
+  // re-fetch below goes through `show()`, which rebuilds the card from scratch -- so the fix
+  // for "Create fails identically forever" arrived holding a second annoyance: the name and
+  // description you had just written were gone, and a rider who had thought about the name
+  // had to think of it again because of a colour clash they did not cause.
+  var pendingDraft = null;
   // A `show()` that arrived before the helpers did; see `show()` and `init`.
   var pendingShow = false;
 
@@ -4380,7 +4592,12 @@
   function primeDock() {
     api("GET", "/api/v1/crews/me").then(function (r) {
       if (!r.ok || !r.body) return;
-      dockDot(r.body.pending ? r.body.pending.length : 0);
+      // Both signals on load, so the dot is already right before anybody touches the dock.
+      // `rankOf` has no board yet at this point and returns null, so the rank half of the
+      // comparison simply does not fire on a cold load -- the squares half, which is the
+      // bigger news anyway, does.
+      dockDot(r.body.pending ? r.body.pending.length : 0,
+              sinceNews(r.body.crew, r.body.territory || {}));
       // And keep asking. Once was the fix for a badge that could only ever tell a leader
       // something they were already looking at; it left the badge unable to tell them
       // anything NEW.
@@ -4399,18 +4616,25 @@
   function watchKnocks() {
     if (knockTimer) return;
     knockTimer = setInterval(function () {
-      // Nothing to answer in a background tab, and nothing to ask for somebody who cannot
-      // receive a knock in the first place.
+      // Nothing to answer in a background tab.
       if (document.hidden) return;
+      // Every member, not only the ranks that can answer a knock. The poll used to return
+      // here for anybody who was not a leader or an officer, which was right while a knock
+      // was the only thing it could report -- and is what kept the news badge below from
+      // ever reaching the riders it is for.
       if (!ME || !ME.crew) return;
-      if (ME.role !== "leader" && ME.role !== "officer") return;
       api("GET", "/api/v1/crews/me").then(function (r) {
         if (!r.ok || !r.body) return;
-        var n = r.body.pending ? r.body.pending.length : 0;
+        var lead = ME && (ME.role === "leader" || ME.role === "officer");
+        var n = (lead && r.body.pending) ? r.body.pending.length : 0;
+        // The one thing every reviewer who scored FUN below 9 asked for and the one thing
+        // still missing after five rounds: with the panel shut, nothing reached you. The diff
+        // was already computed, already on the client, and only ever shown to somebody who
+        // had decided to go and look. `sinceNews` asks without consuming.
+        dockDot(n, sinceNews(r.body.crew, r.body.territory || {}));
         // The counts only. Re-rendering on a timer would pull the form out from under a
         // leader halfway through typing a crew name, which is a worse bug than the one this
         // fixes -- so the badge and the dot are updated in place and nothing else moves.
-        dockDot(n);
         var dot = document.querySelector(".crewsumdot");
         if (dot) {
           dot.textContent = String(n);
@@ -4426,21 +4650,40 @@
   // this file uses -- the verb changes with the number and a `{v}` insertion cannot carry that.
   function knockText(n) { return plural("crew.knock1", "crew.knocks.few", "crew.knocks", n); }
 
-  function dockDot(n) {
+  // Remembered so either signal can be refreshed without the other being recomputed: the
+  // render path clears the news and knows nothing about knocks, the poll finds knocks and
+  // must not drop the news.
+  var dockKnocks = 0;
+  var dockNews = false;
+
+  // Two signals, one badge. A knock is a COUNT and the reader can act on each one, so it
+  // keeps the digit. "Your crew moved" is not a count of anything -- it is one fact, and a
+  // digit on it would be a lie about how many -- so it shows as a bare dot. A bare dot is
+  // also the weaker of the two claims on attention, which is the right way round: a number
+  // means somebody is waiting on you.
+  function dockDot(n, news) {
+    if (typeof n === "number") dockKnocks = n;
+    if (news !== undefined) dockNews = !!news;
+    n = dockKnocks;
+    news = dockNews;
     var dot = document.getElementById("crewsdot");
     if (!dot) return;
-    dot.textContent = n > 9 ? "9+" : String(n);
-    dot.hidden = !n;
+    dot.textContent = n ? (n > 9 ? "9+" : String(n)) : "";
+    // Without this a news dot inherits the 17px box a two-digit count needs and renders as a
+    // pink lozenge with nothing in it.
+    dot.classList.toggle("bare", !n && news);
+    dot.hidden = !n && !news;
     var btn = dot.parentNode;
     if (btn && btn.setAttribute) {
       // The label is hidden at phone widths, so the count has to reach a screen reader
       // through the button's own name.
       var base = t("dock.crews");
+      var why = n ? knockText(n) : (news ? t("crew.since.dot") : "");
       // The same sentence the hover gives, rather than a heading and a digit side by side:
       // "Crews - Waiting 2" was two labels touching, and said nothing about who was waiting.
-      btn.setAttribute("aria-label", n ? base + " · " + knockText(n) : base);
+      btn.setAttribute("aria-label", why ? base + " · " + why : base);
       // A badge capped at "9+" is a number you cannot read; the title always has the real one.
-      if (n) btn.setAttribute("title", knockText(n));
+      if (why) btn.setAttribute("title", why);
       else btn.removeAttribute("title");
     }
   }
@@ -4708,7 +4951,26 @@
       bindHelp();
       offerInvite(me);
       doReveal();
-      if (pendingStatus) { setStatus(pendingStatus); pendingStatus = null; }
+      // Before the message, so the fields are back in place by the time anything is anchored
+      // to one of them and scrolled into view.
+      if (pendingDraft) {
+        Object.keys(pendingDraft).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.value = pendingDraft[id];
+        });
+        pendingDraft = null;
+        // The counters under the name and description are written by their own `input`
+        // handlers, so a value restored behind their back leaves "0/28" over a filled field.
+        var nm = document.getElementById("cf-name");
+        if (nm) nm.dispatchEvent(new Event("input", { bubbles: true }));
+        var ds = document.getElementById("cf-desc");
+        if (ds) ds.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      if (pendingStatus) {
+        setStatus(pendingStatus, pendingBad,
+                  pendingNear ? document.getElementById(pendingNear) : null);
+        pendingStatus = null; pendingBad = false; pendingNear = null;
+      }
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
         var i = +el.dataset.i, r = rank[i];
         // `aria-label` REPLACES the element's own text, so naming the rank and the crew did

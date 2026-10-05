@@ -116,13 +116,26 @@ def _me(request: Request, db: Session) -> WebSession | None:
     return ws
 
 
+def _rl429(key: str, what: str):
+    """A 429 that says how long for.
+
+    `json.dumps` of a dict rather than a bare string, which is this file's shape for any
+    refusal carrying a field with it -- see the `bad_name` raise in `/edit`. The client parses
+    a string detail as JSON and falls back to wrapping it, so `code` still reads the same for
+    anything that only looks at that.
+    """
+    raise HTTPException(429, json.dumps({"code": f"rate_limited:{what}",
+                                         "retry_after": ratelimit.retry_after(key)}),
+                        headers={"Retry-After": str(ratelimit.retry_after(key))})
+
+
 def _require_session(request: Request, db: Session):
     ws = pairing.session(db, request.cookies.get(pairing.COOKIE), scope="crew")
     if ws is None:
         raise HTTPException(401, "not_paired")
     rl = settings.get_rate_limits(db)
     if not ratelimit.hit(f"cw:{ws.session_id}", rl["crew_write_per_session"]):
-        raise HTTPException(429, "rate_limited:crew_write")
+        _rl429(f"cw:{ws.session_id}", "crew_write")
     return ws
 
 
@@ -155,7 +168,7 @@ def pair_start(request: Request, db: Session = Depends(get_db)):
     _gate(db)
     rl = settings.get_rate_limits(db)
     if not ratelimit.hit(f"ps:{_ip(request)}", rl["pair_start_per_ip"]):
-        raise HTTPException(429, "rate_limited:pair_start")
+        _rl429(f"ps:{_ip(request)}", "pair_start")
     try:
         p = pairing.start(db, purpose="rider")
     except pairing.PairError as e:
@@ -242,9 +255,9 @@ def pair_confirm(payload: dict, request: Request, db: Session = Depends(get_db))
         raise HTTPException(400, "code and store_id are required")
     rl = settings.get_rate_limits(db)
     if not ratelimit.hit(f"pc:{_ip(request)}", rl["pair_confirm_per_ip"]):
-        raise HTTPException(429, "rate_limited:pair_confirm")
+        _rl429(f"pc:{_ip(request)}", "pair_confirm")
     if not ratelimit.hit(f"pr:{store_id}", rl["pair_confirm_per_rider"]):
-        raise HTTPException(429, "rate_limited:pair_confirm")
+        _rl429(f"pr:{store_id}", "pair_confirm")
     try:
         return pairing.confirm(db, code, store_id)
     except pairing.PairError as e:
@@ -882,12 +895,11 @@ def edit_crew(slug: str, payload: dict, request: Request, db: Session = Depends(
             # characters, so a rider editing `Ron's Crew #1` was told the length was wrong.
             raise HTTPException(400, json.dumps({"code": "bad_name",
                                                  "detail": crews.NAME_RULE_TEXT}))
-        # Every crew, not only the living ones: the column is UNIQUE for the life of the
-        # table, so clashing against live crews alone passed here and raised an
-        # IntegrityError nobody caught. Same reasoning as crews.create.
-        clash = db.query(Clan).filter(Clan.name == name,
-                                      Clan.clan_id != clan.clan_id).first()
-        if clash:
+        # Case-folded, and over every crew rather than only the living ones -- both for the
+        # reasons `crews.name_clash` is written down at. Renaming was the fourth way in to
+        # the same impersonation: found `Nordlys Collective`, then rename it to the
+        # capitalisation of the crew you want to be mistaken for.
+        if crews.name_clash(db, name, except_id=clan.clan_id):
             raise HTTPException(400, json.dumps({"code": "name_taken",
                                                  "detail": "That name is taken."}))
         clan.name = name

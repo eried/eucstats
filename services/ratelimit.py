@@ -48,6 +48,27 @@ def hit(key: str, limit: int, window_s: float = 3600.0) -> bool:
         return True
 
 
+def retry_after(key: str, window_s: float = 3600.0) -> int:
+    """Seconds until `key` has room again — 0 if it has room now.
+
+    The limiter could say no and not say for how long, so every refusal reached a rider as a
+    bare "slow down". The pairing limit is 30 opens per IP over a 3600-SECOND window, and the
+    sign-in card told a locked-out stranger "Slow down a second." and offered them a retry
+    button that walked straight into the same 429. Understating an hour as a second is worse
+    than saying nothing, because it makes the only control on screen look like the answer.
+
+    The window is a sliding one, so room appears when the OLDEST event in it expires, not when
+    the whole window does.
+    """
+    now = time.monotonic()
+    with _lock:
+        dq = _hits.get(key)
+        if not dq:
+            return 0
+        left = window_s - (now - dq[0])
+    return max(0, int(left + 0.999))
+
+
 def clear() -> None:
     """Wipe all counters (used by tests for isolation)."""
     with _lock:

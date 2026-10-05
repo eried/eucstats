@@ -66,9 +66,21 @@ def bounds(tile: str) -> tuple[float, float, float, float] | None:
 
 
 def area_km2(tile: str) -> float:
-    """Ground area of a tile. Needed because the crew ranking is in km², and a tile in Oslo
-    covers a quarter of what the same tile covers at the equator — ranking by tile COUNT would
-    quietly reward riding far from the equator."""
+    """Ground area of a tile. A tile in Oslo covers a quarter of what the same tile covers at
+    the equator.
+
+    This used to claim "the crew ranking is in km²", which it is not and has not been for some
+    time: `territory.ranking` sorts on `terr_best_tiles` and uses km² only to break a tie. So
+    the one place the hazard was written down was also telling a reader the opposite of what
+    the code does, and the warning it ends on — that ranking by tile COUNT quietly rewards
+    riding far from the equator — describes the ranking as shipped. A reviewer measured it:
+    Equator Express holds 83.7 km² and ranks 13th, below a crew holding 24.7.
+
+    That is a deliberate trade rather than an oversight — "biggest patch in one piece,
+    counted in squares" is the number the board, the targets card, the tap popup and a crew's
+    public page all agree on, and `crew.board.sub` now says out loud that a square covers more
+    ground nearer the equator. This function is what every km² figure beside those counts is
+    built from."""
     b = bounds(tile)
     if b is None:
         return 0.0

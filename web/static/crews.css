@@ -465,8 +465,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    tall -- one word per line -- and the row grew from 60px to 378px and clipped at the panel
    edge. It takes the whole width and the row wraps to let it. */
 .crewaskslot { flex: 1 0 100%; min-width: 0; }
+/* Every flex row that can host one. `.crewinvbtns` was the one omission, and it is the row
+   that holds "New code" -- so the one confirm in the feature that could not wrap landed
+   BESIDE the three buttons instead of under them: 206px of horizontal overflow on a phone,
+   with the body auto-scrolled to match and every card pushed off the left edge, and on a
+   desktop a right edge 89px past the panel that clipped its own sentence mid-word while the
+   three buttons stretched to 117px tall as flex siblings of the confirm. A reviewer measured
+   both. A `:has()` list is a list, and a rule that grants wrapping to four of five hosts is
+   a rule that breaks the fifth. */
 .crewrow:has(> .crewaskslot), .crewpendr:has(> .crewaskslot),
-.crewacts:has(> .crewaskslot), .crewtrow:has(> .crewaskslot) { flex-wrap: wrap; }
+.crewacts:has(> .crewaskslot), .crewtrow:has(> .crewaskslot),
+.crewinvbtns:has(> .crewaskslot) { flex-wrap: wrap; }
 
 /* A message anchored to the control that was pressed, rather than at the top of the panel
    five screens away from it. */
@@ -965,7 +974,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    width to spare, because the slack lands on the column that needs it least. The phone rule is
    deliberately untouched -- every number in it was measured against a real bug. */
 @media (min-width: 561px) {
-  .crewtargets { --kmc: min(var(--kmw, 96px), 33%); }
+  /* 33% was 148.5px of a 450px row, and `--kmw` computed to 26ch = 143.2px, so the column
+     was the smaller of two numbers that were both too small: the longest of the six rung
+     phrases, "the long way round 1.4 km", measures 156.6px. Six of eight rows wrapped to
+     double height while `.crewtwho` beside them held 246.8px for a 25-character string -- the
+     slack was all on the column that needed it least, which is the same complaint this cap
+     was introduced to fix, now pointing the other way. 38% is 171px: enough that `--kmw` is
+     the binding constraint again, which is what the comment above means by calling the cap a
+     safety net, and far from the 58% that was measured making the WHO column wrap instead. */
+  .crewtargets { --kmc: min(var(--kmw, 96px), 38%); }
   /* The losses card is not the targets card. Its phrase is a whole sentence -- "one lap 0.1 km
      and it's theirs" against the targets card's "one lap 0.2 km" -- so a third of the column
      is about 162px for something that needs 210, and a reviewer measured the effort column
@@ -1476,14 +1493,6 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   /* The patch count and the gain line are the two things a 288px window cannot afford, and
      both are in the table two rows below. */
   .crewboard .pod .psub { display: none; }
-  /* Two lines reserved AND two lines at most. Reserving without capping is a guess about
-     the longest name: "Nordlys Collective 456c" takes three lines in a 70px pod, so the
-     staircase came back at 11.5px where it had been 12.6. A reserve that is also a cap makes
-     the two numbers the same number. */
-  .crewboard .pod .pname {
-    min-height: 2.4em; display: -webkit-box; -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical; overflow: hidden;
-  }
 }
 
 /* `[hidden]` means hidden, everywhere in the panel.
@@ -1678,9 +1687,49 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    it gives up its tail rather than the viewport. */
 .crewemb-n { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* A badge standing down because a bigger one holds that spot -- see `declutterEmblems`.
+   `visibility`, not `opacity`: `sizeEmblems` writes `style.opacity` on every marker every
+   frame, and an inline declaration beats a class, so an opacity rule here would simply lose.
+   `pointer-events` with it, because an invisible marker that still takes a tap hands the
+   reader a crew they cannot see. */
+.crewemb.crewembhid { visibility: hidden; pointer-events: none; }
+
+/* The crew whose poster sent this reader here, on the sign-in card. Brighter than the hint it
+   follows -- it is the specific reason, and the lines above it are the general pitch. */
+.crewinvnote {
+  margin: 0 0 10px; padding: 7px 9px; font-size: 12px; line-height: 1.35;
+  color: var(--ink, #eef1fb); background: rgba(255,138,216,.10);
+  border-left: 2px solid var(--sec, #ff8ad8); border-radius: 0 6px 6px 0;
+}
+
+/* What the marks beside the names mean, for the readers who cannot hover a `title`. */
+.crewrolekey { margin: 6px 0 0; font-size: 11px; }
+
+
 /* The podium name box is 113px at 1280 and 78px at 390 -- but the narrow one WRAPS and the
    wide one clips, so the bigger screen showed less of the name. Two lines there too. */
 .pod .pname { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+
+/* Two lines reserved AND two lines at most. Reserving without capping is a guess about the
+   longest name: "Nordlys Collective 456c" takes three lines in a 70px pod, so the staircase
+   came back at 11.5px where it had been 12.6. A reserve that is also a cap makes the two
+   numbers the same number.
+
+   This lived under `@media (max-height: 700px)` -- a short-screen rule -- so it applied at
+   neither 390x844 nor 1280x860, which is every phone held upright and every laptop. A
+   reviewer measured the consequence at both: card tops at 2ND 369.9 / 1ST 363.9 / 3RD 354.3,
+   so THIRD place stood 9.6px taller than first and 15.6px taller than second, purely because
+   "Nordlys Collective 53db" wrapped and the other two did not. `.pod.p1`'s `padding-top` is
+   doing elevation work, and a long name was silently outbidding it. Nothing about the reason
+   for this rule was ever about the height of the screen. */
+/* 2.6em, and the line-height pinned in the same rule so the two numbers cannot drift: two
+   lines of 1.3 is 2.6em exactly. At 2.4em the reserve was 28.8px while two 12px lines need
+   31.2px, so it fell 2.4px short of its own second line and third place still stood 2.4px
+   taller than second -- most of the staircase gone and a measurable remainder left. */
+.crewboard .pod .pname {
+  line-height: 1.3; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
 
 /* The leader's star was the first thing truncation ate: `.crewcname` clips at 123px of a
    294px row and the overflowing glyph was exactly the mark identifying the leader. The mark

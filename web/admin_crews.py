@@ -273,8 +273,10 @@ def rename(request: Request, db: Session = Depends(get_db),
     name = crews.clean_name(name)
     if not crews.name_ok(name):
         return _redir(err="A name is " + crews.NAME_RULE_TEXT)
-    if db.query(Clan).filter(Clan.name == name, Clan.clan_id != clan_id).first():
-        return _redir(err="That name is taken.")   # UNIQUE covers folded crews too
+    # UNIQUE covers folded crews too, and the fold covers capitalisation: see
+    # `crews.name_clash`. The admin screen has to agree with the panel about what one name is.
+    if crews.name_clash(db, name, except_id=clan_id):
+        return _redir(err="That name is taken.")
     old = c.name
     c.name = name
     db.commit()                 # the slug is deliberately left alone: links should not rot

@@ -154,6 +154,9 @@ svg.ic{width:18px;height:18px;display:block}
 .dockdot{position:absolute;top:0;right:0;transform:translate(35%,-35%);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#ff8ad8;color:#140a11;font:700 11px/17px Orbitron,ui-sans-serif,sans-serif;text-align:center;pointer-events:none}
 /* Room for the dot's overhang, so a button with a count is not clipped by its neighbour. */
 .dock button:has(.dockdot:not([hidden])){margin-right:6px}
+/* The news dot carries no number, and without this it inherits the 17px box a two-digit
+   count needs -- a pink lozenge with nothing in it. */
+.dockdot.bare{min-width:0;width:9px;height:9px;padding:0;border-radius:5px}
 .dock button{position:relative}
 .dock button:hover{background:rgba(255,255,255,.06)}.dock button.on{background:color-mix(in srgb,var(--sec,var(--acc)) 16%,transparent);color:var(--sec,var(--acc))}
 .dock button.on svg{color:var(--sec,var(--acc))}

@@ -44,6 +44,13 @@ NO_AGREEMENT = {
     "crew.targets.drops": "`drops them to {n}` -- ends the clause",
     "crew.drawn.in": "`{n} min` -- every locale abbreviates the unit, so nothing inflects",
     "crew.drawn.old": "`over {n} h ago` -- the same abbreviated unit, same reason",
+    # The rate-limit wait, in the same two units and for the same reason. ru and uk first had
+    # the idiomatic inversion -- `минут через {n}`, unit BEFORE the number -- which is the one
+    # shape this claim cannot be made about, so they were rewritten to `через {n} мин.` to
+    # match the other sixteen. ja/zh put 分/分钟 after it and neither pluralises after a
+    # numeral; ko 분; tr dk/sa; the rest abbreviate.
+    "crew.e.rate.in": "`{n} min` -- an abbreviated unit after the number in every locale",
+    "crew.e.rate.inh": "`{n} h` -- the same",
     "crew.who.share": "`{n}%`",
     # The roster's fold. Read in all three: ru `Показать всех {n}`, pl `Pokaż wszystkich {n}`,
     # uk `Показати всіх {n}` -- the number ENDS the clause in every one, and the word

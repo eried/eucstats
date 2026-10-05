@@ -251,6 +251,9 @@ EN: dict[str, str] = {
     # every piece of news exists and none of it is told to you -- so this is the panel paying
     # you for opening it. Held per browser; it is one reader's "last time I looked".
     "crew.since.h": "Since you last looked:",
+    # The dock badge. Not a count of anything -- one fact -- so it shows as a bare dot and
+    # this is what it says on hover and to a screen reader.
+    "crew.since.dot": "Something moved in your crew",
     "crew.since.up": "+{v}",
     "crew.since.down": "−{v}",
     "crew.since.rose": "{a} → {b}",
@@ -318,7 +321,16 @@ EN: dict[str, str] = {
     "crew.e.closed": "Not taking new crews right now.",
     "crew.e.forbidden": "Only a leader or officer can do that.",
     "crew.e.pass": "Your pass ran out. Grab a new one.",
-    "crew.e.rate": "Slow down a second.",
+    # "Slow down a second." against a 30-per-hour window understated the wait by three
+    # orders of magnitude, and `offerRetry` put a "Get a fresh code" button under it that
+    # walked straight back into the same 429. The limit is per IP, so a household or a cafe
+    # behind one address spends each other's allowance -- which is worth saying, because
+    # otherwise the reader has no way to work out why they are locked out at all.
+    "crew.e.rate": "Too many tries from this network. Give it a while.",
+    # The server sends the figure now. Two units in the shapes `crew.drawn.in` and
+    # `crew.drawn.old` already use for minutes and hours.
+    "crew.e.rate.in": "Too many tries from this network. Try again in about {n} min.",
+    "crew.e.rate.inh": "Too many tries from this network. Try again in about {n} h.",
     # The server's `not_member` sentence is written for the rider it is ABOUT -- 
     # "You are not in that crew." -- and a leader removing somebody saw it addressed
     # to themselves while they plainly were in the crew. This speaks to the reader.
@@ -400,7 +412,15 @@ EN: dict[str, str] = {
     "crew.how.s4": "What the colours mean",
     "crew.how.s5": "What the numbers mean",
     "crew.how.n1": "The board ranks a crew on its biggest patch in one piece, not on everything it holds. Two patches of ten lose to one of eleven.",
-    "crew.how.n2": "Squares and km² are the same thing counted twice. A square is about {v} across where YOU ride — they are wider nearer the equator and narrower nearer the poles, so a square is the same amount of riding everywhere, not the same amount of ground.",
+    # This said "squares and km² are the same thing counted twice" and then, in the same
+    # breath, that squares differ by latitude -- and closed with "SO a square is the same
+    # amount of riding everywhere", which inverts its own inference: a wider square takes
+    # MORE riding to cross, not the same. A reviewer did the arithmetic the sentence invites
+    # and got the wrong answer: Equator Express holds 14 squares over 83.7 km² (2.44 km a
+    # side) against Nordlys Collective's 15 squares over 22.6 km² (1.24 km a side) -- same
+    # unit, four times the ground. What IS constant is the number of crossings, because the
+    # weekly cap scales with the square; the distance those crossings add up to is not.
+    "crew.how.n2": "A square is about {v} across where YOU ride — wider nearer the equator, narrower nearer the poles. Your weekly limit inside one scales with it, so filling a square always takes about five crossings; nearer the equator those crossings are longer, so it is more riding and more ground.",
     # Both from the settings that enforce them. The cooldown was only ever said in the leave
     # prompt, where you read it after deciding; the size cap was never said anywhere.
     # The server blocks FOUNDING as well -- `can_found` goes false and the whole START A
@@ -421,7 +441,10 @@ EN: dict[str, str] = {
     "crew.how.6": "A new crew's first fortnight counts what its riders were already doing, so nobody starts on an empty map.",
     "crew.how.8": "One rider can only put {c} km a week into one square, however far they go. So a square goes to whoever brings more people: while two of them keep riding it, one cannot out-ride them. If they stop, it fades like anything else.",
     "crew.empty": "Nobody holds anything yet.",
-    "crew.board.sub": "Biggest patch a crew holds in one piece. A square is the same ride wherever you are.",
+    # The second half claimed a square is the same ride anywhere, which the board directly
+    # below it disproves -- and it is the board's OWN subtitle. The honest version names the
+    # unit it ranks on and admits what that unit does not control for.
+    "crew.board.sub": "Biggest patch a crew holds in one piece, counted in squares — and a square covers more ground nearer the equator.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.invite2": "Invite link code",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
@@ -430,6 +453,11 @@ EN: dict[str, str] = {
     "crew.day1": "{n} day",
     "crew.now": "right now",
     "crew.signin.again": "Still waiting? Get a fresh code",
+    # Arriving from a crew's poster signed out landed on the generic GET STARTED card with no
+    # mention of the crew whose sticker you had just scanned. The intent survived the pairing
+    # -- `offerInvite` scrolls to that crew and flashes its row -- but the screen that asks
+    # you to go and fetch your phone had forgotten why you were there.
+    "crew.signin.invited": "You came here for {name}. Pair once and we will take you straight to it.",
     "crew.signin.ok": "You're in",
     "crew.mine.youare": "you run it",
     "crew.mine.youofficer": "you are an officer",

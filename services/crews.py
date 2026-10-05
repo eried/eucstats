@@ -99,6 +99,41 @@ def clean_name(name: str) -> str:
 NAME_RULE_TEXT = "3-28 characters, letters, numbers, spaces and - ' & ."
 
 
+def name_key(name: str) -> str:
+    """What makes two crew names the same name to a reader.
+
+    `clean_name` normalises and strips, and its own comment says that is "what makes
+    uniqueness mean what a reader thinks it means" -- but it never folded case, and all four
+    uniqueness checks compared with `Clan.name == name`, which is case-sensitive on SQLite.
+    So `holmenkollen climb` was founded alongside the existing `Holmenkollen Climb`, and the
+    slugger, which lowercases, knew they collided and handed out `holmenkollen-climb-2`. On
+    the board and the join list the two rows were told apart only by capitalisation: a free
+    impersonation of any crew on the map. A reviewer did it to the number one crew.
+
+    `casefold` rather than `lower`, so this holds outside ASCII too, and whitespace runs
+    collapse because "Nordlys  Collective" is not a second crew either. Comparison only --
+    the stored name keeps its own capitalisation and spacing.
+    """
+    return re.sub(r"\s+", " ", clean_name(name)).casefold()
+
+
+def name_clash(db, name: str, except_id: str | None = None):
+    """The crew already using this name, or None.
+
+    Every crew, not only the living ones: `Clan.name` is UNIQUE for the life of the table, so
+    checking against live crews alone passed here and raised an IntegrityError nobody caught.
+    Disband frees a name by retiring it, so this stays a short list -- short enough that the
+    fold happens in Python, where it is correct, rather than in SQLite's ASCII-only `lower()`.
+    """
+    key = name_key(name)
+    if not key:
+        return None
+    for c in db.query(Clan).all():
+        if c.clan_id != except_id and name_key(c.name) == key:
+            return c
+    return None
+
+
 class CrewError(Exception):
     def __init__(self, code: str, detail: str):
         super().__init__(detail)
@@ -366,7 +401,7 @@ def create(db, store_id: str, name: str, description: str = "", colour: str | No
     # Disbanded crews included: the column is UNIQUE for the life of the table, so a name
     # checked against live crews only passed here and then raised an IntegrityError nobody
     # caught. Disband frees the name by retiring it, so this stays a short list.
-    if db.query(Clan).filter(Clan.name == name.strip()).first():
+    if name_clash(db, name):
         raise CrewError("name_taken", "That name is taken.")
 
     # Where this founder rides, so a colour is chosen against the crews next door and not
@@ -758,7 +793,7 @@ def unretire(db, clan) -> str | None:
     """
     tag = f" (folded {clan.clan_id[:6]})"
     name = clan.name[:-len(tag)] if clan.name.endswith(tag) else clan.name
-    if db.query(Clan).filter(Clan.name == name, Clan.clan_id != clan.clan_id).first():
+    if name_clash(db, name, except_id=clan.clan_id):
         return f"{name} has been taken since. Rename that crew first."
     suffix = f"-x{clan.clan_id[:6]}"
     slug = clan.slug[:-len(suffix)] if clan.slug.endswith(suffix) else clan.slug
