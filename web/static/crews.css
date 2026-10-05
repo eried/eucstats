@@ -1372,7 +1372,11 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* The neighbourhood, under the bearing. Small and quiet: it answers "where" for somebody who
    knows the city, and costs nothing to skip for somebody who does not. */
 /* the answer to "I rode it, where is it", under the rows that prompted the question */
-.crewdrawn { margin-top: 10px; opacity: .75; }
+/* The redraw clock. Not dimmed to .75 any more: it is the one concrete time in the whole
+   feature and the only reason to come back later, and it used to sit at the bottom of two
+   cards as a question about the list above it. */
+.crewdrawn { margin: 8px 0 0; font-size: 12px; color: var(--mut, #9aa6c8); }
+.crewterr + .crewdrawn { margin-top: 2px; }
 
 /* the neighbourhood, at the top of the tip the ring opens */
 .crewtipat { display: block; font-weight: 600; opacity: .8; margin-bottom: 1px; }

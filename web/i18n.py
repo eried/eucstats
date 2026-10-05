@@ -236,8 +236,13 @@ EN: dict[str, str] = {
     "crew.legend.note.calm": "What is marked brighter is your own. Everyone else's sits plain.",
     "crew.targets.links": "{n} to link up",
     "crew.legend.fresh": "Taken this week",
-    "crew.drawn.in": "Rode one of these already? The map redraws in about {n} min.",
-    "crew.drawn.soon": "Rode one of these already? The map is redrawing any minute.",
+    # The one concrete clock in the feature. It was phrased as a question about the list it
+    # sat under -- "Rode one of these already?" -- which made it meaningless on a card with
+    # no rows, and buried it on two cards a rider only reaches by scrolling. Four reviewers
+    # in a row said the stakes are stated but never SCHEDULED: nothing anywhere said when a
+    # ride you just finished turns into ground. This does, and it stands on its own.
+    "crew.drawn.in": "Ride now and it lands on the map in about {n} min.",
+    "crew.drawn.soon": "The map is redrawing right now. New ground lands any second.",
     "crew.targets.takenby": "somebody holds it",
     "crew.targets.drops": "drops them to {n}",
     "crew.targets.passes": "puts them behind {name}",

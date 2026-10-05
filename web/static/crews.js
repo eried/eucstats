@@ -1652,7 +1652,7 @@
     var nothing = !ME || !ME.crew || !ME.crew.tiles;
     if (!TARGETS.length) {
       return head + '<p class=hint>' + t("crew.targets.none", { n: SEED }) + "</p>"
-        + drawnLine() + "</div>";
+        + "</div>";
     }
     // When every row is the block, the hint above has already said so and the badge is on
     // all four, which makes it furniture rather than a mark.
@@ -1843,7 +1843,10 @@
              { s: tiles(left.length), v: fmtKm(Math.round(togo * 10) / 10) }))
       : t(nothing ? "crew.targets.p0" : "crew.targets.p", { n: SEED });
     return head + '<p class=hint>' + lead + "</p>"
-      + body + drawnLine() + "</div>";
+      // Not on this card any more: it is on the crew card above, where somebody looking for
+      // "when does my ride count" actually looks, and printing it three times in one panel
+      // made it furniture.
+      + body + "</div>";
   }
 
   // How many `ch` a string actually occupies, which is not how many characters it has.
@@ -3319,6 +3322,11 @@
     }
     if (c.description) h += "<p>" + esc(c.description) + "</p>";
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
+    // The clock, on the card a rider opens to look at their own ground. It lived only at the
+    // bottom of two cards you reach by scrolling, phrased as a question about the list above
+    // it. Four reviewers said the same thing in four different words: the mode states what is
+    // at stake and never says WHEN anything happens, so there is nothing to come back to.
+    h += drawnLine();
     if (c.invite_code) {
       // A button, because this is the one act a new leader has to perform and it used to be
       // eight hex characters to select by hand inside a panel that scrolls under your finger.
