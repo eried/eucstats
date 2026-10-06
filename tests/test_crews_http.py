@@ -72,6 +72,38 @@ def _err(resp) -> dict:
     return json.loads(resp.json()["detail"])
 
 
+def test_crews_me_carries_the_territory_the_dock_badge_reads(client, db):
+    """`/crews/me` must report the crew's territory, because the panel reads it from there.
+
+    It did not, and nothing noticed for several rounds. The dock badge compares a stored
+    snapshot of your crew's squares against the one in this response; the key was absent, the
+    client's `|| {}` turned that into zero squares, and a member holding fifteen got a
+    permanent "-15". So the badge read "Something moved in your crew" on every load after the
+    first, for ever, for every member -- the one channel this feature has for reaching a rider
+    with the panel shut, crying wolf from the day it was wired.
+
+    `out["territory"]` existed all along on `/crews/{slug}`, which is why the crew card worked
+    and the badge did not. A missing key reading as zero is the shape of the bug; this test is
+    the half of it a test can see.
+    """
+    _rider(db, "tt1")
+    _sess = _signed_in(client, db, "tt1")
+    client.post("/api/v1/crews", json={"name": "Ground Truth", "join_policy": "open"})
+
+    me = client.get("/api/v1/crews/me").json()
+    assert "territory" in me, "the dock badge has nothing to compare against without this"
+    terr = me["territory"]
+    # every field the panel reads off it, by name: `sinceSnap` keys on `best_tiles` and
+    # refuses to take a snapshot at all unless it is a number.
+    for k in ("km2", "tiles", "best_km2", "best_tiles", "regions"):
+        assert k in terr, k
+    assert isinstance(terr["best_tiles"], int)
+    # and the same shape the crew-detail endpoint returns, so the two cannot drift
+    slug = me["crew"]["slug"]
+    detail = client.get(f"/api/v1/crews/{slug}").json()
+    assert set(detail["territory"]) == set(terr)
+
+
 # --- the gate ---------------------------------------------------------------------------
 
 def test_crews_switched_off_answers_with_the_code_the_panel_matches_on(client, db):

@@ -400,6 +400,17 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
         clan = db.get(Clan, m.clan_id)
         if clan is not None:
             out["crew"] = _crew_brief(db, clan)
+            # The same shape `/crews/{slug}` returns, because the panel reads both the same
+            # way. Without it the dock badge compared a stored snapshot against a territory
+            # object that was never in this response: `r.body.territory` was `undefined`, the
+            # client's `|| {}` turned it into zero squares, and a member holding fifteen got a
+            # permanent "-15" -- so the badge said "Something moved in your crew" on every
+            # load after the first, for ever, and the one moment it exists for could never be
+            # news. A reviewer captured three of these bodies to prove the key was absent.
+            out["territory"] = {"km2": clan.terr_km2 or 0.0, "tiles": clan.terr_tiles or 0,
+                                "best_km2": clan.terr_best_km2 or 0.0,
+                                "best_tiles": clan.terr_best_tiles or 0,
+                                "regions": clan.terr_regions or 0}
             out["role"] = m.role
             out["status"] = m.status
             # Whether the take-over button exists at all. claim_leadership is the designed way

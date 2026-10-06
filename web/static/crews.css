@@ -235,6 +235,11 @@
    do without this -- the neighbouring .crewrown has had it all along. */
 .crewpendr > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .crewpendr { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+/* The flag and the name are one flex CHILD, not two, so the row's 8px gap never falls between
+   them: measured 0.00px, the image's right edge exactly on the first letter, while the
+   contributions list a few centimetres above gets 7px because there the avatar is its own
+   child. Every row of THE CREW and every KNOCKING row, at every width. */
+.crewpendr > span:first-child img { margin-right: 7px; vertical-align: middle; }
 .crewpendr span { flex: 1; }
 
 .crewlist { margin-top: 6px; }
@@ -1888,7 +1893,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      The panel is `min(76dvh, ...)` capped at 760px and the header takes 52; this follows it. */
   .crewcolside {
     position: sticky; top: 0;
-    max-height: min(calc(76dvh - 60px), 700px);
+    /* The panel's OWN formula, minus its header. This was `min(76dvh - 60px, 700px)`, which
+       ignores the second term of `.panel`'s height -- `calc(100dvh - var(--panres))` -- and
+       that term wins whenever the dock and the champions card leave less than 76dvh. At
+       1280x860 a reviewer measured the column running 97.2px past the panel's clipped edge,
+       with its own scroll track below the fold and two scrollbars side by side 25px apart.
+       Two formulas for one height is one formula too many.
+       The 72 is the panel header plus `.pbody`'s own 12px top padding, which the column
+       starts below: subtracting only the header left it ending 3.6px past the clipped edge. */
+    max-height: min(calc(76dvh - 72px), calc(100dvh - var(--panres, 0px) - 72px), 688px);
     overflow-y: auto; overscroll-behavior: contain;
     scrollbar-width: thin;
   }

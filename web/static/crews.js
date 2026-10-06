@@ -3601,8 +3601,15 @@
     return null;
   }
 
+  // Null when there is no figure to take a snapshot OF. This returned `{t: 0}` for a missing
+  // territory object, and zero is a number: compared against a stored 15 it is not "I don't
+  // know", it is "you lost fifteen squares". That is exactly what happened -- see the note on
+  // `territory` in `/crews/me` -- and it lit the dock badge permanently for every member.
+  // An absent reading has to be absent, or every consumer has to remember to check, and one
+  // of them will not.
   function sinceSnap(slug, terr) {
-    return { t: (terr && terr.best_tiles) || 0, r: rankOf(slug) };
+    if (!terr || typeof terr.best_tiles !== "number") return null;
+    return { t: terr.best_tiles, r: rankOf(slug) };
   }
 
   // The phrases, from two snapshots and nothing else. Split out of `sinceLine` because the
@@ -3611,7 +3618,8 @@
   // peek would consume the news it exists to announce.
   function sinceBits(was, now) {
     var bits = [];
-    if (!was) return bits;                     // first visit has nothing to compare against
+    // Either side missing is no comparison: a first visit, or a reading we do not have.
+    if (!was || !now) return bits;
     var dt = now.t - (was.t || 0);
     if (dt) bits.push(t(dt > 0 ? "crew.since.up" : "crew.since.down", { v: tiles(Math.abs(dt)) }));
     // Climbing is a smaller number, which is the one place in this panel where down is good.
@@ -3629,7 +3637,8 @@
     // way the change went, not only that there was one.
     var lastSeen_ = lastSeen(c.slug);
     var bits = sinceBits(lastSeen_, now);
-    markSeen(c.slug, now);
+    // Never record a reading we do not have, or the next visit compares against nothing.
+    if (now) markSeen(c.slug, now);
     // Read, so the badge that sent them here has nothing left to announce.
     dockNews = false;
     dockDot(dockKnocks, false);
@@ -4748,10 +4757,18 @@
     btn.scrollIntoView({ block: "center" });
     // Say which row. Arriving from a sticker and being dropped at a scroll position in a list
     // of thirty-four is the same as being dropped at the top of it.
-    var row = btn.closest(".crewrow");
-    if (row) {
-      flashRow(row);
-    }
+    //
+    // Not `flashRow(row)` directly: a `render()` pass replaces `#crewpanel` within about
+    // fifty milliseconds of this running, and `INVITE` is already spent, so the lit row was
+    // destroyed before a single frame of it was drawn and never re-lit. A reviewer watched
+    // for `.crewlit` in the live document every 25ms for six seconds and found it zero
+    // times. The scroll survived, so you landed on the right row with nothing saying so.
+    //
+    // So the flash outlives the renders instead: it is re-applied after each one until the
+    // panel stops repainting, and the last application is the one the reader sees.
+    flashSlug = inv.slug;
+    flashUntil = Date.now() + 3000;
+    applyFlash();
     // Only with a code to put in it. A slug-only link to an invite-only crew opens the
     // prompt with nothing to type, which is worse than leaving the button alone.
     if (btn.dataset.pol === "invite" && inv.code) {
@@ -4985,6 +5002,20 @@
 
   function reveal(sel) {
     revealNext = sel;
+  }
+
+  // The arrival flash, re-applied after every render inside its window. `revealNext` and
+  // `doReveal` do the same dance for the scroll position, for the same reason: anything this
+  // function does to the DOM is thrown away by the next repaint unless something re-does it.
+  var flashSlug = null;
+  var flashUntil = 0;
+
+  function applyFlash() {
+    if (!flashSlug) return;
+    if (Date.now() > flashUntil) { flashSlug = null; return; }
+    var btn = document.querySelector('[data-join="' + cssEscape(flashSlug) + '"]');
+    var row = btn && btn.closest(".crewrow");
+    if (row) flashRow(row);
   }
 
   function doReveal() {
@@ -5269,6 +5300,8 @@
       bindHelp();
       offerInvite(me);
       doReveal();
+      // The arrival flash, if one is still owed; see `applyFlash`.
+      applyFlash();
       // Before the message, so the fields are back in place by the time anything is anchored
       // to one of them and scrolled into view.
       if (pendingDraft) {
