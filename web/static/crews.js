@@ -1310,7 +1310,7 @@
           // it is keyed on the rule rather than passed blind.
           var v = (k === "crew.how.cool") ? days(COOLDOWN_DAYS) : squareKm();
           return "<li>" + t(k, { n: k === "crew.how.size" ? MAX_MEMBERS : SEED,
-                                 d: WINDOW_DAYS, c: capKm(), v: v }) + "</li>";
+                                 d: WINDOW_DAYS, c: fmtKm(capKm()), v: v }) + "</li>";
         }).join("")
       + "</ol>";
   }

@@ -461,7 +461,11 @@ EN: dict[str, str] = {
     "crew.how.roles": "Whoever starts a crew runs it. They can make anyone an officer, and an officer can let riders in and turn them away — but only the leader changes the crew itself, or ends it.",
     "crew.how.7": "A block needs its {n}x{n}. Take the square holding one together and everything leaning on it goes down with it.",
     "crew.how.6": "A new crew's first fortnight counts what its riders were already doing, so nobody starts on an empty map.",
-    "crew.how.8": "One rider can only put {c} km a week into one square, however far they go. So a square goes to whoever brings more people: while two of them keep riding it, one cannot out-ride them. If they stop, it fades like anything else.",
+    # `{c}` carries its own unit now. It used to be a bare number with "km" written into the
+    # sentence, so a reader in miles was told "a square is about 0.7 mi across" two lines above
+    # "one rider can only put 5 km a week into one square" -- the one hard figure in the manual
+    # stated in a unit that reader had switched away from. The number was right; the label lied.
+    "crew.how.8": "One rider can only put {c} a week into one square, however far they go. So a square goes to whoever brings more people: while two of them keep riding it, one cannot out-ride them. If they stop, it fades like anything else.",
     "crew.empty": "Nobody holds anything yet.",
     # The second half claimed a square is the same ride anywhere, which the board directly
     # below it disproves -- and it is the board's OWN subtitle. The honest version names the

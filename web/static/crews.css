@@ -1099,7 +1099,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      A zero basis makes the column size from the track it is given instead of from its
      longest string, so every row's place name lands in the same column and the long ones
      wrap inside it. */
-  flex: 1 1 0; min-width: 0; color: var(--mut, #9aa6c8); font-size: 12px;
+  /* A floor, because `min-width: 0` plus a zero basis means "may be starved to nothing", and
+     that is what happened: the sibling tag below takes its natural 165-180px and this column
+     was left 36-51px, turning "Kolbotn · Nordlys Collective has it 9th · 15 squares in one
+     piece" into eight one-word lines and a 123px row, with one place name overflowing 28px
+     and painting on top of the tag beside it. Rows WITHOUT a tag got the full 225px and
+     looked fine, which is the tell: it is the pair that fails, not the column.
+     Two rounds ago this was `flex: 1 1 auto`, which let the richest rows take a line of their
+     own and left the place name at two different left edges. Both of those are mine, each
+     fixing the other's symptom. A floor on both, and the row -- which already wraps -- puts
+     the tag on its own line when they cannot share one. */
+  flex: 1 1 0; min-width: 120px; color: var(--mut, #9aa6c8); font-size: 12px;
 }
 /* nothing to ride here today: present, legible, and plainly not the thing to do next */
 .crewtrow.done { opacity: .72; }
@@ -1524,7 +1534,8 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    that a clause with nowhere to go drops to its own line instead of being milled into a
    column. `flex-wrap` on the row rather than `flex-basis: 100%` on this: most rows have room
    for it on the first line and should keep it there, beside the number it qualifies. */
-.crewtquiet { flex: 0 0 auto; margin-left: auto; max-width: 50%; font-size: 11px;
+.crewtquiet { flex: 0 1 auto; margin-left: auto; min-width: 150px; max-width: 50%;
+  font-size: 11px;
   text-align: right; line-height: 1.25; color: var(--mut, #9aa6c8); opacity: .8; }
 @media (max-width: 560px) {
   .crewtquiet { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }
