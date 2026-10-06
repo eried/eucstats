@@ -397,6 +397,12 @@ EN: dict[str, str] = {
     "crew.mine.leave": "Leave crew",
     "crew.mine.signout": "Sign out",
     "crew.mine.leaveq": "Leave {name}? No new crew for {n}.",
+    # A leader walking out of a crew that carries on. `leave()` promotes nobody -- the crew is
+    # left with officers and no leader until one of them takes it over through "Take the crew
+    # over?" -- and the prompt told them only about their own seven days, word for word what a
+    # plain member reads, while a crew with riders and ground was about to be left in charge of
+    # nobody. The reader is the one person who can prevent that by handing it over first.
+    "crew.mine.leaveq.lead": "Leave {name}? It is left with no leader until an officer takes it over, and you wait {n} before joining another.",
     # Walking out of a crew you are the last member of ends it. `leave()` retires the clan
     # when nobody active is left AND stamps the cooldown, so the gentle-sounding button
     # destroys the crew and benches you a week, while Disband does it for nothing.

@@ -60,7 +60,14 @@
   function leaveQuestion(name) {
     var solo = ME && ME.crew && (ME.crew.members || 0) <= 1;
     if (COOLDOWN_DAYS <= 0) return t("crew.mine.leaveq0", { name: name });
-    return t(solo ? "crew.mine.leaveq.last" : "crew.mine.leaveq",
+    if (solo) return t("crew.mine.leaveq.last", { name: name, n: days(COOLDOWN_DAYS) });
+    // A leader leaving a crew that carries on. `leave()` hands the crew to nobody: it is left
+    // with officers and no leader until one of them claims it. This prompt said only "No new
+    // crew for 7 days" -- what a plain member reads -- to the one person who could hand it
+    // over first. Only when there IS somebody left to inherit it, which is also the only case
+    // the server lets a leader leave in at all.
+    var lead = ME && ME.role === "leader";
+    return t(lead ? "crew.mine.leaveq.lead" : "crew.mine.leaveq",
              { name: name, n: days(COOLDOWN_DAYS) });
   }
 
@@ -4779,7 +4786,20 @@
           // beside the row, and naming the crew: the prompt used to open at the top of the
           // panel, so by the time you read it you could no longer see which crew you tapped
           askFor(t("crew.join.codeask", { name: b.dataset.name || "" }), "ABC12345",
-                 function (code, ctl) { send({ invite_code: code }, ctl); }, b);
+                 function (code, ctl) {
+                   // An invite code is `uuid4().hex[:8].upper()` -- eight hex characters and
+                   // nothing else -- so "AB", "ab!!@@" and "....." cannot be one, and each of
+                   // them was costing a round trip to be told so. The name field three cards
+                   // up has rejected length and character-set mistakes locally since it was
+                   // written; the code field sent everything. Same message either way, since
+                   // the answer is the same: this is not a code. The server still decides
+                   // whether a well-formed code is the RIGHT one.
+                   if (!/^[0-9a-f]{8}$/i.test((code || "").trim())) {
+                     ctl.fail(t("crew.e.invite") + " " + t("crew.e.invite.ask"));
+                     return;
+                   }
+                   send({ invite_code: code }, ctl);
+                 }, b);
         } else if (COOLDOWN_DAYS > 0) {
           // Joining is the act with a price on it: walk out again and you wait, and the
           // manual says so. It took one unguarded tap, while PULLING a request -- which the

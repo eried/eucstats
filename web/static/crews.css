@@ -827,8 +827,13 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewlegend span { display: flex; align-items: flex-start; gap: 5px; }
 .crewlegnote { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px;
   color: var(--mut, #9aa6c8); opacity: .85; }
-.crewlegend i { display: inline-block; width: 22px; height: 22px;
-  flex: 0 0 22px; margin-top: 0; position: relative; background: var(--sec, #ff8ad8);
+/* 26, not 22. Every band past the first is told apart by an edge -- a dashed ring, a thicker
+   solid one, an inner loop -- and the comments below are right that the opacity step alone is
+   invisible at this size. A 3px inset loop inside a 22px chip is the part of the chip doing
+   the work, and a reviewer measuring them called "about to flip" plain grey. Four more pixels
+   gives every one of those marks about a fifth more room without changing what they are. */
+.crewlegend i { display: inline-block; width: 26px; height: 26px;
+  flex: 0 0 26px; margin-top: 0; position: relative; background: var(--sec, #ff8ad8);
   border: 1px solid rgba(255,255,255,.25); }
 /* The chips describe what the map paints and nothing else. A ten per cent opacity step is
    visible across a city block and invisible across sixteen pixels, so the two contested bands
@@ -1566,7 +1571,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* The exact moment a cooldown lifts, beside the sentence that says how long is left. Quieter
    than the sentence, because it is the precise version of something already said. */
-.crewwhen { font-variant-numeric: tabular-nums; opacity: .8; white-space: nowrap; }
+/* Its own line. Appended inline, the date landed after a full stop as a bare token --
+   "Keeps people from hopping around farming ground. Oct 13" -- which reads as a sentence that
+   lost its verb. A date on a line of its own reads as a date. The alternative was putting a
+   placeholder inside the sentence, which moves the meaning of a string in nineteen tables for
+   a value the browser already formats in the reader's own locale. */
+.crewwhen {
+  display: block; margin-top: 5px; font-variant-numeric: tabular-nums;
+  white-space: nowrap; font-weight: 600; opacity: .9;
+}
 
 /* Which way a crew is going. The green and the orange are the two already in this file for
    gaining and losing ground, so the board's arrows mean what the map's colours mean. Quiet:
