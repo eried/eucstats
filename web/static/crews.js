@@ -3198,6 +3198,11 @@
         }).join("") + "</div>",
       // `data-own` so the live update in `bindIdent` knows which pair to keep allowed without
       // re-deriving it from a hidden input that by then has already moved.
+      // Whether any pattern on the chosen colour is actually struck out, so the caption that
+      // explains the strike only appears when there is a strike to explain.
+      patternsGone: PATTERNS.some(function (pt) {
+        return taken[ident.colour + "|" + pt] && own !== ident.colour + "|" + pt;
+      }),
       patterns: '<div class="crewpick" id="' + prefix + '-patterns" role="group" data-own="'
         + esc(own) + '" aria-label="'
         + esc(t("crew.new.patterns")) + '">' + PATTERNS.map(function (pt, i) {
@@ -3272,10 +3277,15 @@
       + '<div class=crewidentl>' + t("crew.new.patterns") + "</div>"
       + g.patterns
       // What the struck-through chips mean, for the readers who cannot hover a `title`.
-      // Only when some chip in either grid actually is taken: a legend for a state nothing
-      // on screen is in is noise.
-      + (Object.keys(takenPairs()).length
-         ? '<p class="hint crewdimmed">' + esc(t("crew.new.dimmed")) + "</p>" : "")
+      //
+      // Under the PATTERN grid only, and only when a pattern on the chosen colour is actually
+      // gone. A colour is crossed out solely when all twelve of its patterns are taken, which
+      // thirty-four crews across five hundred and seventy-six pairs will not manage, so this
+      // sentence sat under a grid of forty-eight swatches none of which had ever been crossed
+      // out -- describing a state that grid is effectively never in. A reviewer checked all
+      // forty-eight and found zero. True of one grid and never of the other is not true.
+      + '<p class="hint crewdimmed"' + (g.patternsGone ? "" : " hidden") + ">"
+      + esc(t("crew.new.dimmed")) + "</p>"
       + "</div>"
       + '<input type="hidden" id="' + prefix + '-colour" value="' + ident.colour + '">'
       + '<input type="hidden" id="' + prefix + '-pattern" value="' + ident.pattern + '">';
@@ -3314,6 +3324,13 @@
       // A roving tab stop has to land on something focusable, or the grid has no tab stop
       // and a keyboard cannot reach it at all.
       btns.forEach(function (b, i) { b.tabIndex = (i === stop && !b.disabled) ? 0 : -1; });
+      // The caption that explains the strike follows the strike. It is built from the colour
+      // the form opens on -- which the picker deliberately chooses to be a FREE one, so
+      // nothing is struck and the caption is correctly absent -- and the grid redraws here
+      // without it when you pick a colour somebody else flies. Shown and hidden with the
+      // thing it describes.
+      var cap = document.querySelector(".crewdimmed");
+      if (cap) cap.hidden = !btns.some(function (b) { return b.disabled; });
       if (stop < 0 || btns[stop].disabled) {
         for (var j = 0; j < btns.length; j++) {
           if (!btns[j].disabled) { btns[j].tabIndex = 0; break; }
@@ -3806,8 +3823,13 @@
       h += '<div class="crewpend crewknock"><h4>' + t("crew.pending.h")
         + ' <span class="crewknockn">' + me.pending.length + "</span></h4>"
         + me.pending.map(function (p) {
+            // No separating space: the stylesheet gives the flag a 7px right margin, so a
+            // literal one on top of it put the knock rows at 10.17px against the roster's
+            // 7.00px -- the two lists in the same card starting their names 3.17px apart. I
+            // claimed in a commit that both were fixed and had measured only the first
+            // `.crewpendr`, which is a roster row.
             return '<div class="crewpendr"><span>'
-              + (p.flag ? cc(p.flag) + " " : "") + esc(p.name) + "</span>"
+              + (p.flag ? cc(p.flag) : "") + esc(p.name) + "</span>"
               + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '"'
               + ' data-name="' + esc(p.name) + '">' + t("crew.accept") + "</button>"
               + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '"'
@@ -4908,8 +4930,9 @@
       // `rankOf` has no board yet at this point and returns null, so the rank half of the
       // comparison simply does not fire on a cold load -- the squares half, which is the
       // bigger news anyway, does.
+      dockHasCrew = !!r.body.crew;
       dockDot(r.body.pending ? r.body.pending.length : 0,
-              sinceNews(r.body.crew, r.body.territory || {}));
+              sinceNews(r.body.crew, r.body.territory));
       // And keep asking. Once was the fix for a badge that could only ever tell a leader
       // something they were already looking at; it left the badge unable to tell them
       // anything NEW.
@@ -4924,6 +4947,9 @@
   // so this is the path most crews use.
   var KNOCK_POLL_MS = 30000;
   var knockTimer = null;
+  // Whether there is a crew to poll about, learned from `/crews/me` on load rather than from
+  // `ME`, which nothing sets until the panel is rendered. See `watchKnocks`.
+  var dockHasCrew = false;
 
   function watchKnocks() {
     if (knockTimer) return;
@@ -4934,16 +4960,25 @@
       // here for anybody who was not a leader or an officer, which was right while a knock
       // was the only thing it could report -- and is what kept the news badge below from
       // ever reaching the riders it is for.
-      if (!ME || !ME.crew) return;
+      // NOT `ME`. `ME` is assigned only inside `render()`, which only runs when the panel is
+      // opened -- so this timer returned on its first tick and every tick after for exactly
+      // the rider it was written for: somebody who has not opened the panel. A reviewer
+      // measured one `/crews/me` call in 39 seconds with the panel untouched, against three
+      // in 36 seconds after opening it once, and the badge never lit for a change that had
+      // genuinely happened. `primeDock` learns on load whether there is a crew to poll for,
+      // and the poll reads its own response rather than a global somebody else owns.
+      if (!dockHasCrew) return;
       api("GET", "/api/v1/crews/me").then(function (r) {
         if (!r.ok || !r.body) return;
-        var lead = ME && (ME.role === "leader" || ME.role === "officer");
+        dockHasCrew = !!r.body.crew;
+        var role = r.body.role;
+        var lead = role === "leader" || role === "officer";
         var n = (lead && r.body.pending) ? r.body.pending.length : 0;
         // The one thing every reviewer who scored FUN below 9 asked for and the one thing
         // still missing after five rounds: with the panel shut, nothing reached you. The diff
         // was already computed, already on the client, and only ever shown to somebody who
         // had decided to go and look. `sinceNews` asks without consuming.
-        dockDot(n, sinceNews(r.body.crew, r.body.territory || {}));
+        dockDot(n, sinceNews(r.body.crew, r.body.territory));
         // The counts only. Re-rendering on a timer would pull the form out from under a
         // leader halfway through typing a crew name, which is a worse bug than the one this
         // fixes -- so the badge and the dot are updated in place and nothing else moves.

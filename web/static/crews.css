@@ -1079,7 +1079,16 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    that got cut. The column holds a rival's name and what taking the square is worth; both are
    the point of the row, so it takes the height it needs. */
 .crewtwho {
-  flex: 1 1 auto; min-width: 0; color: var(--mut, #9aa6c8); font-size: 12px;
+  /* `1 1 0`, not `1 1 auto`. With an auto basis the column starts at its content width and
+     the two richest rows -- "Kolbotn · Nordlys Collective has it 12th · 15 squares in one
+     piece" -- could not fit beside the effort and bearing columns, so they wrapped to a line
+     of their own and took the consequence chip with them. A reviewer measured the place name
+     at left=681 on six of eight rows and left=472 on the other two: a 209px jump inside one
+     list at 1920, and 361 against 152 at 1280. It reads as a glitch rather than a variant.
+     A zero basis makes the column size from the track it is given instead of from its
+     longest string, so every row's place name lands in the same column and the long ones
+     wrap inside it. */
+  flex: 1 1 0; min-width: 0; color: var(--mut, #9aa6c8); font-size: 12px;
 }
 /* nothing to ride here today: present, legible, and plainly not the thing to do next */
 .crewtrow.done { opacity: .72; }
