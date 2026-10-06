@@ -429,7 +429,13 @@ EN: dict[str, str] = {
     "crew.how.c5": "Taken this week. Somebody just turned it over, and it is the newest thing on the map.",
     "crew.how.c3": "Going cold. Nobody has been back, so it sits at its floor. It stays yours until somebody rides it.",
     "crew.how.c2": "About to flip. One more ride by them and it changes hands.",
-    "crew.how.c1": "Contested. Another crew is putting km into it.",
+    # No unit. This and `crew.how.1` below used "km" as prose for "distance ridden", with no
+    # placeholder, so they could never convert and were simply wrong for a reader in miles --
+    # and once `crew.how.8` learned to convert they got worse, because the same modal then read
+    # "only put 3.1 mi a week" two lines from "the most km into it". Both sentences mean "rode
+    # it more than anyone else", which is true in every unit, so the version that never raises
+    # the question is the right one.
+    "crew.how.c1": "Contested. Another crew is riding it too.",
     "crew.how.c0": "Uncontested. Nobody else has put a wheel in it lately.",
     "crew.how.s4": "What the colours mean",
     "crew.how.s5": "What the numbers mean",
@@ -450,7 +456,7 @@ EN: dict[str, str] = {
     # own was told that was allowed and then found it was not.
     "crew.how.cool": "Walk out of a crew and you wait {v} before joining another one or starting your own.",
     "crew.how.size": "A crew holds {n} riders at most.",
-    "crew.how.1": "Ride a square and it turns your colour. Whoever put the most km into it over the last {d} days holds it.",
+    "crew.how.1": "Ride a square and it turns your colour. Whoever rode it most over the last {d} days holds it.",
     # "a 2x2 block, about 1.2 km across" -- `{v}` is the width of ONE square, so that
     # sentence put a 2x2 block at the size of a single square, and the numbers section
     # printed the same figure for one square two sections later. "each" fixes it.

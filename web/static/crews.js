@@ -1685,7 +1685,12 @@
     // eight rows, and `nowrap` is the wrong tool twice over in this file: once it cut text in
     // eleven locales, once removing it made a measurement lie in CJK.
     var u = H.mph && H.mph() ? "\u00a0mi" : "\u00a0km";
-    // one decimal while it matters, none once it does not: "0.4 mi" and "137 km"
+    // One decimal while it matters, none once it does not: "0.4 mi" and "137 km". Two below
+    // one unit, because a mile is 1.6 km and one decimal collapses distinct targets into the
+    // same label: a reviewer found 0.6 km and 0.7 km both printing "0.4 mi", and three
+    // consecutive rows of a list whose instruction is "Pick one to find it" reading "a few
+    // streets 0.4 mi". The rows are there to be chosen between, so they have to differ.
+    if (n < 1) return n.toFixed(2) + u;
     return (n < 10 ? n.toFixed(1) : Math.round(n).toLocaleString()) + u;
   }
 
