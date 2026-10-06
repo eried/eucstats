@@ -4233,6 +4233,23 @@
     function decide(b, sid, accept) {
       var who = b.dataset.name || "";
       b.onclick = function () {
+        // Turning somebody away asks first. It is the one act in this feature that affects
+        // another person and cannot be undone by the leader, and it was the only consequential
+        // control with no guard at all -- while removing an existing member, rotating the
+        // code, leaving and disbanding all confirm, and "Let in" and "No" sit 8px apart. A
+        // reviewer tapped No and the request was simply gone.
+        //
+        // Only the refusal. "Let in" is what the knock is asking for and is undone by the
+        // Remove control two blocks down, so a confirm there would be a dialog in front of
+        // saying yes.
+        if (!accept) {
+          ask(t("crew.roles.declineq", { name: who }), t("crew.decline"),
+              function () { send(); }, b, true);
+          return;
+        }
+        send();
+      };
+      function send() {
         api("POST", "/api/v1/crews/" + c.slug + "/decide",
             { store_id: sid, accept: accept }).then(function (r) {
           if (r.ok) {
@@ -4244,7 +4261,7 @@
             show();
           } else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
         });
-      };
+      }
     }
     document.querySelectorAll("[data-ok]").forEach(function (b) {
       decide(b, b.dataset.ok, true);

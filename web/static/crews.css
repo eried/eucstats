@@ -448,7 +448,14 @@
    furniture that is always there; the popup is a thing the reader has just asked for, so the
    popup wins. `.crewpop` is on the MARKER wrapper -- maplibre puts the class on the outer
    `.maplibregl-popup` -- which is the element that carries the stacking. */
-.maplibregl-popup.crewpop { z-index: 4; }
+/* Above the panel, which is z-index 550.
+   At 4 this sat under it, and the panel is open by default on `#crews` and covers everything
+   below y=216 at 1440x900 -- so every square you could click produced a popup whose Highlight
+   and Details buttons you could see the top edges of and could not press: `elementFromPoint`
+   on both returned `DIV.phead`. A reviewer measured it with the panel open and again with it
+   closed, where the identical buttons returned themselves and worked.
+   560, not higher: the dock is 600 and must stay reachable. */
+.maplibregl-popup.crewpop { z-index: 560; }
 .crewpop-in { display: flex; align-items: center; gap: 10px; }
 .crewpop-in img { width: 34px; height: 34px; }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
@@ -1252,7 +1259,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* Resting on a square. Small, out of the way, and it never appears while the map is moving. */
 .crewtip {
-  position: absolute; z-index: 5; pointer-events: none;
+  /* 560, for the same reason as `.crewpop` above: at 5 this drew UNDER the panel, and on a
+     phone the same tap that produces it opens the panel over it -- so a reviewer tapping a
+     square got a readout at x152-382 y269-332 sitting entirely inside the panel's rectangle
+     and behind it, with nothing of it visible. On desktop it is a hover tooltip beside the
+     cursor with no panel in the way, which is why this only ever bit on touch. */
+  position: absolute; z-index: 560; pointer-events: none;
   transform: translate(14px, -50%);
   /* `max-content`, so the width does not depend on where the tip is. Absolutely positioned
      with only a `max-width`, this box shrink-to-fits against the room between its anchor and

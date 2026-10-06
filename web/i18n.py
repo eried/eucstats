@@ -316,6 +316,11 @@ EN: dict[str, str] = {
     "crew.rank.level": "level with {v}",
     "crew.roles.remove": "Remove",
     "crew.roles.removeq": "Take {name} off the crew? Their old rides stay on the map.",
+    # The refusal asks first. It was the one consequential control in the feature with no
+    # guard -- "Let in" and "No" are 8px apart, both 44px tall, and No was instant and
+    # final. It says they can come back, because they can: `decide(accept=True)` reopens
+    # a refusal for a week, which is what the un-decline row above is for.
+    "crew.roles.declineq": "Turn {name} away? You can let them in later if you change your mind.",
     "crew.removed.h": "You are out",
     "crew.removed.p": "{name} took you off the crew. No waiting, join another whenever you like.",
     # the server has written the better sentence since this code existed; the

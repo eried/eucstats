@@ -422,6 +422,7 @@ EN_FINGERPRINT = {
     'crew.role.past': '12c0f1fbadc4',
     'crew.role.waiting': '12625ba3c14e',
     'crew.roles.all': '62b01e8bc1d8',
+    'crew.roles.declineq': '86c909c1a10e',
     'crew.roles.demote': '514052fb49d4',
     'crew.roles.h': 'f55c371aa049',
     'crew.roles.letin': '055ba7adc23c',
