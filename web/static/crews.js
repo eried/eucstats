@@ -352,6 +352,32 @@
   // can stand, and 11.8 now lands a fifth of the way down it rather than a twentieth.
   var ZOOM_LO = 11, ZOOM_HI = 13.2, FADE_HI = 0.45;
 
+  // The two ladders, applied. Pulled out of `buildLayers` because they have to be applied
+  // AGAIN once `/crews/me` lands: `bandOp` branches on `ME.crew` to dim every other crew's
+  // ground to `THEIRS`, and `buildLayers` runs its `requestAnimationFrame` long before that
+  // request resolves. So on every cold load the expression went up without its `case` branch
+  // and your own territory was drawn exactly like everybody else's -- the single most
+  // emotional thing this mode does, and it only worked if you left the panel and came back,
+  // which rebuilt the layers after `ME` was set.
+  //
+  // `scopePulse()` two lines below the re-apply already carried a comment saying precisely
+  // this about the pulse layers. The fill and the pattern needed the same treatment and never
+  // got it. A reviewer pixel-diffed a cold load against a tab round trip: 39.3% of the frame
+  // changed, a rival's square moved from rgb(142,109,71) to rgb(115,91,65), and the reader's
+  // own squares were byte-identical in both.
+  function paintBands() {
+    if (!map || !map.getLayer || !map.getLayer("crew-fill")) return;
+    var op = (window.__CREWCFG__ && window.__CREWCFG__.opacity) || 0.75;
+    // 0.9 here is the FADING band's own multiplier, which is a different decision from how
+    // heavy the stencil is -- I changed this one first by mistake, and it only ever touched
+    // band 3.
+    var pat = Math.min(op, 0.65);
+    try {
+      map.setPaintProperty("crew-fill", "fill-opacity", bandOp(op, 1));
+      map.setPaintProperty("crew-pattern", "fill-opacity", bandOp(pat, 0.9));
+    } catch (e) {}
+  }
+
   function bandOp(op, b3) {
     function at(scale) {
       var o = op * scale;
@@ -587,17 +613,18 @@
       // `min`, not a constant: an admin who dials the crews layer down to 0.3 should not get
       // patterns at twice the weight of the ground they are printed on. The pattern is the
       // second channel for telling two crews apart; it is not the first.
-      var pat = Math.min(op, 0.65);
-      map.setPaintProperty("crew-fill", "fill-opacity", bandOp(op, 1));
-      // 0.9 here is the FADING band's own multiplier, which is a different decision from how
-      // heavy the stencil is -- I changed this one first by mistake, and it only ever touched
-      // band 3.
-      map.setPaintProperty("crew-pattern", "fill-opacity", bandOp(pat, 0.9));
+      paintBands();
       map.setPaintProperty("crew-edge", "line-opacity", 0.95);
       map.setPaintProperty("crew-edge-glow", "line-opacity", 0.35);
       map.setPaintProperty("crew-contested", "line-opacity", 0.8);
       map.setPaintProperty("crew-flipping", "line-opacity", 0.95);
       scopePulse();
+      // Here as well as in `show()`. On a cold load the territory payload has not landed when
+      // the panel opens, so `buildLayers` runs LATER than `show` and there was no crew layer
+      // to put the heat underneath yet -- the move was skipped and the heatmap stayed on top
+      // of the ground it is meant to sit beneath. Measured 106 of 107 layers with the panel
+      // open. Both call sites, because either one can be the last to run.
+      heatUnderTerritory(true);
       startPulse(pulse.features.length);
       // The basemap picker calls setStyle, style.load fires, and this runs again from
       // scratch. Without this the gold rings were torn down and never came back, and a crew
@@ -4777,6 +4804,24 @@
   // The heatmap and territory answer different questions and look terrible together: the glow
   // bleeds across the rectangles' edges, which are the whole point of them. So the two modes
   // are exclusive — entering crews fades the heat out, leaving brings it back.
+  // Under the territory, not over it. The host adds `heat` last, so it sits on top of every
+  // layer in the style -- including the crew fills and, since the fills moved down, including
+  // the place names as well. A reviewer sampled the same crew's colour inside and outside the
+  // heat blob: saturation 73% below it and 19% inside it, with the crew's own magenta reading
+  // as grey-pink exactly over the ground that crew holds. Hiding both crew layers moved those
+  // pixels by a contrast ratio of 1.3, which says the heat was setting the colour there, not
+  // the territory. The whole mode is about whose colour is on the ground.
+  //
+  // Moved only while the mode is on, and put back on the way out, because `heat` belongs to
+  // the host and every other panel expects it where it was.
+  function heatUnderTerritory(under) {
+    if (!map.getLayer || !map.getLayer("heat")) return;
+    try {
+      if (under && map.getLayer("crew-pulse-danger")) map.moveLayer("heat", "crew-pulse-danger");
+      else if (!under) map.moveLayer("heat");
+    } catch (e) {}
+  }
+
   function setHeat(on) {
     if (!map.getLayer("heat")) return;
     var full = (window.__HEAT__ && window.__HEAT__.opacity) || 0.62;
@@ -4786,6 +4831,13 @@
     var ghost = CFG.heat_ghost != null ? CFG.heat_ghost : 0.30;
     var want = on ? full : full * ghost;
     try { map.setPaintProperty("heat", "heatmap-opacity", want); } catch (e) {}
+    // Again on the next frame. The host sets the full opacity from a `requestAnimationFrame`
+    // of its own, so opening the mode during that window wrote the ghost and then had it
+    // written straight back: a reviewer measured `heatmap-opacity` at 0.62 -- the full value
+    // -- with the panel open, which is the value this function exists to replace.
+    requestAnimationFrame(function () {
+      try { map.setPaintProperty("heat", "heatmap-opacity", want); } catch (e) {}
+    });
   }
 
   // Re-rendering resets the panel's scroll, so an action that changes your standing left you
@@ -4966,6 +5018,7 @@
     render();
     if (TERR && !map.getLayer("crew-fill")) buildLayers();
     setHeat(false);
+    heatUnderTerritory(true);
   }
 
   function render() {
@@ -4999,6 +5052,10 @@
       // The pulse layer is built before this resolves, so without re-applying the filter it
       // always took the "every crew" branch and your own ground never stood out.
       scopePulse();
+      // And the fill and the pattern, for exactly the same reason and in the same breath.
+      // This line is the whole of the fix for a cold load drawing your ground like a
+      // stranger's; see `paintBands`.
+      paintBands();
       var rank = res[1].ok ? res[1].body.crews || [] : [];
       if (res[1].ok) BOARD = rank;
       var all = res[2].ok ? res[2].body.crews || [] : [];
@@ -5596,6 +5653,7 @@
       unmountKey();
       stopPairing();
       clearLayers();          // rectangles belong to this mode and nowhere else
+      heatUnderTerritory(false);
       setHeat(true);
     },
     reload: reloadTerritory

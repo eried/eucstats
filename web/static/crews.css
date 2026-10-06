@@ -1747,7 +1747,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    as emphasis on the numbers rather than on whose row it is. */
 .crewboard tr.crewrowmine > td:first-child { box-shadow: inset 2px 0 0 var(--sec, #ff8ad8); }
 .crewboard tr.crewrowmine > td { background: rgba(255,138,216,.10); }
-.crewboard .pod.crewrowmine { outline: 1.5px solid rgba(255,138,216,.5); outline-offset: -1px; }
+/* The podium card needs more than the ranked row does, because it already has a medal rule
+   of its own in gold: a 1.33px half-alpha outline at -0.67px offset sat directly against that
+   and read as a focus ring at 1x. Solid, two pixels, and the same 10% wash the rows carry, so
+   the two treatments are recognisably one idea. */
+.crewboard .pod.crewrowmine {
+  outline: 2px solid var(--sec, #ff8ad8); outline-offset: -2px;
+  background-image: linear-gradient(rgba(255,138,216,.12), rgba(255,138,216,.12));
+}
 
 /* Good news, with the weight the bad news has always had. The three one-shot notices in this
    mode -- turned down, removed, folded -- are full cards with a heading; taking ground was a
@@ -1858,6 +1865,20 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      `min-width: 0` on both, or a long crew name pushes the panel wider than it is and the
      body scrolls sideways. */
   .crewcol { display: block; flex: 1 1 0; min-width: 0; }
+  /* The standings stay put while you read your own card. The two columns are independent and
+     the left one is roughly twice the height of the right, so scrolling past the board left a
+     466x708 rectangle of nothing -- 46% of the open panel at 1920, measured. Sticky alone is
+     not enough: the board is taller than the panel body, and a sticky element taller than its
+     scrollport pins its top and puts its own bottom permanently out of reach. So it gets a
+     height and its own scroll, which is the one place in this panel where a nested scroller
+     earns itself -- the alternative is half a window of blank.
+     The panel is `min(76dvh, ...)` capped at 760px and the header takes 52; this follows it. */
+  .crewcolside {
+    position: sticky; top: 0;
+    max-height: min(calc(76dvh - 60px), 700px);
+    overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
   /* Except when there is nothing to put beside the board. Signed out, the left column is a
      single sign-in card against a board four times its height, so the split produced half a
      panel of nothing on the one screen a stranger meets first. One column and the narrow
