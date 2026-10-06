@@ -378,6 +378,11 @@ EN: dict[str, str] = {
     # dots by listing the dot as allowed. The rule it breaks is a different one -- a name has
     # to contain something you could read it by -- and it needs to say so.
     "crew.e.name.word": "A name needs at least one letter or number.",
+    # A crew named `admin` is refused by `name_reserved`, and the client had no entry for
+    # the code -- so the one refusal added to stop impersonation answered "That did not
+    # work.", the only message in this form that explains nothing. Reviewer R found it by
+    # noticing that every OTHER name error names the rule it broke.
+    "crew.e.name.reserved": "That name is reserved. Pick something that is yours.",
     "crew.mine.saved": "Saved",
     # Three successes that said nothing: approving somebody (the knock row vanishing
     # was the only evidence a person had joined), turning them down, and disbanding.

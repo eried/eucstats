@@ -855,6 +855,28 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    spelled out under it. */
 .crewcount.over { color: #ff8ad8; font-weight: 600; }
 
+/* The crew's mark in settings, with the control that removes an upload sitting ON it rather
+   than as a ghost button beside Save. 44px of target for a 20px glyph, because it throws away
+   something a leader had to make. */
+.crewlogo { position: relative; display: inline-block; margin: 8px 0 2px; line-height: 0; }
+.crewlogo .crewembsm { border-radius: 3px; }
+.crewlogox {
+  position: absolute; top: -11px; right: -11px;
+  /* 44px of target around a 22px disc: the glyph is small because the emblem is 52px and a
+     big X would read as part of the picture, but the thing it does is not undoable. */
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  line-height: 1; font-size: 14px; color: var(--mut, #9aa6c8);
+}
+/* The disc is drawn on a span-less button, so it is a radial background rather than a
+   pseudo-element: `::before` would paint over the glyph, which is a text node with no
+   stacking context of its own. */
+.crewlogox {
+  background-image: radial-gradient(circle at 50% 50%,
+    rgba(8,12,26,.94) 0 10.5px, rgba(36,48,85,1) 10.5px 11.5px, rgba(0,0,0,0) 11.5px);
+}
+.crewlogox:hover, .crewlogox:focus-visible { color: #ff8ad8; }
+
 /* The line under the board for a crew with no rank yet. A crew holding nothing has no row, so
    the standings ran 1 to 15 and never mentioned the reader's own crew -- see the note at the
    call site. Quiet, because it is not a ranking: it is the board saying where you are not. */

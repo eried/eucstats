@@ -439,6 +439,15 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
             # is that it survives the code being rotated -- it is meant to be printed.
             out["crew"]["share_url"] = f"{_origin(request)}/c/{clan.slug}"
             out["crew"]["share_qr"] = pairing.qr_rows(out["crew"]["share_url"])
+            # Whether there is anything to clear. The emblem endpoint always answers with an
+            # image -- the generated mark when no logo was uploaded -- so the client had no way
+            # to tell the two apart, which is why clearing was a button labelled "Use the drawn
+            # one" sitting next to Save whether or not it would do anything. Length, not the
+            # blob: this is a boolean and the image can be 40KB.
+            import sqlalchemy as _sa
+            out["crew"]["has_logo"] = bool(
+                db.query(_sa.func.length(Clan.logo_png))
+                .filter(Clan.clan_id == clan.clan_id).scalar() or 0)
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
                 # Every rider this panel is about to name, in one query. Three `db.get` calls

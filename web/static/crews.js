@@ -3062,6 +3062,7 @@
     no_crew: "crew.e.gone",
     not_member: "crew.e.left", not_in_crew: "crew.e.left",
     promote_first: "crew.e.promote", bad_name_word: "crew.e.name.word",
+    name_reserved: "crew.e.name.reserved",
     // all three used to answer "only a leader or officer can do that", to somebody pressing a
     // button only shown to people who are neither
     leader_active: "crew.e.leaderback", not_eligible: "crew.e.notyou",
@@ -4163,14 +4164,25 @@
         + "</select></label>"
         + '<label class="crewfile">' + t("crew.mine.emblem")
         + '<input type="file" id="ce-logo" accept="image/*"></label>'
+        // The mark itself, with an X on it when there is an upload to remove. Clearing used
+        // to be a ghost button beside Save reading "Use the drawn one" -- which Erwin called
+        // weird, and it is: it names the thing you get rather than the thing you do, it sits
+        // next to Save as if it were a second way to save, and it was shown whether or not
+        // there was anything to clear, because nothing told the client. `has_logo` does now.
+        + '<div class="crewlogo">' + emb(c.slug, 52)
+        + (c.has_logo
+           ? '<button type="button" class="crewlogox" id="ce-clearlogo" title="'
+             + esc(t("crew.mine.generated")) + '" aria-label="'
+             + esc(t("crew.mine.generated")) + '">✕</button>'
+           : "")
+        + "</div>"
         + '<p class=hint>' + t("crew.mine.emblemp") + "</p>" 
         // `.crewacts`, like every other button row in this card. Emitted as bare
         // siblings these two had no horizontal spacing at all -- measured 0.00px apart --
         // so Save and "Use the drawn one" read as a single merged control.
         + '<div class="crewacts">'
         + '<button class="crewbtn" id="ce-save">' + t("crew.mine.save") + "</button>"
-        + '<button class="crewbtn ghost" id="ce-clearlogo">' + t("crew.mine.generated")
-        + "</button></div>"
+        + "</div>"
         + "</details>";
     }
     h += '<div class="crewacts">'
@@ -4586,7 +4598,9 @@
           // could not see.
           var code = (r.err && (r.err.code || r.err.detail)) || "";
           var nmf = document.getElementById("ce-name");
-          var near = (code === "name_taken" || code === "bad_name") && nmf ? nmf : save;
+          var near = (code === "name_taken" || code === "bad_name"
+                  || code === "name_reserved" || code === "bad_name_word")
+                 && nmf ? nmf : save;
           setStatus(errMsg(r.err), true, near);
           if (near === nmf) { nmf.focus(); nmf.select(); }
         }

@@ -979,7 +979,7 @@ function renderChampions(){
   const C=WC||{};
   if(!(C.day||C.week||C.month)){ch.style.display="none";return;}
   ch.style.display="block";ch.style.cursor="default";ch.onclick=null;
-  const line=(lab,c)=>c?`<div class="cline" data-sid="${c.id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||'rider'}</b><span class="cscore">${t("champ.pts",{n:c.score})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
+  const line=(lab,c)=>c?`<div class="cline" data-sid="${c.id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||'rider'}</b><span class="cscore">${t("champ.pts",{n:Math.round(c.score)})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
   const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+t("champ.tip")).replace(/"/g,"&quot;");
   ch.innerHTML=`<div class="chead">${FLAG}<span>${t("champ.title")}</span><button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+
     line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month);
