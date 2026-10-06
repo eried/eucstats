@@ -290,7 +290,12 @@ td.sub{color:var(--mut)}
    No ellipsis: the words are shown whole or the row drops to icons. */
 .dock .lbl{white-space:nowrap}
 .dock.icons .lbl{display:none}.dock.icons button{padding:11px}
-@media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px}
+/* 44px, the minimum a finger gets. With the label hidden a dock button is an 18px icon in
+   11px of padding, which measures 40x40 -- the one control on a phone that is always on
+   screen, and the only way into any panel. A reviewer measured it; it is app-wide rather
+   than a crews thing, which is why it sat unfixed. `min-width`/`min-height` rather than
+   more padding, so the icon does not move and nothing else reflows. */
+@media(max-width:560px){.dock button .lbl{display:none}.dock button{padding:11px;min-width:44px;min-height:44px;justify-content:center}
 /* phones: size tabs to their label (not a fixed 176px) so 4-5 fit per swipe
    instead of barely 2, and tighten them a touch for density */
 .tabs{grid-auto-columns:114px;gap:5px}

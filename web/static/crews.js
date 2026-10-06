@@ -1276,7 +1276,11 @@
   // The crew's own emblem at name size. Same source the map and the podium draw.
   function emb(slug, size) {
     var sz = size || 16;
-    return '<img class="crewembsm" style="width:' + sz + "px;height:" + sz
+    // Carries its slug so one delegated listener can open the sheet for whichever crew's
+    // emblem was pressed -- the board, the browse list and the board's own footer line all
+    // emit these, and none of them wants its own handler.
+    return '<img class="crewembsm crewembgo" data-emb="' + esc(slug)
+      + '" style="width:' + sz + "px;height:" + sz
       + 'px" alt="" src="/api/v1/crews/' + encodeURIComponent(slug) + '/emblem"/>';
   }
 
@@ -1458,7 +1462,9 @@
     var isRow = function (e) { return top3.indexOf(e) < 0; };
     var short = function (e) { return tight && isRow(e); };
     return H.podList(rows, {
-      iconFn: function (e) { return '<img class="crewpodemb" alt="" src="' + e.emblem + '"/>'; },
+      iconFn: function (e) {
+        return '<img class="crewpodemb crewembgo" data-emb="' + esc(e.slug)
+          + '" alt="" src="' + e.emblem + '"/>'; },
       // the swatch is the crew's identity on the map, so it belongs beside every name
       label: function (e) {
         // The position comes from `rows`, not from an argument: `podList` calls `label(e)`
@@ -2515,7 +2521,17 @@
       // phone, was the generic GET STARTED card with no mention of the crew whose sticker you
       // had just scanned. The errand is the reason to finish the errand.
       + inviteNote()
+      // Folded on a phone, open everywhere else. A QR cannot be scanned by the device that is
+      // displaying it, so on the one device where this card is 427px of a 590px panel, its
+      // single biggest element -- 188px, 44% of the card -- is the one thing that physically
+      // cannot work there. The code below IS the control on that device: tapping it opens the
+      // app. The QR still serves the case where somebody scans this screen with a SECOND
+      // phone, so it folds rather than going away, under a label that already exists in all
+      // nineteen tables. `open` here; `startPairing` takes it off on a coarse pointer.
+      + '<details class="crewqrfold" id="crewqrfold" open>'
+      + "<summary>" + esc(t("crew.signin.qralt")) + "</summary>"
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
+      + "</details>"
       + '<div class="crewcode" id="crewcode">······</div>'
       // One line: what to point at it, which app, and which version. The version used to be a
       // paragraph of its own and the app's name is a link in whatever language the sentence is
@@ -2571,10 +2587,46 @@
     if (done) ok(); else fail();
   }
 
+  // Any crew the panel knows about, by slug. The browse list is the richer source -- it
+  // carries the description and the join policy -- and the board is the fallback for a crew
+  // ranked but not in the sixty nearest.
+  function crewBySlug(slug) {
+    var i, c;
+    for (i = 0; ALL && i < ALL.length; i++) if (ALL[i].slug === slug) return ALL[i];
+    for (i = 0; BOARD && i < BOARD.length; i++) {
+      c = BOARD[i];
+      if (c.slug === slug) {
+        return { slug: c.slug, name: c.name, emblem: c.emblem, description: c.description,
+                 tiles: c.tiles, km2: c.km2, members: c.members,
+                 join_policy: c.join_policy };
+      }
+    }
+    return null;
+  }
+
+  // Opens the sheet for any crew, from wherever its emblem was pressed.
+  function openCrewSheet(slug) {
+    var c = crewBySlug(slug);
+    if (!c) return;
+    var mine = !!(ME && ME.crew && ME.crew.slug === slug);
+    window.openModal(c.name, crewSheetHTML(mine && ME.crew ? ME.crew : c, mine));
+    // The action belongs to the row that already owns it: every refusal, every confirm and
+    // every price sentence lives on that button. Pressing this one closes the sheet and
+    // presses that one, rather than growing a second copy of the join flow in a dialog.
+    var go = document.getElementById("crewsheetgo");
+    if (go) go.onclick = function () {
+      window.closeModal();
+      var btn = document.querySelector('[data-join="' + cssEscape(slug) + '"]');
+      if (!btn) return;
+      btn.scrollIntoView({ block: "center", behavior: "smooth" });
+      setTimeout(function () { btn.click(); }, 260);
+    };
+  }
+
   // What a click on the crew's emblem opens: the mark at a size worth looking at, what the
   // crew says about itself, what it holds, and the code to find it. Every string and every
   // helper here already existed -- this is an arrangement, not nineteen new translations.
-  function crewSheetHTML(c) {
+  function crewSheetHTML(c, mine) {
     var held = c.tiles || 0;
     return '<div class="crewsheet">'
       + '<img class="crewsheetemb" alt="" src="' + esc(c.emblem) + '">'
@@ -2593,6 +2645,15 @@
       + (c.share_url
          ? '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank"'
            + ' rel="noopener">' + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
+         : "")
+      // Somebody else's crew: the sheet is where you decide, so it carries the same label the
+      // browse row carries. Not shown for your own crew, and not while you are in one -- the
+      // row itself is shut in that state and this must not offer what it would refuse.
+      + ((!mine && c.join_policy && ME && ME.paired && !ME.crew && !ME.cooldown_until)
+         ? '<div class="crewsheetact"><button class="crewbtn" id="crewsheetgo">'
+           + esc(t(c.join_policy === "open" ? "crew.join.btn"
+                   : c.join_policy === "invite" ? "crew.join.code" : "crew.join.ask"))
+           + "</button></div>"
          : "")
       + "</div>";
   }
@@ -2676,6 +2737,14 @@
 
   function startPairing() {
     stopPairing();
+    // Fold the QR away on the one device where it cannot be used. See the markup: it ships
+    // `open` so that a desktop, where scanning with a phone is the whole point, never has to
+    // ask for it, and this is the only place that knows the pointer.
+    var fold = document.getElementById("crewqrfold");
+    if (fold && window.matchMedia
+        && window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
+      fold.open = false;
+    }
     api("POST", "/api/v1/pair/start").then(function (r) {
       if (!r.ok) { setStatus(errMsg(r.err), true); offerRetry(r.err); return; }
       pairToken = r.body.token;
@@ -3677,6 +3746,9 @@
   // had sixteen crews and the board thirteen, so a card read "16th" over a thirteen-row
   // table, and a crew the board does not list got a rank of its own anyway.
   var BOARD = null;
+  // The browse list, kept so the emblem sheet can answer about any crew and not only
+  // your own. `_crew_brief` carries the description, the figures and the policy already.
+  var ALL = null;
 
   /* ---------- what changed since you last looked ----------
 
@@ -4396,7 +4468,13 @@
         api("POST", "/api/v1/crews/" + encodeURIComponent(ME.crew.slug) + "/newcode")
           .then(function (r) {
             if (!r.ok) { setStatus(errMsg(r.err), true, nc); return; }
-            setStatus(t("crew.mine.newcoded"), false, nc);
+            // Through `pendingStatus`, not `setStatus`: the `render()` on the next line
+            // rebuilds the panel and takes the message with it, so the confirmation was
+            // written into DOM that was replaced microseconds later. The string has existed
+            // and been translated into nineteen languages the whole time -- a reviewer
+            // reported the rotation as having NO acknowledgement, because what reaches the
+            // leader is eight characters silently changing. Same race as the invite link.
+            pendingStatus = t("crew.mine.newcoded");
             render();
           });
       }, nc, true);
@@ -5377,6 +5455,7 @@
       // have none. `show()` already tried with whichever it had.
       frameTerritory();
       var all = res[2].ok ? res[2].body.crews || [] : [];
+      ALL = all;
       MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
       // What the number under each name IS. `crew.board.sub` has existed since the board was
       // written and was rendered nowhere -- a reviewer found it by grep. So the podium prints
@@ -5620,6 +5699,18 @@
                   pendingNear ? document.getElementById(pendingNear) : null);
         pendingStatus = null; pendingBad = false; pendingNear = null;
       }
+      // One listener for every crew emblem the panel draws, wherever it is. Delegated on the
+      // panel rather than bound per element: the board is rendered by the host's shared
+      // `podList` and the browse list is rebuilt on every filter keystroke, so there is no
+      // one place to bind and no moment at which they are all present.
+      panel.querySelectorAll(".crewembgo").forEach(function (im) {
+        pressable(im, im.dataset.emb, function (ev) {
+          // The emblem sits inside a row that flies the map and inside a <summary> that
+          // folds; neither should happen when the thing you pressed was the picture.
+          if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+          openCrewSheet(im.dataset.emb);
+        }, false);
+      });
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
         var i = +el.dataset.i, r = rank[i];
         // `aria-label` REPLACES the element's own text, so naming the rank and the crew did

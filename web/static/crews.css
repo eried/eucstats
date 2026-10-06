@@ -470,6 +470,9 @@
    gated together. */
 a.crewopen, .crewsame { display: none; }
 
+/* Open and unannounced anywhere but a touch screen: scanning this with a phone is the whole
+   point of the desktop card, so it is never asked for there. */
+.crewqrfold > summary { display: none; }
 a.crewqr { display: flex; text-decoration: none; }
 /* A link with no colour of its own computes to the browser default #0000EE, underlined, on a
    near-black card. The QR is an image so nobody saw it -- until the image failed, or the
@@ -1023,7 +1026,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      sign-in card's 427, which pushed the board's podium to y=723 of a panel ending at 759 --
      so a stranger on a phone met a pairing wall and 36px of the game. It stays big enough for
      another phone's camera, which is the only case it serves on this device. */
-  .crewqr { order: 3; margin-top: 18px; min-height: 124px; }
+  /* The fold, which only exists on this pointer. Its summary is the control; the QR behind
+     it is for the case where a SECOND phone scans this screen. */
+  .crewqrfold { order: 6; margin-top: 12px; }
+  .crewqrfold > summary { display: block; cursor: pointer; font-size: 11px; letter-spacing: .5px;
+    text-transform: uppercase; color: var(--mut, #9aa6c8); padding: 7px 0; text-align: center; }
+  .crewqr { order: 3; margin-top: 10px; min-height: 124px; }
   .crewqr img, .crewqrg { width: 124px; height: 124px; }
   .crewcode { order: 4; }
   #crewcodehint { order: 5; }
