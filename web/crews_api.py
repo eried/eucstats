@@ -448,42 +448,56 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
             out["crew"]["has_logo"] = bool(
                 db.query(_sa.func.length(Clan.logo_png))
                 .filter(Clan.clan_id == clan.clan_id).scalar() or 0)
+            # Every rider this panel is about to name, in one query. Three `db.get` calls
+            # per row turned a 41-member crew into 133 statements.
+            rows = (db.query(ClanMember)
+                    .filter(ClanMember.clan_id == clan.clan_id,
+                            ClanMember.left_at.is_(None)
+                            | ClanMember.status.in_(("declined", "declined_seen")))
+                    .all())
+            who = {}
+            ids = sorted({x.store_id for x in rows})
+            if ids:
+                for r in db.query(Rider).filter(Rider.store_id.in_(ids)).all():
+                    who[r.store_id] = r
+
+            def _nm(sid):
+                r = who.get(sid)
+                return r.display_name if r is not None else "?"
+
+            def _hd(sid):
+                # Through `_handle` whenever the row fails its invariant, not just when
+                # the handle is missing. `_handle` guards the reader's own handle; this
+                # publishes everybody else's -- the whole roster, every pending request
+                # and every refusal -- so the containment check matters more here, and
+                # this was the one place it was skipped. A reviewer read a polluted
+                # handle out of a roster, stripped the prefix and minted a session.
+                r = who.get(sid)
+                if r is None:
+                    return ""
+                if not publishable_handle(r.public_id):
+                    return _handle(db, sid)        # mints a clean one; see _handle
+                return r.public_id
+            def _fl(sid):
+                r = who.get(sid)
+                return (r.flag or "") if r is not None else ""
+
+            # Who is in the crew is not a power, so it is not behind the role check. It used
+            # to be: the roster, the invite code and the knock list were all inside one gate,
+            # so a plain member's page said "5 riders" in its header and the only list on it
+            # was WHO RODE FOR IT -- four names, with the reader's own nowhere on their own
+            # crew's page because they had not ridden for it yet. The invite code and the
+            # pending list stay gated; the names do not.
+            out["roster"] = [
+                {"store_id": _hd(x.store_id), "role": x.role,
+                 "name": _nm(x.store_id), "flag": _fl(x.store_id)}
+                for x in db.query(ClanMember).filter(
+                    ClanMember.clan_id == clan.clan_id,
+                    ClanMember.status == "active",
+                    ClanMember.left_at.is_(None))
+                .order_by(ClanMember.joined_at.asc()).all()]
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
-                # Every rider this panel is about to name, in one query. Three `db.get` calls
-                # per row turned a 41-member crew into 133 statements.
-                rows = (db.query(ClanMember)
-                        .filter(ClanMember.clan_id == clan.clan_id,
-                                ClanMember.left_at.is_(None)
-                                | ClanMember.status.in_(("declined", "declined_seen")))
-                        .all())
-                who = {}
-                ids = sorted({x.store_id for x in rows})
-                if ids:
-                    for r in db.query(Rider).filter(Rider.store_id.in_(ids)).all():
-                        who[r.store_id] = r
-
-                def _nm(sid):
-                    r = who.get(sid)
-                    return r.display_name if r is not None else "?"
-
-                def _hd(sid):
-                    # Through `_handle` whenever the row fails its invariant, not just when
-                    # the handle is missing. `_handle` guards the reader's own handle; this
-                    # publishes everybody else's -- the whole roster, every pending request
-                    # and every refusal -- so the containment check matters more here, and
-                    # this was the one place it was skipped. A reviewer read a polluted
-                    # handle out of a roster, stripped the prefix and minted a session.
-                    r = who.get(sid)
-                    if r is None:
-                        return ""
-                    if not publishable_handle(r.public_id):
-                        return _handle(db, sid)        # mints a clean one; see _handle
-                    return r.public_id
-
-                def _fl(sid):
-                    r = who.get(sid)
-                    return (r.flag or "") if r is not None else ""
 
                 # The flag belongs here too. The roster renderer has asked for `x.flag` since
                 # the fold landed -- with a comment saying "a list of riders that says nothing
@@ -491,15 +505,6 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                 # so the branch was dead and the list stayed exactly what the comment
                 # complained about. `who` is already loaded; the pending list below and the
                 # contributor list on the same card both use it.
-                out["roster"] = [
-                    {"store_id": _hd(x.store_id), "role": x.role,
-                     "name": _nm(x.store_id), "flag": _fl(x.store_id)}
-                    for x in db.query(ClanMember).filter(
-                        ClanMember.clan_id == clan.clan_id,
-                        ClanMember.status == "active",
-                        ClanMember.left_at.is_(None))
-                    .order_by(ClanMember.joined_at.asc()).all()]
-
                 # The flag as well. A pending row showed a bare name while the contributor
                 # list on the same card showed a flag for everyone already in, so the one row
                 # a leader has to make a decision about was the least informative on screen.

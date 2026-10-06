@@ -38,6 +38,20 @@ import pathlib
 import re
 
 CSS = pathlib.Path(__file__).resolve().parent.parent / "web" / "static" / "crews.css"
+# public.py carries the site's own stylesheet inline, and it has the same failure mode -- three
+# times in one day: a `@media` rule declared ABOVE the base rule it means to override, at equal
+# specificity, so source order decides and the override loses silently. The topbar kept its
+# width on a phone, the header gear never appeared, and the floating gear never went away. The
+# checker was only ever pointed at crews.css, so none of it was caught.
+# Derived from CSS, not from __file__, so that `tests/test_crews_css.py` -- which proves this
+# checker by rewriting the CSS line to point at a planted copy -- redirects this one with
+# it and never reads the real page. Missing means there is nothing to check.
+PUBLIC = CSS.parent.parent / "public.py"
+
+
+def public_css(text: str) -> str:
+    """The <style> blocks out of the served page template, as one sheet in source order."""
+    return chr(10).join(re.findall(r"<style>(.*?)</style>", text, re.S))
 
 
 # The priority, not the letters. `"!important" in value` is a substring test: it misses
@@ -849,7 +863,18 @@ def relaxes(val, against=None, prop=None):
 
 
 def main():
-    decls = parse(CSS.read_text(encoding="utf-8"))
+    files = [("crews.css", CSS.read_text(encoding="utf-8"))]
+    if PUBLIC.exists():
+        files.append(("public.py", public_css(PUBLIC.read_text(encoding="utf-8"))))
+    total = 0
+    worst = 0
+    for name, text in files:
+        total += check(name, text)
+    return 1 if total else 0
+
+
+def check(name, text):
+    decls = parse(text)
     bad = []
     # one count per compound, over distinct selectors, for fixes()
     SEEN.clear()
@@ -1081,11 +1106,24 @@ def main():
                     f"NEVER WINS  {a[2]} | {prop}: {a[4]}  [{a[1] or 'top level'}]"
                     f"  loses to  {b[2]}: {b[4]}  [{b[1] or 'top level'}]")
 
+    # public.py is checked for ONE thing: a rule inside a media query that a later top-level
+    # rule overrides at equal specificity, so the override can never win. That is the failure
+    # that hit three times in one day there. The other heuristics are tuned to crews.css's
+    # conventions and read public.py's deliberate fallback idioms -- `height: 100%` then
+    # `100dvh`, `background: #070a16` then `var(--bg)` -- as mistakes, which they are not.
+    if name != "crews.css":
+        # OVERRIDDEN is exactly it: pass 1 emits that when the earlier declaration is inside a
+        # conditional context and the later one is not, which is a rule that can never win.
+        # NEVER WINS is pass 2's specificity version of the same thing. The first cut of this
+        # filter tried to be cleverer, split on a phrase OVERRIDDEN does not contain, and threw
+        # away the finding it was written to keep -- caught by putting the bug back and getting
+        # `problems 0`, which is the only reason this line is right.
+        bad = [b for b in bad if b.startswith("OVERRIDDEN") or b.startswith("NEVER WINS")]
     for line in bad:
-        print(line)
-    print(f"declarations {len(decls)} | selectors {len({d[2] for d in decls})} "
+        print(f"{name}: {line}")
+    print(f"{name}: declarations {len(decls)} | selectors {len({d[2] for d in decls})} "
           f"| problems {len(bad)}")
-    return 1 if bad else 0
+    return len(bad)
 
 
 if __name__ == "__main__":

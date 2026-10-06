@@ -182,7 +182,15 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes panDown{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,58px)}}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);flex:0 0 auto;z-index:5;background:rgba(11,15,28,.96)}
 .phead b{font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}.phead button{background:transparent;border:0;color:var(--mut);cursor:pointer}
-/* The panel title is `tabindex="-1"` and focused programmatically on every open, to put a screen reader at the top of what just appeared. It is focused inside a requestAnimationFrame, so Chromium's heuristic calls that focus-visible and paints its default ring around the title -- on every open, in 40 of one reviewer's 45 screenshots, and NOT on the Riders panel, so it read as a bug rather than a convention. Nothing is lost by removing it: -1 means no keyboard user can ever land here by tabbing, and the announcement is what the focus was for. */#ptitle:focus{outline:none}.pacts{display:flex;gap:12px;align-items:center}/* Help belongs to the one panel that has a manual. `data-sec` is written by setPanel. */#phelp{display:none}.panel[data-sec=crews] #phelp{display:block}#phelp[aria-haspopup]:hover{color:var(--acc)}.phead button:hover{color:var(--acc)}#ppeek.on{color:var(--gold)}/* 44px of hit area. These three measured 19x18 -- 17% of the iOS minimum by area -- while every other button in the feature is 44 tall, and one of them is the only way to the manual. The GLYPH stays 18px; the target around it grows, so nothing moves. */.phead button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;margin:-13px 0}.pacts{gap:0}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
+/* The panel title is `tabindex="-1"` and focused programmatically on every open, to put a screen reader at the top of what just appeared. It is focused inside a requestAnimationFrame, so Chromium's heuristic calls that focus-visible and paints its default ring around the title -- on every open, in 40 of one reviewer's 45 screenshots, and NOT on the Riders panel, so it read as a bug rather than a convention. Nothing is lost by removing it: -1 means no keyboard user can ever land here by tabbing, and the announcement is what the focus was for. */#ptitle:focus{outline:none}.pacts{display:flex;gap:12px;align-items:center}/* Help belongs to the one panel that has a manual. `data-sec` is written by setPanel. */#phelp{display:none}.panel[data-sec=crews] #phelp{display:block}/* The floating gear is pinned bottom-left at 38px and the dock is centred at up to
+   100vw-16px with z-index 600, so on every common phone width the dock lies on top of it:
+   a tap at the gear's centre at 360, 390 and 412 opens the Riders panel instead, and
+   language and units live only behind that button. They physically overlap, so raising the
+   z-index would only put the gear visibly on top of a dock button. It moves into the panel
+   header on touch, where every control is already 44x44 and nothing is over anything. */
+#pgear{display:none}/* After the line above, not before it: both are a bare id, so
+   source order decides and the first attempt at this sat ninety lines earlier and lost
+   silently. The same mistake as the topbar width rule earlier today. */@media(hover:none) and (pointer:coarse){#pgear{display:flex}}#phelp[aria-haspopup]:hover{color:var(--acc)}.phead button:hover{color:var(--acc)}#ppeek.on{color:var(--gold)}/* 44px of hit area. These three measured 19x18 -- 17% of the iOS minimum by area -- while every other button in the feature is 44 tall, and one of them is the only way to the manual. The GLYPH stays 18px; the target around it grows, so nothing moves. */.phead button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;margin:-13px 0}.pacts{gap:0}.phead button svg{width:18px;height:18px;display:block}#prefresh.spin svg{animation:spin .6s linear}@keyframes spin{to{transform:rotate(360deg)}}
 .pbody{padding:12px 18px;flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(130,170,255,.3) transparent}.hint{color:var(--mut);font-size:11.5px;margin:2px 0 12px;letter-spacing:.3px;border-left:2px solid var(--acc);padding-left:8px}
 table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;text-align:left}
 tr+tr{border-top:1px solid #1b2240}.rk{color:var(--acc);width:26px;font-weight:700;font-variant-numeric:tabular-nums}
@@ -247,7 +255,11 @@ td.sub{color:var(--mut)}
 .winpin{width:36px;height:36px;border-radius:50%;border:2px solid var(--acc);background:#0e1326 center/cover;box-shadow:0 0 0 4px rgba(46,168,255,.22),0 0 20px rgba(46,168,255,.65)}
 #gear{position:fixed;left:14px;bottom:14px;z-index:560;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:var(--surf);border:1px solid var(--line);border-radius:9px;color:var(--mut);cursor:pointer;box-shadow:var(--shadow);transition:color .2s}
 #gear:hover{color:var(--acc)}#gear svg{width:18px;height:18px}
-#gear.show{opacity:.45;transition:opacity .3s ease,color .2s}#gear.show:hover{opacity:1}
+#gear.show{opacity:.45;transition:opacity .3s ease,color .2s}#gear.show:hover{opacity:1}/* Gone on touch, where the dock lies on top of it and the header carries one instead. This
+   has to come AFTER `#gear{...display:flex...}` above: same specificity, so source order is
+   the whole contest, and declared with the #pgear rule ninety lines earlier it lost and the
+   phone got two gears, one of them still unreachable. */
+@media(hover:none) and (pointer:coarse){#gear{display:none}}
 .cfgpop{position:fixed;left:14px;bottom:60px;z-index:900;display:none;flex-direction:column;gap:12px;min-width:264px;max-width:calc(100vw - 28px);background:linear-gradient(158deg,rgba(26,40,78,.86),rgba(8,12,26,.87));backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);padding:14px}
 .cfgpop.open{display:flex}
 /* The site's modal. Nothing here was reusable: `.cfgpop` is an anchored popover and the
@@ -326,7 +338,7 @@ __TESTWM__
   <a href="https://github.com/eried/eucstats" target="_blank" rel="noopener" aria-label="eucstats on GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
   <span class="ver" title="HTML last-modified date (auto-updated on deploy)">build __BUILD__</span>
 </div>
-<div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="phelp" data-i18n-title="crew.how.h" data-i18n-aria="crew.how.h" title="How crews work" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a3 3 0 1 1 3.8 3.4c-.7.3-1 .9-1 1.6v.4" stroke-linecap="round"/><path d="M12 17.6v.01" stroke-linecap="round" stroke-width="2.4"/></svg></button><button id="ppeek" data-i18n-title="panel.peek" title="Preview as a normal visitor" style="display:none"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="prefresh" data-i18n-title="act.refresh" data-i18n-aria="act.refresh" title="Refresh" aria-label="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose" data-i18n-aria="panel.close" data-i18n-title="panel.close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
+<div class="panel" id="panel"><div class="phead"><b id="ptitle"></b><div class="pacts"><button id="phelp" data-i18n-title="crew.how.h" data-i18n-aria="crew.how.h" title="How crews work" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a3 3 0 1 1 3.8 3.4c-.7.3-1 .9-1 1.6v.4" stroke-linecap="round"/><path d="M12 17.6v.01" stroke-linecap="round" stroke-width="2.4"/></svg></button><button id="ppeek" data-i18n-title="panel.peek" title="Preview as a normal visitor" style="display:none"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="pgear" data-i18n-title="aria.settings" data-i18n-aria="aria.settings" title="Settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg></button><button id="prefresh" data-i18n-title="act.refresh" data-i18n-aria="act.refresh" title="Refresh" aria-label="Refresh"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5"/></svg></button><button id="pclose" data-i18n-aria="panel.close" data-i18n-title="panel.close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div><div class="pbody" id="pbody"></div></div>
 <div class="dock intro">
   <button class="intro" data-p="riders" data-i18n-aria="dock.riders" data-i18n-title="dock.riders" aria-label="Riders"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><circle cx="17" cy="9" r="2.6"/><path d="M14.6 14.4c2.8-.7 5.6 1 6.4 4.6h-4.8z"/></svg><span class="lbl" data-i18n="dock.riders">Riders</span></button>
   <button class="intro" data-p="crews" data-i18n-aria="dock.crews" aria-label="Crews"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1" fill="currentColor" stroke="none"/><rect x="3" y="13" width="8" height="8" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg><span class="lbl" data-i18n="dock.crews">Crews</span><span class="dockdot" id="crewsdot" hidden></span></button>
@@ -754,6 +766,10 @@ function setPanel(name,title,html){
   const prev=openPanel;
   // territory rectangles are this mode's alone — switching away puts the heatmap back
   if(name!=="crews"&&window.EUCCrews)window.EUCCrews.hide();
+  // The settings popover is anchored over the panel, so a panel switch has to take it with
+  // it. Escape, an outside tap and the gear itself all closed it already; this was the one
+  // way out that left it sitting over the content that replaced what it was opened on.
+  { const _c=document.getElementById("cfg"); if(_c) _c.classList.remove("open"); }
   openPanel=name;ptitle.textContent=title;pbody.innerHTML=html;panel.dataset.sec=name;panel.classList.add("open");
   // Remember who opened it, so closing can hand focus back rather than dropping it on BODY.
   panelOpener=document.activeElement&&document.activeElement.closest?
@@ -1066,7 +1082,13 @@ function setupCfg(){
     if(chk) chk.onchange=()=>{ if(chk.checked){localStorage.removeItem("eucstats_intro_off");}else{localStorage.setItem("eucstats_intro_off","1");} if(ib)ib.disabled=!chk.checked; };
     if(ib) ib.onclick=()=>{ if(ib.disabled)return; try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; location.reload(); };
   }
-  render(); gear.onclick=e=>{e.stopPropagation();cfg.classList.toggle("open");};
+  render();
+  // One toggle, two buttons: the floating gear on a pointer that can reach it, and the
+  // panel-header one on touch, where it cannot. `pgear` is in the markup from the start,
+  // so this binds once and the stylesheet decides which is on screen.
+  const toggleCfg=e=>{e.stopPropagation();cfg.classList.toggle("open");};
+  gear.onclick=toggleCfg;
+  { const pg=document.getElementById("pgear"); if(pg) pg.onclick=toggleCfg; }
   // Escape and a click outside. It opened on the gear and closed on the gear, and on nothing
   // else -- so a reviewer who pressed Escape measured it still 185px tall, clicked the map and
   // measured it still open, and it spent that whole time sitting on top of the crews panel
@@ -1075,7 +1097,8 @@ function setupCfg(){
   document.addEventListener("keydown",e=>{if(e.key==="Escape")cfg.classList.remove("open");});
   document.addEventListener("pointerdown",e=>{
     if(!cfg.classList.contains("open"))return;
-    if(cfg.contains(e.target)||gear.contains(e.target))return;
+    const pg=document.getElementById("pgear");
+    if(cfg.contains(e.target)||gear.contains(e.target)||(pg&&pg.contains(e.target)))return;
     cfg.classList.remove("open");
   });
 // The site's modal. `openModal(title, html)` puts a sheet over everything and gives it back

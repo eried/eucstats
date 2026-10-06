@@ -472,7 +472,7 @@ EN: dict[str, str] = {
     # side) against Nordlys Collective's 15 squares over 22.6 km² (1.24 km a side) -- same
     # unit, four times the ground. What IS constant is the number of crossings, because the
     # weekly cap scales with the square; the distance those crossings add up to is not.
-    "crew.how.n2": "A square is about {v} across where YOU ride — wider nearer the equator, narrower nearer the poles. Your weekly limit inside one scales with it, so filling a square always takes about five crossings; nearer the equator those crossings are longer, so it is more riding and more ground.",
+    "crew.how.n2": "A square is about {v} across where YOU ride — wider nearer the equator, narrower nearer the poles. Your weekly limit inside one scales with it, so filling a square always takes four to six crossings; nearer the equator those crossings are longer, so it is more riding and more ground.",
     # Both from the settings that enforce them. The cooldown was only ever said in the leave
     # prompt, where you read it after deciding; the size cap was never said anywhere.
     # The server blocks FOUNDING as well -- `can_found` goes false and the whole START A

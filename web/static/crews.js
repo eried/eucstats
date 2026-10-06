@@ -4076,6 +4076,24 @@
     // Officers hold these powers on the server and were shown none of them, so an officer's
     // only way to use a power they have was to craft the request by hand. Promoting to leader
     // stays a leader's call, and the server enforces that.
+    // A plain member gets the names, read-only. The whole roster used to be behind the same
+    // gate as the invite code and the knock list, so a member's page said "5 riders" in its
+    // header and the only list on it was WHO RODE FOR IT -- four names, with the reader's own
+    // nowhere on their own crew's page, because they had just joined and had not ridden for
+    // it yet. Knowing who you ride with is not a power.
+    if (me.roster && me.roster.length > 1
+        && me.role !== "leader" && me.role !== "officer" && me.status !== "pending") {
+      h += '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
+        + me.roster.map(function (x) {
+            var mark = x.role === "leader" || x.role === "officer"
+              ? " " + roleMark(x.role)
+                + '<b class="crewrolew">' + esc(t("crew.role." + x.role)) + "</b>"
+              : "";
+            var flag = (H.cc && x.flag) ? H.cc(x.flag) : "";
+            return '<div class="crewpendr"><span>' + flag + esc(x.name) + mark + "</span></div>";
+          }).join("")
+        + "</div>";
+    }
     if (me.roster && me.roster.length > 1
         && (me.role === "leader" || me.role === "officer")) {
       // Folded at six, like the join list directly above it. Six members ran 83px each --
@@ -4569,46 +4587,23 @@
           // Beside Save, and the panel stays where it is. `pendingStatus` plus `show()` threw
           // the leader to scrollTop 0 and shut the `<details>` they were working in, which put
           // Save 1,052px -- 2.1 screens -- from where their finger had been.
-          setStatus(t("crew.mine.saved"), false, save);
+          // `pendingStatus`, not `setStatus`: the `show()` below rebuilds the panel and would
+          // take the confirmation with it. Exactly the race the "New code" button lost.
+          pendingStatus = t("crew.mine.saved");
           reloadTerritory();
-          // The colour may have changed, so the swatch beside the summary is refreshed in
-          // place rather than by rebuilding the panel around it.
-          var sw = document.querySelector(".crewsumemb");
-          if (sw) sw.src = sw.src.split("?")[0] + "?v=" + Date.now();
-          // And so are the name and the description, which were not. The card said "Saved",
-          // the server had stored the new name, and the header kept the old one until the
-          // rider pressed Refresh -- so the honest reading of that screen is that renaming
-          // does nothing, and the thing a rider does about it is press Save again. The whole
-          // reason this handler does not call `show()` is above; that argument covers the
-          // scroll position, not the staleness, and nothing had been written in its place.
-          // From the response, not from the field: the server trims, normalises and caps
-          // what it was sent, so echoing the input back would show a name that is not the
-          // stored one -- the same disagreement that made a leader unable to type their own
-          // crew's name at the disband gate.
-          var saved = (r.body && r.body.crew) || {};
-          var newName = typeof saved.name === "string"
-            ? saved.name : document.getElementById("ce-name").value;
-          var newDesc = typeof saved.description === "string"
-            ? saved.description : document.getElementById("ce-desc").value;
-          var ttl = document.querySelector(".crewmine-wrap > summary > span");
-          if (ttl) ttl.textContent = newName;
-          var card = document.querySelector(".crewcard.crewmine");
-          var dsc = card && card.querySelector(".crewdesc");
-          if (dsc && newDesc) dsc.textContent = newDesc;
-          else if (dsc) dsc.remove();
-          else if (newDesc && card) {
-            // It had none before, so there is no node to write into. Where `myCrewHTML` puts
-            // it: directly above the territory figures.
-            var at = card.querySelector("#crewterr");
-            var p = document.createElement("p");
-            p.className = "crewdesc";
-            p.textContent = newDesc;
-            if (at) card.insertBefore(p, at); else card.appendChild(p);
-          }
-          // The card is built from `ME`, and every confirm that quotes the crew's name reads
-          // it from there -- including the disband gate, which asks you to type it back. A
-          // stale copy means being told your own crew's name is not its name.
-          if (ME && ME.crew) { ME.crew.name = newName; ME.crew.description = newDesc; }
+          // A refresh that keeps your place, rather than patching the card by hand.
+          //
+          // This used to write the new name and description straight into the DOM, because
+          // the comment above says `show()` threw the leader to scrollTop 0. That is no longer
+          // true -- `show()` carries `#pbody`'s scroll across an in-place refresh through
+          // KEEPTOP -- and patching only reached the card. A reviewer found the standings
+          // further down the SAME scroll still showing the old name: "Saved / ZZ Review
+          // Holmen" above, "1ST Holmenkollen Climb" below, two names for one crew on one
+          // screen immediately after a save, which makes you doubt the save landed.
+          //
+          // The board is drawn from a different response, so nothing short of re-rendering
+          // could have agreed with itself.
+          show();
         } else if (!onWrite(r)) {
           // A name-shaped refusal belongs beside the name, not beside Save: anchored to Save,
           // `scrollIntoView` dragged the field to y-235 and the rider typed into a box they
