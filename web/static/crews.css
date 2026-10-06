@@ -946,7 +946,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   /* On the device the app is installed on, the button is the thing that works and the QR is
      the thing that physically cannot. Put them in that order. */
   .crewsign { display: flex; flex-direction: column; }
-  .crewqr { order: 3; margin-top: 18px; }
+  /* And smaller, for the same reason it is ordered last here. At 188px it was 188 of the
+     sign-in card's 427, which pushed the board's podium to y=723 of a panel ending at 759 --
+     so a stranger on a phone met a pairing wall and 36px of the game. It stays big enough for
+     another phone's camera, which is the only case it serves on this device. */
+  .crewqr { order: 3; margin-top: 18px; min-height: 124px; }
+  .crewqr img, .crewqrg { width: 124px; height: 124px; }
   .crewcode { order: 4; }
   #crewcodehint { order: 5; }
   .crewsign h3 { order: -2; }
@@ -1911,7 +1916,13 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
        The 72 is the panel header plus `.pbody`'s own 12px top padding, which the column
        starts below: subtracting only the header left it ending 3.6px past the clipped edge. */
     max-height: min(calc(76dvh - 72px), calc(100dvh - var(--panres, 0px) - 72px), 688px);
-    overflow-y: auto; overscroll-behavior: contain;
+    overflow-y: auto;
+    /* Chaining, not `contain`. Contained, a wheel over the standings ran them to their end and
+       then stopped dead, so the panel only moved if you moved the pointer off the board --
+       which is what a reviewer described as two scrollers 18px apart doing different things.
+       Letting it chain means one gesture carries through: the standings scroll, and when they
+       are spent the panel carries on, which is what a wheel is expected to do. */
+    overscroll-behavior: auto;
     scrollbar-width: thin;
   }
   /* Except when there is nothing to put beside the board. Signed out, the left column is a
