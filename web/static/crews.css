@@ -639,7 +639,22 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    mid-name, the metadata got 129px. Two reviewers measured it separately.
    `auto` basis here and a floor, so the name takes its natural width first and the standings
    line gives way -- which is what the comment on `.crewsumrole` always claimed. */
-.crewmine-wrap > summary span:first-of-type {
+/* The name and the standings line are one block beside the emblem now, so the row reads
+   [image][name / standing][badge] instead of letting the standing fall out to the summary's
+   own left edge when it wrapped. Wide enough and the two sit side by side; narrower and the
+   standing drops to a second line that still starts where the name starts. */
+.crewsumtxt {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  column-gap: 8px; row-gap: 1px;
+}
+/* `auto` basis and a floor, not `flex: 1`. `flex: 1` is a zero basis, so under any pressure
+   the name collapsed to its longest word while `.crewsumrole` beside it, at `flex: 0 1 auto`,
+   kept the full width of its 48-character metadata string: measured at 390 the name got 61px
+   and wrapped mid-name, the metadata got 129px. Two reviewers measured it separately. The
+   name takes its natural width first and the standings line gives way, which is what the
+   comment on `.crewsumrole` always claimed. */
+.crewsumtxt > span:first-child {
   flex: 1 1 auto; min-width: 8.5em; font-weight: 700; }
 .crewsumemb { width: 26px; height: 26px; flex: 0 0 26px;
   transition: transform .16s ease; transform-origin: left top; position: relative; }
@@ -652,11 +667,37 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    thing in the panel, so scaling it from the centre pushed half of it past the top edge and
    cut it off -- the one thing worth looking at was the one thing you could not see. An open
    card has the room, and `transform-origin: left top` grows into it. */
+/* A lift, not a takeover. This was `scale(3.5)` -- 26px to 91px, growing down and right from
+   its own top-left corner, which is exactly where the crew's name is: the one gesture for
+   looking at your crew's mark spent the whole time covering the crew's name, with the top of
+   the image flush against the card's edge. A click opens it properly now (see
+   `crewSheetHTML`), and this is only the affordance saying so. */
 .crewmine-wrap[open] > summary .crewsumemb:hover,
 .crewmine-wrap[open] > summary:focus-visible .crewsumemb {
-  transform: scale(3.5); z-index: 4; border-radius: 2px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.6);
+  transform: scale(1.3); z-index: 4; border-radius: 2px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.55);
 }
+.crewmine-wrap[open] > summary .crewsumemb { cursor: zoom-in; }
+
+/* The sheet a click opens. Centred, because it is one object being looked at. */
+.crewsheet { text-align: center; }
+.crewsheet > p { color: var(--mut, #9aa6c8); margin: 0 0 14px; }
+.crewsheetemb {
+  width: min(62vw, 260px); height: min(62vw, 260px); object-fit: contain;
+  display: block; margin: 2px auto 14px; border-radius: 3px;
+  background: rgba(4, 8, 16, .9); border: 1px solid rgba(255, 255, 255, .22);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .6); padding: 5%; box-sizing: border-box;
+}
+.crewsheetfig { font-family: "Orbitron", ui-sans-serif, sans-serif; font-size: 26px;
+  line-height: 1.1; letter-spacing: .5px; }
+.crewsheetfig span { font-size: 13px; font-weight: 400; color: var(--mut, #9aa6c8); }
+.crewsheetsub { font-size: 13px; color: var(--mut, #9aa6c8); margin-top: 3px; }
+.crewsheetqr { margin-top: 16px; }
+.crewsheetqr .crewqrg { margin: 0 auto; width: min(54vw, 190px); }
+/* No left border. `.hint` carries one app-wide, which reads as a callout rule beside a
+   paragraph -- and this one is a centred caption under a QR code, so the rule landed as a
+   stray blue bar floating in the margin with nothing to the left of it. */
+.crewsheetqr .hint { margin-top: 8px; border-left: 0; padding-left: 0; text-align: center; }
 /* Shut, this is what identifies the crew. Open, the card's own 52px emblem is 50px below it
    and they are the same picture twice -- the duplicated NAME was taken out of the card for
    this reason and the emblem was one element along. */
@@ -675,7 +716,7 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* Not a badge any more: it carries the standing, the member count and your role, so it is a
    line of text and wants to read as one. No uppercase, no tracking, and it may shrink before
    the crew's name does. */
-.crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-align: right;
+.crewsumrole { font-size: 11px; color: var(--mut, #9aa6c8); text-align: left;
   min-width: 0; flex: 0 1 auto; }
 /* No border at all: the wrapper draws one on all four sides and the card sits inside it.
    The 2px accent that used to be here ran the full height of the tallest card in the
@@ -1797,9 +1838,11 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    and still broke mid-name -- "Nordlys / Collective" -- because both want about 135px and
    there is only room for one. They are a heading and its subtitle, so they stack. */
 @media (max-width: 560px) {
-  .crewmine-wrap > summary { flex-wrap: wrap; row-gap: 2px; }
-  .crewmine-wrap > summary span:first-of-type { flex: 1 1 auto; min-width: 0; }
-  .crewsumrole { flex: 1 0 100%; text-align: left; order: 3; }
+  /* The wrapping happens INSIDE the text block now, so the standing lands under the name
+     rather than under the disclosure triangle. The summary itself no longer needs to wrap,
+     which is what used to push the standing out to the far left. */
+  .crewsumtxt > span:first-child { min-width: 0; flex: 1 0 100%; }
+  .crewsumrole { flex: 1 0 100%; }
 }
 
 /* ---------- touch targets and two contrast failures ----------

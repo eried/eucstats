@@ -1182,6 +1182,33 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     picked.sort(key=lambda t: order[id(t)])
     out = picked
 
+    # Rows that ask for nothing come off the card.
+    #
+    # `blocked` is a square the crew has already ridden enough to lead and still does not
+    # hold, because holding needs a 2x2 -- so the row prints "0.0 km" under a heading that
+    # says "How much more you have to ride inside each one. Pick one to find it." Riding there
+    # does nothing today and will do nothing tomorrow; the answer is somewhere else entirely.
+    # They were ranked last and then printed anyway, which spends a slot on a row whose whole
+    # content is that there is nothing to do.
+    #
+    # Erwin found the case that makes this worth doing rather than arguing about: two squares
+    # out in the water off Tromso, ridden across once, sitting in his card for ever asking for
+    # 0.0 km. No coastline is needed to know they do not belong there -- the card already
+    # knows riding changes nothing, and said so in a column nobody reads as "ignore this".
+    #
+    # EXCEPT the first block. A crew holding nothing is sent to one 2x2 it can finish, and
+    # those squares are blocked almost by definition -- ridden enough to lead, not held
+    # because the block is not closed yet. That row is not "nothing to do here", it is the
+    # whole instruction, and the suite caught me dropping it: the test for a crew being sent
+    # to one block got two squares instead of four.
+    #
+    # Kept also if dropping them would leave nothing at all, because an empty card is worse
+    # than a useless row and a crew that holds a single square can legitimately be in that
+    # state for a week.
+    live = [t for t in out if not t["blocked"] or t["first"]]
+    if live:
+        out = live
+
     # What the crew's own ranked number becomes if they take each square, from the same
     # `seeded` the board itself uses so a row cannot claim a number the board would not show.
     # Computed HERE, on the rows that actually ship: done on the pre-dedupe ranking it missed

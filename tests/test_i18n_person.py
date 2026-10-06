@@ -404,7 +404,7 @@ def test_a_crew_card_opens_its_clauses_with_words_somebody_has_read(loc):
 # Several keys are legitimately shared, and each one is named rather than waved through, so the
 # next piece of reuse has to be looked at.
 SHARED = {
-    "crew.mine.ao": {"targetsHTML"},            # "all told" -- a fragment with no person in it
+    "crew.mine.ao": {"targetsHTML", "crewSheetHTML"},   # "in one piece" -- a fragment, no person
     # "Ride a 2x2 block and you're on the map" -- written for the crew card and now also
     # printed under the board by `render`, for a crew that holds nothing and therefore has
     # no row in it. The standings ran 1 to 15 and never mentioned the reader's own crew.

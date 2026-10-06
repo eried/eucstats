@@ -71,7 +71,17 @@ globalThis.maplibregl = {
   NavigationControl: function () {}, LngLatBounds: function () { this.extend = () => {}; },
 };
 
-src = src.replace("function runIntro(){", "function runIntro(){ globalThis.__revealed = true;");
+// Matched on the signature rather than one literal spelling of it: this was
+// `"function runIntro(){"`, so the day runIntro took a parameter the patch stopped applying,
+// `__revealed` stayed undefined, and three tests reported that the chrome never appears when
+// what had actually changed was the instrumentation.
+const _patched = src.replace(/function runIntro\(([^)]*)\)\s*\{/,
+                             "function runIntro($1){ globalThis.__revealed = true;");
+if (_patched === src) {
+  console.error("intro_harness: could not find runIntro() to instrument");
+  process.exit(2);
+}
+src = _patched;
 
 let thrown = null;
 try { new Function(src)(); } catch (e) { thrown = e; }

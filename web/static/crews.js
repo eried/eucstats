@@ -2571,6 +2571,32 @@
     if (done) ok(); else fail();
   }
 
+  // What a click on the crew's emblem opens: the mark at a size worth looking at, what the
+  // crew says about itself, what it holds, and the code to find it. Every string and every
+  // helper here already existed -- this is an arrangement, not nineteen new translations.
+  function crewSheetHTML(c) {
+    var held = c.tiles || 0;
+    return '<div class="crewsheet">'
+      + '<img class="crewsheetemb" alt="" src="' + esc(c.emblem) + '">'
+      + (c.description ? "<p>" + esc(c.description) + "</p>" : "")
+      + '<div class="crewsheetfig"><b>' + tiles(held) + "</b>"
+      + (held ? " <span>" + t("crew.mine.ao") + "</span>" : "") + "</div>"
+      + '<div class="crewsheetsub">' + fmtKm2(c.km2)
+      + " · " + riders(c.members || 0) + "</div>"
+      // The same code the share sheet prints, for the same reason: it points at the crew and
+      // not at an invite code, so rotating the code does not kill a sticker already on a
+      // backpack.
+      + (c.share_qr
+         ? '<div class="crewsheetqr">' + qrGrid(c.share_qr)
+           + '<p class="hint">' + esc(t("crew.pub.scan")) + "</p></div>"
+         : "")
+      + (c.share_url
+         ? '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank"'
+           + ' rel="noopener">' + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
+         : "")
+      + "</div>";
+  }
+
   function qrGrid(rows) {
     if (!rows || !rows.length) return "";
     var n = rows[0].length, cells = [], y, x;
@@ -4299,6 +4325,25 @@
 
     var save = document.getElementById("ce-save");
 
+    // The emblem, properly. It used to scale 3.5x on hover, growing down and right from its
+    // own top-left corner -- which is where the crew's NAME is, so the one gesture for
+    // looking at your crew's mark covered the crew's name while you did it, and sat flush
+    // against the card's top edge. Erwin's words: it should zoom without being obfuscated.
+    //
+    // So hovering only lifts it a little, as the affordance, and a click opens the thing you
+    // actually wanted: the emblem large, with the crew's description, its figures and the
+    // code somebody else can scan to find it. On a phone the sheet is 96vw by 92dvh, which
+    // is as close to full screen as a dialog with a close button gets.
+    var emb = document.querySelector(".crewsumemb");
+    if (emb) {
+      pressable(emb, c.name, function (ev) {
+        // Inside a <summary>, so without both of these the click toggles the accordion shut
+        // underneath the dialog it just opened.
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        window.openModal(c.name, crewSheetHTML(c));
+      });
+    }
+
     // Share crew: the address that goes on a sticker, with its code big enough to scan off
     // a phone held up to somebody. Deliberately NOT the invite link -- an invite code can be
     // rotated and a printed one cannot, so what leaves this card carries the slug.
@@ -5376,6 +5421,21 @@
         // disclosure triangle, under a 25-row board.
         own += '<details class="crewmine-wrap" open'
           + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
+
+          // The name and the standing live in one block BESIDE the emblem, rather than as
+
+          // loose children of the summary. As siblings of the image they could only wrap to a
+
+          // full-width line that began at the summary's own left edge -- under the disclosure
+
+          // triangle, outdented from the name it belongs to, which is what Erwin saw. In a
+
+          // block of their own they wrap against the name instead: side by side when the row
+
+          // is wide enough, stacked and still aligned when it is not.
+
+          + '<span class="crewsumtxt">'
+
           + "<span>" + esc(me.crew.name) + "</span>"
           // read back as "Harbour Bridge Bombersleader" without this
           + '<span class="crewsumsep"> &middot; </span>'
@@ -5392,6 +5452,7 @@
                 t(me.role === "leader" ? "crew.mine.youare"
                   : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember")]
                .filter(Boolean).join(" \u00b7 "))
+          + "</span>"
           + "</span>"
           // The accordion can be shut, and a leader who shut it had no way at all to learn
           // that somebody was waiting.

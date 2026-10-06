@@ -263,6 +263,11 @@ td.sub{color:var(--mut)}
 /* The body scrolls, not the dialog: a capped sheet whose CONTENT grows is a sheet
    whose close button leaves the screen. */
 .sheetbody{overflow:auto;padding:15px;-webkit-overflow-scrolling:touch}
+/* On a phone a dialog that is 84dvh tall inside a 96vw box reads as a card floating on a
+   page you cannot use; at this width there is nothing behind it worth preserving, so it
+   takes the screen. Asked for on the crew emblem view, which is one big picture plus a
+   code somebody else has to scan off it. */
+@media(max-width:560px){.sheet{width:96vw;max-height:94dvh}.sheetbody{padding:14px 13px 20px}}
 .crow{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:10px;font-size:12px;color:var(--mut);letter-spacing:.4px}
 .crow>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:3px}
@@ -930,18 +935,27 @@ function applyDock(){const SEC=HIDE.sec||{};
 applyDock();
 
 function reveal(el,d){ if(el) setTimeout(()=>el.classList.add("show"),d); }
-function runIntro(){
-  reveal(document.querySelector(".topbar"),1100);
-  setTimeout(()=>animateChips(true),1450);   // slow count-up once the topbar is fading in (so it's visible)
-  reveal(document.querySelector(".dock"),2300);
-  document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,2700+i*320));
-  reveal(document.querySelector(".rfoot"),4100);
-  reveal(document.querySelector("#gear"),4450);
+/* A link that names a panel already skipped the VIDEO. It did not skip this, which is the
+   part that was actually in the way: the chrome fades in over four and a half seconds while
+   the crew panel opens as soon as crews.js is ready, so a rider arriving from a crew QR
+   watched their crew appear first and the site assemble itself around it afterwards. The
+   video was never the problem on that path; the choreography was. */
+function runIntro(fast){
+  const D=fast?0:1;
+  reveal(document.querySelector(".topbar"),1100*D);
+  setTimeout(()=>animateChips(!fast),fast?60:1450);   // slow count-up once the topbar is fading in (so it's visible)
+  reveal(document.querySelector(".dock"),2300*D);
+  document.querySelectorAll(".dock button").forEach((b,i)=>reveal(b,fast?0:2700+i*320));
+  reveal(document.querySelector(".rfoot"),4100*D);
+  reveal(document.querySelector("#gear"),4450*D);
 }
 
 function renderHeader(){renderChips();renderChampions();}
 function renderChips(){
-  const chips=[[t("chip.riders"),S.riders,0,"riders"],[t("chip.trips"),S.trips,0,"trips"],[t("chip.total",{unit:dunit()}),mph()?r1(S.total_km*MI):r1(S.total_km),1,"total"],[t("chip.countries"),S.countries,0,"countries"]];
+  const chips=[[t("chip.riders"),S.riders,0,"riders"],[t("chip.trips"),S.trips,0,"trips"],/* Whole kilometres. A tenth of a km on a site-wide odometer reading 12428.0 is six
+     significant figures of which the last is noise, and it is the only chip of the four
+     carrying a decimal. */
+  [t("chip.total",{unit:dunit()}),Math.round(mph()?S.total_km*MI:S.total_km),0,"total"],[t("chip.countries"),S.countries,0,"countries"]];
   document.getElementById("chips").innerHTML=chips.map(([l,v,dec,k])=>`<span class="chip"><b data-cv="${v}" data-dec="${dec}" data-k="${k}">0</b> ${l}</span>`).join("");
 }
 function animateChips(slow){const durs=slow?[2700,3500,3000,3900]:[850,1250,1050,1450];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
@@ -1128,12 +1142,19 @@ async function init(){
     }
     return t;
   }
+  // Declared before `doIntro`, which reads it. A `const` is in its temporal dead zone until
+  // the line that declares it runs, and `doIntro` fires from a map or video callback -- the
+  // comment below records what a ReferenceError in here costs: a map and no chrome at all.
+  const _deepLink=(()=>{
+    const h=(typeof location!=="undefined"&&location.hash||"").replace(/^#/,"").toLowerCase();
+    return /^[a-z]{2,16}$/.test(h);
+  })();
   function doIntro(){
     if(introRan||!mapReady||!videoDone) return; introRan=true;
     teardown();                       // safe to clear the video now: there is a map behind it
     const [tlon,tlat,tz]=pickTarget();
     map.flyTo({center:[tlon,tlat],zoom:Math.max(1.5,tz-0.5),duration:5000,curve:1.5,easing:easeInOutCubic,essential:true});  // -0.5: settle slightly further out
-    runIntro();
+    runIntro(_deepLink);
   }
   const vid=document.getElementById("intro"),fx=document.getElementById("introfx");
   // Declared HERE, in init() scope, because doIntro() above calls it. A const inside the
@@ -1154,11 +1175,15 @@ async function init(){
   // seconds -- so the one visitor guaranteed to arrive by that link, a first-timer with a
   // phone camera, was shown a film instead of the thing they were sent to. A tap did skip it
   // and nothing said so.
-  const _deepLink=(()=>{
-    const h=(typeof location!=="undefined"&&location.hash||"").replace(/^#/,"").toLowerCase();
-    return /^[a-z]{2,16}$/.test(h);
-  })();
   if(_C.intro_enabled===false||_introOff||_deepLink){ if(vid)vid.remove(); if(fx)fx.remove(); videoDone=true; }
+  /* And on a deep link the chrome comes up NOW, not when the map finishes loading.
+     `doIntro` waits for mapReady, which lands after crews.js has already opened the panel --
+     measured at 1338ms for the panel against 1729ms for the topbar, so the crew still arrived
+     before the site it belongs to, just by less. There is no video to hide behind on this
+     path, so there is nothing to wait for: the chrome is markup that is already in the DOM
+     and the map paints behind it. `runIntro` only adds a class, so `doIntro` running it again
+     later is harmless. */
+  if(_deepLink) runIntro(true);
   else {
   if(vid&&_C.intro_src){const _so=vid.querySelector("source"); if(_so&&_so.getAttribute("src")!==_C.intro_src){_so.setAttribute("src",_C.intro_src); vid.load();}}
   const introSeen=localStorage.getItem("eucstats_intro_seen");
