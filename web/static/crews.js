@@ -343,7 +343,14 @@
   // previous value, and the map goes on looking exactly as it did -- no exception reaches the
   // page, nothing fails, and the only trace is a console line. I wrote it the wrong way first
   // and the screenshot looked plausible.
-  var ZOOM_LO = 11, ZOOM_HI = 14.5, FADE_HI = 0.55;
+  // Ranged to the zooms a rider can actually reach. The map is built with `maxZoom: 13.23`
+  // (public.py) and the targets card flies to `max(current, 11.8)`, so a ramp ending at 14.5
+  // put its own floor 1.27 levels past the ceiling -- unreachable at every zoom -- and gave
+  // the fly-to view, the one this exists for, about a tenth of the effect. A reviewer
+  // measured 0.673 against the old 0.75 and called it a 10% lightening, which is exactly
+  // what it was. Ending just inside the ceiling makes the bottom of the ramp a place you
+  // can stand, and 11.8 now lands a fifth of the way down it rather than a twentieth.
+  var ZOOM_LO = 11, ZOOM_HI = 13.2, FADE_HI = 0.45;
 
   function bandOp(op, b3) {
     function at(scale) {
@@ -2870,7 +2877,7 @@
     identity_locked: "crew.mine.colourlock",
     no_crew: "crew.e.gone",
     not_member: "crew.e.left", not_in_crew: "crew.e.left",
-    promote_first: "crew.e.promote",
+    promote_first: "crew.e.promote", bad_name_word: "crew.e.name.word",
     // all three used to answer "only a leader or officer can do that", to somebody pressing a
     // button only shown to people who are neither
     leader_active: "crew.e.leaderback", not_eligible: "crew.e.notyou",
@@ -3229,7 +3236,13 @@
       // swatches with nothing but an `aria-label`, so a sighted reader got an unexplained
       // second grid in a form whose every other control is labelled.
       + '<div class=crewidentl>' + t("crew.new.patterns") + "</div>"
-      + g.patterns + "</div>"
+      + g.patterns
+      // What the struck-through chips mean, for the readers who cannot hover a `title`.
+      // Only when some chip in either grid actually is taken: a legend for a state nothing
+      // on screen is in is noise.
+      + (Object.keys(takenPairs()).length
+         ? '<p class="hint crewdimmed">' + esc(t("crew.new.dimmed")) + "</p>" : "")
+      + "</div>"
       + '<input type="hidden" id="' + prefix + '-colour" value="' + ident.colour + '">'
       + '<input type="hidden" id="' + prefix + '-pattern" value="' + ident.pattern + '">';
   }
@@ -3361,7 +3374,9 @@
     if (name.length < 3) return "crew.e.name.short";
     if (name.length > 28) return "crew.e.name.long";
     if (!NAME_OK.test(name)) return "crew.e.name.chars";
-    if (!NAME_HAS_WORD.test(name)) return "crew.e.name.chars";
+    // Its own message. `crew.e.name.chars` lists "- ' & ." as permitted, which is a strange
+    // thing to tell somebody who typed "...".
+    if (!NAME_HAS_WORD.test(name)) return "crew.e.name.word";
     return null;
   }
 
@@ -4011,6 +4026,18 @@
     var leave = document.getElementById("cm-leave");
     if (leave) leave.onclick = function () {
       var pending = me.status === "pending";
+      // The blocker BEFORE the question, not after the answer. A leader with members and no
+      // officer used to read the confirm, weigh the seven-day cooldown, press Leave crew --
+      // and only then be told "Make somebody an officer first." The server is still the one
+      // that enforces it; this is the same rule read off the roster the panel already has,
+      // so the one thing standing between them and leaving is said while they are still
+      // deciding. `errMsg` below keeps the server's answer for the race where somebody else
+      // demotes the last officer in between.
+      if (!pending && me.role === "leader" && me.roster && me.roster.length > 1
+          && !me.roster.some(function (x) { return x.role === "officer"; })) {
+        setStatus(t("crew.e.promote"), true, leave);
+        return;
+      }
       ask(pending ? t("crew.mine.cancelq", { name: c.name }) : leaveQuestion(c.name),
           t(pending ? "crew.mine.cancel" : "crew.mine.leave"), function () {
         api("POST", "/api/v1/crews/leave", {}).then(function (r) {
@@ -4391,11 +4418,15 @@
       // changes language -- the same source `plural()` uses, so the date and the nouns around
       // it cannot disagree. I first wrote `LANG`, which does not exist in this file and would
       // have thrown on the one card it was written for.
-      out = d.toLocaleString(locale() || undefined,
-                             { day: "numeric", month: "short", hour: "2-digit",
-                               minute: "2-digit" });
+      // Day and month, no clock. A seven-day cooldown does not turn over at 02:07, and the
+      // minute invited a precision the figure does not have -- printed with no timezone, next
+      // to a sentence that says "7 days". A reviewer read "Oct 13, 02:07 AM" and asked what
+      // the minute was for. `toLocaleDateString`, so a locale that writes the day first still
+      // writes the day first.
+      out = d.toLocaleDateString(locale() || undefined,
+                                 { day: "numeric", month: "short" });
     } catch (e) {
-      try { out = d.toLocaleString(); } catch (e2) { return ""; }
+      try { out = d.toLocaleDateString(); } catch (e2) { return ""; }
     }
     return ' <span class="crewwhen">' + esc(out) + "</span>";
   }
@@ -5109,7 +5140,12 @@
       // Wrappers rather than grid placement on the cards themselves: with the board pinned to
       // column 2 row 1, row 1's height becomes the height of the whole board and a gap opens
       // under the first card on the left.
-      var h = '<div class="crewcol crewcolmain">'
+      // Signed out there is nothing to put in a left column: the sign-in card is one short
+      // block and the board is the rest of the panel, so splitting them left the whole left
+      // half of a 1100px panel blank -- a reviewer measured 515x471, 27% of the split area,
+      // on the first screen a stranger ever sees. `crewcolsolo` tells the stylesheet to stay
+      // in one column and keep the narrow panel for that case.
+      var h = '<div class="crewcol crewcolmain' + (me.paired ? "" : " crewcolsolo") + '">'
         + (me.paired ? own : signInHTML())
       // The only sign-out button in the feature was emitted by `myCrewHTML`, which this
       // function calls on the `me.crew` branch alone -- so cooling off, removed, folded,
@@ -5190,7 +5226,15 @@
         // this file to put an attribute on its rows. `plainRank` below carries it inline for
         // the fallback path. `openCrewDetail` finds a row by it.
         if (r && r.slug) el.dataset.slug = r.slug;
-        pressable(el, r && rowLabel(el), function () {
+        // Which line is you. The board is the one screen that answers "how am I doing
+        // against everybody", and a reviewer measured the signed-in leader's own row as
+        // byte-identical to every other: same background, same colour, same weight. Your own
+        // card says "12th · 2 squares off 11th" and the board, which is the thing people
+        // scroll, said nothing. `crew.how.s3` is already "Your crew", so the name for it
+        // exists and nothing new has to be written in nineteen languages.
+        var mine = !!(r && r.slug && ME && ME.crew && r.slug === ME.crew.slug);
+        el.classList.toggle("crewrowmine", mine);
+        pressable(el, (r && rowLabel(el)) + (mine ? " · " + t("crew.how.s3") : ""), function () {
           if (!r) return;
           flyToCrew(r.slug);
           closeIfCovering();

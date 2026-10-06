@@ -105,6 +105,15 @@ def clean_name(name: str) -> str:
 # The sentence both refusal paths use. `/edit` had its own, shorter one -- "3-28 characters."
 # for a character-set violation -- so a rejected `Ron's Crew #1` was told its length was wrong.
 NAME_RULE_TEXT = "3-28 characters, letters, numbers, spaces and - ' & ."
+# The other half of `name_ok`, asked separately so a refusal can name the rule it broke.
+# "..." is three permitted characters, so answering it with the sentence above tells somebody
+# who typed only dots that the dot is allowed -- which it is, and which is not the problem.
+NAME_WORD_TEXT = "A name needs at least one letter or number."
+
+
+def name_has_word(name: str) -> bool:
+    s = unicodedata.normalize("NFC", name or "").strip()
+    return any(unicodedata.category(ch)[0] in ("L", "N") for ch in s)
 
 
 def name_key(name: str) -> str:
@@ -401,7 +410,8 @@ def create(db, store_id: str, name: str, description: str = "", colour: str | No
            pattern: str | None = None, join_policy: str = "approval") -> Clan:
     name = clean_name(name)
     if not name_ok(name):
-        raise CrewError("bad_name", NAME_RULE_TEXT)
+        raise CrewError("bad_name" if name_has_word(name) else "bad_name_word",
+                        NAME_RULE_TEXT if name_has_word(name) else NAME_WORD_TEXT)
     if membership(db, store_id):
         raise CrewError("already_in_crew", "Leave your crew before founding another.")
     until = cooldown_until(db, store_id)

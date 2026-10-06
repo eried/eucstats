@@ -1740,6 +1740,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    desktop breakpoint the cards are laid out exactly as they were before the wrappers existed. */
 .crewcol { display: contents; }
 
+/* Your own crew on the standings. It was indistinguishable from every other line -- same
+   background, same ink, same weight -- on the one screen whose job is telling you where you
+   stand against everyone. A tint and a rule rather than a bolder weight: the row already
+   carries a rank, a name, a swatch and two numbers, and making all of it heavier would read
+   as emphasis on the numbers rather than on whose row it is. */
+.crewboard tr.crewrowmine > td:first-child { box-shadow: inset 2px 0 0 var(--sec, #ff8ad8); }
+.crewboard tr.crewrowmine > td { background: rgba(255,138,216,.10); }
+.crewboard .pod.crewrowmine { outline: 1.5px solid rgba(255,138,216,.5); outline-offset: -1px; }
+
 /* Good news, with the weight the bad news has always had. The three one-shot notices in this
    mode -- turned down, removed, folded -- are full cards with a heading; taking ground was a
    grey line set in 11px. It sits at the top of the crew card, where the diff already was, and
@@ -1849,4 +1858,11 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      `min-width: 0` on both, or a long crew name pushes the panel wider than it is and the
      body scrolls sideways. */
   .crewcol { display: block; flex: 1 1 0; min-width: 0; }
+  /* Except when there is nothing to put beside the board. Signed out, the left column is a
+     single sign-in card against a board four times its height, so the split produced half a
+     panel of nothing on the one screen a stranger meets first. One column and the narrow
+     panel there, which is what that screen was designed at. */
+  .panel[data-sec=crews]:has(.crewcolsolo) { width: min(94vw, 720px); }
+  #crewpanel:has(> .crewcolsolo) { display: block; }
+  #crewpanel:has(> .crewcolsolo) > .crewcol { display: contents; }
 }

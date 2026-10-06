@@ -130,6 +130,11 @@ EN: dict[str, str] = {
     # What a greyed swatch means, appended to its own name so the label reads
     # "stripes — another crew flies this" rather than needing a legend of its own.
     "crew.new.gone": "another crew flies this",
+    # Both grids draw a taken chip drained and struck through, which reads as unavailable to
+    # anybody who knows the convention and to nobody else. `title` carried the reason and a
+    # phone has no hover, so a touch reader tapped a greyed square and got nothing at all.
+    # Shown only when something in the grid actually is taken.
+    "crew.new.dimmed": "Crossed out means another crew already flies it.",
     "crew.new.who": "Who can join",
     "crew.new.approval": "A leader says yes",
     "crew.new.open": "Anyone",
@@ -355,6 +360,10 @@ EN: dict[str, str] = {
     "crew.e.name.short": "Three characters at least.",
     "crew.e.name.long": "Twenty-eight characters at most.",
     "crew.e.name.chars": "Letters, numbers, spaces and - ' & . only.",
+    # "..." is three permitted characters, so the sentence above answered a name made only of
+    # dots by listing the dot as allowed. The rule it breaks is a different one -- a name has
+    # to contain something you could read it by -- and it needs to say so.
+    "crew.e.name.word": "A name needs at least one letter or number.",
     "crew.mine.saved": "Saved",
     # Three successes that said nothing: approving somebody (the knock row vanishing
     # was the only evidence a person had joined), turning them down, and disbanding.

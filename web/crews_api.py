@@ -909,6 +909,9 @@ def edit_crew(slug: str, payload: dict, request: Request, db: Session = Depends(
         # two spellings of an accented name are two different rows with one appearance.
         name = crews.clean_name(payload["name"])
         if not crews.name_ok(name):
+            if not crews.name_has_word(name):
+                raise HTTPException(400, json.dumps({"code": "bad_name_word",
+                                                     "detail": crews.NAME_WORD_TEXT}))
             # The full sentence. This path said "3-28 characters." to a name refused for its
             # characters, so a rider editing `Ron's Crew #1` was told the length was wrong.
             raise HTTPException(400, json.dumps({"code": "bad_name",

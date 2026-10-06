@@ -415,6 +415,12 @@ SHARED = {
     # The standing, the member count and what you are to the crew moved out of the
     # card's meta line and into the accordion summary that titles it, which `render`
     # builds. Same card, same reader, one line higher.
+    # The manual's own section heading, "Your crew", reused by `render` as the tail of the
+    # accessible name on YOUR row in the standings. Same two words, same reader, and it is the
+    # answer to the question that row was failing to answer -- which line is me. Giving the
+    # board a second key saying "Your crew" would be the same string written twice in
+    # nineteen tables, free to drift.
+    "crew.how.s3": {"render"},
     "crew.mine.youare": {"render"},
     "crew.mine.youofficer": {"render"},
     "crew.mine.youmember": {"render"},
