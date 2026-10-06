@@ -857,3 +857,34 @@ def test_pair_start_sends_both_forms(client, db):
     assert body.get("qr"), "the PNG fallback is gone"
     rows = body.get("qr_rows")
     assert rows and len(rows) == len(rows[0]), "the matrix is missing or not square"
+
+
+def test_a_crew_cannot_rename_itself_to_a_reserved_name(client, db):
+    """`create` had this gate and `/edit` did not, so founding a crew called `admin` was
+    blocked and renaming one TO `admin` was not.
+
+    The rename path's own comment already recorded renaming as a way into impersonation --
+    "found `Nordlys Collective`, then rename it to the capitalisation of the crew you want to
+    be mistaken for" -- and the reserved-name gate still went on the other door only. A
+    reviewer renamed the top crew on the board to `admin`, confirmed it through the API, and
+    did the same with `support`.
+
+    Both doors, in one test, so neither can be fixed without the other.
+    """
+    _rider(db, "rsv")
+    _signed_in(client, db, "rsv")
+    client.post("/api/v1/crews", json={"name": "Honest Crew", "join_policy": "open"})
+    mine = db.query(Clan).filter(Clan.name == "Honest Crew").one()
+
+    for bad in ("admin", "Support", "  EUCSTATS  "):
+        r = client.post(f"/api/v1/crews/{mine.slug}/edit", json={"name": bad})
+        assert r.status_code == 400, f"{bad!r} was accepted as a rename: {r.text}"
+        assert "reserved" in r.text.lower(), r.text
+        db.refresh(mine)
+        assert mine.name == "Honest Crew", f"{bad!r} reached the database"
+
+    # and a name a rider would actually want still goes through
+    r = client.post(f"/api/v1/crews/{mine.slug}/edit", json={"name": "Support Crew Oslo"})
+    assert r.status_code == 200, r.text
+    db.refresh(mine)
+    assert mine.name == "Support Crew Oslo"

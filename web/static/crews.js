@@ -1025,7 +1025,30 @@
         var slot = el && el.querySelector(".crewpop-since");
         if (slot) slot.textContent = t("crew.tile.since", { d: heldFor(r.body.since) });
       });
-    POPUP = new maplibregl.Popup({ closeButton: false, className: "crewpop", offset: 10 })
+    // Anchored so it opens INTO the strip of map you can actually see.
+    //
+    // The panel is fixed over the bottom of the screen, and `#map` is `position: fixed` with
+    // `z-index: 0` -- which is a stacking context, so a popup inside it can never be painted
+    // above the panel however high its own z-index goes. I raised that z-index last round and
+    // verified it by clicking one square, where the popup happened to anchor upward and
+    // nothing overlapped, and called it fixed. A reviewer then measured a click that anchors
+    // DOWNWARD: 44px of an 80px popup behind the panel, with the two lines worth reading --
+    // how far it is to flip, and how long it has been held -- in the hidden half.
+    //
+    // z-index was never the lever. Where the popup opens is: `anchor: "bottom"` puts it above
+    // the point you pressed, so it grows into the visible strip instead of under the panel.
+    // Only when the panel is actually covering that point, so a click on open map keeps
+    // MapLibre's own placement.
+    var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
+    var panelEl = document.querySelector(".panel.open");
+    if (panelEl) {
+      var pr = panelEl.getBoundingClientRect();
+      var pt = map.project(e.lngLat);
+      // 170px is about the tallest this popup gets; below that line a downward popup would
+      // run into the panel.
+      if (pt.y + 170 > pr.top) popOpts.anchor = "bottom";
+    }
+    POPUP = new maplibregl.Popup(popOpts)
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)

@@ -448,13 +448,14 @@
    furniture that is always there; the popup is a thing the reader has just asked for, so the
    popup wins. `.crewpop` is on the MARKER wrapper -- maplibre puts the class on the outer
    `.maplibregl-popup` -- which is the element that carries the stacking. */
-/* Above the panel, which is z-index 550.
-   At 4 this sat under it, and the panel is open by default on `#crews` and covers everything
-   below y=216 at 1440x900 -- so every square you could click produced a popup whose Highlight
-   and Details buttons you could see the top edges of and could not press: `elementFromPoint`
-   on both returned `DIV.phead`. A reviewer measured it with the panel open and again with it
-   closed, where the identical buttons returned themselves and worked.
-   560, not higher: the dock is 600 and must stay reachable. */
+/* Above the map's own children -- NOT above the panel, which this cannot reach.
+   `#map` is `position: fixed; z-index: 0`, which is a stacking context, so everything inside
+   it is painted as one layer at z-index 0 and no z-index on a descendant can lift it over a
+   panel at 550. This number only orders the popup against markers and tips beside it.
+   The overlap it was first written for is solved where it actually lives: `crews.js` anchors
+   the popup upward when the point pressed is close enough to the panel that a downward popup
+   would run under it. I claimed this line fixed that and it did not; a reviewer measured 44px
+   of an 80px popup still behind the panel. */
 .maplibregl-popup.crewpop { z-index: 560; }
 .crewpop-in { display: flex; align-items: center; gap: 10px; }
 .crewpop-in img { width: 34px; height: 34px; }
@@ -1058,8 +1059,22 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   /* The fold, which only exists on this pointer. Its summary is the control; the QR behind
      it is for the case where a SECOND phone scans this screen. */
   .crewqrfold { order: 6; margin-top: 12px; }
-  .crewqrfold > summary { display: block; cursor: pointer; font-size: 11px; letter-spacing: .5px;
-    text-transform: uppercase; color: var(--mut, #9aa6c8); padding: 7px 0; text-align: center; }
+  /* It has to look like something that opens. The first version rendered as centred small-caps
+     with no chevron and no border, directly under a sentence that says "Scan it with EUC Planet"
+     -- so a reviewer read the card, found nothing to scan, and filed it: the QR is behind this
+     and nothing said so. A marker that rotates, and a box, so it reads as a control. */
+  .crewqrfold > summary { display: flex; align-items: center; justify-content: center; gap: 7px;
+    cursor: pointer; font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--mut, #9aa6c8); padding: 9px 12px; margin: 0 auto; width: max-content;
+    border: 1px solid var(--line, #243055); border-radius: 8px; list-style: none; }
+  .crewqrfold > summary::-webkit-details-marker { display: none; }
+  .crewqrfold > summary::after {
+    content: ""; width: 7px; height: 7px; border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translate(-2px, -2px);
+    transition: transform .18s ease;
+  }
+  .crewqrfold[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+  .crewqrfold > summary:hover, .crewqrfold > summary:focus-visible { color: #cfe0ff; }
   .crewqr { order: 3; margin-top: 10px; min-height: 124px; }
   .crewqr img, .crewqrg { width: 124px; height: 124px; }
   .crewcode { order: 4; }
@@ -1259,11 +1274,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* Resting on a square. Small, out of the way, and it never appears while the map is moving. */
 .crewtip {
-  /* 560, for the same reason as `.crewpop` above: at 5 this drew UNDER the panel, and on a
-     phone the same tap that produces it opens the panel over it -- so a reviewer tapping a
-     square got a readout at x152-382 y269-332 sitting entirely inside the panel's rectangle
-     and behind it, with nothing of it visible. On desktop it is a hover tooltip beside the
-     cursor with no panel in the way, which is why this only ever bit on touch. */
+  /* Orders this against the map's other children, like `.crewpop` above -- and like it, this
+     cannot climb over the panel, because `#map` is its own stacking context. The phone case
+     (a tap producing a readout under the sheet the same tap opens) is a placement problem,
+     not a paint-order one. */
   position: absolute; z-index: 560; pointer-events: none;
   transform: translate(14px, -50%);
   /* `max-content`, so the width does not depend on where the tip is. Absolutely positioned

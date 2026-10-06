@@ -1094,7 +1094,16 @@ function setupCfg(){
   // measured it still open, and it spent that whole time sitting on top of the crews panel
   // covering three leaderboard rows and the last line of the map key. A popover anchored over
   // the content is the one kind that has to be dismissible without finding its button again.
-  document.addEventListener("keydown",e=>{if(e.key==="Escape")cfg.classList.remove("open");});
+  document.addEventListener("keydown",e=>{
+    // Only when it is open, and then the key is SPENT. Without the guard this removed a
+    // class that was not there and let Escape through to the panel as well, so one press
+    // closed the popover AND the whole crews panel -- measured panelTop 119 -> 1081 on a
+    // phone. Every other way out of this popover (the gear again, a tap outside, switching
+    // panels) closes only the popover; Escape was the one that took the page with it.
+    if(e.key!=="Escape"||!cfg.classList.contains("open"))return;
+    cfg.classList.remove("open");
+    e.preventDefault();e.stopPropagation();
+  },true);
   document.addEventListener("pointerdown",e=>{
     if(!cfg.classList.contains("open"))return;
     const pg=document.getElementById("pgear");

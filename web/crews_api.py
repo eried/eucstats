@@ -975,6 +975,15 @@ def edit_crew(slug: str, payload: dict, request: Request, db: Session = Depends(
             # characters, so a rider editing `Ron's Crew #1` was told the length was wrong.
             raise HTTPException(400, json.dumps({"code": "bad_name",
                                                  "detail": crews.NAME_RULE_TEXT}))
+        # Reserved names are refused here too. `create` got this gate and `/edit` did not, so
+        # founding a crew called `admin` was blocked and renaming one TO `admin` was not --
+        # on the one path whose own comment, three lines down, already records renaming as a
+        # way into impersonation. A reviewer renamed the top crew on the board to `admin`,
+        # confirmed it server-side, and did the same with `support`. The gate was never the
+        # hard part; applying it to every door was.
+        if crews.name_reserved(name):
+            raise HTTPException(400, json.dumps({"code": "name_reserved",
+                                                 "detail": crews.RESERVED_NAME_TEXT}))
         # Case-folded, and over every crew rather than only the living ones -- both for the
         # reasons `crews.name_clash` is written down at. Renaming was the fourth way in to
         # the same impersonation: found `Nordlys Collective`, then rename it to the
