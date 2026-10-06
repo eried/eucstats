@@ -468,6 +468,37 @@ def scenario_kill_switch(base: str, tag: str) -> None:
     check("and the crews are all still there", r.status_code == 200, str(r.status_code))
 
 
+def _sweep_run(db, tag: str) -> None:
+    """Take the run's crews back off the board.
+
+    The rate limits above are raised for the run and restored at the end, with a comment
+    saying why that discipline matters. The crews were not: `scenario_found_a_crew` founds
+    "Nordlys Collective <tag>" and nothing ever ends it, so every run left a permanent crew on
+    the demo board named after four characters of a rider id, carrying the real Nordlys
+    Collective's own description, and holding whatever ground its simulated rider had ridden.
+
+    Three had accumulated by the time anybody noticed, sitting at ranks 3, 4 and 6 -- a board
+    that reads as a test harness to anybody being shown the product. Twelve review passes saw
+    it and none could fix it, because the mess is made by the tool that checks the thing
+    rather than by the thing.
+
+    Matched on this run's own tag, so it can only ever remove what this run made.
+    """
+    from models import Clan, ClanMember
+    frag = tag[-4:]
+    gone = 0
+    for c in db.query(Clan).all():
+        if frag not in (c.name or ""):
+            continue
+        db.query(ClanMember).filter(ClanMember.clan_id == c.clan_id).delete(
+            synchronize_session=False)
+        db.delete(c)
+        gone += 1
+    if gone:
+        db.commit()
+        print(f"swept {gone} crew(s) this run created")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://127.0.0.1:8000")
@@ -507,6 +538,9 @@ def main() -> int:
 
     db = SessionLocal()
     settings.set_rate_limits(db, rl_before)
+    # And the crews, for the same reason the limits are put back: a run should leave the
+    # board the way it found it. See `_sweep_run`.
+    _sweep_run(db, tag)
     db.close()
 
     bad = [r for r in results if not r[1]]
