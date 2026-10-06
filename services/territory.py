@@ -1416,8 +1416,26 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     # the only moment both numbers exist.
     standing = sorted((c for c in clans.values() if (c.terr_tiles or 0) > 0),
                       key=lambda c: (-(c.terr_best_tiles or 0), -(c.terr_best_km2 or 0.0)))
+    # Where each crew stood last time AMONG THE CREWS STILL HERE, not the raw number it held.
+    #
+    # This was `c.terr_prev_rank = c.terr_rank`, which reads movement off absolute positions --
+    # so when a crew leaves the board, every crew below it inherits a smaller number and the
+    # arrow column reports the DEPARTURE as a climb. Three crews were removed from this
+    # database and the next rebuild drew twelve green up-arrows and not one red one: twelve
+    # crews "climbing three places" on a day when no crew's territory had changed at all. A
+    # reviewer read it as a rendering bug on sight, which is the right instinct -- rank
+    # movement is zero-sum, and a board where nobody fell is a board that is lying.
+    #
+    # Not a test-data problem. Any crew disbanding, or fading to zero squares, does this to
+    # every crew beneath it until the next rebuild; a crew arriving does the mirror image in
+    # red. Re-ranking the old positions over the surviving set makes a pure departure produce
+    # no movement, and leaves a genuine overtake showing one crew up and one crew down.
+    were = sorted((c for c in standing if c.terr_rank is not None),
+                  key=lambda c: c.terr_rank)
+    prev_place = {c.clan_id: i for i, c in enumerate(were, start=1)}
     for place, c in enumerate(standing, start=1):
-        c.terr_prev_rank = c.terr_rank
+        # `None` for a crew that was not on the board last time: it did not climb, it arrived.
+        c.terr_prev_rank = prev_place.get(c.clan_id)
         c.terr_rank = place
     # A crew holding nothing is off the board rather than last on it, and keeps the position
     # it held when it was on, so the row that comes back says where it returned from.

@@ -33,6 +33,12 @@
    brightest object in the panel: white on black, grey border, no padding, 11px, and the
    browser's own focus ring, two points smaller than the one-word name field above it while
    holding 280 characters. */
+/* 44px, like every button in this panel. A reviewer measured the crew-name field at 36 and
+   the policy select at 35 -- the two controls a leader uses to change what their crew IS,
+   below the minimum, in a feature where everything else clears it. Not the textarea: it sets
+   its own 46 further down, and saying 44 here as well only gives the cascade checker a
+   self-cancelling pair to complain about, correctly. */
+.crewcard input[type=text], .crewcard input:not([type]), .crewcard select { min-height: 44px; }
 .crewcard input[type=text], .crewcard input:not([type]), .crewcard select,
 .crewcard textarea {
   display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
@@ -1384,8 +1390,13 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 
 
-/* how long a crew has held a square, filled in after the popup opens */
-.crewpop-since:empty { display: none; }
+/* How long a crew has held a square, filled in after the popup opens -- `/territory/at`
+   answers separately. `display: none` while empty meant the popup opened at 189x141 and
+   became 189x161 when the answer landed, growing 20px and shifting 20px UP, under the thumb
+   that had just tapped it. A reviewer measured the jump at 27ms on localhost; on a real
+   network that gap is the whole point of the measurement. The line is reserved instead, so
+   the box is its final size from the first frame and the words simply appear. */
+.crewpop-since { display: block; min-height: 1.25em; }
 .crewmore { margin: 6px 0 0; opacity: .8; }
 
 

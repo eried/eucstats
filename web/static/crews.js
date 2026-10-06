@@ -4793,11 +4793,41 @@
     applyFlash();
     // Only with a code to put in it. A slug-only link to an invite-only crew opens the
     // prompt with nothing to type, which is worse than leaving the button alone.
+    //
+    // And re-applied like the flash above, for exactly the reason stated there. This did the
+    // click and filled the box once, and the `render()` that lands about fifty milliseconds
+    // later threw the prompt away with everything in it: a reviewer's MutationObserver caught
+    // the filled input exactly once at t=370ms and an 8ms poll caught it zero times -- created
+    // and destroyed inside one task, never drawn. So "Copy link", whose whole advantage over
+    // "Copy code" is that the recipient does not have to type eight characters, delivered
+    // exactly what "Copy code" delivers. The row scrolled and lit, so it looked like it had
+    // worked. The comment above fixed this for the flash and stopped one line short.
     if (btn.dataset.pol === "invite" && inv.code) {
-      btn.click();                          // opens the code prompt beside the row
-      var box = document.getElementById("crewask-in");
-      if (box) { box.value = inv.code; box.focus(); box.select(); }
+      askSlug = inv.slug;
+      askCode = inv.code;
+      askUntil = Date.now() + 3000;
+      applyAsk();
     }
+  }
+
+  // The invite prompt, re-opened and re-filled after each render inside its window. Paired
+  // with `applyFlash`: same problem, same shape of answer.
+  var askSlug = null;
+  var askCode = null;
+  var askUntil = 0;
+
+  function applyAsk() {
+    if (!askSlug) return;
+    if (Date.now() > askUntil) { askSlug = askCode = null; return; }
+    // Already open and filled: leave it alone rather than stealing the caret back from
+    // somebody who has started typing.
+    var open = document.getElementById("crewask-in");
+    if (open) { if (!open.value) { open.value = askCode; open.select(); } return; }
+    var btn = document.querySelector('[data-join="' + cssEscape(askSlug) + '"]');
+    if (!btn) return;
+    btn.click();
+    var box = document.getElementById("crewask-in");
+    if (box) { box.value = askCode; box.focus(); box.select(); }
   }
 
   // `CSS.escape` is absent in older engines and this runs on whatever a rider has. A slug is
@@ -5337,6 +5367,8 @@
       doReveal();
       // The arrival flash, if one is still owed; see `applyFlash`.
       applyFlash();
+      // And the invite prompt it arrived with; see `applyAsk`.
+      applyAsk();
       // Before the message, so the fields are back in place by the time anything is anchored
       // to one of them and scrolled into view.
       if (pendingDraft) {
@@ -5459,7 +5491,25 @@
       try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {
         row.scrollIntoView();
       }
-      flashRow(row);
+      // Flash when the row ARRIVES, not when it is asked for. A smooth scroll of 2801px takes
+      // about 1.37s, and the flash is a 2.2s decay from full strength -- so starting both at
+      // once spent the brightest half of it on a row that was still off screen. A reviewer
+      // sampled it: lit at alpha 0.937 at t=323ms, row first visible at t=1022ms by which
+      // point it was 0.494 and falling, with only 20 of 53 visible-and-lit samples above 0.2.
+      // The point of the flash is to say "this one", to somebody who can see it.
+      //
+      // `scrollend` is the event for exactly this and is not everywhere yet, so there is a
+      // timer behind it; whichever happens first wins, and `flashRow` is safe to call twice.
+      var pb = document.getElementById("pbody");
+      var fired = false;
+      var go = function () {
+        if (fired) return;
+        fired = true;
+        if (pb) pb.removeEventListener("scrollend", go);
+        flashRow(row);
+      };
+      if (pb && "onscrollend" in pb) pb.addEventListener("scrollend", go, { once: true });
+      setTimeout(go, 900);
     }, 280);
   }
 
