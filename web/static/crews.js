@@ -1685,12 +1685,19 @@
     // eight rows, and `nowrap` is the wrong tool twice over in this file: once it cut text in
     // eleven locales, once removing it made a measurement lie in CJK.
     var u = H.mph && H.mph() ? "\u00a0mi" : "\u00a0km";
-    // One decimal while it matters, none once it does not: "0.4 mi" and "137 km". Two below
-    // one unit, because a mile is 1.6 km and one decimal collapses distinct targets into the
-    // same label: a reviewer found 0.6 km and 0.7 km both printing "0.4 mi", and three
-    // consecutive rows of a list whose instruction is "Pick one to find it" reading "a few
-    // streets 0.4 mi". The rows are there to be chosen between, so they have to differ.
-    if (n < 1) return n.toFixed(2) + u;
+    // One decimal while it matters, none once it does not: "0.4 mi" and "137 km".
+    //
+    // Under one unit the decimal count has to follow the unit, because the two are not
+    // equally fine. A tenth of a kilometre is 100 m; a tenth of a mile is 160 m, which is
+    // coarser than the figure being converted, so distinct targets collapse into one label --
+    // a reviewer found 0.6 km and 0.7 km both printing "0.4 mi", three consecutive rows of a
+    // list whose instruction is "Pick one to find it" all reading "a few streets 0.4 mi". The
+    // rows exist to be chosen between, so they have to differ.
+    //
+    // The first version of this fix gave both units two decimals, which bought nothing in
+    // kilometres and cost "0.60 km" where "0.6 km" had been right. Second decimal in miles
+    // only: the point was matching the source precision, not printing more digits.
+    if (n < 1) return n.toFixed(H.mph && H.mph() ? 2 : 1) + u;
     return (n < 10 ? n.toFixed(1) : Math.round(n).toLocaleString()) + u;
   }
 
