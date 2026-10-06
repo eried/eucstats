@@ -110,6 +110,38 @@ NAME_RULE_TEXT = "3-28 characters, letters, numbers, spaces and - ' & ."
 # who typed only dots that the dot is allowed -- which it is, and which is not the problem.
 NAME_WORD_TEXT = "A name needs at least one letter or number."
 
+# Names that would let a crew pass itself off as part of the site. A reviewer founded a crew
+# called `admin`, which went live at a public `/c/admin` and appeared in the join list beside
+# real crews; `RESERVED_SLUGS` did not stop it, because that set exists to keep a crew from
+# shadowing an API route and resolves a collision by quietly appending "-crew". A silent
+# suffix is the right answer to a routing clash and the wrong one to impersonation: the name
+# is the thing being claimed, so the name is what has to be refused, out loud.
+#
+# Matched on `name_key`, so spacing and case cannot walk around it, and on the slug as well,
+# so "A.D.M.I.N" and "a d m i n" are the same claim. Deliberately short: this is a list of
+# words that assert authority over the site, not a profanity filter.
+RESERVED_NAMES = {
+    "admin", "administrator", "moderator", "mod", "staff", "support", "help", "helpdesk",
+    "official", "system", "root", "security", "team", "owner", "operator",
+    "eucstats", "euc stats", "eucplanet", "euc planet", "anthropic", "claude",
+}
+RESERVED_NAME_TEXT = "That name is reserved. Pick something that is yours."
+
+
+def name_reserved(name: str) -> bool:
+    """Does this name claim to be the site rather than a crew on it?
+
+    Both forms are checked because both are what a reader sees: the name on the board and the
+    slug in the address bar. `slugify` collapses punctuation and spaces to hyphens, so the
+    hyphen-free version of the slug catches "A.D.M.I.N" and "a d m i n" without the set having
+    to list them.
+    """
+    key = name_key(name)
+    slug = slugify(name)
+    return (key in RESERVED_NAMES
+            or slug in RESERVED_NAMES
+            or slug.replace("-", "") in RESERVED_NAMES)
+
 
 def name_has_word(name: str) -> bool:
     s = unicodedata.normalize("NFC", name or "").strip()
@@ -412,6 +444,8 @@ def create(db, store_id: str, name: str, description: str = "", colour: str | No
     if not name_ok(name):
         raise CrewError("bad_name" if name_has_word(name) else "bad_name_word",
                         NAME_RULE_TEXT if name_has_word(name) else NAME_WORD_TEXT)
+    if name_reserved(name):
+        raise CrewError("name_reserved", RESERVED_NAME_TEXT)
     if membership(db, store_id):
         raise CrewError("already_in_crew", "Leave your crew before founding another.")
     until = cooldown_until(db, store_id)

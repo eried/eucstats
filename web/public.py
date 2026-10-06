@@ -88,6 +88,14 @@ svg.ic{width:18px;height:18px;display:block}
 .intro.show{opacity:1;pointer-events:auto;transition:opacity 1s ease}
 @keyframes rowin{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 .topbar{position:fixed;top:16px;left:16px;z-index:500;width:min(92vw,380px);background:var(--surf);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+/* The topbar is 92vw wide and anchored 16px from the left, so on a 390px phone it runs to
+   374.8 and lands on top of the map's + and - buttons: elementFromPoint at the zoom-in
+   button's centre returned DIV.champ and a real click was refused outright, so the only
+   way to zoom was to pinch. It keeps clear of them now. Declared here and not up with the other
+   width rules: same specificity as the line above, so the later one wins and the first
+   attempt at this sat fifty lines earlier and did nothing at all. Not pointer-events, because the
+   card is a control itself -- the gap has to be real. */
+@media(max-width:560px){.topbar{width:min(92vw,calc(100vw - 68px))}}
 .champ{display:block;padding:10px 14px 11px;font-size:13px;border-bottom:1px solid var(--line);background:rgba(255,210,74,.06);position:relative;overflow:hidden;animation:champvhs 10s infinite}
 .champ svg{width:16px;height:16px;color:var(--gold)}.champ b{font-weight:700;color:var(--gold)}
 .chead{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold);margin-bottom:5px}

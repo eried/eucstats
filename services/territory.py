@@ -985,7 +985,12 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     # Falls back to unfiltered rather than handing a crew an empty card: a brand-new crew in a
     # city nobody else rides should still be told where to go.
     if rideable:
-        plausible = {q for q in cand if q in rideable}
+        # `block` is exempt. A crew holding nothing is offered one 2x2 block anchored on a
+        # square it has ridden, and the far corner of that block touches the anchor only
+        # diagonally -- but it shares an edge with the block's other two squares, so the route
+        # exists through the block being proposed. The fringe rule is about reaching ground
+        # from ground, and this is the one candidate that brings its own ground with it.
+        plausible = {q for q in cand if q in rideable or q in block}
         if plausible:
             cand = plausible
 
@@ -1263,10 +1268,20 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             _ridden.add((pt[1], pt[2]))
     _ridden |= set(holder_of)
     rideable = set(_ridden)
+    # Edges, not corners. This dilated 3x3, and a diagonal is not a route: you cannot ride
+    # through the point where four squares meet. Everything else in this model already agrees
+    # -- `regions`, the candidate expansion in targets_for, its `touching` test and the
+    # client's own `biggestPatch` are all four-way -- so the one function deciding "could
+    # somebody ride here" was the only eight-way thing in it, and on a coastline the squares
+    # it reaches that the others do not are the ones across the water.
+    #
+    # Consistency only: it changed no crew's targets on the board it was written against
+    # (118 before, 118 after). It is NOT the explanation for the two squares Erwin found in
+    # the sea off Tromso -- those arrive by a different road, through `mine`, because the
+    # simulated rides that built that fixture went straight across the sound and the model has
+    # no coastline to know better.
     for (x, y) in _ridden:
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                rideable.add((x + dx, y + dy))
+        rideable.update(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
     mine_by_clan: dict[str, set] = {}
     for tile, per in acc.items():
         pt = T.parse(tile)

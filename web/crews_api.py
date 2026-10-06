@@ -528,7 +528,13 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                      "flag": _fl(p.store_id),
                      "km": round(ridden.get(p.store_id, (0.0, 0))[0], 1),
                      "trips": ridden.get(p.store_id, (0.0, 0))[1],
-                     "asked": p.joined_at.isoformat() if p.joined_at else None}
+                     # With the "Z", like every other timestamp this module serialises.
+                     # These are naive UTC, and an ISO string with no zone is parsed as LOCAL
+                     # time by the browser -- so a request made four minutes ago read as two
+                     # hours old to a reader in UTC+2, and would have read as being in the
+                     # FUTURE west of Greenwich, where the clamp would call it "just now" for
+                     # hours. Measured at 124.5 minutes for a four-minute-old row.
+                     "asked": p.joined_at.isoformat() + "Z" if p.joined_at else None}
                     for p in pend_rows]
                 # Refusals from the last week, so a leader who changed their mind has
                 # somewhere to do it. crews.decide(accept=True) reopens the request.

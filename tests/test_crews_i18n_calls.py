@@ -44,6 +44,12 @@ NO_AGREEMENT = {
     "crew.targets.drops": "`drops them to {n}` -- ends the clause",
     "crew.drawn.in": "`{n} min` -- every locale abbreviates the unit, so nothing inflects",
     "crew.drawn.old": "`over {n} h ago` -- the same abbreviated unit, same reason",
+    # How long a knock has been waiting, below a day. Written to match `crew.drawn.old`
+    # exactly, and for exactly this reason: ru `{n} ч назад`, pl `{n} godz. temu`, uk
+    # `{n} год тому` are all abbreviations, which do not inflect after a numeral; ja/zh
+    # `{n}時間`/`{n}小时`, ko `{n}시간`, tr `{n} saat`, de `{n} Std.`, and the rest take h/t/u.
+    # The alternative was a plural set in nineteen tables for a line that reads "asked 4h ago".
+    "crew.asked.h": "`{n}h` -- an abbreviated unit after the number in every locale",
     # The rate-limit wait, in the same two units and for the same reason. ru and uk first had
     # the idiomatic inversion -- `минут через {n}`, unit BEFORE the number -- which is the one
     # shape this claim cannot be made about, so they were rewritten to `через {n} мин.` to

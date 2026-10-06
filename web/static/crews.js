@@ -1677,17 +1677,28 @@
     return d > 0 ? d : 1;
   }
 
-  // How long a knock has been standing. `heldFor` above already turns an age into a phrase
-  // in all nineteen languages -- "a day or two", "4 days", "3 weeks" -- and a request that
-  // has been waiting is the same question as ground that has been held, so this is one
-  // string around that answer rather than a second scale of nine.
+  // How long a knock has been standing.
+  //
+  // This was one string wrapped around `heldFor`, on the argument that a request that has
+  // been waiting is the same question as ground that has been held. It is not, at the short
+  // end: `heldFor`'s floor bucket is "a day or two", which is the right grain for territory
+  // and makes a request that arrived 105 SECONDS ago read exactly like one from last
+  // Tuesday -- wrong data in the one place a leader decides. A reviewer measured it against
+  // the server clock.
+  //
+  // Hours below a day, and `heldFor` above it, so the long end still costs no new scale. The
+  // hour form carries its number rather than spelling it, which keeps this to two strings
+  // instead of a plural set in nineteen languages.
   function askedAgo(iso) {
+    var h = Math.floor((Date.now() - new Date(iso)) / 3600000);
+    if (h < 1) return t("crew.asked.now");
+    if (h < 24) return t("crew.asked.h", { n: h });
     return t("crew.asked.ago", { d: heldFor(iso) });
   }
 
   // Same per-quantity unit switch as the rest of the site: somebody reading in miles gets
   // "0.4 mi", not a kilometre figure with a mile label on it.
-  function fmtKm(v) {
+  function fmtKm(v, coarse) {
     var n = (v == null ? 0 : v) * (H.mph && H.mph() ? MI_PER_KM : 1);
     // A non-breaking space. The join list broke `137 km²` across two lines on five of its
     // eight rows, and `nowrap` is the wrong tool twice over in this file: once it cut text in
@@ -1705,7 +1716,12 @@
     // The first version of this fix gave both units two decimals, which bought nothing in
     // kilometres and cost "0.60 km" where "0.6 km" had been right. Second decimal in miles
     // only: the point was matching the source precision, not printing more digits.
-    if (n < 1) return n.toFixed(H.mph && H.mph() ? 2 : 1) + u;
+    //
+    // `coarse` opts out of the second decimal. The rule above is about telling two rows of a
+    // list apart; in prose it is noise, and it produced "A square is about 0.99 mi across" --
+    // an exact conversion of 1.6 km that lands one hundredth short of a round number, under
+    // the word "about", which reads as a bug whatever the arithmetic says.
+    if (n < 1) return n.toFixed(!coarse && H.mph && H.mph() ? 2 : 1) + u;
     return (n < 10 ? n.toFixed(1) : Math.round(n).toLocaleString()) + u;
   }
 
@@ -1732,7 +1748,8 @@
   }
 
   function squareKm() {
-    return fmtKm(Math.round(squareEdgeKm() * 10) / 10);
+    // Coarse: this is a sentence, not a row to pick between. See the note in `fmtKm`.
+    return fmtKm(Math.round(squareEdgeKm() * 10) / 10, true);
   }
 
   function floorKm(y) {
@@ -2754,7 +2771,12 @@
       + '<button class="crewbtn mini' + (danger ? "" : " ghost") + '" id="crewask-n">'
       + t("crew.cancel") + "</button>"
       + "</div>";
-    host.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // `center`, not `nearest`. `nearest` stops as soon as the top edge is in view, so a
+    // prompt opened near the bottom of the scroll box had its own buttons below the fold --
+    // measured at 718.5-762.5px against a box ending at 759.3 -- and the error line pushed
+    // them further out. What has to be reachable is the buttons, not the first line of the
+    // question.
+    host.scrollIntoView({ block: "center", behavior: "smooth" });
     function shut() {
       done();
       // Back where they came from, so the keyboard does not land at the top of the panel.
@@ -2866,14 +2888,27 @@
     host.innerHTML = '<div class="crewask"><p>' + esc(message) + "</p>"
       + '<div class="crewmsg bad crewaskmsg" role="alert" aria-live="assertive"'
       + ' aria-atomic="true" hidden></div>'
-      + '<input id="crewask-in" placeholder="' + esc(placeholder) + '" maxlength="'
+      // `crewaskplain` when what is being typed is a NAME rather than a code. The box
+      // renders its content uppercase with 2px tracking, which is right for a six-character
+      // pairing code read off one screen and typed into another, and wrong for the disband
+      // gate: it says "Type Holmenkollen Climb to end it", you type exactly that, and the
+      // box shows you HOLMENKOLLEN CLIMB. The comparison has been case-folded for several
+      // rounds, so it works -- it just looks like it has not, on the one control in the
+      // feature where looking wrong means believing you mistyped your own crew's name.
+      + '<input id="crewask-in"' + ((opts.max || 16) > 16 ? ' class="crewaskplain"' : "")
+      + ' placeholder="' + esc(placeholder) + '" maxlength="'
       + (opts.max || 16) + '">'
       + '<button class="crewbtn mini' + (opts.danger ? " ghost" : "") + '" id="crewask-y">'
       + esc(opts.confirm || t("crew.join.btn")) + "</button>"
       + '<button class="crewbtn mini' + (opts.danger ? "" : " ghost") + '" id="crewask-n">'
       + t("crew.cancel") + "</button>"
       + "</div>";
-    host.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // `center`, not `nearest`. `nearest` stops as soon as the top edge is in view, so a
+    // prompt opened near the bottom of the scroll box had its own buttons below the fold --
+    // measured at 718.5-762.5px against a box ending at 759.3 -- and the error line pushed
+    // them further out. What has to be reachable is the buttons, not the first line of the
+    // question.
+    host.scrollIntoView({ block: "center", behavior: "smooth" });
     var input = host.querySelector("#crewask-in");
     input.focus();
     host.querySelector("#crewask-n").onclick = done;
@@ -3876,13 +3911,21 @@
               + "</div>"; }).join("")
         + "</div>";
     }
-    if (c.description) h += "<p>" + esc(c.description) + "</p>";
+    // Classed so a rename can find it. See the save handler: this card is deliberately NOT
+    // rebuilt after an edit, so whatever changed has to be written into the DOM by hand.
+    if (c.description) h += '<p class="crewdesc">' + esc(c.description) + "</p>";
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
     // The clock, on the card a rider opens to look at their own ground. It lived only at the
     // bottom of two cards you reach by scrolling, phrased as a question about the list above
     // it. Four reviewers said the same thing in four different words: the mode states what is
     // at stake and never says WHEN anything happens, so there is nothing to come back to.
-    h += drawnLine();
+    //
+    // Not while the request is still with a leader. It reads "Ride now and it lands on the
+    // map in about 12 min", which is a promise to somebody who is not in the crew and whose
+    // riding will not count for it -- two taps after a confirm that said, correctly, that
+    // nothing changes until a leader says yes. The clock is about your ground; a rider
+    // waiting has none.
+    if (me.status !== "pending") h += drawnLine();
     if (c.invite_code) {
       // A button, because this is the one act a new leader has to perform and it used to be
       // eight hex characters to select by hand inside a panel that scrolls under your finger.
@@ -4380,6 +4423,40 @@
           // place rather than by rebuilding the panel around it.
           var sw = document.querySelector(".crewsumemb");
           if (sw) sw.src = sw.src.split("?")[0] + "?v=" + Date.now();
+          // And so are the name and the description, which were not. The card said "Saved",
+          // the server had stored the new name, and the header kept the old one until the
+          // rider pressed Refresh -- so the honest reading of that screen is that renaming
+          // does nothing, and the thing a rider does about it is press Save again. The whole
+          // reason this handler does not call `show()` is above; that argument covers the
+          // scroll position, not the staleness, and nothing had been written in its place.
+          // From the response, not from the field: the server trims, normalises and caps
+          // what it was sent, so echoing the input back would show a name that is not the
+          // stored one -- the same disagreement that made a leader unable to type their own
+          // crew's name at the disband gate.
+          var saved = (r.body && r.body.crew) || {};
+          var newName = typeof saved.name === "string"
+            ? saved.name : document.getElementById("ce-name").value;
+          var newDesc = typeof saved.description === "string"
+            ? saved.description : document.getElementById("ce-desc").value;
+          var ttl = document.querySelector(".crewmine-wrap > summary > span");
+          if (ttl) ttl.textContent = newName;
+          var card = document.querySelector(".crewcard.crewmine");
+          var dsc = card && card.querySelector(".crewdesc");
+          if (dsc && newDesc) dsc.textContent = newDesc;
+          else if (dsc) dsc.remove();
+          else if (newDesc && card) {
+            // It had none before, so there is no node to write into. Where `myCrewHTML` puts
+            // it: directly above the territory figures.
+            var at = card.querySelector("#crewterr");
+            var p = document.createElement("p");
+            p.className = "crewdesc";
+            p.textContent = newDesc;
+            if (at) card.insertBefore(p, at); else card.appendChild(p);
+          }
+          // The card is built from `ME`, and every confirm that quotes the crew's name reads
+          // it from there -- including the disband gate, which asks you to type it back. A
+          // stale copy means being told your own crew's name is not its name.
+          if (ME && ME.crew) { ME.crew.name = newName; ME.crew.description = newDesc; }
         } else if (!onWrite(r)) {
           // A name-shaped refusal belongs beside the name, not beside Save: anchored to Save,
           // `scrollIntoView` dragged the field to y-235 and the rider typed into a box they

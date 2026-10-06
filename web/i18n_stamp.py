@@ -166,6 +166,8 @@ EN_FINGERPRINT = {
     'crew.ago.weeks.few': '962420204d71',
     'crew.ago.year': '7df6de0d05ff',
     'crew.asked.ago': '7b543bcfb4ea',
+    'crew.asked.h': '1e1fa69701cf',
+    'crew.asked.now': '288ab3231fa0',
     'crew.board': 'b1bb4a34b5e3',
     'crew.board.gained': 'a9d3455862b7',
     'crew.board.sub': 'e8d1f8657c95',

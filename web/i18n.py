@@ -215,6 +215,12 @@ EN: dict[str, str] = {
     "crew.mine.disbandq.others": "Disband {name}? That takes it away from {r} besides you, and they get no say in it. Colours go back in the box and the map fades out on its own. No waiting afterwards — you can start or join another straight away.",
     "crew.mine.onmap": "Show your crew's ground on the map",
     "crew.asked.ago": "asked {d} ago",
+    # The short end, which `crew.ago.` has no buckets for: its floor is "a day or two",
+    # and a knock that arrived two minutes ago reading "asked a day or two ago" is wrong
+    # in the one place a leader makes a decision. The hour form carries the figure rather
+    # than spelling it, so this is two strings and not a plural set in nineteen tables.
+    "crew.asked.now": "asked just now",
+    "crew.asked.h": "asked {n}h ago",
     "crew.mine.claim": "Take over",
     "crew.mine.claimq.none": "Nobody is running this crew. Take it over?",
     "crew.mine.claimq": "Your leader has gone quiet. Take the crew over?",
