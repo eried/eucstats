@@ -676,3 +676,35 @@ def test_a_waiting_rider_does_not_count_as_an_officer(db):
     assert c.disbanded_at is not None
     told = crews.last_fold(db, "wait2")
     assert told and told["crew"] == "Paper Officer"
+
+
+def test_a_crew_cannot_claim_to_be_the_site():
+    """`admin` was a legal crew name, and a reviewer founded one.
+
+    `RESERVED_SLUGS` exists to stop a crew shadowing an API route and resolves a collision by
+    quietly appending "-crew", which is the right answer to a routing clash. It is the wrong
+    answer to impersonation: the NAME is the thing being claimed, so a silent rename leaves the
+    board showing a crew called "admin" and a public page at /c/admin. Refused out loud now.
+
+    Matched on the folded name and on the slug, so spacing, case and punctuation cannot walk
+    around it -- "A.D.M.I.N" and "a d m i n" slugify to the same claim.
+    """
+    for bad in ("admin", "Admin", "  ADMIN  ", "A.D.M.I.N", "a d m i n",
+                "support", "Moderator", "eucstats", "EUC Stats", "staff"):
+        assert crews.name_reserved(bad), repr(bad)
+    # and nothing a rider would actually want is caught by it
+    for good in ("Administrators Anonymous", "Teamwork", "Support Crew Oslo", "Rootless",
+                 "Nordlys Collective", "System of a Ride", "Officially Lost"):
+        assert not crews.name_reserved(good), repr(good)
+
+
+def test_founding_a_reserved_name_is_refused_with_a_sentence(db):
+    """And the refusal reaches the rider, rather than being resolved behind their back."""
+    _rider(db, "resv1")
+    try:
+        crews.create(db, "resv1", "admin")
+    except crews.CrewError as e:
+        assert e.code == "name_reserved", e.code
+        assert "reserved" in e.detail.lower(), e.detail
+    else:
+        raise AssertionError("a crew called 'admin' was founded")
