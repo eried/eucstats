@@ -1039,7 +1039,18 @@ function setupCfg(){
     if(chk) chk.onchange=()=>{ if(chk.checked){localStorage.removeItem("eucstats_intro_off");}else{localStorage.setItem("eucstats_intro_off","1");} if(ib)ib.disabled=!chk.checked; };
     if(ib) ib.onclick=()=>{ if(ib.disabled)return; try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; location.reload(); };
   }
-  render(); gear.onclick=()=>cfg.classList.toggle("open");
+  render(); gear.onclick=e=>{e.stopPropagation();cfg.classList.toggle("open");};
+  // Escape and a click outside. It opened on the gear and closed on the gear, and on nothing
+  // else -- so a reviewer who pressed Escape measured it still 185px tall, clicked the map and
+  // measured it still open, and it spent that whole time sitting on top of the crews panel
+  // covering three leaderboard rows and the last line of the map key. A popover anchored over
+  // the content is the one kind that has to be dismissible without finding its button again.
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")cfg.classList.remove("open");});
+  document.addEventListener("pointerdown",e=>{
+    if(!cfg.classList.contains("open"))return;
+    if(cfg.contains(e.target)||gear.contains(e.target))return;
+    cfg.classList.remove("open");
+  });
 // The site's modal. `openModal(title, html)` puts a sheet over everything and gives it back
 // when it closes; nothing else here does that, and the crews manual is the first thing that
 // wanted it. Exposed on `window` because crews.js is a separate file.

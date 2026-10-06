@@ -495,13 +495,41 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                 # list on the same card showed a flag for everyone already in, so the one row
                 # a leader has to make a decision about was the least informative on screen.
                 # Same field, same rider, same query -- `who` is already loaded.
+                #
+                # And how much they ride, and when they asked. A reviewer put it plainly: this
+                # is the one screen in the mode where a human makes a judgement about another
+                # human, and it offered a flag, a handle and two buttons. Everywhere else
+                # contribution is measured -- the contributors list right below reads
+                # "SIM2-Nordlys * 830 km 45%" -- so the leader was asked to decide with less
+                # information than the same card gives about people already in.
+                #
+                # The same rolling window as territory and the same validation bar, because
+                # the figure is answering "would this rider move our ground", and one query
+                # for all the pending rows rather than one each.
+                pend_rows = db.query(ClanMember).filter(
+                    ClanMember.clan_id == clan.clan_id,
+                    ClanMember.status == "pending",
+                    ClanMember.left_at.is_(None)).all()
+                ridden: dict[str, tuple[float, int]] = {}
+                if pend_rows:
+                    import sqlalchemy as sa
+                    since_w = utcnow() - timedelta(days=cfg["window_days"])
+                    for sid, km, trips in (
+                            db.query(Trip.rider_store_id,
+                                     sa.func.sum(Trip.distance_km),
+                                     sa.func.count(Trip.trip_uuid))
+                            .filter(Trip.rider_store_id.in_([p.store_id for p in pend_rows]),
+                                    Trip.validation_status == "validated",
+                                    Trip.start_utc >= since_w)
+                            .group_by(Trip.rider_store_id).all()):
+                        ridden[sid] = (float(km or 0), int(trips or 0))
                 out["pending"] = [
                     {"store_id": _hd(p.store_id), "name": _nm(p.store_id),
-                     "flag": _fl(p.store_id)}
-                    for p in db.query(ClanMember).filter(
-                        ClanMember.clan_id == clan.clan_id,
-                        ClanMember.status == "pending",
-                        ClanMember.left_at.is_(None)).all()]
+                     "flag": _fl(p.store_id),
+                     "km": round(ridden.get(p.store_id, (0.0, 0))[0], 1),
+                     "trips": ridden.get(p.store_id, (0.0, 0))[1],
+                     "asked": p.joined_at.isoformat() if p.joined_at else None}
+                    for p in pend_rows]
                 # Refusals from the last week, so a leader who changed their mind has
                 # somewhere to do it. crews.decide(accept=True) reopens the request.
                 since = utcnow() - timedelta(days=7)

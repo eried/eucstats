@@ -176,12 +176,12 @@ EN: dict[str, str] = {
     "crew.targets.p": "How much more you have to ride inside each one. Pick one to find it.",
     "crew.targets.first": "part of your first block",
     "crew.take.1": "one lap",
-    "crew.take.2": "a short ride",
-    "crew.take.3": "a few streets",
+    "crew.take.2": "a few streets",
+    "crew.take.3": "a short ride",
     "crew.lose.nowwho": "{name} is taking it",
     "crew.lose.soonwho": "{name} is creeping up",
-    "crew.take.4": "the long way round",
-    "crew.take.5": "a proper ride",
+    "crew.take.4": "a proper ride",
+    "crew.take.5": "a long ride",
     "crew.take.6": "a day out",
     "crew.hold.1": "a street or two clear",
     "crew.hold.2": "a good way clear",
@@ -207,6 +207,14 @@ EN: dict[str, str] = {
     "crew.mine.cancelq": "Pull your request to {name}? Costs you nothing.",
     "crew.mine.disband": "Disband",
     "crew.mine.disbandq": "Disband {name}? Colours go back in the box and the map fades out on its own. No waiting afterwards — you can start or join another straight away.",
+    # The same question when other people are in it. The single-string version was read
+    # out word for word to the leader of a five-rider crew sitting first on the board,
+    # and it never mentioned that four other riders lose their crew. `leaveq` has had
+    # four variants for less than this. Phrased so one rider and four read the same way:
+    # "takes it away from 1 rider besides you" needs no verb agreement.
+    "crew.mine.disbandq.others": "Disband {name}? That takes it away from {r} besides you, and they get no say in it. Colours go back in the box and the map fades out on its own. No waiting afterwards — you can start or join another straight away.",
+    "crew.mine.onmap": "Show your crew's ground on the map",
+    "crew.asked.ago": "asked {d} ago",
     "crew.mine.claim": "Take over",
     "crew.mine.claimq.none": "Nobody is running this crew. Take it over?",
     "crew.mine.claimq": "Your leader has gone quiet. Take the crew over?",

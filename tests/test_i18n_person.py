@@ -139,6 +139,10 @@ CARDS = {
     "crew.hold.": "none",
     "crew.rank.": "none",
     "crew.ago.": "none",
+    # A fragment, like the buckets it wraps: "asked 4 days ago" names nobody and is
+    # printed on a leader's knock row about a third rider, so it addresses neither of
+    # them. `crew.ago.` above it is the scale it is built from.
+    "crew.asked.": "none",
     "crew.who.": "none",
     "crew.off.": "none",
     "crew.pending.": "none",
@@ -401,6 +405,12 @@ def test_a_crew_card_opens_its_clauses_with_words_somebody_has_read(loc):
 # next piece of reuse has to be looked at.
 SHARED = {
     "crew.mine.ao": {"targetsHTML"},            # "all told" -- a fragment with no person in it
+    # "Ride a 2x2 block and you're on the map" -- written for the crew card and now also
+    # printed under the board by `render`, for a crew that holds nothing and therefore has
+    # no row in it. The standings ran 1 to 15 and never mentioned the reader's own crew.
+    # Same reader, same crew, same instruction, and it is the answer to the question the
+    # missing row was raising.
+    "crew.mine.start": {"render"},
     "crew.join.pending": {"myCrewHTML"},        # about the reader, who is the one waiting
     "crew.join.pending.none": {"myCrewHTML"},
     "crew.lose.h": {"legendHTML"},              # the card's own name, used as a key's label

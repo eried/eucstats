@@ -1677,6 +1677,14 @@
     return d > 0 ? d : 1;
   }
 
+  // How long a knock has been standing. `heldFor` above already turns an age into a phrase
+  // in all nineteen languages -- "a day or two", "4 days", "3 weeks" -- and a request that
+  // has been waiting is the same question as ground that has been held, so this is one
+  // string around that answer rather than a second scale of nine.
+  function askedAgo(iso) {
+    return t("crew.asked.ago", { d: heldFor(iso) });
+  }
+
   // Same per-quantity unit switch as the rest of the site: somebody reading in miles gets
   // "0.4 mi", not a kilometre figure with a mile label on it.
   function fmtKm(v) {
@@ -3462,7 +3470,14 @@
       // crew called `AAAAAAAAAAAAAAAAAAAAAAAAAAAA` with nothing on screen saying the rest had
       // gone. The description has had one since round seventeen.
       + "<label>" + t("crew.new.name")
-      + '<input id="cf-name" maxlength="28" aria-describedby="cf-namewhy">'
+      // No `maxlength`. It clipped in silence, which is the one thing every other refusal
+      // in this form refuses to do: 36 characters pasted in became a crew named after the
+      // first 28 with nothing said, and a 42-character paste CREATED one. The only signal was
+      // a counter reading 28/28, which looks like a field that is merely full. `nameProblem`
+      // has carried `crew.e.name.long` since it was written and could never reach it, because
+      // the attribute made the state unreachable. The counter turns over now and the rule
+      // appears under the field while there is still something to do about it.
+      + '<input id="cf-name" aria-describedby="cf-namewhy">'
       + '<span class="crewcount" id="cf-namecount">0/28</span>'
       // Not a live region. The same sentence announced on every keystroke is how a screen
       // reader is made unusable; `aria-invalid` on the field carries the state instead, and
@@ -3514,6 +3529,10 @@
         box.oninput = function () {
           clearStatus();          // the submit error is about text that has just changed
           out.textContent = box.value.length + "/" + pair[2];
+          // The counter is the only thing on screen while you are still typing, so it has to
+          // be able to say "too long" and not just "full". 28/28 and 36/28 looked identical
+          // before, because the field could not hold 36.
+          out.classList.toggle("over", box.value.length > pair[2]);
           // The name's rule, while there is still something to do about it. Silent: see the
           // note on `#cf-namewhy`. Nothing is said about an empty field -- a form that
           // objects before you have typed is worse than one that answers when you ask.
@@ -3840,8 +3859,16 @@
             // 7.00px -- the two lists in the same card starting their names 3.17px apart. I
             // claimed in a commit that both were fixed and had measured only the first
             // `.crewpendr`, which is a roster row.
+            // What they have ridden, and when they asked. The two buttons under this are a
+            // judgement about a person, and the row used to carry a flag and a handle --
+            // less than the contributors list two blocks down says about everybody already
+            // in. A rider who has ridden nothing in the window gets no figure rather than a
+            // "0 km" that reads as an accusation; the date they asked still stands.
+            var facts = [p.km ? fmtKm(p.km) : "", p.asked ? askedAgo(p.asked) : ""]
+                          .filter(Boolean).join(" · ");
             return '<div class="crewpendr"><span>'
-              + (p.flag ? cc(p.flag) : "") + esc(p.name) + "</span>"
+              + (p.flag ? cc(p.flag) : "") + esc(p.name)
+              + (facts ? '<small class="crewpendf">' + facts + "</small>" : "") + "</span>"
               + '<button class="crewbtn mini" data-ok="' + esc(p.store_id) + '"'
               + ' data-name="' + esc(p.name) + '">' + t("crew.accept") + "</button>"
               + '<button class="crewbtn mini ghost" data-no="' + esc(p.store_id) + '"'
@@ -3965,7 +3992,9 @@
         // 294px wide shows about thirty-five characters at a time, so the field a leader uses
         // to EDIT what they wrote was the one they could not read back. Create had a counted
         // textarea for the identical value.
-        + "<label>" + t("crew.new.name") + '<input id="ce-name" maxlength="28" value="'
+        // Same as create: see the note there about clipping a paste in silence. Worse here,
+        // because the value starts full of a name the leader did not just type.
+        + "<label>" + t("crew.new.name") + '<input id="ce-name" value="'
         + esc(c.name) + '" aria-describedby="ce-namewhy">'
         + '<span class="crewcount" id="ce-namecount">' + (c.name || "").length + "/28</span>"
         + '<span class="crewwhy" id="ce-namewhy"></span></label>'
@@ -4135,7 +4164,16 @@
       // The name, typed. Every other control in this card can be undone by doing it again;
       // this one ends a crew other people rode for, and it used to be two taps where the
       // second one opened under the cursor.
-      askFor(t("crew.mine.disbandq", { name: c.name }) + " " + t("crew.mine.disbandtype", { name: c.name }),
+      // Whether anybody else is in it changes what this costs, and only one of the two
+      // sentences says so. A reviewer disbanded the top crew on the board -- five riders, 91
+      // squares -- and got the question written for a crew of one, word for word.
+      // `members` is active-only on the server, so a rider still knocking is not counted as
+      // somebody who loses a crew they were never let into.
+      var others = Math.max(0, (c.members || 1) - 1);
+      askFor((others
+              ? t("crew.mine.disbandq.others", { name: c.name, r: riders(others) })
+              : t("crew.mine.disbandq", { name: c.name }))
+             + " " + t("crew.mine.disbandtype", { name: c.name }),
              c.name, function (typed, ctl) {
         // Composed on both sides, like `name_ok` does on the server: an accented name can be
         // typed decomposed and stored composed, and the leader would be told that their own
@@ -4192,6 +4230,10 @@
         box.oninput = function () {
           clearStatus();
           out.textContent = box.value.length + "/" + pair[2];
+          // The counter is the only thing on screen while you are still typing, so it has to
+          // be able to say "too long" and not just "full". 28/28 and 36/28 looked identical
+          // before, because the field could not hold 36.
+          out.classList.toggle("over", box.value.length > pair[2]);
           if (pair[0] !== "ce-name") return;
           var why = document.getElementById("ce-namewhy");
           if (!why) return;
@@ -4399,7 +4441,13 @@
       var held = terr.best_tiles || terr.tiles || 0;
       // Before the figure, because it is the reason to have opened this at all.
       el.innerHTML = sinceLine(c, terr)
-        + '<div class="crewbig">' + tiles(held)
+        // The figure is a map link when there is ground behind it. Every row on the board and
+        // every row in the targets list flies the map; the one number that is about YOUR
+        // ground was the only thing in the panel that did not, so a member of a Copenhagen
+        // crew could tap their own headline figure and stay looking at Norway. `frameTerritory`
+        // puts the camera there on open -- this is how you get back after panning away.
+        + '<div class="crewbig"' + (held ? ' data-mine="' + esc(c.slug) + '"' : "") + ">"
+        + tiles(held)
         + (held ? " <span>" + t("crew.mine.ao") + "</span>" : "") + "</div>"
         + '<div class="crewsub">' + fmtKm2(terr.best_km2)
         + (terr.regions > 1 ? " · " + plural(null, "crew.patches.few", "crew.patches", terr.regions) : "")
@@ -4420,6 +4468,14 @@
         // the card showed a 21px gap. The figures never depended on the contributor list;
         // they were sharing a `+`.
         + safely(function () { return contributorsHTML(r.body.contributors); });
+      el.querySelectorAll("[data-mine]").forEach(function (fig) {
+        pressable(fig, t("crew.mine.onmap"), function () {
+          flyToCrew(fig.dataset.mine);
+          // Same act as tapping a board row, so it gets the same answer about whether the
+          // panel is standing in front of the thing it just moved.
+          closeIfCovering();
+        });
+      });
       el.querySelectorAll("[data-t]").forEach(function (row) {
         pressable(row, rowLabel(row), function () {
           flyToTile(TARGETS[+row.dataset.t], +row.dataset.t);
@@ -4526,7 +4582,7 @@
     // at the explanation -- which is what a list does: it scrolls, and the banner leaves.
     // `crewwhycool` is this card's own message; `crewwhywait` is the crew card's waiting line
     // above it, which is why that one is not repeated here.
-    var whyId = cooling ? "crewwhycool" : pending ? "crewwhywait" : null;
+    var whyId = cooling ? "crewwhycool" : pending ? "crewwhypend" : null;
     // The same sentence as plain text, for `title`. `t()` returns the string the card prints,
     // so the tooltip and the banner cannot drift apart.
     var whyReason = cooling
@@ -4543,10 +4599,15 @@
         // than a sentence of its own in nineteen tables.
         + whenAgain(me.cooldown_until)
         + "</div>"
-      // Nothing for `pending`: the crew card directly above already says "Waiting on a
-      // leader to let you in", and printing it again two lines down was the same sentence
-      // twice on one screen. The shut buttons point at that line instead, so the reason is
-      // still one `aria-describedby` away from every control it governs.
+      // `pending` prints it too now. The argument against was that the crew card directly
+      // above already says "Waiting on a leader to let you in", so this would be the same
+      // sentence twice on one screen -- true, and it assumed both are on the screen at once.
+      // A reviewer on a phone scrolled to the list, found six dead buttons, and reported the
+      // reason as unavailable: `title` does not render on touch at all, and the card's line
+      // had gone off the top. "Two lines down" is a desktop measurement. The duplicate costs
+      // a sentence; the alternative costs the explanation.
+      : pending
+      ? '<div id="crewwhypend" class="crewmsg">' + t("crew.join.pending") + "</div>"
       : "";
     if (!crews.length) {
       return cooling
@@ -5147,6 +5208,10 @@
     if (TERR && !map.getLayer("crew-fill")) buildLayers();
     setHeat(false);
     heatUnderTerritory(true);
+    // Signed out, or on a reopen, this is everything needed. Signed in it fires again from
+    // `render()`, because which crew is yours arrives with that request and not before --
+    // the same ordering that painted your own ground like a stranger's for nine passes.
+    frameTerritory();
   }
 
   function render() {
@@ -5186,6 +5251,9 @@
       paintBands();
       var rank = res[1].ok ? res[1].body.crews || [] : [];
       if (res[1].ok) BOARD = rank;
+      // Both halves of the choice have landed now: which crew is yours, and who leads if you
+      // have none. `show()` already tried with whichever it had.
+      frameTerritory();
       var all = res[2].ok ? res[2].body.crews || [] : [];
       MAXMEM = res[2].ok ? (res[2].body.max_members || 0) : 0;
       // What the number under each name IS. `crew.board.sub` has existed since the board was
@@ -5199,7 +5267,20 @@
         // defines. It is a manual entry and it is in the manual now; see `explainer()`.
         
         + firstRunNote()
-        + (TERR && TERR.pending && !rank.length ? "" : rankingHTML(rank)) + "</div>";
+        + (TERR && TERR.pending && !rank.length ? "" : rankingHTML(rank))
+        // A crew holding nothing has no rank, so it has no row, so the board a rider reads to
+        // answer "how are we doing" simply did not mention their crew -- it ran 1 to 15 and
+        // stopped, with no sign that anything was missing. The card above says "0 squares,
+        // ride a 2x2 block and you're on the map"; the board, which is the part people scroll,
+        // said nothing at all. One line under the table, built from strings that already
+        // exist in all nineteen tables.
+        + (me.crew && me.crew.slug
+           && !rank.some(function (r) { return r.slug === me.crew.slug; })
+           ? '<div class="crewboardmine">' + emb(me.crew.slug, 16) + " "
+             + "<b>" + esc(me.crew.name) + "</b> · "
+             + esc(t("crew.mine.start", { n: SEED })) + "</div>"
+           : "")
+        + "</div>";
       // What this rider can DO goes first and the standings go under it. The board used to
       // lead for everyone, and it put your own crew 1.7 screenfuls down at 1440x900 and 2.3
       // at 390x844 -- and START A CREW 2.1 screens down with JOIN A CREW at 3.7, for a rider
@@ -5554,6 +5635,35 @@
     } catch (e) {}
   }
 
+  // Open the mode looking at some actual ground.
+  //
+  // The map's default camera is lng 10 / lat 62 at zoom 3.8 -- the Norwegian Sea, from high
+  // enough that a 1.2km square is well under a pixel. A reviewer opened Crews cold and got a
+  // black rectangle with four emblem tiles on it, then signed in as a member of a COPENHAGEN
+  // crew and watched the panel list Copenhagen targets beside a map still sitting on central
+  // Norway. The territory renders correctly -- at z9 the same view is the best screen in the
+  // feature -- so every frame of that was a camera problem, and the one thing the mode exists
+  // to show was the one thing nobody saw until they clicked something.
+  //
+  // Your own crew if you are in one, because that is the ground the panel is talking about;
+  // the top of the board otherwise, because a stranger should meet the game rather than the
+  // sea. Once per page: a second framing would fight the reader, and reopening the panel after
+  // deliberately panning somewhere is not a request to be moved back.
+  var framed = false;
+  function frameTerritory() {
+    if (framed || !visible || !TERR || !TERR.crews || !TERR.crews.length) return;
+    // Already looking at something at territory scale -- panned there, or arrived by a link.
+    // Below this zoom nothing this mode draws is legible, which is the same threshold the
+    // fill fade is built on.
+    if (map.getZoom() >= ZOOM_LO) { framed = true; return; }
+    var mine = ME && ME.crew && ME.crew.slug;
+    var lead = BOARD && BOARD.length ? BOARD[0].slug : null;
+    var slug = mine || lead;
+    if (!slug) return;                  // no crew and no board yet: try again next render
+    framed = true;
+    flyToCrew(slug);
+  }
+
   // Connected components over a list of squares, four-way, returning the largest. The server
   // computes the same thing for the board (`territory.regions`); doing it again here is a
   // flood fill over one crew's squares rather than another field on every payload.
@@ -5762,7 +5872,7 @@
         if (!t) return;
         TERR = t;
         clearLayers();
-        if (visible) buildLayers();
+        if (visible) { buildLayers(); frameTerritory(); }
       }).catch(function () {});
   }
 

@@ -792,6 +792,19 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* A count, because a two-line box holding 280 characters still scrolls. */
 .crewcount { display: block; margin-top: 2px; font-size: 11px; color: var(--mut, #9aa6c8);
   font-variant-numeric: tabular-nums; text-align: right; }
+/* Past the limit, not merely at it. The name field used to clip on paste, so "28/28" was the
+   only thing a reader got for a 36-character name and it reads as a full field rather than a
+   refused one. The field accepts the overflow now and this is what says so, beside the rule
+   spelled out under it. */
+.crewcount.over { color: #ff8ad8; font-weight: 600; }
+
+/* The line under the board for a crew with no rank yet. A crew holding nothing has no row, so
+   the standings ran 1 to 15 and never mentioned the reader's own crew -- see the note at the
+   call site. Quiet, because it is not a ranking: it is the board saying where you are not. */
+.crewboardmine { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line, #243055);
+  font-size: 12px; line-height: 1.35; color: var(--mut, #9aa6c8); }
+.crewboardmine b { color: var(--ink, #e8edf8); font-weight: 600; }
 .crewcard textarea { resize: vertical; min-height: 46px; }
 
 /* patterns have to be separable at swatch size -- all twelve are defined in one block
@@ -1118,6 +1131,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   flex: 0 1 auto; margin-left: auto; max-width: 38%; font-size: 11px; letter-spacing: .3px;
   text-transform: uppercase; padding: 2px 6px; border-radius: 7px;
   white-space: normal; text-align: right; line-height: 1.25;
+  /* Balanced, so the two lines are near-equal rather than one full line and a tail. At 165px
+     "BREAKS THEIR BLOCK, 15 SQUARES GO" was breaking after the number, which put "15" at the
+     end of one line and "SQUARES GO" at the start of the next -- a quantity separated from
+     its unit, in a right-aligned box, in capitals. Advisory, and the fallback is the ordinary
+     wrapping this already had. */
+  text-wrap: balance;
   opacity: .95;
 }
 /* Two different claims had one identical gold chip; and the hottest label in the panel was
@@ -1536,6 +1555,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    for it on the first line and should keep it there, beside the number it qualifies. */
 .crewtquiet { flex: 0 1 auto; margin-left: auto; min-width: 150px; max-width: 50%;
   font-size: 11px;
+  /* Two even lines rather than a full one and an orphan. These read "BREAKS THEIR BLOCK, 15
+     SQUARES GO" and were breaking after the number, so the quantity and its noun landed on
+     different lines of a right-aligned box -- "15" ending one line and "SQUARES GO" starting
+     the next. `balance` is advisory and falls back to ordinary wrapping, which is what this
+     was doing anyway. */
+  text-wrap: balance;
   text-align: right; line-height: 1.25; color: var(--mut, #9aa6c8); opacity: .8; }
 @media (max-width: 560px) {
   .crewtquiet { flex: 1 0 100%; margin-left: 0; max-width: none; text-align: left; }
@@ -1653,7 +1678,8 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    not reserve a line for a message that is not there. */
 .crewwhy { display: block; margin-top: 3px; font-size: 11px; color: #ff8ad8; }
 .crewwhy:empty { display: none; }
-#cf-name[aria-invalid="true"] { border-color: #ff8ad8; }
+#cf-name[aria-invalid="true"],
+#ce-name[aria-invalid="true"] { border-color: #ff8ad8; }
 
 
 /* ---------- Share crew ----------
@@ -1947,11 +1973,20 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
     overscroll-behavior: auto;
     scrollbar-width: thin;
   }
-  /* Except when there is nothing to put beside the board. Signed out, the left column is a
-     single sign-in card against a board four times its height, so the split produced half a
-     panel of nothing on the one screen a stranger meets first. One column and the narrow
-     panel there, which is what that screen was designed at. */
-  .panel[data-sec=crews]:has(.crewcolsolo) { width: min(94vw, 720px); }
-  #crewpanel:has(> .crewcolsolo) { display: block; }
-  #crewpanel:has(> .crewcolsolo) > .crewcol { display: contents; }
+  /* Signed out, the two columns swap sides instead of collapsing.
+     This was one narrow column, because the left half was a single sign-in card against a
+     board four times its height and a reviewer measured 515x471 of nothing -- 27% of the
+     split area -- on the first screen a stranger meets. True, and stacking them cost more
+     than it saved: the pairing QR is 190x190 and fills the top of the panel, so the board and
+     the podium went below the fold on a 1440px screen. The thing that would sell this became
+     the thing you scroll for.
+     The board takes the main column and the sign-in card sits beside it at the width it was
+     drawn for. Nothing is blank and nothing is buried. Not sticky here: in this arrangement
+     the board IS the column, so pinning it to the viewport pins the whole panel. */
+  #crewpanel:has(> .crewcolsolo) > .crewcolsolo {
+    order: 2; flex: 0 0 360px; max-width: 360px;
+  }
+  #crewpanel:has(> .crewcolsolo) > .crewcolside {
+    order: 1; flex: 1 1 0; position: static; max-height: none; overflow-y: visible;
+  }
 }
