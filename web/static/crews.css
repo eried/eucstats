@@ -722,9 +722,40 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewsheetqr .crewqrg { margin: 0 auto; width: var(--sheet-sq); }
 .crewsheetqr + .crewshareu { margin: 6px 0 0; }
 .crewsheetacts { justify-content: center; flex-wrap: wrap; margin-top: 12px; }
-.crewinvperm { word-break: break-word; }
-.crewinvperm a { color: var(--sec, #ff8ad8); text-decoration: none; }
-.crewinvperm a:hover, .crewinvperm a:focus-visible { text-decoration: underline; }
+.crewinvbox { margin: 10px 0 2px; padding: 9px 10px 8px; border-radius: 9px;
+  background: rgba(255,138,216,.08); border: 1px solid rgba(255,138,216,.22); }
+.crewinvhead { font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
+  color: var(--sec, #ff8ad8); margin-bottom: 6px; }
+.crewinvrow { display: flex; align-items: center; gap: 6px; }
+/* A real input, so the address can be selected, dragged and read by a password manager the
+   way any other address can. Read-only rather than disabled: disabled text cannot be
+   selected, which is the one thing this field is for. */
+.crewinvurl { flex: 1 1 auto; min-width: 0; font-size: 12px; padding: 6px 8px;
+  border-radius: 6px; border: 1px solid var(--line, #243055); background: rgba(0,0,0,.28);
+  color: var(--ink, #e8edfb); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.crewinvurl:focus { outline: 2px solid var(--sec, #ff8ad8); outline-offset: 1px; }
+/* 34px of target around an 18px mark. Labelled by title AND aria-label, because a drawn
+   button with neither is one nobody can name. */
+.crewicon { flex: 0 0 auto; width: 34px; height: 34px; display: flex; align-items: center;
+  justify-content: center; padding: 0; border-radius: 7px; cursor: pointer;
+  background: rgba(255,255,255,.06); border: 1px solid var(--line, #243055);
+  color: var(--ink, #e8edfb); transition: background .15s, color .15s; }
+.crewicon svg { width: 18px; height: 18px; }
+.crewicon.sm { width: 28px; height: 28px; }
+.crewicon.sm svg { width: 15px; height: 15px; }
+.crewicon:hover, .crewicon:focus-visible { background: rgba(255,138,216,.2);
+  color: var(--sec, #ff8ad8); }
+.crewinvspoken { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin: 8px 0 0; }
+/* Everything you press once a year, or once ever, behind one fold. */
+.crewmanage { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
+.crewmanage > summary { cursor: pointer; font-size: 12px; color: var(--mut, #9aa6c8);
+  list-style: none; padding: 4px 0; }
+.crewmanage > summary::-webkit-details-marker { display: none; }
+.crewmanage > summary::before { content: "B8"; display: inline-block; margin-right: 6px;
+  transition: transform .18s; }
+.crewmanage[open] > summary::before { transform: rotate(90deg); }
+.crewmanage > summary:hover { color: var(--ink, #e8edfb); }
 /* No left border. `.hint` carries one app-wide, which reads as a callout rule beside a
    paragraph -- and this one is a centred caption under a QR code, so the rule landed as a
    stray blue bar floating in the margin with nothing to the left of it. */

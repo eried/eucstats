@@ -354,28 +354,93 @@ def identity_taken(db, colour: str, pattern: str, exclude: str | None = None) ->
     return q.first() is not None
 
 
-def placeholder_emblem(name: str, colour: str) -> str:
-    """An SVG emblem derived from the crew name, for crews that have not uploaded one.
+def _pattern_tile(pattern: str) -> str:
+    """One tile of a crew pattern, as SVG, on a 50x50 grid.
 
-    Generated rather than blank so a crew looks like itself the moment it is founded, and most
-    never need to upload anything. The pattern is a hash of the name, mirrored so it reads as
-    an emblem rather than noise, with the initials over it.
+    The same twelve shapes `patternImage` draws for the map, at the same proportions: its tile
+    is 16px with 8px spacing and a 3px stroke, so every number here is that one times 50/16.
+    Black at .42, which is what the map stencil uses, so a crew's square and its emblem are the
+    same picture at two sizes.
+
+    Two repeats across the emblem rather than the map's many. These are read at 16-26px beside
+    a name, where the map's density collapses into grey: at two repeats a stroke is about a
+    pixel and a dot about three, which survives. The trade is deliberate -- same shapes, fewer
+    of them -- because an emblem nobody can resolve is not the map's look, it is a smudge.
     """
-    h = hashlib.sha256((name or "").encode("utf-8")).digest()
-    initials = "".join(w[0] for w in re.split(r"[\s\-_]+", (name or "?").strip()) if w)[:2].upper()
-    cells = []
-    for row in range(5):
-        for col in range(3):                     # mirrored into 5 columns
-            if h[row * 3 + col] & 1:
-                for c in (col, 4 - col):
-                    cells.append(f'<rect x="{c * 20}" y="{row * 20}" width="20" height="20"/>')
+    k = "rgba(0,0,0,.42)"
+    sw = 9.4                                   # 3 * 50/16
+    out = []
+
+    def diag(back):
+        for n in range(-50, 100, 25):          # 8 * 50/16, and run past both edges to tile
+            out.append(f'<path d="M{n + (50 if back else 0)} 0 L{n + (0 if back else 50)} 50"/>')
+
+    def lines(horiz):
+        for n in (6.25, 31.25):                # 2 and 10 on the map's tile
+            out.append(f'<path d="M0 {n} L50 {n}"/>' if horiz else f'<path d="M{n} 0 L{n} 50"/>')
+
+    def discs(pts, r):
+        for x, y in pts:
+            out.append(f'<circle cx="{x}" cy="{y}" r="{r}" stroke="none" fill="{k}"/>')
+
+    if pattern == "stripes":
+        diag(False)
+    elif pattern == "backslash":
+        diag(True)
+    elif pattern == "hatch":
+        diag(False)
+        diag(True)
+    elif pattern == "vert":
+        lines(False)
+    elif pattern == "horiz":
+        lines(True)
+    elif pattern == "grid":
+        lines(False)
+        lines(True)
+    elif pattern == "dots":
+        discs([(12.5, 12.5), (37.5, 37.5)], 8.1)
+    elif pattern == "bigdots":
+        discs([(25, 25)], 15.6)
+    elif pattern == "rings":
+        out.append(f'<circle cx="25" cy="25" r="14.4" fill="none" stroke="{k}" '
+                   'stroke-width="7.5"/>')
+    elif pattern == "checker":
+        out.append(f'<path d="M0 0h25v25h-25z M25 25h25v25h-25z" stroke="none" fill="{k}"/>')
+    elif pattern == "bricks":
+        for n in (0, 25, 50):
+            out.append(f'<path d="M0 {n} L50 {n}"/>')
+        out.append('<path d="M12.5 0 L12.5 25"/>')
+        out.append('<path d="M37.5 25 L37.5 50"/>')
+    else:
+        return ""                              # "solid", and anything unknown
+
+    return (f'<g fill="none" stroke="{k}" stroke-width="{sw}">{"".join(out)}</g>')
+
+
+def placeholder_emblem(name: str, colour: str, pattern: str = "solid") -> str:
+    """An SVG emblem for a crew that has not uploaded one: its colour under its own pattern.
+
+    It used to draw a hash of the name as mirrored squares with the initials on top, and never
+    looked at `clan.pattern` at all -- so the one mark a crew actually chose was the one thing
+    its emblem did not show, and two crews on the same colour were told apart only by letters
+    too small to read in a list. Erwin spotted the square beside a crew name carrying the
+    colour and not the pattern.
+
+    `name` is no longer read. It stays in the signature because every caller passes it and the
+    emblem may want it again; dropping it would be a wider change than this is.
+    """
+    kind = pattern if pattern in PATTERNS else "solid"
+    tile = _pattern_tile(kind)
+    body = ""
+    if tile:
+        pid = f"cp-{kind}"
+        body = (f'<defs><pattern id="{pid}" width="50" height="50" '
+                f'patternUnits="userSpaceOnUse">{tile}</pattern></defs>'
+                f'<rect width="100" height="100" fill="url(#{pid})"/>')
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">'
         f'<rect width="100" height="100" fill="{colour}"/>'
-        f'<g fill="#000" opacity=".22">{"".join(cells)}</g>'
-        '<text x="50" y="50" text-anchor="middle" dominant-baseline="central" '
-        'font-family="ui-monospace,Menlo,Consolas,monospace" font-weight="700" font-size="42" '
-        f'fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">{initials}</text></svg>'
+        f'{body}</svg>'
     )
 
 
@@ -847,6 +912,12 @@ def disband(db, actor: str, clan_id: str) -> None:
     m = _require_power(db, actor, clan_id)
     if m.role != "leader":
         raise CrewError("not_leader", "Only the leader can disband a crew.")
+    leaders = (db.query(ClanMember)
+               .filter(ClanMember.clan_id == clan_id, ClanMember.role == "leader",
+                       ClanMember.status == "active", ClanMember.left_at.is_(None)).count())
+    if leaders > 1:
+        raise CrewError("many_leaders",
+                        "This crew has more than one leader. Hand it to one of them first.")
     clan = db.get(Clan, clan_id)
     for mm in db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
                                           ClanMember.left_at.is_(None)).all():

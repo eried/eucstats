@@ -176,7 +176,8 @@ EN: dict[str, str] = {
     # your crew
     "crew.mine.ao": "in one patch",
     "crew.mine.start": "Ride a {n}x{n} block and you're on the map",
-    "crew.mine.who": "Who rode for it",
+    "crew.mine.who": "Best riders",
+    "crew.mine.manage": "Manage crew",
     # The marker on your own row. Not `crew.how.s3` ("Your crew"): these rows are riders,
     # and a row that is YOU labelled "Your crew" is the wrong noun in the one list that is
     # explicitly about people. The i18n guard caught the reuse and it was right to.
@@ -360,6 +361,7 @@ EN: dict[str, str] = {
     "crew.e.full": "That crew is full. Pick another.",
     "crew.e.closed": "Not taking new crews right now.",
     "crew.e.forbidden": "Only a leader or officer can do that.",
+    "crew.e.many_leaders": "This crew has more than one leader. Hand it to one of them first.",
     "crew.e.pass": "Your pass ran out. Grab a new one.",
     # "Slow down a second." against a 30-per-hour window understated the wait by three
     # orders of magnitude, and `offerRetry` put a "Get a fresh code" button under it that

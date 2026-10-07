@@ -108,7 +108,7 @@ svg.ic{width:18px;height:18px;display:block}
 .ccol{background:none;border:0;color:var(--mut);cursor:pointer;padding:0;display:flex;align-items:center}.ccol:hover{color:var(--gold)}.ccol svg{width:15px;height:15px;transition:transform .25s}
 .topbar.collapsed,.topbar.tight{max-width:none;width:auto;background:transparent;border:0;box-shadow:none;backdrop-filter:none;overflow:visible}
 .topbar.collapsed .chips,.topbar.tight .chips{display:none}
-.topbar.collapsed .champ,.topbar.tight .champ{display:inline-flex;border-bottom:0;padding:8px 10px;border-radius:11px;background:var(--surf);border:1px solid var(--line);backdrop-filter:blur(10px);box-shadow:var(--shadow);opacity:.45;cursor:pointer;transition:opacity .25s;animation:none}
+.topbar.collapsed .champ,.topbar.tight .champ{width:38px;height:38px;padding:0;border-bottom:0;border-radius:9px;background:var(--surf);border:1px solid var(--line);backdrop-filter:blur(10px);box-shadow:var(--shadow);opacity:.45;cursor:pointer;transition:opacity .25s;animation:none}.topbar.collapsed .chead,.topbar.tight .chead{gap:0;margin:0;height:100%;align-items:center;justify-content:center}.topbar.collapsed .cswitch,.topbar.tight .cswitch{margin:0}
 .topbar.collapsed .champ:hover{opacity:1}
 /* `tight` is a fact about the window, not a preference: pressing the badge at this
    size cannot un-tighten it, because --panres follows the media query rather than the
@@ -1080,7 +1080,6 @@ function renderChampions(){
   // A crew row opens that crew, the way a rider row flies to that rider.
   ch.querySelectorAll(".cline[data-crew]").forEach(el=>{el.style.cursor="pointer";el.onclick=(e)=>{
     e.stopPropagation();
-    location.hash="crews";
     if(window.EUCCrews&&window.EUCCrews.openCrew)window.EUCCrews.openCrew(el.dataset.crew);
   };});
   const tb=document.querySelector(".topbar");
@@ -1097,11 +1096,17 @@ function renderChampions(){
   clearInterval(ch._rot);
   if(decks.length>1){
     const tick=()=>swapTo((deck+1)%decks.length);
-    const start=()=>{clearInterval(ch._rot);ch._rot=setInterval(tick,6000);};
-    ch._restart=start;
-    start();
-    ch.addEventListener("pointerenter",()=>clearInterval(ch._rot));
-    ch.addEventListener("pointerleave",start);
+    const SWAP_MS=9000, AFTER_PRESS_MS=30000;
+    const start=(delay)=>{
+      clearInterval(ch._rot);clearTimeout(ch._rotWait);
+      const run=()=>{clearInterval(ch._rot);ch._rot=setInterval(tick,SWAP_MS);};
+      if(delay){ch._rotWait=setTimeout(()=>{tick();run();},delay);return;}
+      run();
+    };
+    ch._restart=()=>start(AFTER_PRESS_MS);
+    start();                                  // the ordinary pace on load
+    ch.addEventListener("pointerenter",()=>{clearInterval(ch._rot);clearTimeout(ch._rotWait);});
+    ch.addEventListener("pointerleave",()=>start());
   }
 }
 let CELLS=null;

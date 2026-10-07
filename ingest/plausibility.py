@@ -5,6 +5,30 @@ from .parser import Sample
 from .summary import TripSummary, _haversine_km, teleport_segments
 
 
+def _turning_in_place(samples, summary, still_share: float) -> bool:
+    """Was this a wheel pivoting rather than a wheel travelling?
+
+    Two conditions, and both are needed. Most fixes show no movement between them -- which is
+    what manoeuvring in one spot looks like to a receiver -- AND the odometer is the higher of
+    the two figures, because a tyre that rolls through a turn the track records as a chord
+    reads long, never short. A GPS figure above the odometer cannot be produced this way, and a
+    ride whose samples were mostly moving is not turning in place whatever its average speed.
+
+    Measured on the production set: the five trips this frees are 51-73% stationary at 3-5 kph;
+    the ones it deliberately does not free sit at 0-15% stationary or have the GPS on top.
+    """
+    if (summary.distance_km or 0) <= (summary.gps_distance_km or 0):
+        return False                       # the odometer is not the one claiming extra ground
+    pts = [(s.lat, s.lon) for s in samples if s.lat is not None and s.lon is not None]
+    if len(pts) < 10:
+        return False                       # too few fixes to say anything about the shape
+    still = 0
+    for i in range(len(pts) - 1):
+        if _haversine_km(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) * 1000.0 < 0.5:
+            still += 1
+    return still / float(len(pts) - 1) > still_share
+
+
 def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           max_kmh: float = 120.0, max_g: float = 12.0,
           teleport_kmh: float = 150.0, teleport_max_jumps: int = 8,
@@ -12,6 +36,7 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
           teleport_min_jump_m: float = 150.0, teleport_jump_rate: float = 0.01,
           dist_tolerance: float = 0.4, unverified_dist_km: float = 3.0,
           mismatch_min_km: float = 0.5, max_ascent_per_km: float = 300.0,
+          turning_tolerance: float = 0.65, turning_still_share: float = 0.4,
           disabled=frozenset()):
     reasons: list[str] = []
 
@@ -60,7 +85,10 @@ def check(samples: list[Sample], summary: TripSummary, is_mock: bool = False,
     if summary.gps_distance_km > mismatch_min_km and summary.distance_km > mismatch_min_km:
         diff = abs(summary.distance_km - summary.gps_distance_km) / max(
             summary.distance_km, summary.gps_distance_km)
-        if diff > dist_tolerance:
+        tol = dist_tolerance
+        if _turning_in_place(samples, summary, turning_still_share):
+            tol = max(dist_tolerance, turning_tolerance)
+        if diff > tol:
             add("distance_mismatch")
 
     status = "validated" if not reasons else "flagged"

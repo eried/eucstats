@@ -1065,7 +1065,7 @@ def crew_emblem(slug: str, db: Session = Depends(get_db)):
     if clan.logo_png:
         return Response(clan.logo_png, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=3600"})
-    svg = crews.placeholder_emblem(clan.name, clan.colour)
+    svg = crews.placeholder_emblem(clan.name, clan.colour, clan.pattern)
     return Response(svg, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=3600"})
 

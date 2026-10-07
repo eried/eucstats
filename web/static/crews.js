@@ -1972,6 +1972,15 @@
   // `past` was U+00B7, the same middle dot that sits inside every `S13·Night Shift`
   // handle in the list, so "has left the crew" read as a typo next to a gold star and a mint
   // diamond. U+2716 is a mark, not punctuation.
+  var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<rect x="9" y="9" width="11" height="11" rx="2"/>'
+    + '<path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
+  var ICON_SHARE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M12 3v12M12 3 8 7M12 3l4 4"/>'
+    + '<path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>';
+
   var ROLEGLYPH = { leader: "\u2605", officer: "\u25c6", member: "", past: "\u2716" };
   var ROLECLASS = { leader: "lead", officer: "off", member: "", past: "past" };
 
@@ -4189,6 +4198,38 @@
     // Classed so a rename can find it. See the save handler: this card is deliberately NOT
     // rebuilt after an edit, so whatever changed has to be written into the DOM by hand.
     if (c.description) h += '<p class="crewdesc">' + esc(c.description) + "</p>";
+    // The invitation, directly under what the crew says about itself: the two things a leader
+    // hands to somebody. The address sits in a box of its own and is selectable, because the
+    // commonest thing to do with it after copying is to read it out or check it; the two
+    // controls are marks with tooltips, since a row of words beside a URL was most of the
+    // line's width spent on labels.
+    if (c.invite_url) {
+      h += '<div class="crewinvbox">'
+        + '<div class="crewinvhead">' + esc(t("crew.mine.invperm")) + "</div>"
+        + '<div class="crewinvrow">'
+        + '<input class="crewinvurl" id="cm-invurl" readonly value="'
+        + esc(c.invite_url.replace(/^https?:\/\//, "")) + '" aria-label="'
+        + esc(t("crew.mine.invperm")) + '"/>'
+        + '<button class="crewicon" id="cm-copyinv" data-link="' + esc(c.invite_url)
+        + '" title="' + esc(t("crew.mine.copylink")) + '" aria-label="'
+        + esc(t("crew.mine.copylink")) + '">' + ICON_COPY + "</button>"
+        + '<button class="crewicon" id="cm-invshare" title="' + esc(t("crew.share.btn"))
+        + '" aria-label="' + esc(t("crew.share.btn")) + '">' + ICON_SHARE + "</button>"
+        + "</div>"
+        + (c.join_policy === "invite" && c.invite_code
+           ? '<p class="hint crewinvspoken">' + esc(t("crew.mine.invspoken"))
+             + ': <code id="cm-invite">' + esc(c.invite_code) + "</code>"
+             + '<button class="crewicon sm" id="cm-copy" data-code="' + esc(c.invite_code)
+             + '" title="' + esc(t("crew.mine.copy")) + '" aria-label="'
+             + esc(t("crew.mine.copy")) + '">' + ICON_COPY + "</button>"
+             + (me.role === "leader"
+                ? '<button class="crewbtn mini ghost" id="cm-newcode" title="'
+                  + esc(t("crew.tip.newcode")) + '">' + t("crew.mine.newcode") + "</button>"
+                : "")
+             + "</p>"
+           : "")
+        + "</div>";
+    }
     h += '<div class="crewterr" id="crewterr"><div class=spin></div></div>';
     // The clock, on the card a rider opens to look at their own ground. It lived only at the
     // bottom of two cards you reach by scrolling, phrased as a question about the list above
@@ -4200,40 +4241,6 @@
     // riding will not count for it -- two taps after a confirm that said, correctly, that
     // nothing changes until a leader says yes. The clock is about your ground; a rider
     // waiting has none.
-    if (me.status !== "pending") h += drawnLine();
-    if (c.invite_url) {
-      var inviteOnly = c.join_policy === "invite";
-      h += '<p class="hint crewinvite crewinvperm" title="' + esc(t("crew.tip.invperm")) + '">'
-        + t("crew.mine.invperm")
-        + ': <a id="cm-invurl" href="' + esc(c.invite_url) + '" target="_blank"'
-        + ' rel="noopener">' + esc(c.invite_url.replace(/^https?:\/\//, "")) + "</a>"
-        + '<span class="crewinvbtns">'
-        + '<button class="crewbtn mini" id="cm-copyinv" data-link="' + esc(c.invite_url)
-        + '">' + t("crew.mine.copylink") + "</button>"
-        + '<button class="crewbtn mini ghost" id="cm-invshare">'
-        + t("crew.share.btn") + "</button>"
-        + "</span></p>";
-      // The same secret, written out for somebody to read down a phone. Only here: on an open
-      // or approval crew the link above is the whole invitation and a code would be a secret
-      // that opens nothing.
-      if (inviteOnly && c.invite_code) {
-        h += '<p class="hint crewinvite">'
-          + t("crew.mine.invspoken")
-          + ': <code id="cm-invite">' + esc(c.invite_code) + "</code>"
-          + '<span class="crewinvbtns">'
-          + '<button class="crewbtn mini ghost" id="cm-copy" title="'
-          + esc(t("crew.tip.copycode")) + '" data-code="'
-          + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button>"
-          // Leader only: an officer lets riders in one at a time, which somebody reviews.
-          // Replacing the code changes who can get in with nobody reviewing anything -- and
-          // now changes the link above with it, because they are one secret.
-          + (me.role === "leader"
-             ? '<button class="crewbtn mini ghost" id="cm-newcode" title="'
-               + esc(t("crew.tip.newcode")) + '">' + t("crew.mine.newcode") + "</button>"
-             : "")
-          + "</span></p>";
-      }
-    }
     if (me.declined && me.declined.length) {
       h += '<div class="crewpend"><h4>' + t("crew.decl.h") + "</h4>"
         + me.declined.map(function (x) {
@@ -4389,17 +4396,15 @@
         + "</div>"
         + "</details>";
     }
-    h += '<div class="crewacts">'
+    h += '<details class="crewmanage"><summary>' + esc(t("crew.mine.manage"))
+      + "</summary>"
+      + '<div class="crewacts">'
       // `title` on each of these: the labels are in this feature's voice and the voice is only
       // free when the plain meaning is one hover away. Pulling a request and leaving a crew
       // are different acts, so they do not share an explanation.
       + '<button class="crewbtn ghost" id="cm-leave" title="'
       + esc(t(me.status === "pending" ? "crew.tip.cancel" : "crew.tip.leave")) + '">'
-      // pulling a request you never got an answer to is not leaving a crew, and it does not
-      // cost a cooldown any more either
       + t(me.status === "pending" ? "crew.mine.cancel" : "crew.mine.leave") + "</button>"
-      // disband and claim-leadership were endpoints with no buttons. A solo leader who walks
-      // out used to leave a crew with no riders on the board that nobody could clear up.
       + (me.role === "leader"
          ? '<button class="crewbtn ghost danger" id="cm-disband" title="'
            + esc(t("crew.tip.disband")) + '">' + t("crew.mine.disband")
@@ -4410,14 +4415,12 @@
            + '">' + t("crew.mine.claim") + "</button>"
          : "")
       + "</div>"
-      // Its own bar, like every crewless state already has. In this row it was a plain ghost
-      // button identical to "Leave crew" and two along from "Disband", so the control that
-      // ends your session looked exactly like the one that leaves your crew, beside the
-      // irreversible one.
+      // Its own bar: the control that ends your session is not the control that leaves your
+      // crew, and neither is the irreversible one.
       + '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout" title="'
       + esc(t("crew.tip.signout")) + '">'
       + t("crew.mine.signout") + "</button></div>"
-      + "</div>";
+      + "</details>";
     return h;
   }
 
@@ -6307,10 +6310,9 @@
     // board's own emblems open -- after a render, because `ALL` and `BOARD` are what
     // `crewBySlug` reads and they arrive with it.
     openCrew: function (slug) {
-      show();
       var tries = 0;
       (function wait() {
-        if (crewBySlug(slug)) { openCrewSheet(slug); return; }
+        if (TERR && TERR.crews && crewBySlug(slug)) { shine(slug); return; }
         if (++tries > 40) return;      // ~6s, then give up quietly
         setTimeout(wait, 150);
       })();

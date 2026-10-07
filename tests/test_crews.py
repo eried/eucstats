@@ -764,3 +764,35 @@ def test_an_open_crew_needs_no_code_at_all(db):
     joiner = _rider(db, "sid-inv-10")
     clan = crews.create(db, founder, "Walk Right In", join_policy="open")
     assert crews.join(db, joiner, clan.clan_id, None).status == "active"
+
+
+def test_a_crew_with_two_leaders_cannot_be_disbanded(db):
+    """Erwin: "if there is more than 1 leader we should not allow disband".
+
+    Every path that makes a leader unmakes the old one -- set_role demotes to officer,
+    claim_leadership to member -- so two is a state this code believes impossible. Disband is
+    irreversible and ends the crew for everybody in it, which is the one act that should stop
+    when the data disagrees with the model rather than carry on assuming.
+    """
+    founder = _rider(db, "sid-two-1")
+    other = _rider(db, "sid-two-2")
+    clan = crews.create(db, founder, "Two Chiefs", join_policy="open")
+    crews.join(db, other, clan.clan_id)
+
+    row = (db.query(ClanMember)
+           .filter(ClanMember.clan_id == clan.clan_id,
+                   ClanMember.store_id == other).first())
+    row.role = "leader"                      # the state the model says cannot happen
+    db.commit()
+
+    with pytest.raises(crews.CrewError) as e:
+        crews.disband(db, founder, clan.clan_id)
+    assert e.value.code == "many_leaders"
+    assert db.get(Clan, clan.clan_id).disbanded_at is None, "the crew must still be standing"
+
+
+def test_one_leader_can_still_disband(db):
+    founder = _rider(db, "sid-two-3")
+    clan = crews.create(db, founder, "One Chief", join_policy="open")
+    crews.disband(db, founder, clan.clan_id)
+    assert db.get(Clan, clan.clan_id).disbanded_at is not None
