@@ -2682,10 +2682,8 @@
          ? '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank"'
            + ' rel="noopener">' + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
            + '<div class="crewacts crewsheetacts">'
-           + (canShare()
-              ? '<button class="crewbtn" id="crewsheetshare">'
-                + esc(t("crew.share.btn")) + "</button>"
-              : "")
+           + '<button class="crewbtn" id="crewsheetshare">'
+           + esc(t("crew.share.btn")) + "</button>"
            + '<a class="crewbtn ghost" href="' + esc(c.share_url) + '" target="_blank"'
            + ' rel="noopener">' + esc(t("crew.pub.print")) + "</a></div>"
          : "")
@@ -2708,19 +2706,23 @@
     return typeof navigator !== "undefined" && typeof navigator.share === "function";
   }
 
-  // Hands the crew to whatever the device shares with. A cancelled share rejects with
-  // AbortError, which is the rider saying no and not an error to report at them.
-  function shareCrew(c, btn) {
-    if (!canShare()) return;
-    navigator.share({
-      title: c.name,
-      text: t("crew.share.text", { name: c.name }),
-      url: c.share_url,
-    }).catch(function (e) {
-      if (e && e.name === "AbortError") return;
-      if (btn) setStatus(t("crew.err"), true, btn);
-    });
+  // Hands the crew to whatever the device shares with, and copies the link when there is
+  // nothing to hand it to -- which is what a desktop does, where `navigator.share` exists,
+  // rejects, and used to leave the press with no outcome at all.
+  function shareUrl(url, name, btn) {
+    var fallback = function () {
+      copyVia(url,
+        function () { if (btn) flash(btn, t("crew.mine.copied")); },
+        function () { if (btn) setStatus(t("crew.err"), true, btn); });
+    };
+    if (!canShare()) { fallback(); return; }
+    try {
+      navigator.share({ title: name, text: t("crew.share.text", { name: name }), url: url })
+        .catch(fallback);
+    } catch (e) { fallback(); }
   }
+
+  function shareCrew(c, btn) { shareUrl(c.share_url, c.name, btn); }
 
   // `slug` puts that crew's emblem in the middle of the code. The server raises the error
   // correction to H for exactly these (see `pairing.qr_rows(robust=True)`), so the modules the
@@ -4623,15 +4625,7 @@
         + '<p class="hint">' + esc(t("crew.tip.invperm")) + "</p></div>");
     };
     var is = document.getElementById("cm-invshare");
-    if (is) is.onclick = function () {
-      if (!canShare()) return;
-      navigator.share({ title: c.name, text: t("crew.share.text", { name: c.name }),
-                        url: c.invite_url })
-        .catch(function (e) {
-          if (e && e.name === "AbortError") return;
-          setStatus(t("crew.err"), true, is);
-        });
-    };
+    if (is) is.onclick = function () { shareUrl(c.invite_url, c.name, is); };
 
     var cl = document.getElementById("cm-copylink");
     if (cl) cl.onclick = function () {

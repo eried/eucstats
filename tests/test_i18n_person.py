@@ -426,6 +426,10 @@ SHARED = {
     "crew.lose.h": {"legendHTML"},              # the card's own name, used as a key's label
     "crew.targets.h": {"legendHTML"},
     "crew.tiles": {"targetsHTML"},              # a count
+    # Flashed on the button when a link lands on the clipboard, including the Share
+    # button's fallback on a desktop, where navigator.share rejects. The word reports an
+    # event and names nobody, so the crew whose sheet it fires on does not change it.
+    "crew.mine.copied": {"shareUrl"},
     "crew.tile.fresh": {"legendHTML", "targetsHTML"},
     # Handing the pass back moved out of the crew card, because the crew card is the one
     # paired state that ALREADY had a way to do it: cooling off, removed, folded, declined and

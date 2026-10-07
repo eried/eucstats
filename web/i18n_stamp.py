@@ -152,7 +152,7 @@ EN_FINGERPRINT = {
     'champ.norides': '9d4842a10090',
     'champ.pts': 'b98ab59bdc99',
     'champ.tip': '754194cac2a9',
-    'champ.tip.crews': '0d2bf8cab6e0',
+    'champ.tip.crews': 'b019fd005833',
     'champ.title': '3d4367d304c5',
     'champ.toggle': '240e45e39568',
     'champ.week': 'f82be68a7fb4',

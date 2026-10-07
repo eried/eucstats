@@ -659,7 +659,7 @@ EN: dict[str, str] = {
     "champ.norides": "no rides yet",
     "champ.toggle": "Show / hide",
     "champ.tip": "Our secret recipe: distance is king, lifted by your top speed and time on the wheel.",
-    "champ.tip.crews": "Not distance. A crew is ranked on the biggest patch of ground it holds, counted in squares.",
+    "champ.tip.crews": "A crew is ranked on the biggest patch of ground it holds, counted in squares.",
     # empty / error states
     "empty.nodata": "no data yet",
     "empty.norecords": "no records yet",

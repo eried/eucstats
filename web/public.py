@@ -140,7 +140,7 @@ svg.ic{width:18px;height:18px;display:block}
 .champ.crews .cline b{color:var(--ink)}/* Which deck is up, and a way to say which one you want. Erwin: "there is no way to manually
    check this like those banner things with 2 positions". Two dots, in the header beside the
    controls that were already there, each a 44px target around a 7px mark. */
-.cswap{width:34px;height:30px;margin:-8px 0 -8px -9px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;cursor:pointer;border-radius:7px;transition:background .15s,transform .15s}.cswap:hover{background:rgba(255,255,255,.08)}.cswap:active{transform:scale(.92)}@media(prefers-reduced-motion:reduce){.cswap{transition:none}.cswap:active{transform:none}}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
+.cswitch{display:flex;gap:1px;align-items:center;flex:0 0 auto;margin-left:-6px}.cswap{width:28px;height:28px;margin:-7px 0;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;cursor:pointer;border-radius:7px;opacity:.34;transition:opacity .18s,background .18s,transform .15s}.cswap.on{opacity:1;background:rgba(255,255,255,.1)}.cswap:hover{opacity:.7}.cswap.on:hover{opacity:1}.cswap:active{transform:scale(.92)}@media(prefers-reduced-motion:reduce){.cswap{transition:none}.cswap:active{transform:none}}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
 .cformula{margin-top:7px;font-size:10.5px;line-height:1.45;color:var(--ink);background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:7px;padding:7px 9px}
 .cformula b{color:var(--gold)}
 .chead>span{flex:1;background:linear-gradient(90deg,#caa12f,#fff3c0,#ffd24a,#fff3c0,#caa12f);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:goldflow 4.5s linear infinite}
@@ -1042,11 +1042,12 @@ function renderChampions(){
   let deck=0;
   const paint=()=>{const d=decks[deck];
     ch.className="champ"+d.cls;
-    const nxt=decks.length>1?(deck+1)%decks.length:-1;
     const q=x=>String(x).replace(/"/g,"&quot;");
-    const mark=nxt<0?d.mark
-      :`<button class="cswap" data-go="${nxt}" title="${q(decks[nxt].label)}"`
-        +` aria-label="${q(decks[nxt].label)}">${decks[nxt].mark}</button>`;
+    const mark=decks.length<2?d.mark
+      :`<div class="cswitch">`+decks.map((x,i)=>
+          `<button class="cswap${i===deck?" on":""}" data-go="${i}"`
+          +` aria-current="${i===deck}" title="${q(x.label)}" aria-label="${q(x.label)}">`
+          +`${x.mark}</button>`).join("")+`</div>`;
     ch.innerHTML=`<div class="chead">${mark}<span>${d.label}</span><button class="cinfo" data-tip="${d.tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
     wire();};
   // The tear. Content is swapped at the midpoint, where the card is clipped to a single line
@@ -1517,8 +1518,8 @@ _CREW_PAGE = r"""<!doctype html>
 <link rel="icon" type="image/png" href="/static/favicon.png"/>
 <link rel="stylesheet" href="/static/crews.css?v=__ASSETV__"/>
 <style>
-  :root { --bg: #0b0f1c; --pan: #121a30; --ink: #e8edfb; --mut: #9aa6c8; --line: #243055;
-          --acc: #ff8ad8; }
+  :root { --bg: #f4f6fc; --pan: #fff; --ink: #11162a; --mut: #5a6484; --line: #d8deef;
+          --acc: #8c0f5d; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif,
          system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -1546,8 +1547,6 @@ _CREW_PAGE = r"""<!doctype html>
   .qr p { color: var(--mut); font-size: 12px; margin: 8px 0 0; }
   .url { display: block; margin: 4px 0 0; color: var(--acc); font-size: 12px;
          word-break: break-all; text-decoration: none; }
-  .foot { margin: 22px 0 0; color: var(--mut); font-size: 12px; text-align: center; }
-  .foot a { color: var(--mut); }
   /* Printed, this IS the sticker: white paper, the code, the crew's name and the address
      under it. Everything that only makes sense on a screen comes off. */
   @media print {
@@ -1566,29 +1565,13 @@ _CREW_PAGE = r"""<!doctype html>
        were only not caught because this block used to hide them. */
     .num span { color: #333; }
     .desc { color: #333; }
-    /* `.foot` used to go with them, which dropped the only line telling a passer-by what
-       they are looking at: "Crews cut the map into squares. Ride inside one and it turns
-       your crew's colour." On a sticker that is the whole pitch, and it was the one thing
-       the printed version threw away. */
-    .foot { color: #000; margin-top: 14px; }
-    .foot a { display: none; }
-    /* `--mut` is a dark-theme grey and printed at 2.42:1 on white -- on the surface whose
-       entire purpose is to come out of a printer and go on a backpack. */
+    /* Darker than `--mut` even so: the screen grey is comfortable on #f4f6fc and thin on
+       paper, and this is the surface whose entire purpose is to come out of a printer. */
     .qr p, .meta { color: #333; }
     .qr svg { width: 260px; height: 260px; padding: 0; }
     .url { color: #000; }
   }
-  @media (prefers-color-scheme: light) {
-    /* The site's pink is a dark-mode accent: #ff8ad8 on white is about 1.8:1, and the printed
-       address under the code is the one line a reader may have to type by hand. Darker here,
-       and the call to action keeps the bright fill with dark ink on it either way. */
-    :root:not([data-theme="dark"]) { --bg: #f4f6fc; --pan: #fff; --ink: #11162a;
-      --mut: #5a6484; --line: #d8deef; --acc: #8c0f5d; }
-    /* The call to action is ink on the accent, and at #b31277 that was 2.94:1 -- under AA
-       for 15px text and under the 3:1 floor for large text too, on the one control this
-       page has. Darker fill, white ink: 7.1:1. */
-    :root:not([data-theme="dark"]) .go { color: #fff; }
-  }
+  .go { color: #fff; }
 </style>
 </head><body>
 <div class="wrap">
@@ -1613,7 +1596,6 @@ _CREW_PAGE = r"""<!doctype html>
     <p>__SCAN__</p>
     <a class="url" href="__URL__">__URLTEXT__</a>
   </div>
-  <p class="foot">__WHAT__<br/><a href="/">EUC Stats</a></p>
 </div>
 </body></html>"""
 
@@ -1693,7 +1675,6 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
                 .replace("__OPEN__", _e(t("crew.pub.open")))
                 .replace("__QRSVG__", "").replace("__SCAN__", "")
                 .replace("__URL__", "").replace("__URLTEXT__", "")
-                .replace("__WHAT__", _e(t("crew.pub.what")))
                 .replace("__ORIGIN__", _e(_origin(request)))
                 .replace("__ASSETV__", _asset_version()),
             status_code=404, headers={"Cache-Control": "public, max-age=60"})
@@ -1782,7 +1763,6 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         .replace("__SCAN__", _e(t("crew.pub.scan")))
         .replace("__URL__", _e(url))
         .replace("__URLTEXT__", _e(url.split("://", 1)[-1]))
-        .replace("__WHAT__", _e(t("crew.pub.what")))
         .replace("__ORIGIN__", _e(origin))
         .replace("__ASSETV__", _asset_version()),
         # Cacheable for a stranger, private for a reader it knows.

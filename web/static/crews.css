@@ -706,10 +706,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewmine-wrap[open] > summary .crewsumemb { cursor: pointer; }
 
 /* The sheet a click opens. Centred, because it is one object being looked at. */
-.crewsheet { text-align: center; }
+.crewsheet { text-align: center; --sheet-sq: min(54vw, 190px); }
 .crewsheet > p { color: var(--mut, #9aa6c8); margin: 0 0 14px; }
 .crewsheetemb {
-  width: min(62vw, 260px); height: min(62vw, 260px); object-fit: contain;
+  width: var(--sheet-sq); height: var(--sheet-sq); object-fit: contain;
   display: block; margin: 2px auto 14px; border-radius: 3px;
   background: rgba(4, 8, 16, .9); border: 1px solid rgba(255, 255, 255, .22);
   box-shadow: 0 10px 34px rgba(0, 0, 0, .6); padding: 5%; box-sizing: border-box;
@@ -719,7 +719,8 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewsheetfig span { font-size: 13px; font-weight: 400; color: var(--mut, #9aa6c8); }
 .crewsheetsub { font-size: 13px; color: var(--mut, #9aa6c8); margin-top: 3px; }
 .crewsheetqr { margin-top: 16px; }
-.crewsheetqr .crewqrg { margin: 0 auto; width: min(54vw, 190px); }
+.crewsheetqr .crewqrg { margin: 0 auto; width: var(--sheet-sq); }
+.crewsheetqr + .crewshareu { margin: 6px 0 0; }
 .crewsheetacts { justify-content: center; flex-wrap: wrap; margin-top: 12px; }
 .crewinvperm { word-break: break-word; }
 .crewinvperm a { color: var(--sec, #ff8ad8); text-decoration: none; }
