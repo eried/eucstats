@@ -128,7 +128,14 @@ svg.ic{width:18px;height:18px;display:block}
 .cscore{margin-left:auto;color:var(--acc);font-weight:700;font-size:12px}/* The crews deck. Its own tint and its own accent, so a glance tells you which leaderboard
    is up without reading the title; the swatch carries the crew's real colour and pattern,
    which is the same language the map speaks. */
-.champ.crews{background:rgba(255,138,216,.07)}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
+.champ.crews{background:rgba(255,138,216,.07)}/* The swap, as the RGB-split tear this site already runs on labels. Erwin picked it from the
+   sample over slide, burn and flip, on the grounds that it is the one that already looks like
+   the rest of the page.
+   One element rather than two stacked ones: the card tears out, its contents are replaced at
+   the midpoint where nothing is legible anyway, and it reassembles. `steps()` because a
+   glitch that eases is a dissolve. */
+@keyframes chglout{0%{clip-path:inset(0 0 0 0);transform:none}34%{clip-path:inset(16% 0 44% 0);transform:translateX(-7px);filter:hue-rotate(60deg)}67%{clip-path:inset(60% 0 10% 0);transform:translateX(9px)}100%{clip-path:inset(50% 0 50% 0);opacity:0}}@keyframes chglin{0%{clip-path:inset(50% 0 50% 0);opacity:0;transform:translateX(8px)}40%{clip-path:inset(10% 0 55% 0);opacity:1;transform:translateX(-5px);filter:hue-rotate(-50deg)}75%{clip-path:inset(38% 0 12% 0);transform:translateX(3px)}100%{clip-path:inset(0 0 0 0);opacity:1;transform:none;filter:none}}.champ.glout{animation:chglout .34s steps(3,end) both}.champ.glin{animation:chglin .42s steps(4,end) both}/* Somebody who has asked not to be moved gets the swap without the tear. */
+@media(prefers-reduced-motion:reduce){.champ.glout,.champ.glin{animation:none}}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
 .cformula{margin-top:7px;font-size:10.5px;line-height:1.45;color:var(--ink);background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:7px;padding:7px 9px}
 .cformula b{color:var(--gold)}
 .chead>span{flex:1;background:linear-gradient(90deg,#caa12f,#fff3c0,#ffd24a,#fff3c0,#caa12f);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:goldflow 4.5s linear infinite}
@@ -1024,6 +1031,19 @@ function renderChampions(){
     ch.className="champ"+d.cls;
     ch.innerHTML=`<div class="chead">${d.head}<button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
     wire();};
+  // The tear. Content is swapped at the midpoint, where the card is clipped to a single line
+  // and nothing in it is legible, so the change itself is never seen happening.
+  const swapTo=(i)=>{
+    deck=i;
+    const reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if(reduced){paint();return;}
+    ch.classList.remove("glin");ch.classList.add("glout");
+    setTimeout(()=>{
+      paint();                                  // repaint clears the class with the innerHTML
+      ch.classList.remove("glout");ch.classList.add("glin");
+      setTimeout(()=>ch.classList.remove("glin"),430);
+    },330);
+  };
   const wire=()=>{
   ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.id===el.dataset.sid);if(c)flyToRider(c);};});
   // A crew row opens that crew, the way a rider row flies to that rider.
@@ -1045,7 +1065,7 @@ function renderChampions(){
   // somebody reading it, and not started at all when there is only one deck.
   clearInterval(ch._rot);
   if(decks.length>1){
-    const tick=()=>{deck=(deck+1)%decks.length;paint();};
+    const tick=()=>swapTo((deck+1)%decks.length);
     const start=()=>{clearInterval(ch._rot);ch._rot=setInterval(tick,6000);};
     start();
     ch.addEventListener("pointerenter",()=>clearInterval(ch._rot));

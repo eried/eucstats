@@ -888,6 +888,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 /* "Your crew" beside your own row in a list about personal contribution. The row tint is the
    same one the board uses for your crew, so one visual language covers both. */
+/* A finger-sized target around a small mark.
+   These emblems are 16px in a board row and 26px in a browse row, which is the picture's size
+   and should stay it: the mark is meant to read as part of the name, not as a button. So the
+   TARGET grows and the image does not -- `content-box` so the inline width/height keeps meaning
+   the picture, padding to reach 44, and a matching negative margin so nothing in the row moves.
+   Sized per context because one padding cannot serve a 16px mark and a 26px one, and a target
+   wider than its row steals taps from the row itself. */
+.crewembgo { box-sizing: content-box; }
+.crewboard .crewembgo { padding: 14px; margin: -14px; }
+.crewrow .crewembgo, .crewlist .crewembgo { padding: 9px; margin: -9px; }
+
 .crewyou { font-size: 10px; letter-spacing: .5px; text-transform: uppercase;
   color: var(--sec, #ff8ad8); font-weight: 700; }
 

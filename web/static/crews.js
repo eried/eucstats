@@ -1337,7 +1337,7 @@
           // it is keyed on the rule rather than passed blind.
           var v = (k === "crew.how.cool") ? days(COOLDOWN_DAYS) : squareKm();
           return "<li>" + t(k, { n: k === "crew.how.size" ? MAX_MEMBERS : SEED,
-                                 d: WINDOW_DAYS, c: fmtKm(capKm()), v: v }) + "</li>";
+                                 d: WINDOW_DAYS, c: fmtRung(capKm()), v: v }) + "</li>";
         }).join("")
       + "</ol>";
   }
@@ -1834,9 +1834,15 @@
     return need > n * RIDER_CEILING_KM;
   }
 
-  function effort(km, y) {
+  // `ref` overrides the row's own latitude. The word is a ratio to the local square size, so
+  // on a crew holding ground in two cities the SAME distance earns two different words in one
+  // list: a reviewer read "a short ride 0.6 km" three rows above "a few streets 0.6 km",
+  // because one square was in Oslo and the other in Paris. Each is right about its own square
+  // and the pair is nonsense on a card whose instruction is "pick one". The list passes one
+  // reference for every row, so the words sort the way the numbers do.
+  function effort(km, y, ref) {
     if (SHOW_NUMBERS) return fmtKm(km);
-    var r = km / (floorKm(y) || 0.5);
+    var r = km / (floorKm(ref == null ? y : ref) || 0.5);
     return t("crew.take." + (r <= 0.4 ? 1 : r <= 1 ? 2 : r <= 2.5 ? 3
                              : r <= 5 ? 4 : r <= 10 ? 5 : 6));
   }
@@ -1847,6 +1853,19 @@
     // 0.35 because that is the gate _pressure uses for band 0; at 0.5 the tooltip could say
     // "Yours, comfortably" and "hanging on" in the same box
     return t("crew.hold." + (r <= 0.35 ? 1 : r <= 2 ? 2 : 3));
+  }
+
+  // A ladder rung, printed whole in whichever unit the reader is on.
+  //
+  // `CAP_RUNGS_KM` exists because a rule is only a rule if it reads like one: 5 km is 3 mi,
+  // 8 is 5, 10 is 6, 13 is 8, 16 is 10, each within 3.4%. Then `fmtKm` printed the rung with
+  // one decimal and a reader in miles got "3.1 mi a week" -- the ragged number the ladder was
+  // chosen to avoid, from the one value that is guaranteed to be round. The rung IS the
+  // enforced figure, so nothing is hidden by showing it whole.
+  function fmtRung(v) {
+    var mi = !!(H.mph && H.mph());
+    var n = (v == null ? 0 : v) * (mi ? MI_PER_KM : 1);
+    return Math.round(n).toLocaleString() + (mi ? " mi" : " km");
   }
 
   function fmtKm2(v) {
@@ -1958,6 +1977,13 @@
   function targetsHTML(rows) {
     TARGETS = rows || [];
     TARGETSEL = -1;
+    // One square size for the whole list, so the effort words rank the same way the distances
+    // do. The median row's latitude rather than the first: the first can be an outlier in a
+    // crew holding two cities, and the median is the city most of the list is about.
+    var ys = TARGETS.map(function (x) { return x.y; }).filter(function (v) {
+      return typeof v === "number";
+    }).sort(function (a, b) { return a - b; });
+    var effortRef = ys.length ? ys[Math.floor(ys.length / 2)] : null;
     var head = '<div style="--kmw:' + widest(TARGETS) + 'ch" class="crewtargets'
       + (SHOW_NUMBERS ? " nums" : "") + '"><h4>' + t("crew.targets.h") + "</h4>";
     // The "ride a block anywhere" line used to show only when there were no rows at all,
@@ -2021,7 +2047,7 @@
           // A square the crew already leads has nothing to ride, and printed an empty
           // column: on a first-block card that was three rows in four saying nothing.
           var km = x.blocked ? t(x.first ? "crew.targets.got" : "crew.targets.blocked")
-                             : effort(x.need, x.y);
+                             : effort(x.need, x.y, effortRef);
           // only the holder: rows are deduplicated on effort, place and holder -- not the
           // bearing, which differs without anything differing -- so two rows can share an
           // effort word and still be different places, and a ditto there would be a mistake.
@@ -3280,7 +3306,10 @@
      writing anything. */
   // Pink runs to 345, not 330: #ff4081 sits at 340 and came out "red", which is the one
   // name nobody would give it.
-  var HUES = [[15, "red"], [45, "orange"], [70, "yellow"], [100, "lime"], [160, "green"],
+  // 12, not 15. #ff7043 is a coral at hue 14.4 and was announced as "red" to anybody using
+  // a screen reader to pick their crew's colour. A true red sits at 345-360 or under 10
+  // (#e6194b is 345.4, #ff0000 is 0), so nothing that is actually red loses its name.
+  var HUES = [[12, "red"], [45, "orange"], [70, "yellow"], [100, "lime"], [160, "green"],
               [200, "teal"], [250, "blue"], [290, "purple"], [345, "pink"], [361, "red"]];
 
   function colourName(hex) {
@@ -3306,7 +3335,10 @@
     var sat = d / (1 - Math.abs(2 * l - 1) || 1);
     // 0.68 catches #9a6324 (ochre, sat .62) while #c2410c (burnt orange, sat .88) and the
     // vivid oranges keep their name -- those are protected by the lightness test anyway.
-    if ((name === "orange" || name === "red") && l < 0.42 && sat < 0.68) name = "brown";
+    // 0.52, not 0.42. #8d6e63 is a warm brown-grey at lightness 0.47 and saturation 0.18,
+    // and was announced as "orange". The saturation test is what keeps a vivid colour its
+    // own name, and at 0.18 this is not a vivid anything.
+    if ((name === "orange" || name === "red") && l < 0.52 && sat < 0.68) name = "brown";
     var word = t("crew.hue." + name);
     if (l > 0.76) return t("crew.hue.pale", { v: word });
     if (l < 0.26) return t("crew.hue.dark", { v: word });
