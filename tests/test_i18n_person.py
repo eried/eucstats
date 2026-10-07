@@ -150,6 +150,9 @@ CARDS = {
     "crew.cancel": "none",
     "crew.decline": "none",
     "crew.now": "none",
+    # One word on the reader's own row, in a list of riders. It names the reader, so it is
+    # "rider" rather than "none" -- the voice check should hold it to addressing one person.
+    "crew.you": "rider",
     "crew.inall": "none",
     "crew.tile1": "none",
     "crew.tiles": "none",

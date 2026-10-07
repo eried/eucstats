@@ -512,6 +512,7 @@ EN_FINGERPRINT = {
     'crew.tip.signout': 'cf8011d65ea8',
     'crew.who.share': 'ee822646a15b',
     'crew.wip': 'd3e600c3a9f4',
+    'crew.you': '905cb326c779',
     'dock.app': 'fc4a695f02a8',
     'dock.brands': 'ecd05348c2a5',
     'dock.countries': '8467c0d99c79',

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 import config
 from database import get_db
-from services import settings
+from services import pairing, settings
 
 public_router = APIRouter()
 
@@ -1615,7 +1615,30 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
     origin = _origin(request)
     url = f"{origin}/c/{clan.slug}"
     desc = (f'<p class="desc">{_e(clan.description)}</p>' if clan.description else "")
-    return HTMLResponse(
+
+    # Whether the reader is already in this crew. The page told the crew's own LEADER to
+    # "Ask to join" -- it is rendered entirely server-side and had never looked at the cookie.
+    #
+    # Only consulted when a session cookie is actually present, and when it is, the response
+    # is marked private. The whole point of this page is to be scanned off a sticker and
+    # shared, so the stranger's version must stay exactly as cacheable as it was; a
+    # personalised page served from a shared cache would hand one rider another's view.
+    joined = False
+    if request.cookies.get(pairing.COOKIE):
+        try:
+            from models import ClanMember as _CM
+            ws = pairing.session(db, request.cookies.get(pairing.COOKIE))
+            if ws is not None:
+                joined = db.query(_CM).filter(
+                    _CM.clan_id == clan.clan_id, _CM.store_id == ws.store_id,
+                    _CM.status == "active", _CM.left_at.is_(None)).first() is not None
+        except Exception:
+            joined = False     # a page that cannot read a cookie is still a page
+
+    cta = ("crew.pub.open" if (joined or clan.join_policy not in ("open", "approval"))
+           else "crew.pub.join" if clan.join_policy == "open"
+           else "crew.pub.ask")
+    resp = HTMLResponse(
         _CREW_PAGE
         .replace("__LANG__", _e(loc))
         .replace("__TITLE__", _e(f"{clan.name} · EUC Stats"))
@@ -1642,9 +1665,7 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         # then offered no way to. One button, labelled by the policy it will meet:
         # an open crew says join, an approval crew says ask, and an invite-only crew
         # says open, because without a code that is honestly all this can do.
-        .replace("__OPEN__", _e(t("crew.pub.join" if clan.join_policy == "open"
-                                  else "crew.pub.ask" if clan.join_policy == "approval"
-                                  else "crew.pub.open")))
+        .replace("__OPEN__", _e(t(cta)))
         .replace("__QRSVG__", _qr_svg(url))
         .replace("__SCAN__", _e(t("crew.pub.scan")))
         .replace("__URL__", _e(url))
@@ -1652,8 +1673,18 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         .replace("__WHAT__", _e(t("crew.pub.what")))
         .replace("__ORIGIN__", _e(origin))
         .replace("__ASSETV__", _asset_version()),
-        # Public and the same for everybody, unlike every other crew response: no cookie is
-        # read here and nothing on it depends on who is asking. A minute is short enough that
-        # a rename or a new square shows up, and long enough to absorb a code being scanned by
-        # a group of riders at once.
-        headers={"Cache-Control": "public, max-age=60"})
+        # Cacheable for a stranger, private for a reader it knows.
+        #
+        # This was unconditionally `public, max-age=60`, on the stated grounds that no cookie
+        # is read here and nothing depends on who is asking. The first half of that is no
+        # longer true -- the button now says "Open in EUC Stats" rather than "Ask to join" to
+        # somebody already in the crew -- and a personalised page served from a shared cache
+        # for a minute is one rider being handed another's view.
+        #
+        # So the stranger's page is byte-identical to what it was and just as cacheable; only
+        # a request that actually carried a session cookie becomes private, and `Vary: Cookie`
+        # keeps the two apart in anything between here and the reader.
+        headers=({"Cache-Control": "private, no-store", "Vary": "Cookie"}
+                 if request.cookies.get(pairing.COOKIE)
+                 else {"Cache-Control": "public, max-age=60"}))
+    return resp

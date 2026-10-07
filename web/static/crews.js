@@ -2485,10 +2485,17 @@
       // count at all. A tiny bar stays visible through `min-width` in the stylesheet, which
       // is pixels and does not claim to be a percentage.
       var pct = share;
-      return '<div class="crewcrow">'
+      // Which row is you. This section is explicitly about personal contribution and every
+      // row rendered identically, so the only way to find yourself was to remember your own
+      // handle. The reader's handle is in the payload (`me.handle`) and every row carries the
+      // same id, so this costs nothing but a class. `crew.how.s3` is "Your crew" and already
+      // names the reader in nineteen languages; it is the board's marker too.
+      var mine = !!(ME && ME.handle && c.id && c.id === ME.handle);
+      return '<div class="crewcrow' + (mine ? " crewrowmine" : "") + '">'
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
         + (H.cc && c.flag ? H.cc(c.flag) : "")
-        + '<span class="crewcname">' + esc(c.name) + roleMark(c.role) + "</span>"
+        + '<span class="crewcname">' + esc(c.name) + roleMark(c.role)
+        + (mine ? ' <b class="crewyou">' + esc(t("crew.you")) + "</b>" : "") + "</span>"
         + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
         + '<span class="crewckm">' + fmtKm(c.km)
         + ' <i>' + t("crew.who.share", { n: share }) + "</i></span></div>";
@@ -3605,6 +3612,17 @@
     return null;
   }
 
+  // Write a refusal under the field it is about, and mark the field. Both forms do this on
+  // submit; the live `oninput` path writes the same span while you type.
+  function nameWhy(id, box, key) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = key ? t(key) : "";
+    if (box) {
+      if (key) box.setAttribute("aria-invalid", "true");
+      else box.removeAttribute("aria-invalid");
+    }
+  }
+
   function createHTML(ident) {
     // No invented fallback. Nothing is preselected until the server says what is free, which
     // is a form with no colour chosen rather than a form lying about one.
@@ -3706,7 +3724,16 @@
       var nmf = document.getElementById("cf-name");
       var why = nameProblem(nmf && nmf.value);
       if (why) {
-        setStatus(t(why), true, nmf);
+        // Under the field, and ONLY there. The live hint stays quiet while the box is empty
+        // -- a form that objects before you have typed is worse than one that answers when
+        // you ask -- so on submit "Give it a name." was reaching the anchored status line and
+        // nothing else, while every other name rule filled the hint as you typed.
+        //
+        // Writing both put the identical sentence on screen twice, twenty pixels apart. The
+        // field is focused and `aria-describedby` points at the hint, so moving focus is what
+        // announces it; a second copy announced nothing new and read as a stutter.
+        clearStatus();
+        nameWhy("cf-namewhy", nmf, why);
         if (nmf) { nmf.focus(); nmf.select(); }
         return;
       }
@@ -4113,7 +4140,11 @@
                 + '<b class="crewrolew">' + esc(t("crew.role." + x.role)) + "</b>"
               : "";
             var flag = (H.cc && x.flag) ? H.cc(x.flag) : "";
-            return '<div class="crewpendr"><span>' + flag + esc(x.name) + mark + "</span></div>";
+            var isMe = !!(ME && ME.handle && x.store_id && x.store_id === ME.handle);
+            return '<div class="crewpendr' + (isMe ? " crewrowmine" : "") + '"><span>'
+              + flag + esc(x.name) + mark
+              + (isMe ? ' <b class="crewyou">' + esc(t("crew.you")) + "</b>" : "")
+              + "</span></div>";
           }).join("")
         + "</div>";
     }
@@ -4593,7 +4624,9 @@
       var nm = document.getElementById("ce-name");
       var bad = nameProblem(nm && nm.value);
       if (bad) {
-        setStatus(t(bad), true, nm);
+        // One copy, under the field. See the note in the create form.
+        clearStatus();
+        nameWhy("ce-namewhy", nm, bad);
         if (nm) { nm.focus(); nm.select(); }
         return;
       }
@@ -5753,12 +5786,18 @@
       // `podList` and the browse list is rebuilt on every filter keystroke, so there is no
       // one place to bind and no moment at which they are all present.
       panel.querySelectorAll(".crewembgo").forEach(function (im) {
-        pressable(im, im.dataset.emb, function (ev) {
+        // Named for the crew, not for its slug, and reachable by keyboard. I shipped these
+        // announced as a control, unreachable by one, and labelled with the slug -- a URL
+        // fragment read out where a crew's name belongs. The `focusable: false` argument
+        // exists for the map's thirty emblem markers, which are reachable another way; these
+        // are the only route to the crew sheet, so they belong in the tab order.
+        var c = crewBySlug(im.dataset.emb);
+        pressable(im, (c && c.name) || im.dataset.emb, function (ev) {
           // The emblem sits inside a row that flies the map and inside a <summary> that
           // folds; neither should happen when the thing you pressed was the picture.
           if (ev) { ev.preventDefault(); ev.stopPropagation(); }
           openCrewSheet(im.dataset.emb);
-        }, false);
+        });
       });
       panel.querySelectorAll(".crewboard [data-i]").forEach(function (el) {
         var i = +el.dataset.i, r = rank[i];

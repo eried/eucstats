@@ -172,6 +172,10 @@ EN: dict[str, str] = {
     "crew.mine.ao": "in one piece",
     "crew.mine.start": "Ride a {n}x{n} block and you're on the map",
     "crew.mine.who": "Who rode for it",
+    # The marker on your own row. Not `crew.how.s3` ("Your crew"): these rows are riders,
+    # and a row that is YOU labelled "Your crew" is the wrong noun in the one list that is
+    # explicitly about people. The i18n guard caught the reuse and it was right to.
+    "crew.you": "You",
     "crew.targets.h": "Where to ride next",
     "crew.targets.p": "How much more you have to ride inside each one. Pick one to find it.",
     "crew.targets.first": "part of your first block",
