@@ -3508,11 +3508,6 @@
   // per-crew: `/crews/{slug}/join` takes the code in the body, so a code alone names nothing.
   // Encoded, because a slug is whatever the crew's name slugified to and that is not always
   // ASCII -- "Zurich Night 21" with an umlaut slugs to one.
-  function inviteLink(c) {
-    var base = location.origin + location.pathname;
-    return base + "?crew=" + encodeURIComponent(c.slug)
-         + "&code=" + encodeURIComponent(c.invite_code) + "#crews";
-  }
 
   // What this page was opened with, read once. Held rather than acted on immediately: a rider
   // arriving on an invite link is usually not signed in yet, and the code has to survive the
@@ -4174,6 +4169,7 @@
     // waiting has none.
     if (me.status !== "pending") h += drawnLine();
     if (c.invite_url) {
+      var inviteOnly = c.join_policy === "invite";
       h += '<p class="hint crewinvite crewinvperm" title="' + esc(t("crew.tip.invperm")) + '">'
         + t("crew.mine.invperm")
         + ': <a id="cm-invurl" href="' + esc(c.invite_url) + '" target="_blank"'
@@ -4185,38 +4181,29 @@
            ? '<button class="crewbtn mini ghost" id="cm-invqr">'
              + t("crew.mine.invqr") + "</button>"
            : "")
-        + (canShare()
-           ? '<button class="crewbtn mini ghost" id="cm-invshare">'
-             + t("crew.share.btn") + "</button>"
-           : "")
+        + '<button class="crewbtn mini ghost" id="cm-invshare">'
+        + t("crew.share.btn") + "</button>"
         + "</span></p>";
-    }
-    if (c.invite_code) {
-      // A button, because this is the one act a new leader has to perform and it used to be
-      // eight hex characters to select by hand inside a panel that scrolls under your finger.
-      h += '<p class="hint crewinvite">'
-        + t(c.join_policy === "invite" ? "crew.mine.invite" : "crew.mine.invite2")
-        + ': <code id="cm-invite">' + esc(c.invite_code) + "</code>"
-        // The link first: it is what you paste into a chat for somebody to tap. The code
-        // stays because it is what survives being read out, photographed, or typed on a
-        // phone that reached the site some other way, which is what "Enter code" is for.
-        // One group, so the pair wraps together instead of the second one falling alone onto
-        // a line of its own: at 390 the label, the code and the first button exactly fill the
-        // row, and the break landed between the two things that belong side by side.
-        + '<span class="crewinvbtns">'
-        + '<button class="crewbtn mini" id="cm-copylink" title="'
-        + esc(t("crew.tip.copylink")) + '" data-link="'
-        + esc(inviteLink(c)) + '">' + t("crew.mine.copylink") + "</button>"
-        + '<button class="crewbtn mini ghost" id="cm-copy" title="'
-        + esc(t("crew.tip.copycode")) + '" data-code="'
-        + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button>"
-        // Leader only: an officer lets riders in one at a time, which somebody reviews.
-        // Turning the code over changes who can get in with nobody reviewing anything.
-        + (me.role === "leader"
-           ? '<button class="crewbtn mini ghost" id="cm-newcode" title="'
-             + esc(t("crew.tip.newcode")) + '">' + t("crew.mine.newcode") + "</button>"
-           : "")
-        + "</span></p>";
+      // The same secret, written out for somebody to read down a phone. Only here: on an open
+      // or approval crew the link above is the whole invitation and a code would be a secret
+      // that opens nothing.
+      if (inviteOnly && c.invite_code) {
+        h += '<p class="hint crewinvite">'
+          + t("crew.mine.invspoken")
+          + ': <code id="cm-invite">' + esc(c.invite_code) + "</code>"
+          + '<span class="crewinvbtns">'
+          + '<button class="crewbtn mini ghost" id="cm-copy" title="'
+          + esc(t("crew.tip.copycode")) + '" data-code="'
+          + esc(c.invite_code) + '">' + t("crew.mine.copy") + "</button>"
+          // Leader only: an officer lets riders in one at a time, which somebody reviews.
+          // Replacing the code changes who can get in with nobody reviewing anything -- and
+          // now changes the link above with it, because they are one secret.
+          + (me.role === "leader"
+             ? '<button class="crewbtn mini ghost" id="cm-newcode" title="'
+               + esc(t("crew.tip.newcode")) + '">' + t("crew.mine.newcode") + "</button>"
+             : "")
+          + "</span></p>";
+      }
     }
     if (me.declined && me.declined.length) {
       h += '<div class="crewpend"><h4>' + t("crew.decl.h") + "</h4>"
@@ -4682,16 +4669,6 @@
     };
     var is = document.getElementById("cm-invshare");
     if (is) is.onclick = function () { shareUrl(c.invite_url, c.name, is); };
-
-    var cl = document.getElementById("cm-copylink");
-    if (cl) cl.onclick = function () {
-      // No `<code>` holding the URL to select, so the offscreen textarea in `copyVia` is the
-      // only fallback route; if that fails too the status line says nothing happened rather
-      // than claiming it did.
-      copyVia(cl.dataset.link || "",
-        function () { setStatus(t("crew.mine.copied"), false, cl); flash(cl, t("crew.mine.copied")); },
-        function () { setStatus(t("crew.err"), true, cl); });
-    };
 
     // A new invite code, retiring the old one. Confirmed, because it breaks every link and
     // every screenshot already handed out -- and says so, rather than asking "are you sure".

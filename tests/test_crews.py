@@ -710,55 +710,57 @@ def test_founding_a_reserved_name_is_refused_with_a_sentence(db):
         raise AssertionError("a crew called 'admin' was founded")
 
 
-# --- the permanent invite -----------------------------------------------------------------
-# Erwin: "I dont understand why I would want to break all the invitations, do we have a way to
-# make permanent invitations? I want that." So there are two halves now, and the whole value of
-# the second one is the thing these check: rotating the first must not touch it.
+# --- the invitation -----------------------------------------------------------------------
+# There is ONE secret per crew. There were briefly two -- a permanent key beside the typed
+# code -- and Erwin, looking at an APPROVAL crew that needs neither, called it what it was:
+# "the thing is I see a mess, 2 invites?". An open or approval crew is joinable from its own
+# public page, so its invitation is that page; only an invite-only crew has a door, and the
+# code is its key whether it was typed or arrived inside a link.
 
-def test_a_permanent_invite_admits_you_to_an_invite_only_crew(db):
-    founder = _rider(db, "sid-perm-1")
-    joiner = _rider(db, "sid-perm-2")
-    clan = crews.create(db, founder, "Permanent Welcome", join_policy="invite")
-    key = crews.invite_key(db, clan)
-    m = crews.join(db, joiner, clan.clan_id, key)
-    assert m.status == "active"
+def test_the_code_admits_you_to_an_invite_only_crew(db):
+    founder = _rider(db, "sid-inv-1")
+    joiner = _rider(db, "sid-inv-2")
+    clan = crews.create(db, founder, "Code At The Door", join_policy="invite")
+    assert crews.join(db, joiner, clan.clan_id, clan.invite_code).status == "active"
 
 
-def test_rotating_the_typed_code_leaves_the_permanent_invite_working(db):
-    """The point of the feature. If this fails, New code is breaking invitations again."""
+def test_the_code_is_accepted_however_it_was_cased(db):
+    """It rides in a URL and is also typed by hand, and nobody types the case."""
+    founder = _rider(db, "sid-inv-3")
+    joiner = _rider(db, "sid-inv-4")
+    clan = crews.create(db, founder, "Lower Case", join_policy="invite")
+    assert crews.join(db, joiner, clan.clan_id, clan.invite_code.lower()).status == "active"
+
+
+def test_replacing_the_code_shuts_the_old_one(db):
+    """What Replace code is for: a leaked code is the only way into an invite-only crew."""
     import uuid
-    founder = _rider(db, "sid-perm-3")
-    joiner = _rider(db, "sid-perm-4")
-    clan = crews.create(db, founder, "Still Open", join_policy="invite")
-    key = crews.invite_key(db, clan)
-    old_code = clan.invite_code
+    founder = _rider(db, "sid-inv-5")
+    joiner = _rider(db, "sid-inv-6")
+    clan = crews.create(db, founder, "Leaked", join_policy="invite")
+    old = clan.invite_code
 
     clan.invite_code = uuid.uuid4().hex[:8].upper()   # exactly what /new-invite-code does
     db.commit()
 
     with pytest.raises(crews.CrewError) as e:
-        crews.join(db, joiner, clan.clan_id, old_code)
-    assert e.value.code == "bad_invite"               # the retired code is dead, as intended
-
-    assert crews.join(db, joiner, clan.clan_id, key).status == "active"
-    assert clan.invite_key == key                     # and it was never rotated
+        crews.join(db, joiner, clan.clan_id, old)
+    assert e.value.code == "bad_invite"
+    assert crews.join(db, joiner, clan.clan_id, clan.invite_code).status == "active"
 
 
-def test_a_wrong_key_is_still_refused(db):
-    founder = _rider(db, "sid-perm-5")
-    joiner = _rider(db, "sid-perm-6")
+def test_a_wrong_code_is_refused(db):
+    founder = _rider(db, "sid-inv-7")
+    joiner = _rider(db, "sid-inv-8")
     clan = crews.create(db, founder, "Not That One", join_policy="invite")
-    crews.invite_key(db, clan)
     with pytest.raises(crews.CrewError) as e:
-        crews.join(db, joiner, clan.clan_id, "0" * 32)
+        crews.join(db, joiner, clan.clan_id, "0" * 8)
     assert e.value.code == "bad_invite"
 
 
-def test_a_crew_founded_before_the_column_existed_gets_a_key_on_first_read(db):
-    founder = _rider(db, "sid-perm-7")
-    clan = crews.create(db, founder, "Old Timer", join_policy="invite")
-    clan.invite_key = None                            # as the migration leaves it
-    db.commit()
-    key = crews.invite_key(db, clan)
-    assert key and len(key) == 32
-    assert crews.invite_key(db, clan) == key          # minted once, not on every read
+def test_an_open_crew_needs_no_code_at_all(db):
+    """Why the code row is not drawn for one: there is no door for a key to open."""
+    founder = _rider(db, "sid-inv-9")
+    joiner = _rider(db, "sid-inv-10")
+    clan = crews.create(db, founder, "Walk Right In", join_policy="open")
+    assert crews.join(db, joiner, clan.clan_id, None).status == "active"

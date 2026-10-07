@@ -888,3 +888,67 @@ def test_a_crew_cannot_rename_itself_to_a_reserved_name(client, db):
     assert r.status_code == 200, r.text
     db.refresh(mine)
     assert mine.name == "Support Crew Oslo"
+
+
+# --- the invitation, as the panel receives it ----------------------------------------------
+# This is the half I cannot look at: the invite row only renders for a signed-in leader, which
+# a browser session on a dev box does not have. Erwin saw two invitations on an APPROVAL crew
+# -- a permanent key AND a rotating code, neither of which that crew needs, since anybody can
+# ask to join from its public page. The payload is where that shape is decided.
+
+def test_an_approval_crew_is_invited_by_its_own_page(client, db):
+    _rider(db, "iv1")
+    _signed_in(client, db, "iv1")
+    client.post("/api/v1/crews", json={"name": "Knock First", "join_policy": "approval"})
+    crew = client.get("/api/v1/crews/me").json()["crew"]
+    assert crew["invite_url"].endswith("/c/knock-first"), crew["invite_url"]
+    assert "?" not in crew["invite_url"], "nothing secret rides along: there is no door"
+    assert "invite_code" not in crew, (
+        "an approval crew showed a code, which opens nothing it does not already open")
+
+
+def test_an_open_crew_is_invited_by_its_own_page(client, db):
+    _rider(db, "iv2")
+    _signed_in(client, db, "iv2")
+    client.post("/api/v1/crews", json={"name": "Walk In", "join_policy": "open"})
+    crew = client.get("/api/v1/crews/me").json()["crew"]
+    assert crew["invite_url"].endswith("/c/walk-in")
+    assert "invite_code" not in crew
+
+
+def test_an_invite_only_crew_carries_its_code_in_the_link(client, db):
+    _rider(db, "iv3")
+    _signed_in(client, db, "iv3")
+    client.post("/api/v1/crews", json={"name": "Locked Door", "join_policy": "invite"})
+    crew = client.get("/api/v1/crews/me").json()["crew"]
+    code = crew["invite_code"]
+    assert crew["invite_url"].endswith("/c/locked-door?i=" + code), crew["invite_url"]
+
+
+def test_there_is_only_ever_one_secret_in_the_payload(client, db):
+    """The mess, in one assertion: no second token beside the code."""
+    _rider(db, "iv4")
+    _signed_in(client, db, "iv4")
+    client.post("/api/v1/crews", json={"name": "One Key", "join_policy": "invite"})
+    crew = client.get("/api/v1/crews/me").json()["crew"]
+    assert "invite_key" not in crew
+    secrets = [v for k, v in crew.items() if k.startswith("invite") and k != "invite_qr"]
+    assert crew["invite_code"] in crew["invite_url"]
+    assert len(set(secrets)) == 2, (            # the code, and the url that contains it
+        "more than one secret on a crew is what made this read as two invitations: %r" % secrets)
+
+
+def test_the_public_page_accepts_the_code_in_a_link(client, db):
+    """`/c/<slug>?i=<code>` has to carry it into the app, or a valid invitation asks its
+    holder for a code they are already holding."""
+    _rider(db, "iv5")
+    _signed_in(client, db, "iv5")
+    client.post("/api/v1/crews", json={"name": "Through The Link", "join_policy": "invite"})
+    code = client.get("/api/v1/crews/me").json()["crew"]["invite_code"]
+    client.cookies.clear()                      # a stranger with the link, not a member
+
+    page = client.get("/c/through-the-link", params={"i": code}).text
+    assert "code=" + code in page, "the code did not survive the hop into the app"
+
+    wrong = client.get("/c/through-the-link", params={"i": "ZZZZZZZZ"}).text
+    assert "code=" not in wrong, "a wrong code was reflected back into the page's own link"

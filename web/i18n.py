@@ -412,7 +412,6 @@ EN: dict[str, str] = {
     "crew.e.promote": "Make somebody an officer first. Someone has to run the place.",
     "crew.e.image2": "Too busy to shrink. Try something flatter, with fewer colours.",
     "crew.e.image": "That picture will not do. A small square PNG, under 2 MB.",
-    "crew.mine.invite": "Invite code",
     # Eight hex characters a new leader had to select by hand, inside a
     # panel that scrolls under your finger.
     "crew.mine.copy": "Copy",
@@ -511,7 +510,6 @@ EN: dict[str, str] = {
     # unit it ranks on and admits what that unit does not control for.
     "crew.board.sub": "Biggest patch a crew holds, counted in squares.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
-    "crew.mine.invite2": "Invite link code",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
     "crew.days.few": "{n} days",
     "crew.days": "{n} days",
@@ -575,16 +573,16 @@ EN: dict[str, str] = {
     "crew.tip.cancel": "Takes your request back. You are not in the crew either way.",
     "crew.tip.disband": "Ends the crew for everyone in it. This cannot be undone.",
     # "Copy link" and "Copy" sat side by side with nothing on either saying which was which.
-    "crew.tip.copylink": "A link that opens this crew with the code already filled in. Good for one person, today.",
     "crew.tip.copycode": "Just the code, for reading out loud or typing in by hand.",
     # Turning the invite code over. It was generated once and could never be changed, so a
     # code in an old screenshot let somebody into an invite-only crew for ever.
-    "crew.mine.invperm": "Permanent invite",
-    "crew.tip.invperm": "A link that never changes. It still works after New code.",
+    "crew.mine.invperm": "Invite",
+    "crew.tip.invperm": "The link that opens this crew. Paste it, print it, stick it on a backpack.",
+    "crew.mine.invspoken": "Read it out",
     "crew.mine.invqr": "QR code",
-    "crew.mine.newcode": "New code",
-    "crew.tip.newcode": "Retires the typed code. Anyone still holding that is locked out; your permanent invite keeps working.",
-    "crew.mine.newcodeq": "Make a new typed code? Every screenshot of the old one stops working. Your permanent invite is not affected.",
+    "crew.mine.newcode": "Replace code",
+    "crew.tip.newcode": "Only if the code has leaked. The old one stops working, and the invite link changes with it.",
+    "crew.mine.newcodeq": "Replace the code? The old one stops working, and the invite link changes with it. Printed pages are not affected.",
     "crew.mine.newcoded": "New code. The old one is dead.",
     "crew.tip.claim": "Makes you the leader, because the one you have has gone quiet.",
     "crew.tip.signout": "Signs this browser out. The crew carries on without you here, and you need your phone to get back in.",

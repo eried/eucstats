@@ -510,13 +510,12 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                     ClanMember.left_at.is_(None))
                 .order_by(ClanMember.joined_at.asc()).all()]
             if m.role in ("leader", "officer"):
-                out["crew"]["invite_code"] = clan.invite_code
-                # The permanent half. A link, not a code: it is long, nobody reads it out, and
-                # pressing New code does not touch it -- which is the whole reason it exists.
-                out["crew"]["invite_url"] = (
-                    f"{_origin(request)}/c/{clan.slug}?i={crews.invite_key(db, clan)}")
-                out["crew"]["invite_qr"] = pairing.qr_rows(
-                    out["crew"]["invite_url"], robust=True)
+                invite = f"{_origin(request)}/c/{clan.slug}"
+                if clan.join_policy == "invite":
+                    out["crew"]["invite_code"] = clan.invite_code
+                    invite += f"?i={clan.invite_code}"
+                out["crew"]["invite_url"] = invite
+                out["crew"]["invite_qr"] = pairing.qr_rows(invite, robust=True)
 
                 # The flag belongs here too. The roster renderer has asked for `x.flag` since
                 # the fold landed -- with a comment saying "a list of riders that says nothing

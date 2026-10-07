@@ -1697,14 +1697,10 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
     origin = _origin(request)
     url = f"{origin}/c/{clan.slug}"
 
-    # A permanent invite link carries ?i=<key>. It is checked against THIS crew's key and
-    # dropped otherwise, so the page never reflects an arbitrary query parameter back into a
-    # link -- and a wrong key simply yields the ordinary page rather than a hint that it was
-    # wrong. Comparison is constant-time: the key is a credential, and this endpoint is public
-    # and unauthenticated, so it must not leak how much of a guess was right.
     import hmac
-    inv = (request.query_params.get("i") or "").strip()
-    if not (inv and clan.invite_key and hmac.compare_digest(inv, clan.invite_key)):
+    inv = (request.query_params.get("i") or "").strip().upper()
+    if not (inv and clan.invite_code
+            and hmac.compare_digest(inv, (clan.invite_code or "").upper())):
         inv = ""
     desc = (f'<p class="desc">{_e(clan.description)}</p>' if clan.description else "")
 
