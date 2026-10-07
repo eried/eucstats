@@ -289,6 +289,12 @@ class Clan(Base):
     logo_png = Column(LargeBinary)     # null -> the generated placeholder is used
     join_policy = Column(String, default="approval")   # open|approval|invite
     invite_code = Column(String)
+    # The permanent half of an invitation. `invite_code` is short, typed out loud, and can be
+    # retired when it leaks; this one is long, lives in a link and a QR, and never rotates --
+    # so a sticker on a backpack or a link pinned in a chat keeps working after the leader
+    # presses New code. Erwin: "I dont understand why I would want to break all the
+    # invitations ... there is a way to make invitations permanent? I want that".
+    invite_key = Column(String)
     created_at = Column(DateTime, default=utcnow)
     created_by = Column(String, ForeignKey("riders.store_id"))
     disbanded_at = Column(DateTime)    # set rather than deleted: trips still point here

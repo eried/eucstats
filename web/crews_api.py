@@ -451,7 +451,7 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
             # let anybody in. It carries the slug and never the code, because the point of it
             # is that it survives the code being rotated -- it is meant to be printed.
             out["crew"]["share_url"] = f"{_origin(request)}/c/{clan.slug}"
-            out["crew"]["share_qr"] = pairing.qr_rows(out["crew"]["share_url"])
+            out["crew"]["share_qr"] = pairing.qr_rows(out["crew"]["share_url"], robust=True)
             # Whether there is anything to clear. The emblem endpoint always answers with an
             # image -- the generated mark when no logo was uploaded -- so the client had no way
             # to tell the two apart, which is why clearing was a button labelled "Use the drawn
@@ -511,6 +511,12 @@ def crews_me(request: Request, response: Response, db: Session = Depends(get_db)
                 .order_by(ClanMember.joined_at.asc()).all()]
             if m.role in ("leader", "officer"):
                 out["crew"]["invite_code"] = clan.invite_code
+                # The permanent half. A link, not a code: it is long, nobody reads it out, and
+                # pressing New code does not touch it -- which is the whole reason it exists.
+                out["crew"]["invite_url"] = (
+                    f"{_origin(request)}/c/{clan.slug}?i={crews.invite_key(db, clan)}")
+                out["crew"]["invite_qr"] = pairing.qr_rows(
+                    out["crew"]["invite_url"], robust=True)
 
                 # The flag belongs here too. The roster renderer has asked for `x.flag` since
                 # the fold landed -- with a comment saying "a list of riders that says nothing

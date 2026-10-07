@@ -2648,6 +2648,8 @@
     // The action belongs to the row that already owns it: every refusal, every confirm and
     // every price sentence lives on that button. Pressing this one closes the sheet and
     // presses that one, rather than growing a second copy of the join flow in a dialog.
+    var sh = document.getElementById("crewsheetshare");
+    if (sh) sh.onclick = function () { shareCrew(mine && ME.crew ? ME.crew : c, sh); };
     var go = document.getElementById("crewsheetgo");
     if (go) go.onclick = function () {
       window.closeModal();
@@ -2674,12 +2676,18 @@
       // not at an invite code, so rotating the code does not kill a sticker already on a
       // backpack.
       + (c.share_qr
-         ? '<div class="crewsheetqr">' + qrGrid(c.share_qr)
-           + '<p class="hint">' + esc(t("crew.pub.scan")) + "</p></div>"
+         ? '<div class="crewsheetqr">' + qrGrid(c.share_qr, c.slug) + "</div>"
          : "")
       + (c.share_url
          ? '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank"'
            + ' rel="noopener">' + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
+           + '<div class="crewacts crewsheetacts">'
+           + (canShare()
+              ? '<button class="crewbtn" id="crewsheetshare">'
+                + esc(t("crew.share.btn")) + "</button>"
+              : "")
+           + '<a class="crewbtn ghost" href="' + esc(c.share_url) + '" target="_blank"'
+           + ' rel="noopener">' + esc(t("crew.pub.print")) + "</a></div>"
          : "")
       // Somebody else's crew: the sheet is where you decide, so it carries the same label the
       // browse row carries. Not shown for your own crew, and not while you are in one -- the
@@ -2693,7 +2701,31 @@
       + "</div>";
   }
 
-  function qrGrid(rows) {
+  // Feature-detected once and used by both share surfaces. `navigator.share` exists on
+  // phones and on little else, and it throws rather than resolving when the page is not
+  // secure, so a bare presence check is not enough on its own -- the caller catches.
+  function canShare() {
+    return typeof navigator !== "undefined" && typeof navigator.share === "function";
+  }
+
+  // Hands the crew to whatever the device shares with. A cancelled share rejects with
+  // AbortError, which is the rider saying no and not an error to report at them.
+  function shareCrew(c, btn) {
+    if (!canShare()) return;
+    navigator.share({
+      title: c.name,
+      text: t("crew.share.text", { name: c.name }),
+      url: c.share_url,
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") return;
+      if (btn) setStatus(t("crew.err"), true, btn);
+    });
+  }
+
+  // `slug` puts that crew's emblem in the middle of the code. The server raises the error
+  // correction to H for exactly these (see `pairing.qr_rows(robust=True)`), so the modules the
+  // emblem covers are recoverable and the code still scans.
+  function qrGrid(rows, slug) {
     if (!rows || !rows.length) return "";
     var n = rows[0].length, cells = [], y, x;
     for (y = 0; y < rows.length; y++) {
@@ -2704,7 +2736,12 @@
     }
     // `role="img"` with a name, because a thousand empty elements have neither.
     return '<div class="crewqrg" role="img" aria-label="' + esc(t("crew.signin.qralt")) + '"'
-      + ' style="grid-template-columns:repeat(' + n + ',1fr)">' + cells.join("") + "</div>";
+      + ' style="grid-template-columns:repeat(' + n + ',1fr)">' + cells.join("")
+      + (slug
+         ? '<img class="crewqrlogo" alt="" src="/api/v1/crews/'
+           + encodeURIComponent(slug) + '/emblem"/>'
+         : "")
+      + "</div>";
   }
 
   var pairRolls = 0;
@@ -4078,6 +4115,24 @@
     // nothing changes until a leader says yes. The clock is about your ground; a rider
     // waiting has none.
     if (me.status !== "pending") h += drawnLine();
+    if (c.invite_url) {
+      h += '<p class="hint crewinvite crewinvperm" title="' + esc(t("crew.tip.invperm")) + '">'
+        + t("crew.mine.invperm")
+        + ': <a id="cm-invurl" href="' + esc(c.invite_url) + '" target="_blank"'
+        + ' rel="noopener">' + esc(c.invite_url.replace(/^https?:\/\//, "")) + "</a>"
+        + '<span class="crewinvbtns">'
+        + '<button class="crewbtn mini" id="cm-copyinv" data-link="' + esc(c.invite_url)
+        + '">' + t("crew.mine.copylink") + "</button>"
+        + (c.invite_qr
+           ? '<button class="crewbtn mini ghost" id="cm-invqr">'
+             + t("crew.mine.invqr") + "</button>"
+           : "")
+        + (canShare()
+           ? '<button class="crewbtn mini ghost" id="cm-invshare">'
+             + t("crew.share.btn") + "</button>"
+           : "")
+        + "</span></p>";
+    }
     if (c.invite_code) {
       // A button, because this is the one act a new leader has to perform and it used to be
       // eight hex characters to select by hand inside a panel that scrolls under your finger.
@@ -4529,21 +4584,53 @@
       if (!c.share_url) return;
       window.openModal(t("crew.share"),
         '<div class="crewshare">'
-        + qrGrid(c.share_qr)
+        + qrGrid(c.share_qr, c.slug)
         + '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank" rel="noopener">'
         + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
         + '<p class="hint">' + esc(t("crew.share.p")) + "</p>"
         + '<div class="crewacts">'
+        + (canShare()
+           ? '<button class="crewbtn" id="cs-share">' + t("crew.share.btn") + "</button>"
+           : "")
         + '<button class="crewbtn" id="cs-copy">' + t("crew.mine.copylink") + "</button>"
         + '<a class="crewbtn ghost" href="' + esc(c.share_url) + '" target="_blank"'
         + ' rel="noopener">' + t("crew.pub.print") + "</a>"
         + "</div></div>");
+      var sb = document.getElementById("cs-share");
+      if (sb) sb.onclick = function () { shareCrew(c, sb); };
       var b = document.getElementById("cs-copy");
       if (b) b.onclick = function () {
         copyVia(c.share_url,
           function () { flash(b, t("crew.mine.copied")); },
           function () { setStatus(t("crew.err"), true, b); });
       };
+    };
+
+    // The permanent invite: copy it, show it big enough to scan, or hand it to the phone's
+    // own share sheet. Same three things the share modal offers for the public page, because
+    // this is the same act with a link that also admits you.
+    var ci = document.getElementById("cm-copyinv");
+    if (ci) ci.onclick = function () {
+      copyVia(ci.dataset.link || "",
+        function () { setStatus(t("crew.mine.copied"), false, ci); flash(ci, t("crew.mine.copied")); },
+        function () { setStatus(t("crew.err"), true, ci); });
+    };
+    var iq = document.getElementById("cm-invqr");
+    if (iq) iq.onclick = function () {
+      window.openModal(t("crew.mine.invperm"),
+        '<div class="crewshare">' + qrGrid(c.invite_qr, c.slug)
+        + '<p class="crewshareu">' + esc(c.invite_url.replace(/^https?:\/\//, "")) + "</p>"
+        + '<p class="hint">' + esc(t("crew.tip.invperm")) + "</p></div>");
+    };
+    var is = document.getElementById("cm-invshare");
+    if (is) is.onclick = function () {
+      if (!canShare()) return;
+      navigator.share({ title: c.name, text: t("crew.share.text", { name: c.name }),
+                        url: c.invite_url })
+        .catch(function (e) {
+          if (e && e.name === "AbortError") return;
+          setStatus(t("crew.err"), true, is);
+        });
     };
 
     var cl = document.getElementById("cm-copylink");

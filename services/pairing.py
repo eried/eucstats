@@ -243,7 +243,7 @@ def sweep(db) -> int:
     return n
 
 
-def qr_rows(text: str) -> list[str]:
+def qr_rows(text: str, robust: bool = False) -> list[str]:
     """The code's own modules, one string of 0/1 per row.
 
     The panel draws these as squares rather than scaling a bitmap: it is sharper at any size,
@@ -254,9 +254,19 @@ def qr_rows(text: str) -> list[str]:
     and worth writing down so nobody repeats the guess.
 
     The quiet zone is included, because a QR without its border is a QR that readers refuse.
+
+    `robust` raises the error correction from M (~15% recoverable) to H (~30%), for the one
+    caller that draws something ON the code: a crew's share QR wears the crew's own emblem in
+    the middle, and the modules it covers have to be recoverable from the rest. It costs
+    modules -- the grid comes back denser -- so the pairing code, which carries no logo, does
+    not pay for it.
     """
     import qrcode
-    q = qrcode.QRCode(border=2)
+    q = qrcode.QRCode(
+        border=2,
+        error_correction=qrcode.constants.ERROR_CORRECT_H if robust
+        else qrcode.constants.ERROR_CORRECT_M,
+    )
     q.add_data(text)
     q.make(fit=True)
     return ["".join("1" if cell else "0" for cell in row) for row in q.get_matrix()]

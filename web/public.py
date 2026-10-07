@@ -128,7 +128,7 @@ svg.ic{width:18px;height:18px;display:block}
 .cscore{margin-left:auto;color:var(--acc);font-weight:700;font-size:12px}/* The crews deck. Its own tint and its own accent, so a glance tells you which leaderboard
    is up without reading the title; the swatch carries the crew's real colour and pattern,
    which is the same language the map speaks. */
-.champ.crews{background:rgba(255,138,216,.07)}/* The swap, as the RGB-split tear this site already runs on labels. Erwin picked it from the
+.champ.crews{background:rgba(255,138,216,.15);border-bottom-color:rgba(255,138,216,.38)}/* The swap, as the RGB-split tear this site already runs on labels. Erwin picked it from the
    sample over slide, burn and flip, on the grounds that it is the one that already looks like
    the rest of the page.
    One element rather than two stacked ones: the card tears out, its contents are replaced at
@@ -140,7 +140,7 @@ svg.ic{width:18px;height:18px;display:block}
 .champ.crews .cline b{color:var(--ink)}/* Which deck is up, and a way to say which one you want. Erwin: "there is no way to manually
    check this like those banner things with 2 positions". Two dots, in the header beside the
    controls that were already there, each a 44px target around a 7px mark. */
-.chead>.cdots{flex:0 0 auto}.cdots{display:flex;gap:0;align-items:center}.cdot{width:26px;height:30px;margin:-8px 0;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;cursor:pointer;color:var(--gold)}.cdot::after{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.32;transition:opacity .2s,transform .2s}.cdot[aria-current=true]::after{opacity:1;transform:scale(1.25)}.cdot:hover::after{opacity:.75}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
+.cswap{width:34px;height:30px;margin:-8px 0 -8px -9px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;cursor:pointer;border-radius:7px;transition:background .15s,transform .15s}.cswap:hover{background:rgba(255,255,255,.08)}.cswap:active{transform:scale(.92)}@media(prefers-reduced-motion:reduce){.cswap{transition:none}.cswap:active{transform:none}}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
 .cformula{margin-top:7px;font-size:10.5px;line-height:1.45;color:var(--ink);background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:7px;padding:7px 9px}
 .cformula b{color:var(--gold)}
 .chead>span{flex:1;background:linear-gradient(90deg,#caa12f,#fff3c0,#ffd24a,#fff3c0,#caa12f);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:goldflow 4.5s linear infinite}
@@ -1028,9 +1028,12 @@ function renderChampions(){
   // reading it. Erwin: "maybe the crews should look different".
   const crewLine=(lab,c)=>c?`<div class="cline" data-crew="${c.slug}"><span class="clab">${lab}</span><span class="csw" style="background:${c.colour}" data-p="${c.pattern}"></span><b>${c.name}</b><span class="cscore">${t("crew.tiles",{n:c.tiles})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
   const haveCrews=!!(CC&&(CC.day||CC.week||CC.month));
-  const decks=[{cls:"",label:t("champ.title"),head:`${FLAG}<span>${t("champ.title")}</span>`,
+  // The crews deck is ranked on squares held, not on the rider formula, so it cannot borrow
+  // the riders tip -- it was explaining a score this card does not show.
+  const tipCrews=t("champ.tip.crews").replace(/"/g,"&quot;");
+  const decks=[{cls:"",label:t("champ.title"),mark:FLAG,tip:tip,
                 rows:line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month)}];
-  if(haveCrews)decks.push({cls:" crews",label:t("champ.crews"),head:`${CREWMARK}<span>${t("champ.crews")}</span>`,
+  if(haveCrews)decks.push({cls:" crews",label:t("champ.crews"),mark:CREWMARK,tip:tipCrews,
                 rows:crewLine(t("champ.day"),CC.day)+crewLine(t("champ.week"),CC.week)+crewLine(t("champ.month"),CC.month)});
   // Crews first when the visitor was sent here by a crew link, which is the one case where we
   // know what they came for. Erwin asked for this explicitly.
@@ -1039,9 +1042,12 @@ function renderChampions(){
   let deck=0;
   const paint=()=>{const d=decks[deck];
     ch.className="champ"+d.cls;
-    const dots=decks.length>1?`<div class="cdots">`+decks.map((x,i)=>
-      `<button class="cdot" data-deck="${i}" aria-current="${i===deck}" aria-label="${x.label}"></button>`).join("")+`</div>`:"";
-    ch.innerHTML=`<div class="chead">${d.head}${dots}<button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
+    const nxt=decks.length>1?(deck+1)%decks.length:-1;
+    const q=x=>String(x).replace(/"/g,"&quot;");
+    const mark=nxt<0?d.mark
+      :`<button class="cswap" data-go="${nxt}" title="${q(decks[nxt].label)}"`
+        +` aria-label="${q(decks[nxt].label)}">${decks[nxt].mark}</button>`;
+    ch.innerHTML=`<div class="chead">${mark}<span>${d.label}</span><button class="cinfo" data-tip="${d.tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
     wire();};
   // The tear. Content is swapped at the midpoint, where the card is clipped to a single line
   // and nothing in it is legible, so the change itself is never seen happening.
@@ -1057,11 +1063,11 @@ function renderChampions(){
     },330);
   };
   const wire=()=>{
-  // A dot picks its deck and restarts the clock, so pressing one does not leave you two
-  // seconds from being moved off what you just asked for.
-  ch.querySelectorAll(".cdot").forEach(b=>{b.onclick=e=>{
+  // Pressing it restarts the clock too, so asking for a deck does not leave you two seconds
+  // from being moved off the one you just asked for.
+  ch.querySelectorAll(".cswap").forEach(b=>{b.onclick=e=>{
     e.stopPropagation();
-    const i=+b.dataset.deck;
+    const i=+b.dataset.go;
     if(i!==deck)swapTo(i);
     if(decks.length>1&&ch._restart)ch._restart();
   };});
@@ -1600,7 +1606,7 @@ _CREW_PAGE = r"""<!doctype html>
       <div class="num"><b>__TILES__</b><span>__TILESW__</span></div>
       <div class="num"><b>__KM2__</b><span>km&sup2;</span></div>
     </div>
-    <a class="go" href="/?crew=__SLUG__#crews">__OPEN__</a>
+    <a class="go" href="/?crew=__SLUG____INV__#crews">__OPEN__</a>
   </div>
   <div class="qr">
     __QRSVG__
@@ -1704,6 +1710,16 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
     tiles = clan.terr_best_tiles or 0
     origin = _origin(request)
     url = f"{origin}/c/{clan.slug}"
+
+    # A permanent invite link carries ?i=<key>. It is checked against THIS crew's key and
+    # dropped otherwise, so the page never reflects an arbitrary query parameter back into a
+    # link -- and a wrong key simply yields the ordinary page rather than a hint that it was
+    # wrong. Comparison is constant-time: the key is a credential, and this endpoint is public
+    # and unauthenticated, so it must not leak how much of a guess was right.
+    import hmac
+    inv = (request.query_params.get("i") or "").strip()
+    if not (inv and clan.invite_key and hmac.compare_digest(inv, clan.invite_key)):
+        inv = ""
     desc = (f'<p class="desc">{_e(clan.description)}</p>' if clan.description else "")
 
     # Whether the reader is already in this crew. The page told the crew's own LEADER to
@@ -1736,6 +1752,12 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         .replace("__BLURB__", _e(clan.description or t("crew.pub.what")))
         .replace("__NAME__", _e(clan.name))
         .replace("__SLUG__", _e(clan.slug))
+        # A permanent invite arrives as /c/<slug>?i=<key> and has to survive the hop into the
+        # app, or an invite-only crew asks the holder of a valid invitation for a code. The key
+        # rides across as `code`, which is the parameter the panel already reads and which
+        # `crews.join` now accepts either half of. Echoed only when it is the real one: this
+        # value comes off the query string, so anything else is somebody else's text.
+        .replace("__INV__", ("&code=" + _e(inv)) if inv else "")
         .replace("__COLOUR__", _e(clan.colour or "#a9a9a9"))
         .replace("__PATTERN__", _e(clan.pattern or "solid"))
         .replace("__RIDERS__", _e(t("crew.rider1" if n == 1 else "crew.riders", n=n)))
@@ -1775,6 +1797,6 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         # a request that actually carried a session cookie becomes private, and `Vary: Cookie`
         # keeps the two apart in anything between here and the reader.
         headers=({"Cache-Control": "private, no-store", "Vary": "Cookie"}
-                 if request.cookies.get(pairing.COOKIE)
+                 if (request.cookies.get(pairing.COOKIE) or inv)
                  else {"Cache-Control": "public, max-age=60"}))
     return resp

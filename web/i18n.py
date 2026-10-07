@@ -174,7 +174,7 @@ EN: dict[str, str] = {
     "crew.first.h": "Ride something first",
     "crew.first.p": "Crews are for riders. Send up one ride and you can start your own. Joining one works right now.",
     # your crew
-    "crew.mine.ao": "in one piece",
+    "crew.mine.ao": "in one patch",
     "crew.mine.start": "Ride a {n}x{n} block and you're on the map",
     "crew.mine.who": "Who rode for it",
     # The marker on your own row. Not `crew.how.s3` ("Your crew"): these rows are riders,
@@ -472,7 +472,7 @@ EN: dict[str, str] = {
     "crew.how.c0": "Uncontested. Nobody else has put a wheel in it lately.",
     "crew.how.s4": "What the colours mean",
     "crew.how.s5": "What the numbers mean",
-    "crew.how.n1": "The board ranks a crew on its biggest patch in one piece, not on everything it holds. Two patches of ten lose to one of eleven.",
+    "crew.how.n1": "The board ranks a crew on its biggest patch, not on everything it holds. Two patches of ten lose to one of eleven.",
     # This said "squares and km² are the same thing counted twice" and then, in the same
     # breath, that squares differ by latitude -- and closed with "SO a square is the same
     # amount of riding everywhere", which inverts its own inference: a wider square takes
@@ -509,7 +509,7 @@ EN: dict[str, str] = {
     # The second half claimed a square is the same ride anywhere, which the board directly
     # below it disproves -- and it is the board's OWN subtitle. The honest version names the
     # unit it ranks on and admits what that unit does not control for.
-    "crew.board.sub": "Biggest patch a crew holds in one piece, counted in squares, and a square covers more ground nearer the equator.",
+    "crew.board.sub": "Biggest patch a crew holds, counted in squares.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.invite2": "Invite link code",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
@@ -554,6 +554,8 @@ EN: dict[str, str] = {
     "crew.pub.folded": "This crew has folded.",
     "crew.pub.print": "Printable code",
     "crew.share": "Share crew",
+    "crew.share.btn": "Share",
+    "crew.share.text": "{name} on EUC Stats",
     "crew.share.p": "Print it, stick it on your backpack. It points at the crew and not at a code, so a new code does not kill it.",
     "crew.roles.h": "The crew",
     # The roster's fold. NOT `crew.join.all`, which folds a list of CREWS: Polish wants the
@@ -576,9 +578,12 @@ EN: dict[str, str] = {
     "crew.tip.copycode": "Just the code, for reading out loud or typing in by hand.",
     # Turning the invite code over. It was generated once and could never be changed, so a
     # code in an old screenshot let somebody into an invite-only crew for ever.
+    "crew.mine.invperm": "Permanent invite",
+    "crew.tip.invperm": "A link that never changes. It still works after New code.",
+    "crew.mine.invqr": "QR code",
     "crew.mine.newcode": "New code",
-    "crew.tip.newcode": "Retires the old code. Anyone still holding it is locked out.",
-    "crew.mine.newcodeq": "Make a new invite code? Every link and screenshot of the old one stops working.",
+    "crew.tip.newcode": "Retires the typed code. Anyone still holding that is locked out; your permanent invite keeps working.",
+    "crew.mine.newcodeq": "Make a new typed code? Every screenshot of the old one stops working. Your permanent invite is not affected.",
     "crew.mine.newcoded": "New code. The old one is dead.",
     "crew.tip.claim": "Makes you the leader, because the one you have has gone quiet.",
     "crew.tip.signout": "Signs this browser out. The crew carries on without you here, and you need your phone to get back in.",
@@ -646,7 +651,7 @@ EN: dict[str, str] = {
     "champ.title": "EUC Planet Champions",
     # The second card in the same slot, when crews are switched on. Its own title, because
     # the two are different leaderboards and a reader has to know which one is up.
-    "champ.crews": "Crew Champions",
+    "champ.crews": "Crew Domination",
     "champ.day": "Day",
     "champ.week": "Week",
     "champ.month": "Month",
@@ -654,6 +659,7 @@ EN: dict[str, str] = {
     "champ.norides": "no rides yet",
     "champ.toggle": "Show / hide",
     "champ.tip": "Our secret recipe: distance is king, lifted by your top speed and time on the wheel.",
+    "champ.tip.crews": "Not distance. A crew is ranked on the biggest patch of ground it holds, counted in squares.",
     # empty / error states
     "empty.nodata": "no data yet",
     "empty.norecords": "no records yet",
