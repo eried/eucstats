@@ -135,7 +135,12 @@ svg.ic{width:18px;height:18px;display:block}
    the midpoint where nothing is legible anyway, and it reassembles. `steps()` because a
    glitch that eases is a dissolve. */
 @keyframes chglout{0%{clip-path:inset(0 0 0 0);transform:none}34%{clip-path:inset(16% 0 44% 0);transform:translateX(-7px);filter:hue-rotate(60deg)}67%{clip-path:inset(60% 0 10% 0);transform:translateX(9px)}100%{clip-path:inset(50% 0 50% 0);opacity:0}}@keyframes chglin{0%{clip-path:inset(50% 0 50% 0);opacity:0;transform:translateX(8px)}40%{clip-path:inset(10% 0 55% 0);opacity:1;transform:translateX(-5px);filter:hue-rotate(-50deg)}75%{clip-path:inset(38% 0 12% 0);transform:translateX(3px)}100%{clip-path:inset(0 0 0 0);opacity:1;transform:none;filter:none}}.champ.glout{animation:chglout .34s steps(3,end) both}.champ.glin{animation:chglin .42s steps(4,end) both}/* Somebody who has asked not to be moved gets the swap without the tear. */
-@media(prefers-reduced-motion:reduce){.champ.glout,.champ.glin{animation:none}}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
+@media(prefers-reduced-motion:reduce){.champ.glout,.champ.glin{animation:none}}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}/* The crew's name is not gold here. `.cline b` is gold because the riders card is gold; on a
+   pink card it read as a third colour competing with both. */
+.champ.crews .cline b{color:var(--ink)}/* Which deck is up, and a way to say which one you want. Erwin: "there is no way to manually
+   check this like those banner things with 2 positions". Two dots, in the header beside the
+   controls that were already there, each a 44px target around a 7px mark. */
+.chead>.cdots{flex:0 0 auto}.cdots{display:flex;gap:0;align-items:center}.cdot{width:26px;height:30px;margin:-8px 0;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;cursor:pointer;color:var(--gold)}.cdot::after{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.32;transition:opacity .2s,transform .2s}.cdot[aria-current=true]::after{opacity:1;transform:scale(1.25)}.cdot:hover::after{opacity:.75}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
 .cformula{margin-top:7px;font-size:10.5px;line-height:1.45;color:var(--ink);background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:7px;padding:7px 9px}
 .cformula b{color:var(--gold)}
 .chead>span{flex:1;background:linear-gradient(90deg,#caa12f,#fff3c0,#ffd24a,#fff3c0,#caa12f);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:goldflow 4.5s linear infinite}
@@ -469,7 +474,12 @@ const av=(id,has,e)=>anonView(e)?`<img class="av anonav" alt="" src="${dazzle(e.
   :(has===false?`<span class="av avph">${avInitial(e)}</span>`:`<img class="av" alt="" src="${API}/riders/${encodeURIComponent(id)}/avatar" onerror="this.style.visibility='hidden'"/>`);
 const rider=e=>`<span class="rider${e&&e.anon?' anonrow':''}">${av(e.id,e.has_avatar,e)}${anonView(e)?GLOBE():cc(e.flag)}<span>${anonView(e)?anonName(e):(e.name||'rider')}</span></span>`;
 const CROWN='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-1.8 12H4.8L3 7Z"/></svg>';
-const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>';
+const FLAG='<svg class="cflag" viewBox="0 0 24 24"><path d="M5 21V3" stroke="#caa12f" stroke-width="2" fill="none" stroke-linecap="round"/><path class="cflagwave" d="M6 4h11l-2.4 3.3L17 10.6H6z" fill="#ffd24a"/></svg>'
+/* The crews deck's own mark: four held squares, which is what the mode is about. This was two
+   block CHARACTERS reusing `.cflag`, the class the flag SVG above is sized by -- so it rendered
+   as two plain white rectangles that read as a missing glyph. An icon beside an icon has to be
+   an icon. */
+const CREWMARK='<svg class="cflag" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8.4" height="8.4" rx="1.4" fill="#ff8ad8"/><rect x="12.6" y="3" width="8.4" height="8.4" rx="1.4" fill="#ff8ad8" opacity=".45"/><rect x="3" y="12.6" width="8.4" height="8.4" rx="1.4" fill="#ff8ad8" opacity=".45"/><rect x="12.6" y="12.6" width="8.4" height="8.4" rx="1.4" fill="#ff8ad8"/></svg>';
 const CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v3a2 2 0 0 1-2 2H4M20 9h-3a2 2 0 0 1-2-2V4M4 15h3a2 2 0 0 1 2 2v3M15 20v-3a2 2 0 0 1 2-2h3"/></svg>';
 const IC={
  early:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 18h18M12 9a4 4 0 0 1 4 4H8a4 4 0 0 1 4-4zM12 5V3M5 9 3.5 7.5M19 9l1.5-1.5"/></svg>',
@@ -1018,9 +1028,9 @@ function renderChampions(){
   // reading it. Erwin: "maybe the crews should look different".
   const crewLine=(lab,c)=>c?`<div class="cline" data-crew="${c.slug}"><span class="clab">${lab}</span><span class="csw" style="background:${c.colour}" data-p="${c.pattern}"></span><b>${c.name}</b><span class="cscore">${t("crew.tiles",{n:c.tiles})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
   const haveCrews=!!(CC&&(CC.day||CC.week||CC.month));
-  const decks=[{cls:"",head:`${FLAG}<span>${t("champ.title")}</span>`,
+  const decks=[{cls:"",label:t("champ.title"),head:`${FLAG}<span>${t("champ.title")}</span>`,
                 rows:line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month)}];
-  if(haveCrews)decks.push({cls:" crews",head:`<span class="cflag">&#9646;&#9647;</span><span>${t("champ.crews")}</span>`,
+  if(haveCrews)decks.push({cls:" crews",label:t("champ.crews"),head:`${CREWMARK}<span>${t("champ.crews")}</span>`,
                 rows:crewLine(t("champ.day"),CC.day)+crewLine(t("champ.week"),CC.week)+crewLine(t("champ.month"),CC.month)});
   // Crews first when the visitor was sent here by a crew link, which is the one case where we
   // know what they came for. Erwin asked for this explicitly.
@@ -1029,7 +1039,9 @@ function renderChampions(){
   let deck=0;
   const paint=()=>{const d=decks[deck];
     ch.className="champ"+d.cls;
-    ch.innerHTML=`<div class="chead">${d.head}<button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
+    const dots=decks.length>1?`<div class="cdots">`+decks.map((x,i)=>
+      `<button class="cdot" data-deck="${i}" aria-current="${i===deck}" aria-label="${x.label}"></button>`).join("")+`</div>`:"";
+    ch.innerHTML=`<div class="chead">${d.head}${dots}<button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
     wire();};
   // The tear. Content is swapped at the midpoint, where the card is clipped to a single line
   // and nothing in it is legible, so the change itself is never seen happening.
@@ -1045,6 +1057,14 @@ function renderChampions(){
     },330);
   };
   const wire=()=>{
+  // A dot picks its deck and restarts the clock, so pressing one does not leave you two
+  // seconds from being moved off what you just asked for.
+  ch.querySelectorAll(".cdot").forEach(b=>{b.onclick=e=>{
+    e.stopPropagation();
+    const i=+b.dataset.deck;
+    if(i!==deck)swapTo(i);
+    if(decks.length>1&&ch._restart)ch._restart();
+  };});
   ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.id===el.dataset.sid);if(c)flyToRider(c);};});
   // A crew row opens that crew, the way a rider row flies to that rider.
   ch.querySelectorAll(".cline[data-crew]").forEach(el=>{el.style.cursor="pointer";el.onclick=(e)=>{
@@ -1067,6 +1087,7 @@ function renderChampions(){
   if(decks.length>1){
     const tick=()=>swapTo((deck+1)%decks.length);
     const start=()=>{clearInterval(ch._rot);ch._rot=setInterval(tick,6000);};
+    ch._restart=start;
     start();
     ch.addEventListener("pointerenter",()=>clearInterval(ch._rot));
     ch.addEventListener("pointerleave",start);

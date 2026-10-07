@@ -139,6 +139,11 @@ RAW_ATTRS = {
 }
 ATTR = re.compile(r"""(title|alt|aria-label)\s*=\s*(["'])([^"']*)\2""")
 WORDS = re.compile(r"[A-Za-z]{3,}")
+# public.py builds its markup with template literals, crews.js with concatenation. Both are
+# interpolation: what lands in the attribute came from somewhere else and is that line's
+# business, not this one's. Only the text OUTSIDE the holes is this attribute's own English,
+# so `aria-label="${x.label}"` passes while `aria-label="Crew ${name}"` still does not.
+HOLE = re.compile(r"\$\{[^}]*\}")
 HOOK = {"title": "data-i18n-title", "aria-label": "data-i18n-aria", "alt": "data-i18n-alt"}
 
 
@@ -147,7 +152,7 @@ def test_no_attribute_carries_english_that_the_tables_cannot_reach():
     for name, src in (("crews.js", JS), ("public.py", PUBLIC), ("crews_api.py", API)):
         for m in ATTR.finditer(src):
             attr, value = m.group(1), m.group(3)
-            if not value.strip() or not WORDS.search(value):
+            if not value.strip() or not WORDS.search(HOLE.sub("", value)):
                 continue
             if '" + ' in value or "esc(" in value:
                 continue                   # interpolated, so it came from somewhere else
