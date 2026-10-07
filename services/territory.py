@@ -221,6 +221,36 @@ def _per_tile_km(points, zoom: int) -> dict[str, float]:
     return out
 
 
+def ridden_tiles(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> set:
+    """Every square anybody has ridden in, crew or not.
+
+    `accumulate` only sees trips attributed to a crew, because that is what scoring is about.
+    Ridability is a different question with a different answer: Erwin, on four targets in the
+    sea off Tromso -- "if we dont have from this crew we can use data from other riders to
+    validate which ones can be taken". A rider with no crew still proves there is a road.
+
+    No coastline, no geometry, no guessing: a square somebody has ridden in is a square
+    somebody has ridden in. That is the whole test.
+    """
+    since = utcnow() - timedelta(days=window_days)
+    uuids = [r[0] for r in
+             db.query(Trip.trip_uuid)
+             .filter(Trip.validation_status == "validated",
+                     Trip.start_utc >= since,
+                     Trip.distance_km > 0).all()]
+    out: set = set()
+    tracks = _tracks_for(db, uuids)
+    for u in uuids:
+        pts = _decode(tracks.get(u))
+        if len(pts) < 2:
+            continue
+        for tile in _per_tile_km(pts, zoom):
+            pt = T.parse(tile)
+            if pt:
+                out.add((pt[1], pt[2]))
+    return out
+
+
 def accumulate(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM) -> dict:
     """({tile: {clan_id: [km, {riders}]}}, {(tile, clan): recency}) over the window.
 
@@ -856,7 +886,8 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                 limit: int = 8, seed: int = SEED, holder_of: dict | None = None,
                 mine: set | None = None, leads: set | None = None, names: dict | None = None,
                 patches: list | None = None, buckets: dict | None = None,
-                rideable: set | None = None) -> list[dict]:
+                rideable: set | None = None,
+                ridden: set | None = None) -> list[dict]:
     """The ground this crew could take next, and what taking it would do.
 
     This is the one question the mode has to answer and did not. A rider could see that a tile
@@ -984,15 +1015,23 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     #
     # Falls back to unfiltered rather than handing a crew an empty card: a brand-new crew in a
     # city nobody else rides should still be told where to go.
-    if rideable:
-        # `block` is exempt. A crew holding nothing is offered one 2x2 block anchored on a
-        # square it has ridden, and the far corner of that block touches the anchor only
-        # diagonally -- but it shares an edge with the block's other two squares, so the route
-        # exists through the block being proposed. The fringe rule is about reaching ground
-        # from ground, and this is the one candidate that brings its own ground with it.
-        plausible = {q for q in cand if q in rideable or q in block}
-        if plausible:
-            cand = plausible
+    # `block` is exempt throughout. A crew holding nothing is offered one 2x2 block anchored on
+    # a square it has ridden, and the far corner of that block touches the anchor only
+    # diagonally -- but it shares an edge with the block's other two squares, so the route
+    # exists through the block being proposed. It is the one candidate that brings its own
+    # ground with it.
+    if ridden:
+        been = {q for q in cand if q in ridden or q in block}
+        if been:
+            cand = been
+        elif rideable:
+            fringe = {q for q in cand if q in rideable or q in block}
+            if fringe:
+                cand = fringe
+    elif rideable:
+        fringe = {q for q in cand if q in rideable or q in block}
+        if fringe:
+            cand = fringe
 
     patch_of = {}
     for i, comp in enumerate(patches):
@@ -1032,6 +1071,7 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
                     "joins": len(touching) > 1 or (x, y) in link_road,
                     "links": link_len if (x, y) in link_road else 0,
                     "grows": biggest is not None and biggest in touching,
+                    "mine": (x, y) in (mine or set()),
                     "blocked": need <= 0.0 and km > 0.0})
 
     def rank(t):
@@ -1294,6 +1334,14 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         if pt:
             _ridden.add((pt[1], pt[2]))
     _ridden |= set(holder_of)
+    # Ridability is everybody's business. `_ridden` is crew-attributed riding, which is what
+    # scoring is built on; whether a wheel can physically get somewhere is answered better by
+    # every validated trip on the box. Falls back to the crew-only set if that query finds
+    # nothing, so a fresh install behaves as before.
+    try:
+        anybody_rode = ridden_tiles(db, window_days=window_days, zoom=zoom) or set(_ridden)
+    except Exception:
+        anybody_rode = set(_ridden)
     rideable = set(_ridden)
     # Edges, not corners. This dilated 3x3, and a diagonal is not a route: you cannot ride
     # through the point where four squares meet. Everything else in this model already agrees
@@ -1339,7 +1387,7 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                 holder_of=holder_of, mine=mine_by_clan.get(clan_id, set()),
                 leads=leads_by_clan.get(clan_id),
                 patches=patches_by_clan.get(clan_id, []), buckets=buckets,
-                names=names_for, rideable=rideable))
+                names=names_for, rideable=rideable, ridden=anybody_rode))
         except Exception:
             # A silent failure here empties every crew's list and then tells crews that hold
             # ground that they hold none, which is the opposite of the truth.

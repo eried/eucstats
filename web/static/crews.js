@@ -1101,7 +1101,7 @@
     if (hl) hl.onclick = function () {
       var slug = hl.getAttribute("data-hl");
       if (POPUP) { POPUP.remove(); POPUP = null; }
-      shine(slug);
+      blink(slug);
     };
     if (det) det.onclick = function () {
       var slug = det.getAttribute("data-det");
@@ -1142,36 +1142,39 @@
      The wave is a per-square delay keyed on distance from the patch's centre, which is the
      same trick the sign-in QR uses on its modules. Nothing moves under prefers-reduced-motion;
      the CSS decides that, not this. */
-  function shine(slug) {
-    if (!TERR || !map.getLayer("crew-fill")) return;
+  // The patch a crew is ranked on, as features carrying how far out each square sits: 0 at
+  // the middle, 1 at the rim. Both animations below read that number; neither adds or removes
+  // anything while it runs.
+  function patchFeatures(slug) {
+    if (!TERR || !map.getLayer("crew-fill")) return null;
     var idx = -1;
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
-    if (idx < 0) return;
+    if (idx < 0) return null;
     var pts = [], i;
     for (i = 0; i < TERR.cells.length; i += 5) {
       if (TERR.cells[i] === idx) pts.push([TERR.cells[i + 1], TERR.cells[i + 2]]);
     }
     var patch = biggestPatch(pts);
-    if (!patch.length) return;
+    if (!patch.length) return null;
     var cx = 0, cy = 0;
     patch.forEach(function (q) { cx += q[0]; cy += q[1]; });
     cx /= patch.length; cy /= patch.length;
     var far = 1;
-    patch.forEach(function (q) {
-      far = Math.max(far, Math.hypot(q[0] - cx, q[1] - cy));
-    });
-    // Every square carries how far out it sits, 0 at the middle and 1 at the edge. The
-    // animation then moves a single number across that range; nothing is added or removed.
-    var feats = patch.map(function (q) {
-      return { type: "Feature",
-               properties: { d: Math.hypot(q[0] - cx, q[1] - cy) / far },
-               geometry: { type: "Polygon", coordinates: tileRing(q[0], q[1], TERR.z) } };
-    });
-    // Bring the patch into view first. Without this the button was a literal no-op whenever
-    // the crew's biggest patch was not the one under your finger -- tap a Berlin square of a
-    // crew whose biggest patch is in Oslo and the whole animation played off screen. And on a
-    // phone the popup sits directly over the square you tapped, so even the right patch was
-    // partly behind it.
+    patch.forEach(function (q) { far = Math.max(far, Math.hypot(q[0] - cx, q[1] - cy)); });
+    return {
+      patch: patch,
+      feats: patch.map(function (q) {
+        return { type: "Feature",
+                 properties: { d: Math.hypot(q[0] - cx, q[1] - cy) / far },
+                 geometry: { type: "Polygon", coordinates: tileRing(q[0], q[1], TERR.z) } };
+      })
+    };
+  }
+
+  // Bring the patch into view first. Without this either control was a literal no-op whenever
+  // the crew's biggest patch was not the one under your finger -- tap a Berlin square of a
+  // crew whose biggest patch is in Oslo and the whole animation played off screen.
+  function framePatch(patch) {
     var b = new maplibregl.LngLatBounds();
     patch.forEach(function (q) {
       b.extend([tileLon(q[0], TERR.z), tileLat(q[1], TERR.z)]);
@@ -1181,15 +1184,45 @@
       map.fitBounds(b, { padding: shinePadding(), maxZoom: 12.5, duration: 700,
                          essential: true });
     } catch (e) {}
+  }
 
-    setShineFeatures(feats);
+  // The wave, which is now what opening a crew from the standings does. Erwin asked for it
+  // there and for two flashes on the popup's own button: pressing Highlight on a square you
+  // are already looking at wants an answer, not a performance.
+  function shine(slug) {
+    var p = patchFeatures(slug);
+    if (!p) return;
+    framePatch(p.patch);
+    setShineFeatures(p.feats);
     setTimeout(function () { runWave(); }, 760);
+  }
+
+  // Twice, and done. Flat opacity: there is no front to follow, the point is only "this one".
+  function blink(slug) {
+    var p = patchFeatures(slug);
+    if (!p) return;
+    framePatch(p.patch);
+    setShineFeatures(p.feats);
+    if (waveRaf) { cancelAnimationFrame(waveRaf); waveRaf = 0; }
+    var on = function () {
+      if (map.getLayer("crew-shine")) map.setPaintProperty("crew-shine", "fill-opacity", WAVE_PEAK);
+    };
+    var off = function () {
+      if (map.getLayer("crew-shine")) map.setPaintProperty("crew-shine", "fill-opacity", 0);
+    };
+    [[760, on], [960, off], [1130, on], [1330, off]].forEach(function (step) {
+      setTimeout(step[1], step[0]);
+    });
+    setTimeout(function () { paintShine([]); }, 1420);
   }
 
   // How the front is shaped. LEAD is how far ahead of itself a square starts to catch the
   // light; TAIL is how long it keeps it afterwards -- longer, so the wave has a direction
   // rather than being a symmetrical pulse. PEAK was the layer's old flat opacity.
-  var WAVE_LEAD = 0.14, WAVE_TAIL = 0.55, WAVE_PEAK = 0.62, WAVE_MS = 1500;
+  // A long tail is what makes it read as one moving thing rather than a band passing by:
+  // at 0.85 most of the patch is lit at once and the trailing edge is still fading when
+  // the front reaches the rim, so the glow overlaps itself across the whole sweep.
+  var WAVE_LEAD = 0.2, WAVE_TAIL = 0.85, WAVE_PEAK = 0.8, WAVE_MS = 1700;
   var waveRaf = 0;
 
   function waveOpacity(front) {
@@ -4177,10 +4210,6 @@
         + '<span class="crewinvbtns">'
         + '<button class="crewbtn mini" id="cm-copyinv" data-link="' + esc(c.invite_url)
         + '">' + t("crew.mine.copylink") + "</button>"
-        + (c.invite_qr
-           ? '<button class="crewbtn mini ghost" id="cm-invqr">'
-             + t("crew.mine.invqr") + "</button>"
-           : "")
         + '<button class="crewbtn mini ghost" id="cm-invshare">'
         + t("crew.share.btn") + "</button>"
         + "</span></p>";
@@ -4361,13 +4390,6 @@
         + "</details>";
     }
     h += '<div class="crewacts">'
-      // Every member gets this, not only the two roles that can invite: handing out where
-      // the crew lives is not the same act as letting somebody in, and a rider who cannot
-      // approve anybody can still put a code on their backpack.
-      + (c.share_url
-         ? '<button class="crewbtn ghost" id="cm-share" title="'
-           + esc(t("crew.share.p")) + '">' + t("crew.share") + "</button>"
-         : "")
       // `title` on each of these: the labels are in this feature's voice and the voice is only
       // free when the plain meaning is one hover away. Pulling a request and leaving a crew
       // are different acts, so they do not share an explanation.
@@ -4620,52 +4642,14 @@
       });
     }
 
-    // Share crew: the address that goes on a sticker, with its code big enough to scan off
-    // a phone held up to somebody. Deliberately NOT the invite link -- an invite code can be
-    // rotated and a printed one cannot, so what leaves this card carries the slug.
-    var sh = document.getElementById("cm-share");
-    if (sh) sh.onclick = function () {
-      var c = (ME && ME.crew) || {};
-      if (!c.share_url) return;
-      window.openModal(t("crew.share"),
-        '<div class="crewshare">'
-        + qrGrid(c.share_qr, c.slug)
-        + '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank" rel="noopener">'
-        + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
-        + '<p class="hint">' + esc(t("crew.share.p")) + "</p>"
-        + '<div class="crewacts">'
-        + (canShare()
-           ? '<button class="crewbtn" id="cs-share">' + t("crew.share.btn") + "</button>"
-           : "")
-        + '<button class="crewbtn" id="cs-copy">' + t("crew.mine.copylink") + "</button>"
-        + '<a class="crewbtn ghost" href="' + esc(c.share_url) + '" target="_blank"'
-        + ' rel="noopener">' + t("crew.pub.print") + "</a>"
-        + "</div></div>");
-      var sb = document.getElementById("cs-share");
-      if (sb) sb.onclick = function () { shareCrew(c, sb); };
-      var b = document.getElementById("cs-copy");
-      if (b) b.onclick = function () {
-        copyVia(c.share_url,
-          function () { flash(b, t("crew.mine.copied")); },
-          function () { setStatus(t("crew.err"), true, b); });
-      };
-    };
-
     // The permanent invite: copy it, show it big enough to scan, or hand it to the phone's
     // own share sheet. Same three things the share modal offers for the public page, because
     // this is the same act with a link that also admits you.
     var ci = document.getElementById("cm-copyinv");
     if (ci) ci.onclick = function () {
       copyVia(ci.dataset.link || "",
-        function () { setStatus(t("crew.mine.copied"), false, ci); flash(ci, t("crew.mine.copied")); },
+        function () { flash(ci, t("crew.mine.copied")); },
         function () { setStatus(t("crew.err"), true, ci); });
-    };
-    var iq = document.getElementById("cm-invqr");
-    if (iq) iq.onclick = function () {
-      window.openModal(t("crew.mine.invperm"),
-        '<div class="crewshare">' + qrGrid(c.invite_qr, c.slug)
-        + '<p class="crewshareu">' + esc(c.invite_url.replace(/^https?:\/\//, "")) + "</p>"
-        + '<p class="hint">' + esc(t("crew.tip.invperm")) + "</p></div>");
     };
     var is = document.getElementById("cm-invshare");
     if (is) is.onclick = function () { shareUrl(c.invite_url, c.name, is); };
@@ -4708,7 +4692,6 @@
       // it is the live region and a reader who cannot see the button needs telling; what
       // changes is that the eye is answered where the thumb was.
       function done() {
-        setStatus(t("crew.mine.copied"), false, cp);
         flash(cp, t("crew.mine.copied"));
       }
       function pick() {
@@ -4829,9 +4812,9 @@
       // first-block square -- and `TARGETS` is assigned inside targetsHTML, which used to be
       // concatenated on the next line. It was answering from the previous card's array, and
       // from an empty one the first time the panel opened.
-      var tgt = { html: "", first: false };
+      var tgt = { first: false };
       if (me.status !== "pending") {
-        tgt.html = targetsHTML(r.body.targets);
+        targetsHTML(r.body.targets);          // for TARGETS, which the map rings read
         tgt.first = !!(TARGETS.length && TARGETS[0].first);
       }
       // "0 squares in one piece" is the first line of the first card a new leader sees, and
@@ -4857,8 +4840,9 @@
         // `0 km2 · ` with nothing following the dot -- on the first card every founder
         // sees, which is the third time this shape has shipped.
         + (terr.tiles || tgt.first ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
-        + (me.status === "pending" ? "" : tgt.html + safely(function () {
-            return loseHTML(c.slug);
+        + (me.status === "pending" ? "" : safely(function () {
+            loseHTML(c.slug);                 // for LOSING, same reason
+            return "";
           }))
         // Behind a guard, and so is the losing list above it. This whole body is one
         // assignment, so when `contributorsHTML` threw -- `av()` called an `esc` that does
@@ -5940,8 +5924,8 @@
         el.classList.toggle("crewrowmine", mine);
         pressable(el, (r && rowLabel(el)) + (mine ? " · " + t("crew.how.s3") : ""), function () {
           if (!r) return;
-          flyToCrew(r.slug);
           closeIfCovering();
+          shine(r.slug);
         });
       });
     });
@@ -6236,7 +6220,11 @@
     if (!map || !TERR || !map.isStyleLoaded()) return;
     var feats = (rows || []).map(function (x, i) {
       return { type: "Feature",
-               properties: { sel: i === TARGETSEL ? 1 : 0, dim: x.blocked ? 1 : 0, lose: 0 },
+               properties: { sel: i === TARGETSEL ? 1 : 0, dim: x.blocked ? 1 : 0, lose: 0,
+                             // whose riding proved this square is rideable: faint when it
+                             // was somebody outside the crew, because that is ground you
+                             // have not been on yourself
+                             far: x.mine ? 0 : 1 },
                geometry: { type: "Polygon", coordinates: tileRing(x.x, x.y, TERR.z) } };
     });
     if (losing) {
@@ -6273,7 +6261,8 @@
         "line-width": ["interpolate", ["linear"], ["zoom"],
                        8, ["case", ["==", ["get", "sel"], 1], 3.2, 1.6],
                        14, ["case", ["==", ["get", "sel"], 1], 5.5, 3]],
-        "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 0.95]
+        "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.45,
+                                 ["==", ["get", "far"], 1], 0.6, 0.95]
       }
     });
     addLayer({

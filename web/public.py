@@ -119,7 +119,7 @@ svg.ic{width:18px;height:18px;display:block}
    have a click handler. It is set with the display, beside the handler that earns
    it; see renderChampions(). */
 .topbar.collapsed .chead,.topbar.tight .chead{margin:0}
-.topbar.collapsed .chead>span,.topbar.collapsed .cinfo,.topbar.collapsed .ccol,.topbar.collapsed .cline,.topbar.tight .chead>span,.topbar.tight .cinfo,.topbar.tight .ccol,.topbar.tight .cline{display:none}
+.topbar.collapsed .chead>span,.topbar.collapsed .cinfo,.topbar.collapsed .ccol,.topbar.collapsed .cline,.topbar.tight .chead>span,.topbar.tight .cinfo,.topbar.tight .ccol,.topbar.tight .cline{display:none}.topbar.collapsed .crows,.topbar.tight .crows{display:none}.topbar.collapsed .cswap:not(.on),.topbar.tight .cswap:not(.on){display:none}.topbar.collapsed .cswap,.topbar.tight .cswap{width:auto;height:auto;margin:0;opacity:1;background:none;border-radius:0;pointer-events:none}.topbar.collapsed .cswap .cflag,.topbar.tight .cswap .cflag{width:18px;height:18px}
 .topbar.collapsed .champ::after,.topbar.tight .champ::after{display:none}
 .topbar.collapsed .cflag,.topbar.tight .cflag{width:24px;height:24px}
 .cline{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0}
@@ -134,8 +134,8 @@ svg.ic{width:18px;height:18px;display:block}
    One element rather than two stacked ones: the card tears out, its contents are replaced at
    the midpoint where nothing is legible anyway, and it reassembles. `steps()` because a
    glitch that eases is a dissolve. */
-@keyframes chslout{to{opacity:0;transform:translateX(var(--sl,-22px))}}@keyframes chslin{from{opacity:0;transform:translateX(calc(var(--sl,-22px)*-1))}}.champ.glout{animation:chslout .2s cubic-bezier(.4,0,1,1) both}.champ.glin{animation:chslin .26s cubic-bezier(0,0,.2,1) both}/* Somebody who has asked not to be moved gets the swap without the tear. */
-@media(prefers-reduced-motion:reduce){.champ.glout,.champ.glin{animation:none}}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}/* The crew's name is not gold here. `.cline b` is gold because the riders card is gold; on a
+@keyframes chslout{to{opacity:0;transform:translateX(var(--sl,-22px))}}@keyframes chslin{from{opacity:0;transform:translateX(calc(var(--sl,-22px)*-1))}}.champ.glout .crows{animation:chslout .2s cubic-bezier(.4,0,1,1) both}.champ.glin .crows{animation:chslin .26s cubic-bezier(0,0,.2,1) both}@keyframes chttear{0%{clip-path:inset(0 0 0 0);transform:none}34%{clip-path:inset(14% 0 46% 0);transform:translateX(-5px)}67%{clip-path:inset(58% 0 12% 0);transform:translateX(6px)}100%{clip-path:inset(50% 0 50% 0);opacity:0}}@keyframes chtmend{0%{clip-path:inset(50% 0 50% 0);opacity:0}44%{clip-path:inset(18% 0 34% 0);opacity:1;transform:translateX(4px)}100%{clip-path:inset(0 0 0 0);transform:none}}.champ.glout .chead>span{animation:goldflow 4.5s linear infinite,chttear .2s steps(3,end) both}.champ.glin .chead>span{animation:goldflow 4.5s linear infinite,chtmend .26s steps(4,end) both}/* Somebody who has asked not to be moved gets the swap without the tear. */
+@media(prefers-reduced-motion:reduce){.champ.glout .crows,.champ.glin .crows{animation:none}.champ.glout .chead>span,.champ.glin .chead>span{animation:goldflow 4.5s linear infinite}}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}/* The crew's name is not gold here. `.cline b` is gold because the riders card is gold; on a
    pink card it read as a third colour competing with both. */
 .champ.crews .cline b{color:var(--ink)}/* Which deck is up, and a way to say which one you want. Erwin: "there is no way to manually
    check this like those banner things with 2 positions". Two dots, in the header beside the
@@ -1048,7 +1048,7 @@ function renderChampions(){
           `<button class="cswap${i===deck?" on":""}" data-go="${i}"`
           +` aria-current="${i===deck}" title="${q(x.label)}" aria-label="${q(x.label)}">`
           +`${x.mark}</button>`).join("")+`</div>`;
-    ch.innerHTML=`<div class="chead">${mark}<span>${d.label}</span><button class="cinfo" data-tip="${d.tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
+    ch.innerHTML=`<div class="chead">${mark}<span>${d.label}</span><button class="cinfo" data-tip="${d.tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div><div class="crows">${d.rows}</div>`;
     wire();};
   // The tear. Content is swapped at the midpoint, where the card is clipped to a single line
   // and nothing in it is legible, so the change itself is never seen happening.
@@ -1677,7 +1677,8 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
                 .replace("__RIDERS__", "").replace("__POLICY__", "")
                 .replace("__PATTERN__", "solid").replace("__COLOUR__", "#4a4a4a")
                 .replace("__TILES__", "0").replace("__TILESW__", "").replace("__KM2__", "0")
-                .replace("__OPEN__", _e(t("crew.pub.open")))
+                .replace("__OPEN__", _e(t("crew.pub.open",
+                        host=_origin(request).split("://", 1)[-1].rstrip("/"))))
                 .replace("__QRSVG__", "").replace("__SCAN__", "")
                 .replace("__URL__", "").replace("__URLTEXT__", "")
                 .replace("__ORIGIN__", _e(_origin(request)))
@@ -1724,7 +1725,8 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
             joined = False     # a page that cannot read a cookie is still a page
 
     host = origin.split("://", 1)[-1].rstrip("/")
-    cta_text = (t("crew.pub.open") if joined else t("crew.pub.joinvia", host=host))
+    cta_text = (t("crew.pub.open", host=host) if joined
+                else t("crew.pub.joinvia", host=host))
     resp = HTMLResponse(
         _CREW_PAGE
         .replace("__LANG__", _e(loc))

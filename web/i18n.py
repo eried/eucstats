@@ -543,7 +543,7 @@ EN: dict[str, str] = {
     "crew.pop.details": "Details",
     "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
     "crew.pub.scan": "Scan to find this crew",
-    "crew.pub.open": "Open in EUC Stats",
+    "crew.pub.open": "Check it out in {host}",
     # What the button on a crew's own page says, chosen by how that crew lets people in.
     # It used to say "Open in EUC Stats" for all three, on a page whose whole job is
     # recruitment and which states "anyone can join" two lines above it.
@@ -552,10 +552,8 @@ EN: dict[str, str] = {
     "crew.pub.joinvia": "Join via {host}",
     "crew.pub.folded": "This crew has folded.",
     "crew.pub.print": "Printable code",
-    "crew.share": "Share crew",
     "crew.share.btn": "Share",
     "crew.share.text": "{name} on EUC Stats",
-    "crew.share.p": "Print it, stick it on your backpack. It points at the crew and not at a code, so a new code does not kill it.",
     "crew.roles.h": "The crew",
     # The roster's fold. NOT `crew.join.all`, which folds a list of CREWS: Polish wants the
     # masculine-personal "wszystkich" for people and Russian the animate "всех", and the
@@ -579,7 +577,6 @@ EN: dict[str, str] = {
     "crew.mine.invperm": "Invite",
     "crew.tip.invperm": "The link that opens this crew. Paste it, print it, stick it on a backpack.",
     "crew.mine.invspoken": "Read it out",
-    "crew.mine.invqr": "QR code",
     "crew.mine.newcode": "Replace code",
     "crew.tip.newcode": "Only if the code has leaked. The old one stops working, and the invite link changes with it.",
     "crew.mine.newcodeq": "Replace the code? The old one stops working, and the invite link changes with it. Printed pages are not affected.",
