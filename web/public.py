@@ -134,7 +134,7 @@ svg.ic{width:18px;height:18px;display:block}
    One element rather than two stacked ones: the card tears out, its contents are replaced at
    the midpoint where nothing is legible anyway, and it reassembles. `steps()` because a
    glitch that eases is a dissolve. */
-@keyframes chglout{0%{clip-path:inset(0 0 0 0);transform:none}34%{clip-path:inset(16% 0 44% 0);transform:translateX(-7px);filter:hue-rotate(60deg)}67%{clip-path:inset(60% 0 10% 0);transform:translateX(9px)}100%{clip-path:inset(50% 0 50% 0);opacity:0}}@keyframes chglin{0%{clip-path:inset(50% 0 50% 0);opacity:0;transform:translateX(8px)}40%{clip-path:inset(10% 0 55% 0);opacity:1;transform:translateX(-5px);filter:hue-rotate(-50deg)}75%{clip-path:inset(38% 0 12% 0);transform:translateX(3px)}100%{clip-path:inset(0 0 0 0);opacity:1;transform:none;filter:none}}.champ.glout{animation:chglout .34s steps(3,end) both}.champ.glin{animation:chglin .42s steps(4,end) both}/* Somebody who has asked not to be moved gets the swap without the tear. */
+@keyframes chslout{to{opacity:0;transform:translateX(var(--sl,-22px))}}@keyframes chslin{from{opacity:0;transform:translateX(calc(var(--sl,-22px)*-1))}}.champ.glout{animation:chslout .2s cubic-bezier(.4,0,1,1) both}.champ.glin{animation:chslin .26s cubic-bezier(0,0,.2,1) both}/* Somebody who has asked not to be moved gets the swap without the tear. */
 @media(prefers-reduced-motion:reduce){.champ.glout,.champ.glin{animation:none}}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}/* The crew's name is not gold here. `.cline b` is gold because the riders card is gold; on a
    pink card it read as a third colour competing with both. */
 .champ.crews .cline b{color:var(--ink)}/* Which deck is up, and a way to say which one you want. Erwin: "there is no way to manually
@@ -1053,15 +1053,19 @@ function renderChampions(){
   // The tear. Content is swapped at the midpoint, where the card is clipped to a single line
   // and nothing in it is legible, so the change itself is never seen happening.
   const swapTo=(i)=>{
+    const back=i<deck;
     deck=i;
     const reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if(reduced){paint();return;}
+    // The direction is the one you pressed: choosing the deck on the right sends this one out
+    // to the left and brings that one in from the right. One property reverses both halves.
+    ch.style.setProperty("--sl",(back?22:-22)+"px");
     ch.classList.remove("glin");ch.classList.add("glout");
     setTimeout(()=>{
       paint();                                  // repaint clears the class with the innerHTML
       ch.classList.remove("glout");ch.classList.add("glin");
-      setTimeout(()=>ch.classList.remove("glin"),430);
-    },330);
+      setTimeout(()=>ch.classList.remove("glin"),280);
+    },200);
   };
   const wire=()=>{
   // Pressing it restarts the clock too, so asking for a deck does not leave you two seconds
@@ -1557,7 +1561,8 @@ _CREW_PAGE = r"""<!doctype html>
        one line ("Up is the only direction.") and the figure is what they are bragging about;
        between them they are the whole reason a stranger with a phone stops walking. The
        button goes, because a printed link is not pressable. */
-    .go { display: none; }
+    .go { background: none; color: #000; padding: 6px 0 0; font-weight: 600;
+          text-align: center; }
     .nums { border-top: 1px solid #ccc; }
     .num b { color: #000; }
     /* `--mut` again. The rule two lines down already catches it for `.meta` and the QR
@@ -1722,9 +1727,8 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         except Exception:
             joined = False     # a page that cannot read a cookie is still a page
 
-    cta = ("crew.pub.open" if (joined or clan.join_policy not in ("open", "approval"))
-           else "crew.pub.join" if clan.join_policy == "open"
-           else "crew.pub.ask")
+    host = origin.split("://", 1)[-1].rstrip("/")
+    cta_text = (t("crew.pub.open") if joined else t("crew.pub.joinvia", host=host))
     resp = HTMLResponse(
         _CREW_PAGE
         .replace("__LANG__", _e(loc))
@@ -1758,7 +1762,7 @@ def crew_page(slug: str, request: Request, db: Session = Depends(get_db)):
         # then offered no way to. One button, labelled by the policy it will meet:
         # an open crew says join, an approval crew says ask, and an invite-only crew
         # says open, because without a code that is honestly all this can do.
-        .replace("__OPEN__", _e(t(cta)))
+        .replace("__OPEN__", _e(cta_text))
         .replace("__QRSVG__", _qr_svg(url))
         .replace("__SCAN__", _e(t("crew.pub.scan")))
         .replace("__URL__", _e(url))

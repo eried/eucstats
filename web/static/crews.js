@@ -566,8 +566,8 @@
       { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     addLayer({
       id: "crew-shine", type: "fill", source: "crew-shine-src",
-      paint: { "fill-color": "#ffffff", "fill-opacity": 0.5, "fill-antialias": false,
-               "fill-opacity-transition": { duration: 240 } }
+      paint: { "fill-color": "#ffffff", "fill-opacity": 0, "fill-antialias": false,
+               "fill-opacity-transition": { duration: 0 } }
     });
     // the glow sits under the hairline so a border reads at low zoom without being fat
     // Pressure needs a second channel. A shade on a dark map is something you notice
@@ -705,12 +705,7 @@
       // which is the keyboard route that makes sense.
       pressable(el, crew.name, function (ev) {
         if (ev) ev.stopPropagation();
-        // `openCrewDetail`, not `openCrew`. The second opens the panel and flies the map --
-        // and on a phone the panel is 76% of the screen, so the fly-to happens entirely
-        // behind it and the crew you tapped is never named. You tapped a crew's emblem and
-        // got an unrelated card scrolled to the top. The popup's own Details button has done
-        // the right thing for rounds: open, scroll to that crew's row, flash it.
-        openCrewDetail(crew.slug);
+        if (!popupAtEmblem([lon, lat])) openCrewDetail(crew.slug);
       }, false);
       var m = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([lon, lat]).addTo(map);
@@ -995,6 +990,20 @@
       return el;
   }
 
+  // The popup a crew's own mark raises: the same one its ground raises, because it is the
+  // same question asked by pointing at the same place. `onCellClick` wants a layer event, so
+  // the feature under the mark is looked up and handed to it rather than the handler being
+  // split in two.
+  function popupAtEmblem(lngLat) {
+    if (!map.getLayer || !map.getLayer("crew-fill")) return false;
+    var pt;
+    try { pt = map.project(lngLat); } catch (e) { return false; }
+    var fs = map.queryRenderedFeatures(pt, { layers: ["crew-fill"] });
+    if (!fs || !fs.length) return false;
+    onCellClick({ features: fs, point: pt, lngLat: { lng: lngLat[0], lat: lngLat[1] } });
+    return true;
+  }
+
   function onCellClick(e) {
     // A target ring over a rival's ground is both a crew-fill feature and a crew-target-hit
     // feature, and both layers had a click handler, so the one tap the card is shouting
@@ -1040,13 +1049,23 @@
     // Only when the panel is actually covering that point, so a click on open map keeps
     // MapLibre's own placement.
     var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
+    var POP_H = 170;                       // about the tallest this popup gets
     var panelEl = document.querySelector(".panel.open");
+    var pt = map.project(e.lngLat);
     if (panelEl) {
       var pr = panelEl.getBoundingClientRect();
-      var pt = map.project(e.lngLat);
-      // 170px is about the tallest this popup gets; below that line a downward popup would
-      // run into the panel.
-      if (pt.y + 170 > pr.top) popOpts.anchor = "bottom";
+      // Below that line a downward popup would run into the panel.
+      if (pt.y + POP_H > pr.top) popOpts.anchor = "bottom";
+    }
+    // And the same problem at the other end. The champions card sits in the topbar, so a
+    // popup placed ABOVE a point high on the map opens underneath it -- which is where a
+    // crew's own emblem usually is, since the marker sits at the middle of its region. Only
+    // applied when there is room below, so it can never fight the rule above.
+    var topEl = document.querySelector(".topbar");
+    if (popOpts.anchor !== "bottom" && topEl) {
+      var tr = topEl.getBoundingClientRect();
+      var floor = panelEl ? panelEl.getBoundingClientRect().top : window.innerHeight;
+      if (pt.y - POP_H < tr.bottom && floor - pt.y >= POP_H) popOpts.anchor = "top";
     }
     POPUP = new maplibregl.Popup(popOpts)
       .setLngLat(e.lngLat)
@@ -1141,11 +1160,12 @@
     patch.forEach(function (q) {
       far = Math.max(far, Math.hypot(q[0] - cx, q[1] - cy));
     });
-    // Rings outward from the middle: each square waits for the ring it is on.
-    var rings = {};
-    patch.forEach(function (q) {
-      var r = Math.round(Math.hypot(q[0] - cx, q[1] - cy) / far * SHINE_RINGS);
-      (rings[r] = rings[r] || []).push(q);
+    // Every square carries how far out it sits, 0 at the middle and 1 at the edge. The
+    // animation then moves a single number across that range; nothing is added or removed.
+    var feats = patch.map(function (q) {
+      return { type: "Feature",
+               properties: { d: Math.hypot(q[0] - cx, q[1] - cy) / far },
+               geometry: { type: "Polygon", coordinates: tileRing(q[0], q[1], TERR.z) } };
     });
     // Bring the patch into view first. Without this the button was a literal no-op whenever
     // the crew's biggest patch was not the one under your finger -- tap a Berlin square of a
@@ -1162,25 +1182,61 @@
                          essential: true });
     } catch (e) {}
 
-    // Each ring holds, rather than flashing past. The whole thing used to be over in 770ms
-    // with the rings 70ms apart, which is below the threshold at which anybody registers a
-    // deliberate animation: a reviewer screenshotted it at one second and got an identical
-    // frame, and had to force a capture at 250ms to see anything at all. It starts after the
-    // camera has moved, for the same reason.
-    var step = 150, lead = 760;
-    Object.keys(rings).forEach(function (r) {
-      setTimeout(function () { paintShine(rings[r]); }, lead + Number(r) * step);
-    });
-    // and the last ring is left lit for a beat before it clears
-    setTimeout(function () { paintShine(patch); }, lead + (SHINE_RINGS + 1) * step);
-    setTimeout(function () { paintShine([]); }, lead + (SHINE_RINGS + 7) * step);
+    setShineFeatures(feats);
+    setTimeout(function () { runWave(); }, 760);
   }
 
-  var SHINE_RINGS = 10;
+  // How the front is shaped. LEAD is how far ahead of itself a square starts to catch the
+  // light; TAIL is how long it keeps it afterwards -- longer, so the wave has a direction
+  // rather than being a symmetrical pulse. PEAK was the layer's old flat opacity.
+  var WAVE_LEAD = 0.14, WAVE_TAIL = 0.55, WAVE_PEAK = 0.62, WAVE_MS = 1500;
+  var waveRaf = 0;
+
+  function waveOpacity(front) {
+    return ["interpolate", ["linear"], ["-", front, ["get", "d"]],
+            -WAVE_LEAD, 0, 0, WAVE_PEAK, WAVE_TAIL, 0];
+  }
+
+  function runWave() {
+    if (!map.getLayer || !map.getLayer("crew-shine")) return;
+    if (waveRaf) { cancelAnimationFrame(waveRaf); waveRaf = 0; }
+    // Reduced motion gets the patch lit evenly and let go, which is what the key already
+    // promises: the control still works, it just does not sweep.
+    var reduced = window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      map.setPaintProperty("crew-shine", "fill-opacity", WAVE_PEAK * 0.6);
+      setTimeout(function () { paintShine([]); }, 1400);
+      return;
+    }
+    var from = -WAVE_LEAD, to = 1 + WAVE_TAIL, t0 = 0;
+    var frame = function (ts) {
+      if (!t0) t0 = ts;
+      if (!map.getLayer("crew-shine")) { waveRaf = 0; return; }
+      var p = Math.min(1, (ts - t0) / WAVE_MS);
+      map.setPaintProperty("crew-shine", "fill-opacity",
+                           waveOpacity(from + (to - from) * p));
+      if (p < 1) { waveRaf = requestAnimationFrame(frame); return; }
+      waveRaf = 0;
+      paintShine([]);                       // the front has left the patch; drop the geometry
+    };
+    waveRaf = requestAnimationFrame(frame);
+  }
+
+  function setShineFeatures(feats) {
+    var src = map.getSource && map.getSource("crew-shine-src");
+    if (!src) return;
+    // Start dark: the camera is still moving, and a patch that lights before it arrives is
+    // the thing the 760ms delay below exists to prevent.
+    map.setPaintProperty("crew-shine", "fill-opacity", 0);
+    src.setData({ type: "FeatureCollection", features: feats });
+  }
 
   // The ring currently lit, as one polygon set on its own source. A filter on `crew-cells`
   // cannot do this: that source merges every square of a crew and band into a single
   // MultiPolygon, so there is no per-square feature there to match.
+  // Only ever called with [] now: the wave owns what is lit, through opacity. Kept as the one
+  // place that empties the source, so clearing is one call and not a literal in three.
   function paintShine(cells) {
     var src = map.getSource && map.getSource("crew-shine-src");
     if (!src) return;

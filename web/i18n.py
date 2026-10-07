@@ -551,6 +551,7 @@ EN: dict[str, str] = {
     # recruitment and which states "anyone can join" two lines above it.
     "crew.pub.join": "Join this crew",
     "crew.pub.ask": "Ask to join",
+    "crew.pub.joinvia": "Join via {host}",
     "crew.pub.folded": "This crew has folded.",
     "crew.pub.print": "Printable code",
     "crew.share": "Share crew",

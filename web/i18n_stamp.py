@@ -407,6 +407,7 @@ EN_FINGERPRINT = {
     'crew.pub.ask': '3f5547d81d8e',
     'crew.pub.folded': 'def00aa1f6b5',
     'crew.pub.join': '85c508044a6d',
+    'crew.pub.joinvia': '4e5c31151efa',
     'crew.pub.open': 'b4b8c0ced5ea',
     'crew.pub.print': 'abd25fe9a5d9',
     'crew.pub.scan': 'd14a1c90e627',
