@@ -504,9 +504,6 @@
    gated together. */
 a.crewopen, .crewsame { display: none; }
 
-/* Open and unannounced anywhere but a touch screen: scanning this with a phone is the whole
-   point of the desktop card, so it is never asked for there. */
-.crewqrfold > summary { display: none; }
 a.crewqr { display: flex; text-decoration: none; }
 /* A link with no colour of its own computes to the browser default #0000EE, underlined, on a
    near-black card. The QR is an image so nobody saw it -- until the image failed, or the
@@ -1089,23 +1086,6 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
      another phone's camera, which is the only case it serves on this device. */
   /* The fold, which only exists on this pointer. Its summary is the control; the QR behind
      it is for the case where a SECOND phone scans this screen. */
-  .crewqrfold { order: 6; margin-top: 12px; }
-  /* It has to look like something that opens. The first version rendered as centred small-caps
-     with no chevron and no border, directly under a sentence that says "Scan it with EUC Planet"
-     -- so a reviewer read the card, found nothing to scan, and filed it: the QR is behind this
-     and nothing said so. A marker that rotates, and a box, so it reads as a control. */
-  .crewqrfold > summary { display: flex; align-items: center; justify-content: center; gap: 7px;
-    cursor: pointer; font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
-    color: var(--mut, #9aa6c8); padding: 9px 12px; margin: 0 auto; width: max-content;
-    border: 1px solid var(--line, #243055); border-radius: 8px; list-style: none; }
-  .crewqrfold > summary::-webkit-details-marker { display: none; }
-  .crewqrfold > summary::after {
-    content: ""; width: 7px; height: 7px; border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translate(-2px, -2px);
-    transition: transform .18s ease;
-  }
-  .crewqrfold[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
-  .crewqrfold > summary:hover, .crewqrfold > summary:focus-visible { color: #cfe0ff; }
   .crewqr { order: 3; margin-top: 10px; min-height: 124px; }
   .crewqr img, .crewqrg { width: 124px; height: 124px; }
   .crewcode { order: 4; }

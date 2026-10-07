@@ -71,7 +71,12 @@ EN: dict[str, str] = {
     "crew.hook.4": "Your city, in your colours, if you can hold it.",
     "crew.hook.5": "Every square out there has somebody's name on it. Change that.",
     "crew.hook.6": "Turn the ride home into a land grab.",
-    "crew.signin.scan": "Scan it with EUC Planet {v} or newer, or type the code in.",
+    # Which app, which version, and where the screen is inside it. NOT "scan it with" --
+    # a code and a QR are self-evidently things you scan or type, and naming the app
+    # already says what does the scanning. What a reader cannot guess is where the screen
+    # lives, so that is what this spends its words on. The path matches the app's own
+    # labels: Settings, then EUC Stats, then a row titled Crews.
+    "crew.signin.scan": "EUC Planet {v} or newer. In the app: Settings, EUC Stats, Crews.",
     # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
     # from services.pairing.MIN_APP, so a release is one line and not nineteen.
     "crew.signin.needs": "Needs EUC Planet {v} or newer.",
@@ -210,13 +215,13 @@ EN: dict[str, str] = {
     "crew.mine.cancel": "Pull the request",
     "crew.mine.cancelq": "Pull your request to {name}? Costs you nothing.",
     "crew.mine.disband": "Disband",
-    "crew.mine.disbandq": "Disband {name}? Colours go back in the box and the map fades out on its own. No waiting afterwards — you can start or join another straight away.",
+    "crew.mine.disbandq": "Disband {name}? Colours go back in the box and the map fades out on its own. No waiting afterwards. You can start or join another straight away.",
     # The same question when other people are in it. The single-string version was read
     # out word for word to the leader of a five-rider crew sitting first on the board,
     # and it never mentioned that four other riders lose their crew. `leaveq` has had
     # four variants for less than this. Phrased so one rider and four read the same way:
     # "takes it away from 1 rider besides you" needs no verb agreement.
-    "crew.mine.disbandq.others": "Disband {name}? That takes it away from {r} besides you, and they get no say in it. Colours go back in the box and the map fades out on its own. No waiting afterwards — you can start or join another straight away.",
+    "crew.mine.disbandq.others": "Disband {name}? That takes it away from {r} besides you, and they get no say in it. Colours go back in the box and the map fades out on its own. No waiting afterwards. You can start or join another straight away.",
     "crew.mine.onmap": "Show your crew's ground on the map",
     "crew.asked.ago": "asked {d} ago",
     # The short end, which `crew.ago.` has no buckets for: its floor is "a day or two",
@@ -434,7 +439,7 @@ EN: dict[str, str] = {
     # Walking out of a crew you are the last member of ends it. `leave()` retires the clan
     # when nobody active is left AND stamps the cooldown, so the gentle-sounding button
     # destroys the crew and benches you a week, while Disband does it for nothing.
-    "crew.mine.leaveq.last": "Leave {name}? You are the last one in it, so the crew ends with you — and you wait {n} before joining another. Disbanding it costs you no wait at all.",
+    "crew.mine.leaveq.last": "Leave {name}? You are the last one in it, so the crew ends with you, and you wait {n} before joining another. Disbanding it costs you no wait at all.",
     "crew.role.leader": "leader",
     "crew.role.officer": "officer",
     "crew.role.member": "member",
@@ -476,7 +481,7 @@ EN: dict[str, str] = {
     # side) against Nordlys Collective's 15 squares over 22.6 km² (1.24 km a side) -- same
     # unit, four times the ground. What IS constant is the number of crossings, because the
     # weekly cap scales with the square; the distance those crossings add up to is not.
-    "crew.how.n2": "A square is about {v} across where YOU ride — wider nearer the equator, narrower nearer the poles. Your weekly limit inside one scales with it, so filling a square always takes four to six crossings; nearer the equator those crossings are longer, so it is more riding and more ground.",
+    "crew.how.n2": "A square is about {v} across where YOU ride, wider nearer the equator, narrower nearer the poles. Your weekly limit inside one scales with it, so filling a square always takes four to six crossings; nearer the equator those crossings are longer, so it is more riding and more ground.",
     # Both from the settings that enforce them. The cooldown was only ever said in the leave
     # prompt, where you read it after deciding; the size cap was never said anywhere.
     # The server blocks FOUNDING as well -- `can_found` goes false and the whole START A
@@ -492,7 +497,7 @@ EN: dict[str, str] = {
     "crew.how.3": "Ground grows out of ground. Close the gap between two patches and they count as one, which is the biggest move there is. Ride a full loop around something and the inside is yours too, up to about double what you rode.",
     "crew.how.4": "Nothing holds itself. Stop riding and your claim fades until one ride is enough to take it off you, but nobody takes it by waiting. Ride more than someone and you take theirs.",
     "crew.how.5": "Rides you did for a crew stay with that crew. Walking out does not wipe the map.",
-    "crew.how.roles": "Whoever starts a crew runs it. They can make anyone an officer, and an officer can let riders in and turn them away — but only the leader changes the crew itself, or ends it.",
+    "crew.how.roles": "Whoever starts a crew runs it. They can make anyone an officer, and an officer can let riders in and turn them away, but only the leader changes the crew itself, or ends it.",
     "crew.how.7": "A block needs its {n}x{n}. Take the square holding one together and everything leaning on it goes down with it.",
     "crew.how.6": "A new crew's first fortnight counts what its riders were already doing, so nobody starts on an empty map.",
     # `{c}` carries its own unit now. It used to be a bare number with "km" written into the
@@ -504,7 +509,7 @@ EN: dict[str, str] = {
     # The second half claimed a square is the same ride anywhere, which the board directly
     # below it disproves -- and it is the board's OWN subtitle. The honest version names the
     # unit it ranks on and admits what that unit does not control for.
-    "crew.board.sub": "Biggest patch a crew holds in one piece, counted in squares — and a square covers more ground nearer the equator.",
+    "crew.board.sub": "Biggest patch a crew holds in one piece, counted in squares, and a square covers more ground nearer the equator.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.invite2": "Invite link code",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
@@ -639,6 +644,9 @@ EN: dict[str, str] = {
     "chip.countries": "Countries",
     # champions strip
     "champ.title": "EUC Planet Champions",
+    # The second card in the same slot, when crews are switched on. Its own title, because
+    # the two are different leaderboards and a reader has to know which one is up.
+    "champ.crews": "Crew Champions",
     "champ.day": "Day",
     "champ.week": "Week",
     "champ.month": "Month",

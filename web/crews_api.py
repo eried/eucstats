@@ -307,6 +307,19 @@ def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
 
 
+@router.get("/crews/champions")
+def crew_champions(response: Response, db: Session = Depends(get_db)):
+    """The crews card beside the riders one in the topbar.
+
+    Behind the same kill switch as everything else here, so when crews are off the card simply
+    never appears rather than rendering empty. Cached like the rider champions: the same answer
+    for everybody, and a minute is short enough that a ride shows up.
+    """
+    _gate(db)
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return crews.champions(db)
+
+
 @router.get("/crews/drawn")
 def territory_drawn(db: Session = Depends(get_db)):
     """When the map was last drawn, and how often it is.

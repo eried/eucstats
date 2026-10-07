@@ -2528,58 +2528,37 @@
   }
 
   function signInHTML() {
-    // Same phone as the browser? Then there is nothing to point a camera at — you cannot scan
-    // your own screen. The deep link opens the app directly and it comes straight back, so
-    // the one awkward case in the whole flow is a tap. The QR itself is the same link, so on
-    // a phone the image is tappable too.
+    // Heading, the code, and where to put it. Nothing else.
+    //
+    // This card used to open with one of six rotating hooks and a sentence explaining what
+    // crews are -- added because three reviewers in a row said the screen never says why you
+    // would pair a phone for this. On a signed-out screen the BOARD is directly underneath it
+    // saying the same thing, so the pitch was being made twice, and the second copy was the
+    // one with the podium and real crew names in it. Erwin's call, and it is right: the card
+    // is the way in, not the argument for coming in.
+    //
+    // No disclosure around the QR either. I folded it away on phones on the grounds that a QR
+    // cannot be scanned by the device showing it -- true, and beside the point: it is the
+    // thing the card is for, a second phone or a laptop camera is the ordinary case, and
+    // hiding the one object on screen behind a word is worse than showing it to somebody who
+    // does not need it. "Why can the QR code be hidden to log in? It makes no sense."
     return '<div class="crewcard crewsign">'
-      // The test warning used to be here, which meant a rider only ever saw it before they
-      // had anything to lose. It is at the top of the panel now, for everybody.
       + "<h3>" + t("crew.signin.h") + "</h3>"
-      // The pitch, before the ask. Three reviewers in a row said this screen never says what
-      // crews are or why anybody would pair a phone for them -- it was a heading, a QR and a
-      // version requirement, and `crew.signin.p` had been written and then rendered nowhere.
-      // One of six hooks, picked per visit so a second look is not the same screen, and one
-      // plain sentence under it saying what actually happens on the map.
-      + '<p class="crewhook">' + esc(t("crew.hook." + (1 + Math.floor(Math.random() * 6))))
-      + "</p>"
-      + '<p class="hint crewwhat">' + esc(t("crew.pub.what")) + "</p>"
-      // Why THIS reader is here. Pressing "Join this crew" on a crew's poster while signed
-      // out lands on `/?crew=<slug>#crews`, and the intent does survive -- `offerInvite`
-      // holds `INVITE` until the pairing completes and then scrolls to that crew's row and
-      // flashes it. But the screen in between, the one that asks you to go and fetch your
-      // phone, was the generic GET STARTED card with no mention of the crew whose sticker you
-      // had just scanned. The errand is the reason to finish the errand.
+      // Why THIS reader is here, when they arrived from a crew's poster. Specific to them and
+      // not a pitch, so it stays.
       + inviteNote()
-      // Folded on a phone, open everywhere else. A QR cannot be scanned by the device that is
-      // displaying it, so on the one device where this card is 427px of a 590px panel, its
-      // single biggest element -- 188px, 44% of the card -- is the one thing that physically
-      // cannot work there. The code below IS the control on that device: tapping it opens the
-      // app. The QR still serves the case where somebody scans this screen with a SECOND
-      // phone, so it folds rather than going away, under a label that already exists in all
-      // nineteen tables. `open` here; `startPairing` takes it off on a coarse pointer.
-      + '<details class="crewqrfold" id="crewqrfold" open>'
-      + "<summary>" + esc(t("crew.signin.qralt")) + "</summary>"
       + '<a class="crewqr" id="crewqr" href="#"><div class="spin"></div></a>'
-      + "</details>"
       + '<div class="crewcode" id="crewcode">······</div>'
-      // One line: what to point at it, which app, and which version. The version used to be a
-      // paragraph of its own and the app's name is a link in whatever language the sentence is
-      // written in -- the brand is the one part no locale translates, so one replace covers
-      // all nineteen. `crew.signin.p` and `crew.signin.ride` are gone: the first was a sentence
-      // about what the app does for you, and the second stated a precondition to everybody in
-      // order to reach the few who do not meet it, who find out by trying and are told why.
+      // Which app, which version, and where the screen is inside it. Not "scan this with" --
+      // a code and a QR are self-evidently things you scan or type, and naming the app and
+      // its version already says which thing does the scanning. The app's name is a link in
+      // whatever language the sentence is written in: the brand is the one part no locale
+      // translates, so one replace covers all nineteen.
       + '<p class=hint id="crewcodehint">'
       + appLink(t("crew.signin.scan", { v: (CFG && CFG.min_app) || "" })) + "</p>"
-      // No second link to the same place. The version line above says "EUC Planet" and links
-      // it; this line existed because that one did not, and two links three lines apart is one
-      // link and a repetition.
-
-      // The QR itself is the link -- `qr.href` is set the moment the code lands -- so a
-      // sentence explaining that you cannot scan your own screen, followed by a button that
-      // goes exactly where the code goes, was the same control twice with an apology between
-      // them. One caption under the code says what tapping it does, and the code is the
-      // control. Erwin: "why is not just tap the qr".
+      // The one case the line above does not cover: you are reading this ON the phone that
+      // has the app, where there is nothing to point a camera at. The QR is itself the deep
+      // link, so tapping the code is the whole answer.
       + '<p class="hint crewsame">' + t("crew.signin.tap") + "</p>"
       + "</div>";
   }
@@ -2767,14 +2746,6 @@
 
   function startPairing() {
     stopPairing();
-    // Fold the QR away on the one device where it cannot be used. See the markup: it ships
-    // `open` so that a desktop, where scanning with a phone is the whole point, never has to
-    // ask for it, and this is the only place that knows the pointer.
-    var fold = document.getElementById("crewqrfold");
-    if (fold && window.matchMedia
-        && window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
-      fold.open = false;
-    }
     api("POST", "/api/v1/pair/start").then(function (r) {
       if (!r.ok) { setStatus(errMsg(r.err), true); offerRetry(r.err); return; }
       pairToken = r.body.token;
@@ -6196,6 +6167,19 @@
   /* ---------- wiring ---------- */
 
   window.EUCCrews = {
+    // What the Crew Champions card calls when one of its rows is pressed. The panel may not be
+    // open or even rendered yet, so this opens it and hands the slug to the same sheet the
+    // board's own emblems open -- after a render, because `ALL` and `BOARD` are what
+    // `crewBySlug` reads and they arrive with it.
+    openCrew: function (slug) {
+      show();
+      var tries = 0;
+      (function wait() {
+        if (crewBySlug(slug)) { openCrewSheet(slug); return; }
+        if (++tries > 40) return;      // ~6s, then give up quietly
+        setTimeout(wait, 150);
+      })();
+    },
     init: function (theMap, helpers) {
       map = theMap;
       H = helpers || {};

@@ -125,7 +125,10 @@ svg.ic{width:18px;height:18px;display:block}
 .cline{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0}
 .cline .clab{width:42px;min-width:42px;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
 .cline b{color:var(--gold);font-weight:700;flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cscore{margin-left:auto;color:var(--acc);font-weight:700;font-size:12px}
+.cscore{margin-left:auto;color:var(--acc);font-weight:700;font-size:12px}/* The crews deck. Its own tint and its own accent, so a glance tells you which leaderboard
+   is up without reading the title; the swatch carries the crew's real colour and pattern,
+   which is the same language the map speaks. */
+.champ.crews{background:rgba(255,138,216,.07)}.champ.crews .chead{color:var(--sec,#ff8ad8)}.champ.crews .cscore{color:var(--sec,#ff8ad8)}.cflag{font-size:13px;line-height:1;color:var(--sec,#ff8ad8);letter-spacing:-1px}.csw{width:15px;height:15px;flex:0 0 15px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}.csw[data-p=stripes]{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 2px,transparent 2px 4px)}.csw[data-p=dots]{background-image:radial-gradient(rgba(0,0,0,.5) 1.2px,transparent 1.3px);background-size:5px 5px}.csw[data-p=hatch]{background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.4) 0 1.5px,transparent 1.5px 5px)}
 .cformula{margin-top:7px;font-size:10.5px;line-height:1.45;color:var(--ink);background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:7px;padding:7px 9px}
 .cformula b{color:var(--gold)}
 .chead>span{flex:1;background:linear-gradient(90deg,#caa12f,#fff3c0,#ffd24a,#fff3c0,#caa12f);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:goldflow 4.5s linear infinite}
@@ -182,7 +185,9 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes panDown{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,58px)}}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);flex:0 0 auto;z-index:5;background:rgba(11,15,28,.96)}
 .phead b{font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}.phead button{background:transparent;border:0;color:var(--mut);cursor:pointer}
-/* The panel title is `tabindex="-1"` and focused programmatically on every open, to put a screen reader at the top of what just appeared. It is focused inside a requestAnimationFrame, so Chromium's heuristic calls that focus-visible and paints its default ring around the title -- on every open, in 40 of one reviewer's 45 screenshots, and NOT on the Riders panel, so it read as a bug rather than a convention. Nothing is lost by removing it: -1 means no keyboard user can ever land here by tabbing, and the announcement is what the focus was for. */#ptitle:focus{outline:none}.pacts{display:flex;gap:12px;align-items:center}/* Help belongs to the one panel that has a manual. `data-sec` is written by setPanel. */#phelp{display:none}.panel[data-sec=crews] #phelp{display:block}/* The floating gear is pinned bottom-left at 38px and the dock is centred at up to
+/* The panel title is `tabindex="-1"` and focused programmatically on every open, to put a screen reader at the top of what just appeared. It is focused inside a requestAnimationFrame, so Chromium's heuristic calls that focus-visible and paints its default ring around the title -- on every open, in 40 of one reviewer's 45 screenshots, and NOT on the Riders panel, so it read as a bug rather than a convention. Nothing is lost by removing it: -1 means no keyboard user can ever land here by tabbing, and the announcement is what the focus was for. */#ptitle:focus{outline:none}.pacts{display:flex;gap:12px;align-items:center}/* Help belongs to the one panel that has a manual. `data-sec` is written by setPanel. */#phelp{display:none}/* `flex`, not `block`. Every other button in this row is a 44px box centring an 18px
+   glyph with flex; `block` won on specificity here and left the help glyph at x-offset 0
+   against the others' 13 -- which reads as an extra gap beside it. */.panel[data-sec=crews] #phelp{display:flex}/* The floating gear is pinned bottom-left at 38px and the dock is centred at up to
    100vw-16px with z-index 600, so on every common phone width the dock lies on top of it:
    a tap at the gear's centre at 360, 390 and 412 opens the Riders panel instead, and
    language and units live only behind that button. They physically overlap, so raising the
@@ -580,7 +585,7 @@ function bd(b){var s=(b.dk==="b.accel.d"&&mph())?t("b.accel.d_mph"):t(b.dk);
 const RECCONV={mileage_king:"dist",longest_trip:"dist",top_speed:"spd"};
 const RECUNIT={sustained_w:" W",sustained_a:" A",peak_voltage:" V",max_gforce:" g"};
 function recval(k,v){const c=RECCONV[k];if(c==="dist")return dnum(v)+" "+dunit();if(c==="spd")return snum(v)+" "+sunit();return (Math.round(v*100)/100)+(RECUNIT[k]||"");}
-let S=null,WC=null;
+let S=null,WC=null,CC=null;   // CC: crew champions, when crews are on
 const REGION={America:[-98,39,4],Europe:[12,52,4.2],Asia:[100,34,3.2],Africa:[21,3,3.2],Australia:[134,-25,4],Pacific:[-150,5,3],Atlantic:[-30,35,3],Indian:[75,-15,3],Antarctica:[0,-72,2.6]};
 // city/country-level centers so we land near the visitor (e.g. Oslo, not central Europe)
 const TZMAP={
@@ -985,6 +990,7 @@ function randomGlitch(){const _C=window.__CFG__||{};const _gi=_C.glitch_intensit
 if(!(window.__CFG__&&window.__CFG__.glitch_enabled===false))setTimeout(randomGlitch,2800);
 async function pollStats(){
   try{const ns=await j("/stats/summary"),nc=await j("/champions");S=ns;WC=nc;
+    try{CC=await j("/crews/champions");}catch(_){}
     const map={riders:ns.riders,trips:ns.trips,total:mph()?r1(ns.total_km*MI):r1(ns.total_km),countries:ns.countries};
     document.querySelectorAll("#chips b[data-k]").forEach(b=>{const tgt=map[b.dataset.k];if(""+tgt!==b.dataset.cv){b.dataset.cv=""+tgt;countUp(b,tgt,1000,+b.dataset.dec);}});
     renderChampions();
@@ -997,9 +1003,35 @@ function renderChampions(){
   ch.style.display="block";ch.style.cursor="default";ch.onclick=null;
   const line=(lab,c)=>c?`<div class="cline" data-sid="${c.id}"><span class="clab">${lab}</span>${cc(c.flag)}<b>${c.name||'rider'}</b><span class="cscore">${t("champ.pts",{n:Math.round(c.score)})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
   const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+t("champ.tip")).replace(/"/g,"&quot;");
-  ch.innerHTML=`<div class="chead">${FLAG}<span>${t("champ.title")}</span><button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+
-    line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month);
+  // Two decks in one slot when crews are on: riders, then crews, swapping on a timer.
+  //
+  // The crews card is deliberately a different animal -- its own title, the crew's own colour
+  // and pattern where the rider card shows a flag, and squares where that one shows points --
+  // because a reader glancing up has to know which leaderboard they are looking at without
+  // reading it. Erwin: "maybe the crews should look different".
+  const crewLine=(lab,c)=>c?`<div class="cline" data-crew="${c.slug}"><span class="clab">${lab}</span><span class="csw" style="background:${c.colour}" data-p="${c.pattern}"></span><b>${c.name}</b><span class="cscore">${t("crew.tiles",{n:c.tiles})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
+  const haveCrews=!!(CC&&(CC.day||CC.week||CC.month));
+  const decks=[{cls:"",head:`${FLAG}<span>${t("champ.title")}</span>`,
+                rows:line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month)}];
+  if(haveCrews)decks.push({cls:" crews",head:`<span class="cflag">&#9646;&#9647;</span><span>${t("champ.crews")}</span>`,
+                rows:crewLine(t("champ.day"),CC.day)+crewLine(t("champ.week"),CC.week)+crewLine(t("champ.month"),CC.month)});
+  // Crews first when the visitor was sent here by a crew link, which is the one case where we
+  // know what they came for. Erwin asked for this explicitly.
+  const crewFirst=haveCrews&&(/^#?crews$/i.test(location.hash||"")||/[?&]crew=/.test(location.search||""));
+  if(crewFirst)decks.reverse();
+  let deck=0;
+  const paint=()=>{const d=decks[deck];
+    ch.className="champ"+d.cls;
+    ch.innerHTML=`<div class="chead">${d.head}<button class="cinfo" data-tip="${tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div>`+d.rows;
+    wire();};
+  const wire=()=>{
   ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.id===el.dataset.sid);if(c)flyToRider(c);};});
+  // A crew row opens that crew, the way a rider row flies to that rider.
+  ch.querySelectorAll(".cline[data-crew]").forEach(el=>{el.style.cursor="pointer";el.onclick=(e)=>{
+    e.stopPropagation();
+    location.hash="crews";
+    if(window.EUCCrews&&window.EUCCrews.openCrew)window.EUCCrews.openCrew(el.dataset.crew);
+  };});
   const tb=document.querySelector(".topbar");
   const setC=(v)=>{if(tb)tb.classList.toggle("collapsed",v);if(ch)ch.style.cursor=(tb&&tb.classList.contains("tight"))?"default":"pointer";try{localStorage.setItem("eucstats_champ_collapsed",v?"1":"0");}catch(_){}};
   const col=ch.querySelector(".ccol");
@@ -1007,6 +1039,18 @@ function renderChampions(){
   ch.onclick=()=>{if(tb&&tb.classList.contains("collapsed"))setC(false);};
   setC(localStorage.getItem("eucstats_champ_collapsed")==="1");
   bindTips(ch);
+  };
+  paint();
+  // The swap. Paused while a finger or a pointer is on the card, so it never changes under
+  // somebody reading it, and not started at all when there is only one deck.
+  clearInterval(ch._rot);
+  if(decks.length>1){
+    const tick=()=>{deck=(deck+1)%decks.length;paint();};
+    const start=()=>{clearInterval(ch._rot);ch._rot=setInterval(tick,6000);};
+    start();
+    ch.addEventListener("pointerenter",()=>clearInterval(ch._rot));
+    ch.addEventListener("pointerleave",start);
+  }
 }
 let CELLS=null;
 function addHeat(){
@@ -1264,7 +1308,12 @@ async function init(){
   }
   // now localize the chrome, fetch data, and build the map
   await ensureLang(LANG); applyI18n();
-  S=await j("/stats/summary"); WC=await j("/champions"); renderHeader();
+  S=await j("/stats/summary"); WC=await j("/champions");
+  // 404 when crews are switched off, which is the normal case and not an error: the card
+  // simply never appears. `j()` throws on a bad status, so this swallows its own failure
+  // rather than taking the header down with it.
+  try{CC=await j("/crews/champions");}catch(_){CC=null;}
+  renderHeader();
   const _ps=(window.__CFG__&&typeof window.__CFG__.poll_secs==="number")?window.__CFG__.poll_secs:30; if(_ps>0)setInterval(pollStats,_ps*1000);
   // maxZoom stops where the coarse ~1-3km privacy-grid heat still reads well; past this the bins
   // can't be flattened without washing the screen, and street-level rider presence isn't shown.

@@ -978,3 +978,70 @@ def _require_power(db, store_id: str, clan_id: str) -> ClanMember:
     if m is None or m.role not in ("leader", "officer"):
         raise CrewError("forbidden", "Only a leader or officer can do that.")
     return m
+
+
+def champions(db, window_days: int | None = None) -> dict:
+    """Crew champion of the day / week / month, for the card beside the rider one.
+
+    What this measures, said plainly because it is a choice and not an obvious one: kilometres
+    ridden FOR a crew inside each window. Territory itself has no history -- `terr_best_tiles`
+    and friends are current state, rewritten wholesale by each rebuild -- so "the crew that led
+    on squares last Tuesday" is not a question this database can answer. Distance ridden for
+    the crew is the thing that produces squares, it is stored per trip with a timestamp, and it
+    is exactly the shape the rider champions already use, so the two cards mean comparable
+    things.
+
+    The crew's standing (`score`) rides along for the card to show: that IS the weighted
+    patch/squares/area figure, and it is current state by definition.
+    """
+    from datetime import timedelta
+    import sqlalchemy as sa
+    from models import Trip
+
+    now = utcnow()
+    windows = {"day": now - timedelta(days=1),
+               "week": now - timedelta(days=7),
+               "month": now - timedelta(days=30)}
+    out: dict = {}
+    for key, since in windows.items():
+        row = (db.query(Trip.clan_id, sa.func.sum(Trip.distance_km).label("km"))
+               .filter(Trip.clan_id.isnot(None),
+                       Trip.validation_status == "validated",
+                       Trip.start_utc.isnot(None), Trip.start_utc >= since)
+               .group_by(Trip.clan_id)
+               .order_by(sa.desc("km")).first())
+        if row is None or not row[1]:
+            out[key] = None
+            continue
+        clan = db.get(Clan, row[0])
+        if clan is None or clan.disbanded_at is not None:
+            out[key] = None
+            continue
+        out[key] = {"slug": clan.slug, "name": clan.name,
+                    "colour": clan.colour, "pattern": clan.pattern,
+                    "km": round(float(row[1]), 1),
+                    "tiles": clan.terr_best_tiles or 0,
+                    "km2": round(clan.terr_best_km2 or 0.0, 1),
+                    "score": round(standing_score(clan), 1)}
+    return out
+
+
+# Biggest patch is king, and the rest of what a crew holds is worth something.
+#
+# Erwin's call, against three options: a crew spread over two cities and a crew near the
+# equator, where one square covers four times the ground, both get a real route up the board
+# without overturning it. Measured on the demo board before it was adopted: five crews of
+# fifteen move and none by more than two places -- the two-city crews (52 squares in a patch of
+# 30, 48 in a patch of 28) climb past the one-city crew holding the same patch and nothing
+# else, and the equator crew climbs on area alone.
+#
+# The board itself still RANKS on squares -- also his call, because one number has to reconcile
+# across the board, the join list, the map, the crew card and the public page. This is the
+# champions card's own figure.
+SCORE_W_PATCH, SCORE_W_SQUARES, SCORE_W_KM2 = 1.0, 0.25, 0.05
+
+
+def standing_score(clan) -> float:
+    return (SCORE_W_PATCH * (clan.terr_best_tiles or 0)
+            + SCORE_W_SQUARES * (clan.terr_tiles or 0)
+            + SCORE_W_KM2 * (clan.terr_km2 or 0.0))
