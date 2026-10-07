@@ -677,6 +677,15 @@
   // both the zoom and the region's own size at once, and markers give exact control for the
   // price of a few dozen divs: the emblem is sized to the square it sits in, every frame, so
   // it fills a 2x2 block the same way it fills a 6x6 one.
+  // Up to two letters, the way the server used to draw them: first letters of the first two
+  // words, or the first two letters of a single word.
+  function initialsOf(name) {
+    var parts = String(name || "").trim().split(/[\s\-_]+/).filter(Boolean);
+    if (!parts.length) return "";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
   function buildEmblems() {
     if (!TERR.regions) return;
     TERR.regions.forEach(function (r) {
@@ -688,6 +697,8 @@
       var el = document.createElement("div");
       el.className = "crewemb";
       el.innerHTML = '<img alt="" src="' + crew.emblem + '"/>'
+                   + '<span class="crewemb-i" aria-hidden="true">'
+                   + esc(initialsOf(crew.name)) + "</span>"
                    + '<span class="crewemb-n">' + esc(crew.name) + "</span>";
       // The biggest patch, like the board, the join list and the crew's own page. This was
       // `crew.km2` -- everything they hold anywhere -- so the marker printed 209 km2 beside a
@@ -5561,6 +5572,16 @@
     setTimeout(function () { el.classList.remove("crewflash"); }, 1400);
   }
 
+  function showOnMap() {
+    if (!TERR || !map) return false;
+    visible = true;
+    if (!map.getLayer("crew-fill")) buildLayers();
+    setHeat(false);
+    heatUnderTerritory(true);
+    syncKey();
+    return !!map.getLayer("crew-fill");
+  }
+
   function show() {
     // `EUCCrews.init` runs from inside `map.on("load")`, after a fetch, so `H` is `{}` until
     // then -- and the dock button was reachable by keyboard during that window even though it
@@ -6312,7 +6333,10 @@
     openCrew: function (slug) {
       var tries = 0;
       (function wait() {
-        if (TERR && TERR.crews && crewBySlug(slug)) { shine(slug); return; }
+        if (TERR && TERR.crews && TERR.crews.length && showOnMap()) {
+          shine(slug);
+          return;
+        }
         if (++tries > 40) return;      // ~6s, then give up quietly
         setTimeout(wait, 150);
       })();
