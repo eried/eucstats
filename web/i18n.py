@@ -510,7 +510,7 @@ EN: dict[str, str] = {
     # The second half claimed a square is the same ride anywhere, which the board directly
     # below it disproves -- and it is the board's OWN subtitle. The honest version names the
     # unit it ranks on and admits what that unit does not control for.
-    "crew.board.sub": "Biggest patch a crew holds, counted in squares.",
+    "crew.board.sub": "Biggest patch a crew holds, plus credit for its other ground and its area.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
     "crew.days.few": "{n} days",
@@ -553,7 +553,7 @@ EN: dict[str, str] = {
     "crew.pub.ask": "Ask to join",
     "crew.pub.joinvia": "Join via {host}",
     "crew.pub.folded": "This crew has folded.",
-    "crew.pub.print": "Printable code",
+    "crew.pub.print": "Print",
     "crew.share.btn": "Share",
     "crew.share.text": "{name} on EUC Stats",
     "crew.roles.h": "The crew",

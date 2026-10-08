@@ -1404,6 +1404,10 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         # previous position of every crew that just lost its last square.
         c.targets_json = targets_json.get(c.clan_id)
     now = utcnow()
+    # The standing, imported once for the loop below and the re-ranking after it. Lazily,
+    # because `services.crews` is the layer above this one and a module-level import would
+    # make the pair circular the first time anything there needs territory.
+    from services.crews import standing_score, standing_sort_key
     order = sorted(kept.keys())
     payload_crews = []
     cells_flat: list[int] = []
@@ -1497,15 +1501,18 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
             "best_km2": round(best_km2, 1), "best_tiles": best_tiles,
             "best_fresh": c.terr_best_fresh,
             "regions": len(comps),
+            # Read off the columns set four lines above, so this is the same figure
+            # `ranking()` sends and the same one the crews are about to be sorted by.
+            "score": round(standing_score(c), 2),
             "members": member_counts.get(clan_id, 0),
             "emblem": f"/api/v1/crews/{c.slug}/emblem",
         })
-    # Where everybody stands now, in the order the board sorts on -- squares first, area only
-    # to break a tie, exactly as `ranking()` does it, or the arrow would disagree with the row
-    # it sits on. Each crew's outgoing rank is kept before the new one replaces it, which is
-    # the only moment both numbers exist.
+    # Where everybody stands now, in the order the board sorts on -- `standing_sort_key`, the
+    # one definition `ranking()` and the join list also use, or the arrow would disagree with
+    # the row it sits on. Each crew's outgoing rank is kept before the new one replaces it,
+    # which is the only moment both numbers exist.
     standing = sorted((c for c in clans.values() if (c.terr_tiles or 0) > 0),
-                      key=lambda c: (-(c.terr_best_tiles or 0), -(c.terr_best_km2 or 0.0)))
+                      key=standing_sort_key)
     # Where each crew stood last time AMONG THE CREWS STILL HERE, not the raw number it held.
     #
     # This was `c.terr_prev_rank = c.terr_rank`, which reads movement off absolute positions --
@@ -1621,10 +1628,13 @@ def ranking(db, limit: int = 50) -> list[dict]:
     table scan and a few hundred trig calls to answer a question whose answer changes once an
     hour.
     """
+    from services.crews import standing_order_by, standing_score
     rows = (db.query(Clan)
             .filter(Clan.disbanded_at.is_(None), Clan.terr_tiles > 0)
-            # squares first, area only to break a tie: see the note in rebuild()
-            .order_by(Clan.terr_best_tiles.desc(), Clan.terr_best_km2.desc())
+            # The weighted standing, biggest patch and then area only to break a tie: see the
+            # note over `standing_score`. In SQL because of the LIMIT below -- sorting in
+            # Python after a limit returns the wrong fifty crews, not merely a wrong order.
+            .order_by(*standing_order_by())
             .limit(limit).all())
     return [{"clan_id": c.clan_id, "name": c.name, "slug": c.slug, "colour": c.colour,
              "pattern": c.pattern, "tiles": c.terr_tiles or 0,
@@ -1637,6 +1647,10 @@ def ranking(db, limit: int = 50) -> list[dict]:
              # The board draws an arrow from the difference and draws nothing from a None.
              "prev_rank": c.terr_prev_rank,
              "regions": c.terr_regions or 0,
+             # The number the row is ORDERED by. Sent because the client works out the gap to
+             # the crew above from it; without it the panel re-sorts on whatever field it can
+             # see and silently disagrees with the order the server sent.
+             "score": round(standing_score(c), 2),
              "emblem": f"/api/v1/crews/{c.slug}/emblem"}
             for c in rows]
 

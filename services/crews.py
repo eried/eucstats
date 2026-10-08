@@ -1106,9 +1106,18 @@ def champions(db, window_days: int | None = None) -> dict:
 # 30, 48 in a patch of 28) climb past the one-city crew holding the same patch and nothing
 # else, and the equator crew climbs on area alone.
 #
-# The board itself still RANKS on squares -- also his call, because one number has to reconcile
-# across the board, the join list, the map, the crew card and the public page. This is the
-# champions card's own figure.
+# The board RANKS on this too, as of Erwin's second call on it. It did not before: the score
+# decided the champions card and the biggest patch alone decided the board, so the two screens
+# disagreed about who was winning. His own case for it -- 20 squares as 10+10 against 11 in one
+# piece -- is exactly where they parted: the board said the 11 (11 > 10) and the champions card
+# said the 20 (15.0 > 13.75). Same two crews, opposite order, depending on which one you were
+# looking at.
+#
+# What he was protecting the first time round was real: one number has to reconcile across the
+# board, the join list, the map, the crew card and the public page. It still does. The score is
+# that number now, and the one place the old number was load-bearing -- "2 squares off 11th" on
+# your own card -- converts the gap instead of quoting it, because a square added to your
+# biggest patch is worth a known amount of score. See `squares_to_close` below.
 SCORE_W_PATCH, SCORE_W_SQUARES, SCORE_W_KM2 = 1.0, 0.25, 0.05
 
 
@@ -1116,3 +1125,44 @@ def standing_score(clan) -> float:
     return (SCORE_W_PATCH * (clan.terr_best_tiles or 0)
             + SCORE_W_SQUARES * (clan.terr_tiles or 0)
             + SCORE_W_KM2 * (clan.terr_km2 or 0.0))
+
+
+# One square, added to the patch a crew is ranked on, raises its score by this much: it is a
+# square in the biggest patch (W_PATCH) and a square the crew holds (W_SQUARES). Area is left
+# out because it depends on latitude and this has to be one number. It is what turns a score
+# gap back into the sentence a rider can act on -- "4 squares off 7th" means four more squares
+# welded to your biggest patch would pass them.
+SCORE_PER_CONNECTED_SQUARE = SCORE_W_PATCH + SCORE_W_SQUARES
+
+
+def squares_to_close(gap: float) -> int:
+    """How many squares on your biggest patch it takes to make up `gap` points of score."""
+    if gap <= 0:
+        return 0
+    n = gap / SCORE_PER_CONNECTED_SQUARE
+    # Ceiling, not rounding: at 0.3 squares' worth of gap the honest answer is "one more", and
+    # `round()` here would print "0 squares off 7th" on a board where you are genuinely behind.
+    return max(1, int(n) + (1 if n > int(n) else 0))
+
+
+def standing_sort_key(clan):
+    """Python-side ordering, best first. The two tiebreaks keep it total and deterministic:
+    without them two crews on the same score come back in whatever order SQLite felt like, and
+    the rank-movement arrows then report a shuffle nobody caused."""
+    return (-standing_score(clan), -(clan.terr_best_tiles or 0), -(clan.terr_best_km2 or 0.0))
+
+
+def standing_order_by():
+    """The same ordering as SQL, for the queries that must not pull the whole table to sort it.
+
+    The score is linear in three stored columns, so the database can do it -- and has to, since
+    `list_crews` and `ranking` both LIMIT, and a limit applied before a Python sort returns the
+    wrong crews rather than merely returning them in the wrong order.
+    """
+    import sqlalchemy as sa
+
+    score = (SCORE_W_PATCH * sa.func.coalesce(Clan.terr_best_tiles, 0)
+             + SCORE_W_SQUARES * sa.func.coalesce(Clan.terr_tiles, 0)
+             + SCORE_W_KM2 * sa.func.coalesce(Clan.terr_km2, 0.0))
+    return [score.desc(), Clan.terr_best_tiles.desc().nullslast(),
+            Clan.terr_best_km2.desc().nullslast()]

@@ -429,7 +429,13 @@ SHARED = {
     # Flashed on the button when a link lands on the clipboard, including the Share
     # button's fallback on a desktop, where navigator.share rejects. The word reports an
     # event and names nobody, so the crew whose sheet it fires on does not change it.
-    "crew.mine.copied": {"shareUrl"},
+    # `openCrewSheet` is the sheet's own Copy button, which exists because Share alone looked
+    # dead on a desktop; same event, same word, and the sheet opens on any crew.
+    "crew.mine.copied": {"shareUrl", "openCrewSheet"},
+    # "Copy", on the sheet's button. A verb addressed to whoever is holding the phone, about
+    # the link in front of them -- it says nothing about whose crew the sheet belongs to, which
+    # is why it can sit on a stranger's sheet and on your own invite row alike.
+    "crew.mine.copy": {"crewSheetHTML"},
     "crew.tile.fresh": {"legendHTML", "targetsHTML"},
     # Handing the pass back moved out of the crew card, because the crew card is the one
     # paired state that ALREADY had a way to do it: cooling off, removed, folded, declined and

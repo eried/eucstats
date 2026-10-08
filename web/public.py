@@ -66,13 +66,13 @@ tr.gold1{background-image:linear-gradient(100deg,rgba(255,213,80,.14) 0,rgba(255
 tr.silv{background-image:linear-gradient(100deg,rgba(205,211,224,.07) 0,rgba(220,226,238,.11) 30%,rgba(238,242,250,.38) 50%,rgba(220,226,238,.11) 70%,rgba(205,211,224,.07) 100%)!important;box-shadow:inset 0 0 20px rgba(220,226,238,.17)}
 tr.brnz{background-image:linear-gradient(100deg,rgba(150,104,64,.05) 0,rgba(168,124,82,.08) 30%,rgba(198,150,108,.22) 50%,rgba(168,124,82,.08) 70%,rgba(150,104,64,.05) 100%)!important;box-shadow:inset 0 0 18px rgba(170,120,84,.10)}
 .pod.gold1{position:relative;overflow:hidden;background:linear-gradient(158deg,rgba(104,84,30,.96),rgba(42,31,8,.97))!important;border-top-color:var(--gold);box-shadow:inset 0 0 26px rgba(255,214,90,.26),0 0 16px rgba(255,200,70,.18),var(--shadow)}
-.pod.gold1::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(255,242,180,0) 30%,rgba(255,242,180,.58) 50%,rgba(255,242,180,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 5.5s ease-in-out infinite;pointer-events:none}
-@keyframes shinebg{0%{background-position:160% 0}16%{background-position:-60% 0}100%{background-position:-60% 0}}
-@keyframes shinesweep{0%{left:-130%}20%{left:140%}100%{left:140%}}
+.pod.gold1::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(255,242,180,0) 30%,rgba(255,242,180,.58) 50%,rgba(255,242,180,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 14s ease-in-out infinite;pointer-events:none}
+@keyframes shinebg{0%{background-position:160% 0}8%{background-position:-60% 0}100%{background-position:-60% 0}}
+@keyframes shinesweep{0%{left:-130%}8%{left:140%}100%{left:140%}}
 .pod.silv{position:relative;overflow:hidden;background:linear-gradient(158deg,rgba(62,66,78,.95),rgba(20,23,30,.96))!important;border-top-color:#cdd3e0}
-.pod.silv::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(228,234,246,0) 30%,rgba(228,234,246,.4) 50%,rgba(228,234,246,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 5.5s ease-in-out .9s infinite;pointer-events:none}
+.pod.silv::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(228,234,246,0) 30%,rgba(228,234,246,.4) 50%,rgba(228,234,246,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 14s ease-in-out .9s infinite;pointer-events:none}
 .pod.brnz{position:relative;overflow:hidden;background:linear-gradient(158deg,rgba(56,40,24,.95),rgba(22,15,8,.96))!important;border-top-color:#8a6038}
-.pod.brnz::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(206,150,100,0) 30%,rgba(206,150,100,.22) 50%,rgba(206,150,100,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 5.5s ease-in-out 1.8s infinite;pointer-events:none}
+.pod.brnz::after{content:"";position:absolute;top:0;left:-130%;width:120%;height:100%;background:linear-gradient(100deg,transparent 0,rgba(206,150,100,0) 30%,rgba(206,150,100,.22) 50%,rgba(206,150,100,0) 70%,transparent 100%);transform:skewX(-16deg);animation:shinesweep 14s ease-in-out 1.8s infinite;pointer-events:none}
 .maplibregl-ctrl-attrib{background:none!important;box-shadow:none!important;font-size:9px;opacity:.4}.maplibregl-ctrl-attrib a{color:#7a86ad;text-shadow:0 1px 2px #000}.maplibregl-ctrl-attrib-button{display:none!important}.maplibregl-ctrl-group{background:var(--glass)!important;border:1px solid var(--line)!important;border-radius:9px!important;overflow:hidden;box-shadow:var(--shadow)}.maplibregl-ctrl-group button{background:transparent!important;width:32px;height:32px}.maplibregl-ctrl-group button+button{border-top:1px solid var(--line)!important}.maplibregl-ctrl-group button:hover{background:rgba(46,168,255,.14)!important}.maplibregl-ctrl-group button .maplibregl-ctrl-icon{filter:invert(72%) brightness(1.05)}.maplibregl-ctrl-group button:hover:not(:disabled) .maplibregl-ctrl-icon{filter:invert(100%)}.maplibregl-ctrl-group button:disabled .maplibregl-ctrl-icon{opacity:.28}
 svg.ic{width:18px;height:18px;display:block}
 /* `pointer-events:none` stops a mouse and not a keyboard: a <button> like this is still
@@ -768,7 +768,7 @@ function initialTab(sec,n){
     return i;
   }catch(e){return 0;}
 }
-function RA(i){return i<3?('animation:rowin .5s both, shinebg 7s ease-in-out '+(1.1+i*0.55)+'s infinite'):('animation:rowin .5s both;animation-delay:'+(i*55)+'ms');}
+function RA(i){return i<3?('animation:rowin .5s both, shinebg 14s ease-in-out '+(1.1+i*0.55)+'s infinite'):('animation:rowin .5s both;animation-delay:'+(i*55)+'ms');}
 function GSB(i){return i===0?' gold1':i===1?' silv':i===2?' brnz':'';}
 function _tipEl(){return document.getElementById("tip");}
 function showTip(html,x,y){const T=_tipEl();if(!T)return;T.innerHTML=html;T.classList.add("on");const r=T.getBoundingClientRect();let nx=x-r.width/2,ny=y-r.height-10;nx=Math.max(8,Math.min(innerWidth-r.width-8,nx));if(ny<8)ny=y+22;T.style.left=nx+"px";T.style.top=ny+"px";}

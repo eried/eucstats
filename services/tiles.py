@@ -69,17 +69,18 @@ def area_km2(tile: str) -> float:
     """Ground area of a tile. A tile in Oslo covers a quarter of what the same tile covers at
     the equator.
 
-    This used to claim "the crew ranking is in km²", which it is not and has not been for some
-    time: `territory.ranking` sorts on `terr_best_tiles` and uses km² only to break a tie. So
-    the one place the hazard was written down was also telling a reader the opposite of what
-    the code does, and the warning it ends on — that ranking by tile COUNT quietly rewards
-    riding far from the equator — describes the ranking as shipped. A reviewer measured it:
-    Equator Express holds 83.7 km² and ranks 13th, below a crew holding 24.7.
+    This used to claim "the crew ranking is in km²", which it never was. It is now mostly in
+    squares and a little in km²: `crews.standing_score` weighs the biggest patch at 1.0 a
+    square, everything else the crew holds at 0.25, and area at 0.05 per km² — and
+    `territory.ranking` sorts on that, as does the join list and the champions card.
 
-    That is a deliberate trade rather than an oversight — "biggest patch in one piece,
-    counted in squares" is the number the board, the targets card, the tap popup and a crew's
-    public page all agree on, and `crew.board.sub` now says out loud that a square covers more
-    ground nearer the equator. This function is what every km² figure beside those counts is
+    The hazard the old note ended on still applies to the first two terms: a square is the
+    same amount of riding at every latitude and covers four times the ground at the equator
+    than it does in Oslo, so counting squares quietly favours the north. A reviewer measured
+    it before the area term existed: Equator Express held 83.7 km² and ranked 13th, below a
+    crew holding 24.7. The 0.05 is what gives a crew near the equator a route up the board
+    without letting area overturn it, `crew.board.sub` says out loud that a square covers
+    more ground nearer the equator, and this function is what every km² figure in it is
     built from."""
     b = bounds(tile)
     if b is None:

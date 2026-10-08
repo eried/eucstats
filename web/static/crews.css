@@ -1914,34 +1914,6 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
     background-color: rgba(255,138,216,.22); }
 }
 
-/* ---------- the key, on the map ----------
-   Shut by default and remembered per browser: a six-row overlay permanently on a phone map
-   is worse than no key. Bottom left, which is the one corner this product does not already
-   use -- the champions card is top left, the zoom controls top right, the dock bottom centre
-   and the attribution bottom right. */
-.crewkey { position: absolute; left: 10px; bottom: 96px; z-index: 3; max-width: 230px;
-  background: rgba(11,15,28,.92); border: 1px solid var(--line, #243055); border-radius: 10px;
-  color: var(--ink, #e8edfb); font-size: 11px; backdrop-filter: blur(2px); }
-.crewkey > summary { cursor: pointer; padding: 7px 11px; list-style: none;
-  font-weight: 700; letter-spacing: .3px; text-transform: uppercase; font-size: 10px;
-  color: var(--mut, #9aa6c8); }
-.crewkey > summary::-webkit-details-marker { display: none; }
-/* The chevron is drawn rather than written: a glyph here would need a translation and it is
-   saying the same thing the `open` state already says. */
-.crewkey > summary::after { content: ""; display: inline-block; margin-left: 6px;
-  border: 4px solid transparent; border-top-color: currentColor; vertical-align: 2px; }
-.crewkey[open] > summary::after { transform: rotate(180deg); vertical-align: -2px; }
-.crewkey > summary:focus-visible { outline: none;
-  box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8); border-radius: 9px; }
-.crewkeyb { padding: 0 11px 9px; }
-/* One column in here: the manual's grid is 140px tracks and this box is 230px wide, so the
-   two-column layout would put four rows at two per line and a fifth alone. */
-.crewkeyb .crewlegend { grid-template-columns: 1fr; margin: 0; gap: 5px; }
-@media (max-width: 560px) {
-  /* clear of the dock, which is taller here */
-  .crewkey { bottom: 104px; max-width: 198px; }
-}
-
 /* The role, in words, beside the glyph. A phone has no hover, so `title="officer"` on a
    diamond was unreadable on the device this is built for -- and the roster offers a button
    called "Make officer" whose result was named nowhere on screen. */

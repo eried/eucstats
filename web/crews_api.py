@@ -676,9 +676,11 @@ def list_crews(db: Session = Depends(get_db), q: str = "", limit: int = 60):
     # 64 KB cap and a few hundred crews is megabytes pulled out of SQLite and thrown away on
     # every listing. Deferred: it is loaded when something actually asks for the image.
     from sqlalchemy.orm import defer
+    # The same order as the board, from the one definition of it. These two lists are read
+    # within seconds of each other by somebody deciding who to join, and they used to be
+    # sorted by different rules -- biggest patch here, weighted score on the champions card.
     rows = (query.options(defer(Clan.logo_png))
-            .order_by(Clan.terr_best_tiles.desc().nullslast(),
-                      Clan.terr_best_km2.desc().nullslast()).limit(min(limit, 100)).all())
+            .order_by(*crews.standing_order_by()).limit(min(limit, 100)).all())
     counts = _member_counts(db)
     # The cap, so a full crew's row can say so rather than letting somebody tap Join and be
     # told afterwards. 0 means no cap.

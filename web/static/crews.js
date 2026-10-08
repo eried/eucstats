@@ -1123,29 +1123,15 @@
     };
   }
 
-  // The framing for Highlight, which has to know about the key.
+  // The framing for Highlight.
   //
-  // The padding was four constants, and the key panel is not a constant: open, it is 198x306
-  // at (10,434) on a 390x844 screen -- about a quarter of the map area under the champions
-  // card. A reviewer pixel-diffed the shine frames against a cleared frame and found that at
-  // t=1500ms the ONLY changed pixels in the map region were x 18-46: the whole animation ran
-  // behind the key. Closing the key made the same animation plainly visible. The one gesture
-  // whose entire output is an animation was framing it underneath a panel.
-  //
-  // So the bottom padding grows to clear the key when the key is open, which puts the patch
-  // in the band above it. Bottom only: padding the left as well would corner the patch into
-  // whatever is left and zoom it out to nothing. Clamped to 45% of the viewport so a short
-  // screen cannot end up with no framing area at all, and `fitBounds` throws if the padding
-  // does not fit -- which is what the `try` around it was already there for.
+  // This used to measure the map key and grow the bottom padding to clear it: open, the key
+  // was 198x306 at (10,434) on a 390x844 screen, and a reviewer pixel-diffed the shine
+  // frames to find that at t=1500ms the only changed pixels in the map region were x 18-46 --
+  // the whole animation ran behind it. The key has been taken off the map (Erwin's call), so
+  // there is nothing left to measure and these are four constants again.
   function shinePadding() {
-    var pad = { top: 90, bottom: 120, left: 50, right: 50 };
-    var key = document.querySelector(".crewkey");
-    if (!key || !key.hasAttribute("open")) return pad;
-    var r = key.getBoundingClientRect();
-    if (!r.height) return pad;
-    var want = Math.round(window.innerHeight - r.top + 12);
-    pad.bottom = Math.max(pad.bottom, Math.min(want, Math.round(window.innerHeight * 0.45)));
-    return pad;
+    return { top: 90, bottom: 120, left: 50, right: 50 };
   }
 
   /* ---------- Highlight ----------
@@ -1662,52 +1648,17 @@
       + (ink[1] ? ' data-p="' + esc(ink[1]) + '"' : "") + "></i>" + t(key) + "</span>";
   }
 
-  /* ---------- the key, on the map ----------
+  /* ---------- the key ----------
 
-     Both reviewers put this at the top of why the mode is not fun: the thing you are
-     looking at means nothing. Gold outlines, white dashed outlines, a cyan halo, six shades
-     of one colour and two hatch patterns, and the only explanation was behind the panel,
-     behind a (?) and a scroll. "The game is illegible while you're playing it."
+     It used to sit on the map as a <details> above the bottom-left corner, open or shut per
+     browser, mounted whenever crew mode was on and the panel was closed. Erwin asked for it
+     off the map, so the bands are explained in one place now -- the manual, through
+     `legendHTML` below, which is where this markup always came from.
 
-     So the key is on the map, and exactly when the map is what you can see: crew mode on and
-     the panel closed. It is the same `legendHTML` the manual prints -- one definition, so the
-     key and the manual cannot drift -- and it starts shut, because a permanent six-row
-     overlay on a phone is worse than no key at all. Whether it is open is remembered per
-     browser; it is a convenience, not state anybody else needs.
+     Two things it was also doing, written down because they are now unsolved rather than
+     solved: it was the only thing on screen that said you were still in crew mode with the
+     panel closed, and it was the reason `shinePadding` had anything to measure.
   */
-  var KEYBOX = null;
-
-  function keyOpenPref() {
-    try { return localStorage.getItem("eucstats_crewkey") === "1"; } catch (e) { return false; }
-  }
-
-  function mountKey() {
-    if (KEYBOX || !map) return;
-    var host = map.getContainer && map.getContainer();
-    if (!host) return;
-    KEYBOX = document.createElement("details");
-    KEYBOX.className = "crewkey";
-    if (keyOpenPref()) KEYBOX.open = true;
-    KEYBOX.innerHTML = "<summary>" + esc(t("crew.key")) + "</summary>"
-      + '<div class="crewkeyb">' + legendHTML() + "</div>";
-    KEYBOX.addEventListener("toggle", function () {
-      try { localStorage.setItem("eucstats_crewkey", KEYBOX.open ? "1" : "0"); } catch (e) {}
-    });
-    host.appendChild(KEYBOX);
-  }
-
-  function unmountKey() {
-    if (KEYBOX && KEYBOX.parentNode) KEYBOX.parentNode.removeChild(KEYBOX);
-    KEYBOX = null;
-  }
-
-  // On when the map is the thing on screen. This doubles as the answer to "the panel is
-  // closed and nothing says you are still in crew mode" -- the key being there is what says
-  // so, and it is the only thing on screen that could.
-  function syncKey() {
-    if (visible && !panelOpen) mountKey();
-    else unmountKey();
-  }
 
   function legendHTML() {
     return '<div class="crewlegend">'
@@ -1993,6 +1944,15 @@
     + 'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
     + '<path d="M12 3v12M12 3 8 7M12 3l4 4"/>'
     + '<path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>';
+  // Three finder squares and a scatter: a QR at 20px, which is what the sheet behind this
+  // button actually shows. Drawn rather than rendered as a real code -- at this size a code
+  // is a grey smudge, and the mark only has to say which dialog opens.
+  var ICON_QR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<rect x="3" y="3" width="7" height="7" rx="1"/>'
+    + '<rect x="14" y="3" width="7" height="7" rx="1"/>'
+    + '<rect x="3" y="14" width="7" height="7" rx="1"/>'
+    + '<path d="M14 14h3v3h-3zM20 14v1M20 20h1M17 20v1"/></svg>';
 
   var ROLEGLYPH = { leader: "\u2605", officer: "\u25c6", member: "", past: "\u2716" };
   var ROLECLASS = { leader: "lead", officer: "off", member: "", past: "past" };
@@ -2051,36 +2011,78 @@
     return ME && ME.crew ? ME.crew.name : null;
   }
 
+  /* ---------- the standing, as the server ranks it ----------
+
+     Every "who am I above" question in this file used to sort on `best_tiles` -- the biggest
+     patch -- because that is what the board sorted on. The board now sorts on the weighted
+     score (`crews.standing_score`: the biggest patch at 1.0 a square, everything else held at
+     0.25, area at 0.05 per km²), which is the rule Erwin picked when he asked what happens to
+     20 squares held as 10+10 against 11 in one piece. Under the old rule the 11 won here and
+     the 20 won on the champions card; now the 20 wins on both.
+
+     Five separate places in this file derived a rank, each with its own copy of the old
+     comparator. They are all this one now, because five copies of a ranking rule is five
+     chances to show a rider a position the board does not agree with -- which is what shipped:
+     your own card read "4th" about a row the board had drawn fifth.
+  */
+
+  // A square added to your biggest patch is worth this much standing: 1.0 for the patch it
+  // grows, 0.25 for being one more square you hold. Area is left out -- it depends on latitude
+  // and this has to be one number. In step with `SCORE_PER_CONNECTED_SQUARE` in services/crews.py.
+  var SCORE_PER_SQUARE = 1.25;
+
+  // Best first. The tiebreaks are the server's, in the server's order, so a tie does not come
+  // out differently here than it went out there.
+  function byStanding(a, b) {
+    return (b.score || 0) - (a.score || 0)
+      || (b.best_tiles || 0) - (a.best_tiles || 0)
+      || (b.best_km2 || 0) - (a.best_km2 || 0);
+  }
+
+  function ranked(src) {
+    return (src || []).slice().sort(byStanding);
+  }
+
+  // What a crew's score becomes if its biggest patch goes from `was` to `now` and it gains or
+  // loses `dsq` squares overall. The two "would this overtake somebody" readouts need it: a
+  // patch growing by one no longer settles an overtake on its own, since the crew above may be
+  // there on spread or on area.
+  function scoreIf(score, was, now, dsq) {
+    return (score || 0) + (now - was) * 1.0 + (dsq || 0) * 0.25;
+  }
+
   // Would taking this square move the READER past somebody? `passes` answers the mirror
   // question -- whether the holder falls behind -- and returns nothing at all on a square
   // nobody holds, which is every row of seven crews' cards.
   function youPass(x) {
     if (!TERR || !TERR.crews || !ME || !ME.crew) return null;
     if (typeof x.grown !== "number" || !(x.grown > (x.own_now || 0))) return null;
-    var board = TERR.crews.slice().sort(function (a, b) {
-      return (b.best_tiles || 0) - (a.best_tiles || 0);
-    });
-    var mine = myName();
+    var board = ranked(TERR.crews);
+    var mine = myName(), me = null;
+    board.forEach(function (c) { if (c.name === mine) me = c; });
+    if (!me) return null;
+    // Taking it grows the patch from `own_now` to `grown` and adds the square itself.
+    var after = scoreIf(me.score, x.own_now || 0, x.grown, 1);
     for (var i = 0; i < board.length; i++) {
       if (board[i].name === mine) continue;
-      var theirs = board[i].best_tiles || 0;
-      // level or ahead now, behind after
-      if ((x.own_now || 0) <= theirs && x.grown > theirs) return board[i].name;
+      var theirs = board[i].score || 0;
+      // level or behind now, ahead after
+      if ((me.score || 0) <= theirs && after > theirs) return board[i].name;
     }
     return null;
   }
 
   function passes(x) {
     if (!TERR || !TERR.crews || !x.held_name || !(x.ranked_was > x.ranked_now)) return null;
-    var board = TERR.crews.slice().sort(function (a, b) {
-      return (b.best_tiles || 0) - (a.best_tiles || 0);
-    });
+    var board = ranked(TERR.crews);
     var i = -1;
     board.forEach(function (c, n) { if (c.name === x.held_name) i = n; });
     if (i < 0) return null;
+    // Their patch shrinks from `ranked_was` to `ranked_now` and they are one square down.
+    var after = scoreIf(board[i].score, x.ranked_was, x.ranked_now, -1);
     for (var k = i + 1; k < board.length; k++) {
-      var below = board[k].best_tiles || 0;
-      if (x.ranked_now < below) return board[k].name;   // they fall behind this one
+      var below = board[k].score || 0;
+      if (after < below) return board[k].name;   // they fall behind this one
     }
     return null;
   }
@@ -2761,6 +2763,13 @@
     // presses that one, rather than growing a second copy of the join flow in a dialog.
     var sh = document.getElementById("crewsheetshare");
     if (sh) sh.onclick = function () { shareCrew(mine && ME.crew ? ME.crew : c, sh); };
+    var cp = document.getElementById("crewsheetcopy");
+    if (cp) cp.onclick = function () {
+      var src = mine && ME.crew ? ME.crew : c;
+      copyVia(src.share_url || "",
+        function () { flash(cp, t("crew.mine.copied")); },
+        function () { setStatus(t("crew.err"), true, cp); });
+    };
     var go = document.getElementById("crewsheetgo");
     if (go) go.onclick = function () {
       window.closeModal();
@@ -2792,9 +2801,18 @@
       + (c.share_url
          ? '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank"'
            + ' rel="noopener">' + esc(c.share_url.replace(/^https?:\/\//, "")) + "</a></p>"
+           // Copy first, and always: it is the one of the three that cannot fail to do
+           // something. Share sat here alone, and on a desktop -- where `navigator.share`
+           // exists, opens nothing and rejects -- pressing it looked like a dead button.
+           // Erwin found it that way and asked for Copy; `canHandOff()` is why the phone
+           // keeps the hand-off to WhatsApp rather than losing it to the fix.
            + '<div class="crewacts crewsheetacts">'
-           + '<button class="crewbtn" id="crewsheetshare">'
-           + esc(t("crew.share.btn")) + "</button>"
+           + '<button class="crewbtn" id="crewsheetcopy">'
+           + esc(t("crew.mine.copy")) + "</button>"
+           + (canHandOff()
+              ? '<button class="crewbtn" id="crewsheetshare">'
+                + esc(t("crew.share.btn")) + "</button>"
+              : "")
            + '<a class="crewbtn ghost" href="' + esc(c.share_url) + '" target="_blank"'
            + ' rel="noopener">' + esc(t("crew.pub.print")) + "</a></div>"
          : "")
@@ -2815,6 +2833,20 @@
   // secure, so a bare presence check is not enough on its own -- the caller catches.
   function canShare() {
     return typeof navigator !== "undefined" && typeof navigator.share === "function";
+  }
+
+  // Whether this device has somewhere to hand a link TO. `canShare()` is not that question:
+  // Chrome on Windows and on Linux both publish `navigator.share`, open nothing when it is
+  // called, and reject -- so a Share button there is a button that does nothing visible, which
+  // is exactly what Erwin reported. A coarse pointer with no hover is a phone or a tablet,
+  // where the share sheet is real. Used only to decide whether to OFFER it; `shareUrl` still
+  // catches the rejection and copies, for anything this guess gets wrong.
+  function canHandOff() {
+    if (!canShare()) return false;
+    try {
+      return !!(window.matchMedia
+        && window.matchMedia("(hover: none) and (pointer: coarse)").matches);
+    } catch (e) { return false; }
   }
 
   // Hands the crew to whatever the device shares with, and copies the link when there is
@@ -3974,9 +4006,7 @@
   function rankOf(slug) {
     var src = BOARD || (TERR && TERR.crews);
     if (!src || !src.length) return null;
-    var rows = src.slice().sort(function (a, b) {
-      return (b.best_tiles || 0) - (a.best_tiles || 0);
-    });
+    var rows = ranked(src);
     for (var i = 0; i < rows.length; i++) if (rows[i].slug === slug) return i + 1;
     return null;
   }
@@ -4086,14 +4116,16 @@
   function standing(slug) {
     var src = BOARD || (TERR && TERR.crews);
     if (!src || !src.length) return "";
-    var rows = src.slice().sort(function (a, b) {
-      return (b.best_tiles || 0) - (a.best_tiles || 0);
-    });
+    var rows = ranked(src);
     var i = -1;
     rows.forEach(function (c, n) { if (c.slug === slug) i = n; });
     if (i < 0) return "";
     if (i === 0) return '<span class="crewgap top">' + t("crew.rank.top") + "</span>";
-    var gap = (rows[i - 1].best_tiles || 0) - (rows[i].best_tiles || 0);
+    // The gap in score, said in squares, because squares are the thing a rider can go and
+    // get. "4 squares off 7th" means four more welded to your biggest patch would pass them --
+    // which is true whatever mix of patch, spread and area put them there.
+    var pts = (rows[i - 1].score || 0) - (rows[i].score || 0);
+    var gap = pts <= 0 ? 0 : Math.max(1, Math.ceil(pts / SCORE_PER_SQUARE));
     // Your own place first. `crew.rank.off` names the crew ABOVE you -- "1 off 7th" when you
     // are eighth -- and it was the only ordinal on your own card, so it read as your rank.
     return '<span class="crewgap">' + esc(ordinal(i + 1)) + " &middot; "
@@ -4155,9 +4187,7 @@
     if (!TERR || !TERR.crews || !name) return null;
     if (STAND_FOR !== TERR.crews) {
       STAND = {};
-      TERR.crews.slice().sort(function (a, b) {
-        return (b.best_tiles || 0) - (a.best_tiles || 0);
-      }).forEach(function (c, i) {
+      ranked(TERR.crews).forEach(function (c, i) {
         if (c.name && !STAND[c.name]) STAND[c.name] = { place: i + 1, tiles: c.best_tiles || 0 };
       });
       STAND_FOR = TERR.crews;
@@ -4228,6 +4258,12 @@
         + esc(t("crew.mine.copylink")) + '">' + ICON_COPY + "</button>"
         + '<button class="crewicon" id="cm-invshare" title="' + esc(t("crew.share.btn"))
         + '" aria-label="' + esc(t("crew.share.btn")) + '">' + ICON_SHARE + "</button>"
+        // The third mark opens the sheet -- the crew's emblem big, what it holds, and the code
+        // to scan. The invite row is where a leader is already standing when somebody says
+        // "how do I find you", and the only route to that dialog was pressing the emblem
+        // further up the card, which nothing says is a button.
+        + '<button class="crewicon" id="cm-invsheet" title="' + esc(t("crew.pub.scan"))
+        + '" aria-label="' + esc(t("crew.pub.scan")) + '">' + ICON_QR + "</button>"
         + "</div>"
         + (c.join_policy === "invite" && c.invite_code
            ? '<p class="hint crewinvspoken">' + esc(t("crew.mine.invspoken"))
@@ -4673,6 +4709,11 @@
     };
     var is = document.getElementById("cm-invshare");
     if (is) is.onclick = function () { shareUrl(c.invite_url, c.name, is); };
+    // The same dialog the emblem opens, by the same route, so the code in it is the permanent
+    // crew link and not the invite -- Erwin's call. A sticker printed from it keeps working
+    // after the invite code is rotated, which a sticker of the invite would not.
+    var iq = document.getElementById("cm-invsheet");
+    if (iq) iq.onclick = function () { openCrewSheet(c.slug); };
 
     // A new invite code, retiring the old one. Confirmed, because it breaks every link and
     // every screenshot already handed out -- and says so, rather than asking "are you sure".
@@ -5592,7 +5633,6 @@
     if (!map.getLayer("crew-fill")) buildLayers();
     setHeat(false);
     heatUnderTerritory(true);
-    syncKey();
     return !!map.getLayer("crew-fill");
   }
 
@@ -5616,7 +5656,6 @@
     KEEPTOP = (panelOpen && pb0 && !revealNext) ? pb0.scrollTop : 0;
     visible = true;
     panelOpen = true;
-    syncKey();
     H.setPanel("crews", (H.t ? H.t("title.crews") : "Crews & Territory"),
       // TWO regions, not one whose role flips. Changing `role` and `aria-live` on an
       // already-registered region in the same mutation as the text is the registration
@@ -5931,10 +5970,18 @@
         // exists for the map's thirty emblem markers, which are reachable another way; these
         // are the only route to the crew sheet, so they belong in the tab order.
         var c = crewBySlug(im.dataset.emb);
+        // On the board, the emblem does what the row does: fly there and light the ground up.
+        // Erwin's call, and the row is right -- "Who owns the streets" is a board about the
+        // MAP, so the picture of a crew on it should take you to that crew on the map, not
+        // raise a dialog over the thing you were looking at. Everywhere else -- the browse
+        // list, your own card -- it still opens the sheet, which is the only route to a crew's
+        // description and its code.
+        var onBoard = !!(im.closest && im.closest(".crewboard"));
         pressable(im, (c && c.name) || im.dataset.emb, function (ev) {
           // The emblem sits inside a row that flies the map and inside a <summary> that
           // folds; neither should happen when the thing you pressed was the picture.
           if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+          if (onBoard) { closeIfCovering(); shine(im.dataset.emb); return; }
           openCrewSheet(im.dataset.emb);
         });
       });
@@ -6380,13 +6427,12 @@
     // this reading, not for ever.
     panelClosed: function () {
       panelOpen = false; heldNotice = null; noticeAcked = null;
-      stopPairing(); syncKey();
+      stopPairing();
     },
     hide: function () {
       if (!visible) return;
       visible = false;
       panelOpen = false;
-      unmountKey();
       stopPairing();
       clearLayers();          // rectangles belong to this mode and nowhere else
       heatUnderTerritory(false);
