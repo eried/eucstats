@@ -840,7 +840,16 @@ _TRIP_MAP_TMPL = """
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <div class=card><h2>Route <span class=mut>· admin view · exact GPS path</span></h2>
       <div id=tmap style="height:360px;border-radius:10px;overflow:hidden;border:1px solid #26345e"></div>
-      <p class=hint>Green = start, red = end. Full downsampled GPS path (admin only, public maps obfuscate rider locations).</p></div>
+      <p class=hint>Green = start, red = end. Full downsampled GPS path (admin only, public maps obfuscate rider locations).</p>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12px">
+        <span class=mut>speed</span>
+        <span style="display:inline-block;width:190px;height:10px;border-radius:5px;background:linear-gradient(90deg,#2b6cb0,#38bdf8 12%,#4ade80 31%,#facc15 54%,#fb923c 77%,#ef4444)"></span>
+        <span class=mut>0</span><span class=mut>·</span><span class=mut>20</span><span class=mut>·</span>
+        <span class=mut>35</span><span class=mut>·</span><span class=mut>50</span><span class=mut>·</span>
+        <span class=mut>65+ km/h</span>
+        <span style="display:inline-block;width:16px;height:10px;border-radius:3px;background:#6b7280;margin-left:10px"></span>
+        <span class=mut>no speed recorded</span>
+      </div></div>
     <script>
     (function(){
       if(!window.maplibregl){return;}
@@ -851,7 +860,7 @@ _TRIP_MAP_TMPL = """
           if(!g.features||!g.features.length){return;}
           m.addSource("trk",{type:"geojson",data:g});
           m.addLayer({id:"trk-glow",type:"line",source:"trk",filter:["==",["get","role"],"path"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#2ea8ff","line-width":9,"line-blur":6,"line-opacity":0.3}});
-          m.addLayer({id:"trk-line",type:"line",source:"trk",filter:["==",["get","role"],"path"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#7fd0ff","line-width":3}});
+          m.addLayer({id:"trk-line",type:"line",source:"trk",filter:["==",["get","role"],"path"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-width":4,"line-color":["case",["<",["get","kph"],0],"#6b7280",["interpolate",["linear"],["get","kph"],0,"#2b6cb0",8,"#38bdf8",20,"#4ade80",35,"#facc15",50,"#fb923c",65,"#ef4444"]]}});
           m.addLayer({id:"trk-teleport",type:"line",source:"trk",filter:["==",["get","role"],"teleport"],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ff5b6e","line-width":2,"line-dasharray":[1,2.2],"line-opacity":0.95}});
           m.addLayer({id:"trk-start",type:"circle",source:"trk",filter:["==",["get","role"],"start"],paint:{"circle-radius":6,"circle-color":"#39d98a","circle-stroke-color":"#eaffff","circle-stroke-width":2}});
           m.addLayer({id:"trk-end",type:"circle",source:"trk",filter:["==",["get","role"],"end"],paint:{"circle-radius":6,"circle-color":"#ff8585","circle-stroke-color":"#ffecec","circle-stroke-width":2}});
@@ -865,6 +874,100 @@ _TRIP_MAP_TMPL = """
       });
     })();
     </script>"""
+
+
+def _series_from_raw(db, trip_uuid):
+    """[(seconds_in, battery_pct, voltage, speed)] at full resolution, or [] when the upload
+    is gone. Same parse the ingest pipeline uses, so what is drawn is what was judged."""
+    out = []
+    ru = db.get(RawUpload, trip_uuid)
+    if not (ru and ru.blob):
+        return out
+    try:
+        import config
+        from ingest.parser import parse_csv
+        from services.ingest import _gunzip_capped, _is_gzip
+        cap = int(config.MAX_DECOMPRESSED_MB * 1024 * 1024)
+        data = _gunzip_capped(ru.blob, cap) if _is_gzip(ru.blob) else ru.blob
+        t0 = None
+        for sm in parse_csv(data.decode("utf-8", "replace"), 0):
+            if sm.t is None:
+                continue
+            if t0 is None:
+                t0 = sm.t
+            out.append(((sm.t - t0).total_seconds(), sm.battery, sm.voltage, sm.speed))
+    except Exception:
+        return []
+    return out
+
+
+def _spark(series, idx, colour, label, unit, lo=None, hi=None, W=620, H=90):
+    """One channel as an inline SVG line. Server-drawn because this page has no chart library
+    and a battery trace does not justify adding one."""
+    vals = [(row[0], row[idx]) for row in series if row[idx] is not None]
+    if len(vals) < 2:
+        return ""
+    xs = [v[0] for v in vals]
+    ys = [v[1] for v in vals]
+    x0, x1 = min(xs), max(xs)
+    y0 = lo if lo is not None else min(ys)
+    y1 = hi if hi is not None else max(ys)
+    if x1 <= x0:
+        return ""
+    if y1 - y0 < 1e-9:
+        y0, y1 = y0 - 1, y1 + 1
+    pad = 4
+
+    def px(x):
+        return pad + (x - x0) / (x1 - x0) * (W - 2 * pad)
+
+    def py(y):
+        return H - pad - (y - y0) / (y1 - y0) * (H - 2 * pad)
+
+    # thinned to about one point per horizontal pixel: a 3,000-sample ride is 3,000 useless
+    # path commands otherwise, and the shape is identical
+    step = max(1, len(vals) // W)
+    d = " ".join(("M" if i == 0 else "L") + "%.1f %.1f" % (px(v[0]), py(v[1]))
+                 for i, v in enumerate(vals[::step]))
+    return (
+        f'<div style="margin-top:10px">'
+        f'<div style="font-size:12px;margin-bottom:2px"><b style="color:{colour}">{label}</b>'
+        f' <span class=mut>{ys[0]:.0f}{unit} → {ys[-1]:.0f}{unit}'
+        f' · min {min(ys):.0f} · max {max(ys):.0f}</span></div>'
+        f'<svg viewBox="0 0 {W} {H}" width="100%" height="{H}" preserveAspectRatio="none"'
+        f' style="background:#0e1426;border:1px solid #26345e;border-radius:8px">'
+        f'<path d="{d}" fill="none" stroke="{colour}" stroke-width="2"'
+        f' stroke-linejoin="round" stroke-linecap="round"/></svg></div>'
+    )
+
+
+def _trip_series_card(db, t) -> str:
+    """Battery, voltage and speed over the ride."""
+    series = _series_from_raw(db, t.trip_uuid)
+    if not series:
+        bits = []
+        if t.battery_used_pct is not None:
+            bits.append(f"used {_num(t.battery_used_pct)}%")
+        if getattr(t, "min_battery_pct", None) is not None:
+            bits.append(f"lowest {_num(t.min_battery_pct)}%")
+        if t.peak_voltage is not None:
+            bits.append(f"peak {_num(t.peak_voltage)} V")
+        if t.max_voltage_sag is not None:
+            bits.append(f"sag {_num(t.max_voltage_sag)} V")
+        summary = " · ".join(bits) or "nothing recorded"
+        return ('<div class=card><h2>Battery &amp; speed</h2>'
+                '<p class=mut>No raw upload kept for this trip, and the stored track carries '
+                'only position, speed and g-force &mdash; so there is no per-second battery to '
+                'draw. Raw uploads are retained for about six weeks.</p>'
+                f'<p class=hint>Trip totals: {summary}</p></div>')
+    charts = (_spark(series, 1, "#4ade80", "battery", "%", lo=0, hi=100)
+              + _spark(series, 2, "#facc15", "voltage", " V")
+              + _spark(series, 3, "#38bdf8", "speed", " km/h", lo=0))
+    if not charts:
+        return ('<div class=card><h2>Battery &amp; speed</h2>'
+                '<p class=mut>The raw upload has no battery, voltage or speed channel.</p></div>')
+    return ('<div class=card><h2>Battery &amp; speed <span class=mut>· from the raw upload, '
+            f'full resolution · {len(series)} samples</span></h2>' + charts + "</div>")
 
 
 def _trip_map_card(trip_uuid: str, lat, lon) -> str:
@@ -932,6 +1035,7 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
     except Exception:
         mj_pretty = "{}"
     route_card = _trip_map_card(trip_uuid, t.start_lat, t.start_lon)
+    series_card = _trip_series_card(db, t)
     inner = f"""
     <a class=bk href="/admin/explorer/trips">{_IC['back']} trip explorer</a>
     <h1>Trip <code style="font-size:16px">{html.escape(trip_uuid[:8])}</code>
@@ -940,6 +1044,7 @@ def _trip_detail_html(db: Session, trip_uuid: str) -> str | None:
     {reasons_card}
     {actions_card}
     {route_card}
+    {series_card}
     <div class=card><h2>Metrics</h2><div class=dl>{fields}</div></div>
     <div class=card><h2>meta_json <span class=mut>· device / gps extras</span></h2><pre class=j>{mj_pretty}</pre></div>"""
     return _admin_shell(inner, active="/admin/explorer")
@@ -990,6 +1095,17 @@ def explorer_trip(trip_uuid: str, request: Request, db: Session = Depends(get_db
         return HTMLResponse(_admin_shell('<a class=bk href="/admin/explorer/trips">← back</a><div class=card><h1>Trip not found</h1></div>',
                                          active="/admin/explorer"), status_code=404)
     return HTMLResponse(page)
+
+
+def _haversine_m(a, b, c, d) -> float:
+    """Metres between two fixes. Local to admin so the explorer does not import the ingest
+    pipeline just to measure a line."""
+    import math
+    R = 6371000.0
+    p1, p2 = math.radians(a), math.radians(c)
+    dp, dl = p2 - p1, math.radians(d - b)
+    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R * math.asin(min(1.0, math.sqrt(x)))
 
 
 def _gps_points_track(db, trip_uuid):
@@ -1053,8 +1169,25 @@ def explorer_trip_track(trip_uuid: str, request: Request, db: Session = Depends(
     feats = []
     if len(solid) >= 2:
         coords = [[lon, lat] for (_, lat, lon, _sp) in solid]
-        feats.append({"type": "Feature", "properties": {"role": "path"},
-                      "geometry": {"type": "LineString", "coordinates": coords}})
+        for i in range(len(solid) - 1):
+            (t0, la0, lo0, sp0), (t1, la1, lo1, sp1) = solid[i], solid[i + 1]
+            kph = None
+            if sp0 is not None and sp1 is not None:
+                kph = (sp0 + sp1) / 2.0
+            elif sp0 is not None:
+                kph = sp0
+            else:
+                try:
+                    dt = (t1 - t0).total_seconds() if (t0 and t1) else 0
+                    if dt > 0:
+                        kph = _haversine_m(la0, lo0, la1, lo1) / dt * 3.6
+                except Exception:
+                    kph = None
+            feats.append({"type": "Feature",
+                          "properties": {"role": "path",
+                                         "kph": round(kph, 1) if kph is not None else -1},
+                          "geometry": {"type": "LineString",
+                                       "coordinates": [[lo0, la0], [lo1, la1]]}})
         for j in jumps:
             feats.append({"type": "Feature", "properties": {"role": "teleport"},
                           "geometry": {"type": "LineString", "coordinates": j}})

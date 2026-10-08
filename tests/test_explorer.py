@@ -78,9 +78,38 @@ def test_trip_track_geojson(db):
         g = r.json()
         roles = {f["properties"]["role"] for f in g["features"]}
         assert roles == {"path", "start", "end"}
-        line = next(f for f in g["features"] if f["properties"]["role"] == "path")
-        assert len(line["geometry"]["coordinates"]) == 5
-        assert line["geometry"]["coordinates"][0] == [18.9, 69.6]   # [lon, lat] order
+        segs = [f for f in g["features"] if f["properties"]["role"] == "path"]
+        assert len(segs) == 4, "one feature per segment, so each can carry its own speed"
+        assert all(len(f["geometry"]["coordinates"]) == 2 for f in segs)
+        assert segs[0]["geometry"]["coordinates"][0] == [18.9, 69.6]   # [lon, lat] order
+        last = segs[-1]["geometry"]["coordinates"][-1]
+        assert abs(last[0] - 18.9004) < 1e-9 and abs(last[1] - 69.6004) < 1e-9, last
+        # the wheel said 20 km/h at every fix, and that is what the map must colour by
+        assert all(f["properties"]["kph"] == 20.0 for f in segs), [
+            f["properties"]["kph"] for f in segs]
+
+
+def test_a_segment_with_no_wheel_speed_falls_back_to_the_gps(db):
+    """Grey means "no speed recorded" on the map, so -1 has to mean exactly that -- and a
+    trip whose wheel reported nothing still gets a coloured path from the ground it covered."""
+    from datetime import datetime
+    from ingest.downsample import encode_track
+    from ingest.parser import Sample
+    from repository.trips import TripRepo
+    _seed(db)
+    pts = [Sample(t=datetime(2026, 6, 1, 10, 0, i), lat=69.6 + i * 0.0001,
+                  lon=18.9, speed=None, g=1.0) for i in range(4)]
+    TripRepo(db).save_track("tr1", encode_track(pts))
+    db.commit()
+    with TestClient(app) as client:
+        _auth(client)
+        g = client.get("/admin/explorer/trip/tr1/track.geojson").json()
+        segs = [f for f in g["features"] if f["properties"]["role"] == "path"]
+        assert segs, "a trip with no wheel speed still has a path"
+        kphs = [f["properties"]["kph"] for f in segs]
+        assert all(k > 0 for k in kphs), kphs        # derived from distance over time
+        # 0.0001 deg of latitude in one second is about 40 km/h
+        assert 35 < kphs[0] < 45, kphs[0]
 
 
 def test_trip_track_marks_teleport(db):

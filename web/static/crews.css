@@ -468,12 +468,14 @@
   color: #fff; text-shadow: 0 1px 3px #000, 0 0 10px #000; white-space: nowrap;
 }
 .crewemb.tiny .crewemb-n { display: none; }
-.crewemb-i { display: none; }
-.crewemb.tiny .crewemb-i {
-  display: block; position: absolute; left: 0; right: 0; top: 50%;
-  transform: translateY(-50%); text-align: center; pointer-events: none;
-  font: 700 10px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .5px;
-  color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000;
+.crewemb-b { position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
+  display: block; line-height: 0; }
+.crewemb-i {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700;
+  font-size: var(--embi, 10px); line-height: 1; letter-spacing: .5px;
+  color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000, 0 0 2px #000;
 }
 
 .crewpop .maplibregl-popup-content { background: rgba(8, 13, 26, .94); border: 1px solid var(--line, #243055); border-radius: 0; padding: 9px 12px; box-shadow: 0 8px 26px rgba(0,0,0,.6); }

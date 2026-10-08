@@ -696,9 +696,10 @@
       var lat = (tileLat(y, TERR.z) + tileLat(y + s, TERR.z)) / 2;
       var el = document.createElement("div");
       el.className = "crewemb";
-      el.innerHTML = '<img alt="" src="' + crew.emblem + '"/>'
+      el.innerHTML = '<span class="crewemb-b">'
+                   + '<img alt="" src="' + crew.emblem + '"/>'
                    + '<span class="crewemb-i" aria-hidden="true">'
-                   + esc(initialsOf(crew.name)) + "</span>"
+                   + esc(initialsOf(crew.name)) + "</span></span>"
                    + '<span class="crewemb-n">' + esc(crew.name) + "</span>";
       // The biggest patch, like the board, the join list and the crew's own page. This was
       // `crew.km2` -- everything they hold anywhere -- so the marker printed 209 km2 beside a
@@ -757,6 +758,7 @@
       // the name goes when the badge is too small to carry it, not when the crew is big: the
       // floor above means a large crew can sit at 34px and still want its name
       el.classList.toggle("tiny", px < Math.max(44, floor + 10));
+      el.style.setProperty("--embi", Math.max(8, Math.min(26, Math.round(px * 0.34))) + "px");
       el.dataset.px = px;
     });
     declutterEmblems();
