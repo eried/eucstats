@@ -357,6 +357,16 @@
   width: 23%; height: 23%; object-fit: cover; border-radius: 3px;
   background: #fff; box-shadow: 0 0 0 3.5px #fff;
 }
+/* The crew's initials over the code's logo. Same geometry as `.crewqrlogo`, so it covers it
+   exactly; the size comes from `sizeSheetMarks`, which measures the logo rather than
+   guessing at it -- the code is 190px in the sheet and 124px in a list. */
+.crewqrlogoi {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 23%; height: 23%; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 700; font-size: var(--embi, 10px); line-height: 1; letter-spacing: .5px;
+  color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000, 0 0 2px #000;
+}
 .crewqrg i { background: #0b0f1a; }
 .crewqrg i.o { background: transparent; }
 /* Each module drops in, delayed by row + column, which `qrGrid` writes on the element: the
@@ -478,7 +488,20 @@
   color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000, 0 0 2px #000;
 }
 
-.crewpop .maplibregl-popup-content { background: rgba(8, 13, 26, .94); border: 1px solid var(--line, #243055); border-radius: 0; padding: 9px 12px; box-shadow: 0 8px 26px rgba(0,0,0,.6); }
+/* Opaque, not .94. Six per cent of the map came through the whole box, and the one place it
+   read as a picture rather than a tint was the two buttons: they add rgba(255,255,255,.06)
+   of their own, which lifts that six per cent just far enough for the crew's dots to resolve
+   inside them. Erwin saw it there and asked whether the pattern was leaking -- it was, and
+   through the popup rather than onto the buttons. The seam down the middle of the box was
+   the same thing: a tile boundary on the ground underneath.
+
+   A popup is the one surface whose whole job is to be read against a map that is deliberately
+   busy, so it does not get to be glass. */
+.crewpop .maplibregl-popup-content { background: #080d1a; border: 1px solid var(--line, #243055); border-radius: 0; padding: 9px 12px; box-shadow: 0 8px 26px rgba(0,0,0,.6); }
+/* The tip is drawn by maplibre as a triangle of borders and takes its colour from its own
+   rule, not from the content's -- so changing one above without this leaves a translucent
+   arrow hanging off an opaque box. */
+.crewpop .maplibregl-popup-tip { border-top-color: #080d1a; border-bottom-color: #080d1a; }
 /* The tip was hidden for tidiness, which on a map where every square looks like every other
    square left the box ambiguous about which one it was describing. */
 .crewpop .maplibregl-popup-tip { display: block; }
@@ -717,9 +740,20 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* The sheet a click opens. Centred, because it is one object being looked at. */
 .crewsheet { text-align: center; --sheet-sq: min(54vw, 190px); }
 .crewsheet > p { color: var(--mut, #9aa6c8); margin: 0 0 14px; }
+/* The wrapper is what centres now; the image keeps its size and gives up its margins, so
+   the letters have something positioned to sit in. */
+.crewsheetembb { position: relative; display: block; width: var(--sheet-sq);
+  margin: 2px auto 14px; line-height: 0; }
+.crewsheetembi {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700;
+  font-size: var(--embi, 28px); line-height: 1; letter-spacing: 1px;
+  color: #fff; text-shadow: 0 2px 6px #000, 0 0 16px #000, 0 0 4px #000;
+}
 .crewsheetemb {
   width: var(--sheet-sq); height: var(--sheet-sq); object-fit: contain;
-  display: block; margin: 2px auto 14px; border-radius: 3px;
+  display: block; margin: 0; border-radius: 3px;
   background: rgba(4, 8, 16, .9); border: 1px solid rgba(255, 255, 255, .22);
   box-shadow: 0 10px 34px rgba(0, 0, 0, .6); padding: 5%; box-sizing: border-box;
 }

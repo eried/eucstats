@@ -2758,6 +2758,7 @@
     if (!c) return;
     var mine = !!(ME && ME.crew && ME.crew.slug === slug);
     window.openModal(c.name, crewSheetHTML(mine && ME.crew ? ME.crew : c, mine));
+    sizeSheetMarks(document);
     // The action belongs to the row that already owns it: every refusal, every confirm and
     // every price sentence lives on that button. Pressing this one closes the sheet and
     // presses that one, rather than growing a second copy of the join flow in a dialog.
@@ -2786,7 +2787,14 @@
   function crewSheetHTML(c, mine) {
     var held = c.tiles || 0;
     return '<div class="crewsheet">'
+      // The emblem carries the crew's initials here too, the way the map badge does. Without
+      // them a sheet is a colour and a pattern, and two crews on the same colour are told
+      // apart only by the name underneath -- which is the thing the mark is supposed to save
+      // you reading.
+      + '<span class="crewsheetembb">'
       + '<img class="crewsheetemb" alt="" src="' + esc(c.emblem) + '">'
+      + '<span class="crewsheetembi" aria-hidden="true">'
+      + esc(initialsOf(c.name)) + "</span></span>"
       + (c.description ? "<p>" + esc(c.description) + "</p>" : "")
       + '<div class="crewsheetfig"><b>' + tiles(held) + "</b>"
       + (held ? " <span>" + t("crew.mine.ao") + "</span>" : "") + "</div>"
@@ -2796,7 +2804,7 @@
       // not at an invite code, so rotating the code does not kill a sticker already on a
       // backpack.
       + (c.share_qr
-         ? '<div class="crewsheetqr">' + qrGrid(c.share_qr, c.slug) + "</div>"
+         ? '<div class="crewsheetqr">' + qrGrid(c.share_qr, c.slug, c.name) + "</div>"
          : "")
       + (c.share_url
          ? '<p class="crewshareu"><a href="' + esc(c.share_url) + '" target="_blank"'
@@ -2870,7 +2878,7 @@
   // `slug` puts that crew's emblem in the middle of the code. The server raises the error
   // correction to H for exactly these (see `pairing.qr_rows(robust=True)`), so the modules the
   // emblem covers are recoverable and the code still scans.
-  function qrGrid(rows, slug) {
+  function qrGrid(rows, slug, name) {
     if (!rows || !rows.length) return "";
     var n = rows[0].length, cells = [], y, x;
     for (y = 0; y < rows.length; y++) {
@@ -2885,8 +2893,33 @@
       + (slug
          ? '<img class="crewqrlogo" alt="" src="/api/v1/crews/'
            + encodeURIComponent(slug) + '/emblem"/>'
+           // The letters go over the logo as their own layer rather than into the emblem the
+           // server draws, for the same reason the map badge does it: the emblem is one image
+           // cached per crew, and the initials have to be sized against the box they land in,
+           // which is 44px here and 190px above. A sibling, not a wrapper, because the logo is
+           // already absolutely placed in the middle of the matrix and this simply covers it.
+           + '<span class="crewqrlogoi" aria-hidden="true">'
+           + esc(initialsOf(name)) + "</span>"
          : "")
       + "</div>";
+  }
+
+  // The initials on the sheet's two marks, sized from the boxes they actually landed in.
+  // Measured rather than computed in CSS: the emblem is `min(54vw, 190px)` and the QR logo is
+  // 23% of whatever the code came out at, so there is no one number to write down -- and the
+  // map solved this the same way, with `--embi` set per element.
+  function sizeSheetMarks(root) {
+    (root || document).querySelectorAll(".crewsheetembb, .crewqrg").forEach(function (box) {
+      var img = box.querySelector("img");
+      var ini = box.querySelector(".crewsheetembi, .crewqrlogoi");
+      if (!img || !ini) return;
+      var w = img.getBoundingClientRect().width;
+      if (!w) return;
+      // .34 of the mark, as on the map. The QR logo carries a white ring and sits on black
+      // modules, so it gets a little more or the two letters read as a smudge.
+      var r = ini.className === "crewqrlogoi" ? 0.42 : 0.34;
+      ini.style.setProperty("--embi", Math.max(7, Math.min(64, Math.round(w * r))) + "px");
+    });
   }
 
   var pairRolls = 0;
@@ -4695,6 +4728,7 @@
         // underneath the dialog it just opened.
         if (ev) { ev.preventDefault(); ev.stopPropagation(); }
         window.openModal(c.name, crewSheetHTML(c));
+        sizeSheetMarks(document);
       });
     }
 

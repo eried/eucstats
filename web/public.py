@@ -331,9 +331,17 @@ td.sub{color:var(--mut)}
 .tab{min-height:34px;padding:4px 10px;font-size:11.5px;gap:6px}
 .tab svg{width:13px;height:13px}}
 </style></head><body>
-<div id="map"></div>
+<!-- The halftone goes INSIDE the map. It is the map's texture and nothing else's, and as a
+     sibling at z-index 1 it sat above #map's whole stacking context (z-index 0) -- which
+     includes everything MapLibre builds: the canvas, the crew badges, and the popup. So the
+     dot screen multiplied over the crew popup too, and read most clearly inside its two
+     buttons, the lightest flat surface in the box. Erwin saw it there and asked whether the
+     crew pattern was leaking; it was this, at 4px pitch and 22%.
+     As a CHILD it still beats the canvas, the markers and the controls, which are all
+     z-index auto, and loses to .crewpop at 560 -- so the map keeps its texture and the one
+     surface whose job is to be read comes out clean. -->
+<div id="map"><div id="dots"></div></div>
 <div id="veil"></div>
-<div id="dots"></div>
 __TESTWM__
 <video id="intro" autoplay muted playsinline preload="auto"><source src="/static/intro.mp4" type="video/mp4"></video>
 <div id="introfx"></div>
