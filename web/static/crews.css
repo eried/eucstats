@@ -467,7 +467,7 @@
   margin-top: 3px; font-size: 11px; font-weight: 700; letter-spacing: .3px;
   color: #fff; text-shadow: 0 1px 3px #000, 0 0 10px #000; white-space: nowrap;
 }
-.crewemb.tiny .crewemb-n { display: none; }
+.crewemb-n { display: none; }
 .crewemb-b { position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
   display: block; line-height: 0; }
 .crewemb-i {
@@ -758,11 +758,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   margin: 8px 0 0; }
 /* Everything you press once a year, or once ever, behind one fold. */
 .crewmanage { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
-.crewmanage > summary { cursor: pointer; font-size: 12px; color: var(--mut, #9aa6c8);
-  list-style: none; padding: 4px 0; }
+.crewmanage > summary { cursor: pointer; padding: 8px 0; font-size: 11px;
+  letter-spacing: .5px; text-transform: uppercase; color: var(--mut, #9aa6c8);
+  list-style: none; display: flex; align-items: center; min-height: 44px; }
 .crewmanage > summary::-webkit-details-marker { display: none; }
-.crewmanage > summary::before { content: "B8"; display: inline-block; margin-right: 6px;
-  transition: transform .18s; }
+.crewmanage > summary::before {
+  content: ""; width: 0; height: 0; margin-right: 7px; flex: 0 0 auto;
+  border-left: 5px solid currentColor; border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent; transition: transform .18s;
+}
 .crewmanage[open] > summary::before { transform: rotate(90deg); }
 .crewmanage > summary:hover { color: var(--ink, #e8edfb); }
 /* No left border. `.hint` carries one app-wide, which reads as a callout rule beside a

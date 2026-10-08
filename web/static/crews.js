@@ -4278,6 +4278,7 @@
     // Officers hold these powers on the server and were shown none of them, so an officer's
     // only way to use a power they have was to craft the request by hand. Promoting to leader
     // stays a leader's call, and the server enforces that.
+    var rosterTools = "";
     // A plain member gets the names, read-only. The whole roster used to be behind the same
     // gate as the invite code and the knock list, so a member's page said "5 riders" in its
     // header and the only list on it was WHO RODE FOR IT -- four names, with the reader's own
@@ -4306,7 +4307,7 @@
       // 529px of a 590px screen for twelve buttons and no information -- while the list above
       // folds at six and says so. The leader's row is always inside the fold.
       var ROSTER_SHOWN = 6;
-      h += '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
+      rosterTools = '<div class="crewpend"><h4>' + t("crew.roles.h") + "</h4>"
         + me.roster.map(function (x, ri) {
             // The ROLE, in words, not only a glyph with a `title`. A phone has no hover, so
             // the star beside a name was unreadable on the device this is built for -- and
@@ -4411,6 +4412,9 @@
     }
     h += '<details class="crewmanage"><summary>' + esc(t("crew.mine.manage"))
       + "</summary>"
+      // Who is in the crew and what you can do about it, before the three controls that end
+      // something. Both are "manage", and this is the half you actually use.
+      + rosterTools
       + '<div class="crewacts">'
       // `title` on each of these: the labels are in this feature's voice and the voice is only
       // free when the plain meaning is one hover away. Pulling a request and leaving a crew
@@ -5433,6 +5437,14 @@
       // comparison simply does not fire on a cold load -- the squares half, which is the
       // bigger news anyway, does.
       dockHasCrew = !!r.body.crew;
+      // The rings come from here too. They are drawn from TARGETS, which used to be assigned
+      // only inside the crew card's own render -- so on a cold load, with the panel never
+      // opened, the map carried a crew's ground and nothing marking where to go next. This
+      // response already had them; it was being read for the dock badge and thrown away.
+      if (r.body.targets && r.body.targets.length) {
+        TARGETS = r.body.targets;
+        if (visible) showTargets(TARGETS);
+      }
       dockDot(r.body.pending ? r.body.pending.length : 0,
               sinceNews(r.body.crew, r.body.territory));
       // And keep asking. Once was the fix for a badge that could only ever tell a leader
