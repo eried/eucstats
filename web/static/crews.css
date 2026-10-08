@@ -329,7 +329,22 @@
 /* Left, like its six siblings. Centred it put a 26px code with 7px of tracking, and the
    QR beside it, about 250px right of the heading's left edge -- and in the expired state the
    masked six dots floated alone in a 649x188 empty box. */
-.crewsign .crewcode { text-align: center; }
+/* `padding-left` is the whole fix for a centred code that is not centred.
+
+   `letter-spacing` puts its gap AFTER every character including the last, and
+   `text-align: center` centres the box with that trailing gap inside it -- so the glyphs
+   land half a letter-space to the left of the middle, every time. Measured on a 412px
+   screen: the QR's ink sits 0.5px off the card's centre line and the code's sits 3.0px off,
+   the 2.5px between them being exactly half of the 5px tracking. Erwin saw it as the code
+   not lining up under its own QR, which is what it was.
+
+   A left pad of one whole letter-space moves the line right by half of one, which cancels
+   it. Taken from `--ls` rather than written again, because the tracking is 7px here and 5px
+   on a phone and a second copy of either number is a second thing to forget.
+
+   Note the Android app does NOT need this: Compose trims the trailing letter-space itself,
+   which is why the 4dp nudge that was once in the app was wrong and came out. */
+.crewsign .crewcode { text-align: center; padding-left: var(--ls); }
 .crewsign .crewqr { justify-content: center; }
 /* The version requirement is a precondition, not a footnote. It was the second of three
    identical hint lines with a pink one below it, so the newest and hardest requirement was
@@ -376,7 +391,7 @@
 .crewqrg i { animation: crewmod .26s ease both; }
 /* A code that has expired is not arriving, so it does not animate in. */
 .crewqr.dead .crewqrg i { animation: none; }
-.crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 7px; font-weight: 700; }
+.crewcode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; --ls: 7px; letter-spacing: var(--ls); font-weight: 700; }
 
 .crewmsg { margin: 9px 0; padding: 8px 11px; border-radius: 7px;
   background: rgba(255,138,216,.14); border-left: 2px solid var(--sec, #ff8ad8);
@@ -559,6 +574,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    `.dead` would beat it, which is the exact shape the checker reports -- and it told me so
    on the first run. One em dash does not need its tracking adjusted anyway. */
 .crewcode.dead { color: var(--mut, #9aa6c8); }
+/* The hint under the code wraps wherever the width runs out, which put "In the app:
+   Settings," at the end of one line and "EUC Stats, Crews." alone on the next -- a path cut
+   in half. `balance` makes the browser even the lines up instead, so the break lands near
+   the sentence rather than inside the path. Ignored by browsers that do not have it, which
+   leaves exactly today's wrapping. */
+#crewcodehint, .crewsign .crewsame { text-wrap: balance; }
 #crewqr.dead, #crewopen.dead {
   opacity: .25; filter: grayscale(1); pointer-events: none; cursor: default;
 }
@@ -1555,7 +1576,7 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   .crewboard .podium { padding: 4px 0 8px; }
   .crewbig { font-size: 22px; }
   .crewqr img { width: 150px; height: 150px; }
-  .crewcode { font-size: 22px; letter-spacing: 5px; }
+  .crewcode { font-size: 22px; --ls: 5px; }
   .crewident { flex-wrap: wrap; }
   /* Four columns in 317px. The site's own podium builds this table, so its cells arrive
      nowrap and sized for a desktop: rank + name + "44 squares" + "8 new this week" came to

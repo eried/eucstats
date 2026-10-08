@@ -156,7 +156,7 @@ svg.ic{width:18px;height:18px;display:block}
 @keyframes tabglow{0%{box-shadow:0 0 0 0 rgba(46,168,255,.55)}100%{box-shadow:0 0 16px 3px rgba(46,168,255,0)}}
 .chips{display:flex;flex-wrap:wrap}
 .chip{flex:1 1 0;min-width:0;padding:9px 14px;font-size:11px;color:var(--mut);letter-spacing:.3px;border-right:1px solid var(--line);white-space:nowrap}
-.chip:last-child{border-right:0}.chip b{display:block;color:var(--acc);font-weight:700;font-size:16px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.chip:last-child{border-right:0}.chip b{display:block;color:var(--acc);font-weight:700;font-size:16px;letter-spacing:0;font-variant-numeric:tabular-nums}/* The chips that open a panel are real buttons: focusable, named, and reachable by keyboard. Everything here either removes what a <button> brings or puts back what `.chip` already said, except the last line -- `button.chip` is (0,1,1) and beats `.chip:last-child`, so the strip grew a border down its right edge until this said otherwise. */button.chip{background:none;border:0;border-right:1px solid var(--line);font:inherit;font-size:11px;color:var(--mut);letter-spacing:.3px;cursor:pointer;text-align:center;display:block;transition:background .15s}button.chip:last-child{border-right:0}button.chip:hover{background:rgba(255,255,255,.05)}button.chip:hover b{color:#fff}button.chip:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--acc)}@media(prefers-reduced-motion:reduce){button.chip{transition:none}}
 .rfoot{position:fixed;right:8px;top:50%;transform:translateY(-50%);z-index:500;writing-mode:vertical-rl;display:flex;flex-direction:row;align-items:center;gap:22px;white-space:nowrap;color:var(--mut);font-size:12px;letter-spacing:.6px}
 .rfoot b{color:var(--ink);font-weight:700}
 .rfoot a{display:inline-flex;flex-direction:row;align-items:center;gap:7px;color:var(--mut);text-decoration:none;transition:color .2s}
@@ -1007,7 +1007,29 @@ function renderChips(){
      significant figures of which the last is noise, and it is the only chip of the four
      carrying a decimal. */
   [t("chip.total",{unit:dunit()}),Math.round(mph()?S.total_km*MI:S.total_km),0,"total"],[t("chip.countries"),S.countries,0,"countries"]];
-  document.getElementById("chips").innerHTML=chips.map(([l,v,dec,k])=>`<span class="chip"><b data-cv="${v}" data-dec="${dec}" data-k="${k}">0</b> ${l}</span>`).join("");
+  /* Each chip opens the panel it is already a summary of. Erwin: "if user click Riders we
+     can open riders panel details, same with countries, and total km could open Records --
+     just to add more functionality for free". It is free in the literal sense: every one of
+     these panels already has a dock button and a handler, so this is a second door onto
+     screens that exist.
+
+     Trips goes to Records with Total km. Four chips and three answers would have left one
+     that looks identical to its neighbours and does nothing when pressed, which is worse
+     than two doors onto one room.
+
+     A chip for a section the admin has hidden stays a <span>: `applyDock` takes that button
+     out of the dock, and a chip that opens a panel with no way back to it is a trapdoor. */
+  const CHIPGO={riders:"riders",trips:"records",total:"records",countries:"countries"};
+  const SEC=(HIDE&&HIDE.sec)||{};
+  document.getElementById("chips").innerHTML=chips.map(([l,v,dec,k])=>{
+    const go=CHIPGO[k], live=go&&HANDLERS[go]&&(!SEC[go]||isAdminView());
+    const inner=`<b data-cv="${v}" data-dec="${dec}" data-k="${k}">0</b> ${l}`;
+    if(!live) return `<span class="chip">${inner}</span>`;
+    const nm=t("dock."+go);
+    return `<button type="button" class="chip" data-p="${go}" title="${nm}" aria-label="${nm}">${inner}</button>`;
+  }).join("");
+  document.querySelectorAll("#chips button[data-p]").forEach(b=>b.onclick=()=>{
+    if(openPanel===b.dataset.p)closePanel();else HANDLERS[b.dataset.p]();});
 }
 function animateChips(slow){const durs=slow?[2700,3500,3000,3900]:[850,1250,1050,1450];document.querySelectorAll("#chips b[data-cv]").forEach((b,i)=>countUp(b,+b.dataset.cv,durs[i%4],+b.dataset.dec));}
 const GLITCHSEL=".clab,.cline b,.dock .lbl,.chip b,.cscore,.tab span,.rk,.recval,.reclbl";
