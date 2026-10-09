@@ -255,6 +255,7 @@ EN_FINGERPRINT = {
     'crew.how.6': '9a9c83ba7fbe',
     'crew.how.7': '15b55e2937c1',
     'crew.how.8': '64521545d8f6',
+    'crew.how.9': 'e71c19587bb8',
     'crew.how.c0': '86c8479e738e',
     'crew.how.c1': '5a85f631d929',
     'crew.how.c2': '1ef4c893ee96',

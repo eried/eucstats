@@ -117,8 +117,12 @@ def test_a_crew_that_holds_nothing_cannot_abort_the_rebuild(db, monkeypatch):
     ghost = "ghost-crew-holding-nothing-at-all"
     real = territory._pressure
 
-    def names_a_landless_crew(acc, tile, holder_id, held_km, blocked=None, seedless=None):
-        band, n, _ = real(acc, tile, holder_id, held_km, blocked, seedless)
+    def names_a_landless_crew(acc, tile, holder_id, held_km, blocked=None, seedless=None,
+                              mult=1.0):
+        # Mirrors the real signature, `mult` included: a stub that cannot be called the way
+        # the caller calls it tests the caller's argument list, not the behaviour this is
+        # here for.
+        band, n, _ = real(acc, tile, holder_id, held_km, blocked, seedless, mult=mult)
         # band 1 is "somebody is riding it", which is when the rival marker gets written
         return (1, n, ghost)
 

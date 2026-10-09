@@ -506,6 +506,9 @@ EN: dict[str, str] = {
     # "one rider can only put 5 km a week into one square" -- the one hard figure in the manual
     # stated in a unit that reader had switched away from. The number was right; the label lied.
     "crew.how.8": "One rider can only put {c} a week into one square, however far they go. So a square goes to whoever brings more people: while two of them keep riding it, one cannot out-ride them. If they stop, it fades like anything else.",
+    # The neighbour edge. Stated because it is a rule somebody loses ground to: without
+    # it, a crew that rode just as hard wonders why its core held and its rim did not.
+    "crew.how.9": "A square surrounded by a crew's own ground is harder to take from them — about a quarter harder with all four sides, and no harder with none. Patches are won and lost at their edges.",
     "crew.empty": "Nobody holds anything yet.",
     # The second half claimed a square is the same ride anywhere, which the board directly
     # below it disproves -- and it is the board's OWN subtitle. The honest version names the

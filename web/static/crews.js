@@ -1442,7 +1442,8 @@
       // here, at render time, from the config the server sent: change the window, the block,
       // the cooldown, the weekly cap or the member limit in admin and this changes with it.
       + rulesSection("crew.how.s1", ["crew.how.1", "crew.how.2", "crew.how.3", "crew.how.6"])
-      + rulesSection("crew.how.s2", ["crew.how.4", "crew.how.7", "crew.how.8"])
+      + rulesSection("crew.how.s2", ["crew.how.4", "crew.how.7", "crew.how.8",
+                                  "crew.how.9"])
       // "Your crew" was two lines and both were about leaving it. Nothing said who runs a
       // crew, what an officer is, or who can change what -- while the roster offers a
       // "Make officer" button, and the glyph it produces is explained nowhere.

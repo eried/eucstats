@@ -130,11 +130,33 @@ HALF_LIFE_DAYS = 21.0
 #
 # (3 km / 2 mi is 7% out and is not a rung; nothing reaches down to it anyway, since the
 # smallest inhabited squares are Arctic ones at about 4.3 km raw.)
-CAP_CROSSINGS = 5.0
-CAP_RUNGS_KM = (5.0, 8.0, 10.0, 13.0, 16.0)
+# Fourteen, not five -- Erwin's call, after measuring what five does to somebody who rides.
+# A 6x4 block of Tromso absorbed 120 km a week from one rider: filled in 1.2 days, after
+# which 83% of a 100 km/day week counted for nothing at all. At fourteen the same block takes
+# 312 km and a little over half the week lands. The cap still does its job -- a square is won
+# by how many of you ride there -- it just stops telling the most active riders that five
+# sixths of their riding is invisible.
+# What holding the ground around a square is worth when somebody comes for it: a crew holding
+# all four neighbours defends at +25%, three at +18.75%, and none at +0%. See `dug_in`.
+DEFENDER_EDGE = 0.25
+
+CAP_CROSSINGS = 14.0
+# The ladder had to grow with it. At fourteen crossings Singapore asks for 34 km and the old
+# top rung was 16, so every warm-latitude square would have clamped there: 6.5 crossings
+# against Tromso's 15, which is an inversion of the exact unfairness the ladder exists to
+# remove -- the flat 6.0 km all over again, one rung higher.
+#
+# The three new rungs keep the rule that makes this printable: a whole number of kilometres
+# that is also within a few per cent of a whole number of miles.
+#
+#     21 km = 13 mi (0.4% out)   26 km = 16 mi (1.0%)   32 km = 20 mi (0.6%)
+#
+# Nothing lands on 5 or 10 any more except above about 80 degrees north, and they are kept
+# for exactly that.
+CAP_RUNGS_KM = (5.0, 8.0, 10.0, 13.0, 16.0, 21.0, 26.0, 32.0)
 # What the manual falls back to when nobody knows where the reader rides: the rung for a
 # mid-latitude city, which is where most of them are.
-RIDER_TILE_WEEK_CAP_KM = 8.0
+RIDER_TILE_WEEK_CAP_KM = 16.0
 CAP_WINDOW_S = 7 * 86400
 
 
@@ -362,6 +384,20 @@ def min_visit_km(tile: str) -> float:
     return _tile_edge_km(tile) * MIN_TILE_EDGE
 
 
+def defender_mult(prev: dict, tile: str, clan_id: str) -> float:
+    """How much a crew's claim on `tile` is worth, given what it holds around it.
+
+    One definition, two readers: `winners` decides the contest with it, and `_pressure` has
+    to quote the same rule or the map tells a rider a square needs less riding than it does.
+    That was the first thing this change broke -- the popup says "0.5 km and it flips", and
+    a quarter of the holder's claim had just stopped being counted in that sentence.
+    """
+    if not prev:
+        return 1.0
+    held = sum(1 for nb in T.neighbours(tile) if prev.get(nb) == clan_id)
+    return 1.0 + DEFENDER_EDGE * held / 4.0
+
+
 def winners(acc: dict, previous: dict | None = None,
             skip: set | None = None,
             last_seen: dict | None = None) -> dict[str, tuple[str, float, int]]:
@@ -380,6 +416,28 @@ def winners(acc: dict, previous: dict | None = None,
     prev = previous or {}
     blocked = skip or set()
     last_seen = last_seen or {}
+
+    def dug_in(tile_, clan_id_):
+        """How much of this square's claim is worth, given the ground around it.
+
+        A crew holding all four neighbours defends this square 25% harder than one holding
+        none. Erwin's call, and the question behind it was sharp: five riders could take a
+        square off five riders who were defending it exactly as hard, because the only thing
+        separating two crews at the cap is who rode most recently -- worth 3.4% a day -- and
+        the incumbent had no edge at all. Its one advantage was an exact-tie break that never
+        fires, since real rides carry real timestamps and never tie.
+
+        Measured at 25%: a surrounded square needs 6.2 attackers against 5 defenders, or 7.4
+        days of freshness, which a week does not contain. A square with no neighbours held is
+        unchanged and fully contestable. So a crew's core is defensible and its frontier is
+        where the fight happens, which is where a fight should be.
+
+        Read off the LAST rebuild's map, not this pass's: the bonus is for ground a crew has
+        actually been holding, and computing it from the result of the same pass would make
+        it depend on the order tiles happened to be visited.
+        """
+        return defender_mult(prev, tile_, clan_id_)
+
     out = {}
     # Previously-held squares are considered even when nobody has ridden them this window --
     # see the incumbent fallback at the bottom of the loop. Without this the iteration is over
@@ -397,7 +455,12 @@ def winners(acc: dict, previous: dict | None = None,
             # rivalries were the only ones that could never resolve. Recency breaks that in
             # the direction the whole mode is about, which is riding.
             incumbent = prev.get(tile) == clan_id
-            key = (round(km, 6), last_seen.get((tile, clan_id), 0.0),
+            # The neighbour bonus decides the CONTEST and is not stored: `out` keeps the raw
+            # kilometres, so what a crew is told it holds, and the pressure band that says
+            # whether it is going cold, stay the honest number. The floor above is raw for
+            # the same reason -- ground next door is not a substitute for having ridden here.
+            key = (round(km * dug_in(tile, clan_id), 6),
+                   last_seen.get((tile, clan_id), 0.0),
                    1 if incumbent else 0)
             if best is None or key > best[0]:
                 best = (key, clan_id, km, len(riders))
@@ -750,7 +813,8 @@ def _first_block(acc: dict, clan_id: str, won: dict, zoom: int, mine: set,
 
 def _pressure(acc: dict, tile: str, holder: str, held_km: float,
               blocked: set | None = None,
-              seedless: set | None = None) -> tuple[int, int, str | None]:
+              seedless: set | None = None,
+              mult: float = 1.0) -> tuple[int, int, str | None]:
     """(band, a number, who is pushing) for a held tile.
 
     The band is what the map paints and the number is what a rider can act on. Saying "about
@@ -803,8 +867,13 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
         return 3, max(0, int(round(held_km * 10))), None
 
     best = max(rivals)
-    need = max(0.0, held_km - best)          # what the rival still has to find
-    ratio = best / held_km
+    # Against what the holder is actually defended by, not what they rode. `mult` is the
+    # neighbour edge, and leaving it out here made every number on a dug-in square too
+    # small -- the one place on the map that tells a rider how much riding a square needs,
+    # quietly under-quoting it by up to a quarter.
+    effective = held_km * mult
+    need = max(0.0, effective - best)        # what the rival still has to find
+    ratio = best / effective
     band = 2 if ratio >= 0.85 else 1 if ratio >= 0.5 else 0
     return band, int(round(need * 10)), pushing
 
@@ -1437,7 +1506,8 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                             first_led=(first_led.get((tile, clan_id))
                                        or won_at.get(tile) or now)))
             km2 += T.area_km2(tile)
-            band, need, pushing = _pressure(acc, tile, clan_id, km, withdrawn_all, seedless)
+            band, need, pushing = _pressure(acc, tile, clan_id, km, withdrawn_all, seedless,
+                                            mult=defender_mult(prev, tile, clan_id))
             # Before the fresh bump below: a square that is contested AND taken this week
             # comes out as band 6 or 7, matched neither 1 nor 2, and lost its rival's name on
             # precisely the squares that just changed hands.
