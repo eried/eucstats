@@ -1573,6 +1573,12 @@
     // below the podium, which draws its own emblem above the name
     var isRow = function (e) { return top3.indexOf(e) < 0; };
     var short = function (e) { return tight && isRow(e); };
+    // The podium was exempt from `tight` on the grounds that podList hands the same val and
+    // sub to the cards and to the rows. True, and it meant the three widest cells on the
+    // board wore the longest strings: at 412px "+31 squares this week" took three lines",
+    // "Holmenkollen Climb" took two, and the three cards came out visibly different heights.
+    // They are 1/3 of a 412px card each -- about 125px -- which is narrower than any row.
+    var shortPod = function (e) { return tight && !isRow(e); };
     return H.podList(rows, {
       iconFn: function (e) {
         return '<img class="crewpodemb crewembgo" data-emb="' + esc(e.slug)
@@ -1583,12 +1589,34 @@
         // with no index, in the podium and in the table both. Written as `label(e, i)` this
         // read `undefined` and `moved()` returned "" on every row forever -- a feature that
         // silently does nothing, which is the shape of bug this file keeps paying for.
-        return (isRow(e) ? emb(e.slug, 16) + " " : "") + esc(e.name)
+        var head = (isRow(e) ? emb(e.slug, 16) + " " : "") + esc(e.name)
           + moved(e, rows.indexOf(e));
+        if (!isRow(e)) return head;
+        // Wrapped, because `podList` puts whatever this returns inside a nowrap,
+        // ellipsising <span> of its own -- so a sibling block cannot start a second line and
+        // the detail simply ran on after the name, clipping it. The name keeps that one-line
+        // ellipsis treatment; the wrapper is what the detail can sit under.
+        head = '<span class="crewrowname">' + head + "</span>";
+        // Patch, everything held, area: the three terms the standing weighs, in the order it
+        // weighs them. Without this the row sorts by a rule the row does not show, and a
+        // reader seeing 15 squares below 14 has no way to find out that 84 km2 against 23 is
+        // the reason.
+        return head + '<span class="crewrowdet">'
+          + esc(t("crew.board.det", { a: (e.best_tiles || 0).toLocaleString(),
+                                      b: (e.tiles || 0).toLocaleString(),
+                                      c: fmtKm2(e.km2 || 0) })) + "</span>";
       },
       // squares, because that is what the board is sorted on and a square is the same amount
       // of riding everywhere. The area sits underneath, where it informs without ranking.
       val: function (e) {
+        // The rows lead with the standing, because that is what the board is ordered by and
+        // leading with anything else produced a column reading 17, 14, 15 downwards -- which
+        // is indistinguishable from a sorting bug. The podium keeps squares: it is the part
+        // people screenshot, and ground held is what the mode is about. Erwin's call on both.
+        if (isRow(e)) {
+          var sc = (e.score != null ? e.score : 0);
+          return '<b class="crewpodn">' + sc.toFixed(1) + "</b>";
+        }
         var n = e.best_tiles || e.tiles;
         if (short(e)) return n.toLocaleString();
         // The figure big, its unit quiet. One string from the translator, so the digits are
@@ -1618,12 +1646,30 @@
         if (e.best_fresh != null) gained = e.best_fresh;
         else if (gained > (e.best_tiles || 0)) gained = e.best_tiles || 0;
         var full = t("crew.board.gained", { v: tiles(gained) });
-        if (short(e)) {
-          return gained ? '<span class="crewgain" title="' + esc(full) + '">+'
+        // The podium carries the standing here, since its big number is no longer the thing
+        // the board sorts on and nothing else on the card would say so.
+        var pts = (!isRow(e) && e.score != null)
+          ? '<span class="crewpodpts">'
+            + esc(t("crew.board.pts", { n: e.score.toFixed(1) })) + "</span>" : "";
+        var patches = (e.regions > 1
+          ? plural(null, "crew.patches.few", "crew.patches", e.regions) : "");
+        // Compact on a row in a narrow column, AND on a podium card, which is narrower still.
+        if (short(e) || shortPod(e)) {
+          var tag = gained ? '<span class="crewgain" title="' + esc(full) + '">+'
             + gained.toLocaleString() + "</span>" : "";
+          if (!isRow(e)) {
+            // "2 patches" becomes "2 ·" beside the plus, with the word one hover away.
+            // The separator belongs to the pair, not to the patch count: first place holds
+            // two patches and gained nothing this week, and printing "2 ·" left a bullet
+            // pointing at nothing.
+            var pt = e.regions > 1
+              ? '<span class="crewarea" title="' + esc(patches) + '">'
+                + e.regions.toLocaleString() + (tag ? " · " : "") + "</span>" : "";
+            return pts + '<span class="crewpodline">' + pt + tag + "</span>";
+          }
+          return tag;
         }
-        return '<span class="crewarea">'
-          + (e.regions > 1 ? plural(null, "crew.patches.few", "crew.patches", e.regions) : "") + "</span>"
+        return pts + '<span class="crewarea">' + patches + "</span>"
           + (gained ? ' <span class="crewgain">' + esc(full) + "</span>" : "");
       },
       click: true

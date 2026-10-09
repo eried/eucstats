@@ -517,6 +517,14 @@ EN: dict[str, str] = {
     # The second half claimed a square is the same ride anywhere, which the board directly
     # below it disproves -- and it is the board's OWN subtitle. The honest version names the
     # unit it ranks on and admits what that unit does not control for.
+    # The standing, as a unit. The board ranks on it, so on the rows it IS the big
+    # number and a bare figure beside "59 squares" on the podium would be a quantity of
+    # nothing.
+    "crew.board.pts": "{n} pts",
+    # Patch, everything held, and area -- the three terms the standing weighs, in the
+    # order it weighs them. This is what makes a row that sorts below a bigger number
+    # explicable from the row itself.
+    "crew.board.det": "{a} in one · {b} held · {c}",
     "crew.board.sub": "Biggest patch a crew holds, plus credit for its other ground and its area.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",

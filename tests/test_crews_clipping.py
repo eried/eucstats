@@ -63,6 +63,15 @@ def _inline_stylesheet():
 # Every selector allowed to clip, and what was measured in the locale that needs the most
 # room. Adding a row here is the review; the measurement belongs in the note.
 REVIEWED = {
+    ".crewrowname":
+        "a crew's name on a board row, above the patch/held/area line. The nowrap and the "
+        "ellipsis are not new: `podList` wraps every label in a span carrying exactly this "
+        "treatment, and this wrapper exists only so the detail line can sit UNDER the name "
+        "instead of running on after it. Measured on the real rows at 412px: de `Five "
+        "Borough Crew` 171px, uk 199px, each inside its own box with nothing cut. The thing "
+        "that can overflow on these rows is the detail line, and that one wraps -- see "
+        "`.crewrowdet` in crews.css, which was measured in Ukrainian and changed because "
+        "of it.",
     ".crewwhen":
         "the exact moment a cooldown lifts, beside the sentence saying how long is left. The "
         "nowrap holds one date together so it cannot break between the day and the time; the "

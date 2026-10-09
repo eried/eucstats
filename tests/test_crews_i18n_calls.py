@@ -58,6 +58,12 @@ NO_AGREEMENT = {
     "crew.e.rate.in": "`{n} min` -- an abbreviated unit after the number in every locale",
     "crew.e.rate.inh": "`{n} h` -- the same",
     "crew.who.share": "`{n}%`",
+    # The standing on a podium card. Two reasons it cannot inflect, and the second is the
+    # stronger one. The unit is abbreviated in every locale that declines -- ru `оч.`, uk
+    # `оч.`, pl `pkt`, all invariant after a numeral -- and the value is a DECIMAL, which in
+    # Russian and Ukrainian takes the genitive singular whatever the digits are (`129,9
+    # очка`), so there is no plural branch for the machinery to choose between.
+    "crew.board.pts": "`{n} pts` -- an abbreviated unit, and a decimal, which does not pluralise",
     # The roster's fold. Read in all three: ru `Показать всех {n}`, pl `Pokaż wszystkich {n}`,
     # uk `Показати всіх {n}` -- the number ENDS the clause in every one, and the word
     # before it is a fixed form that does not agree with it. Turkish, Japanese and Chinese
