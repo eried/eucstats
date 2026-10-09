@@ -4446,19 +4446,26 @@
         // in this colour and other riders have learned them, so what was a guess is a fact and
         // stays one. The swatch remains either way: a leader should always be able to see what
         // their crew flies.
-        + ((c.tiles || 0) > 0
-           ? '<div class="crewidentrow"><div class=crewidentl>' + t("crew.new.colours")
-             + '<span class="crewpreview">' + swatch(c.colour, c.pattern, 34) + "</span>"
-             + "</div></div>"
-             + '<p class=hint>' + t("crew.mine.colourlock") + "</p>"
+        // Nothing at all once the colours are fixed. The read-only swatch and the sentence
+        // under it used to stay, on the argument that a leader should always be able to see
+        // what their crew flies -- but this is the SETTINGS fold, and everything else in it
+        // is something you can change. A row you cannot touch, plus a line explaining why
+        // you cannot touch it, is a control that exists to apologise for itself. Erwin asked
+        // for both to go. What the crew flies is on the emblem four lines below, on its card,
+        // on its page and all over the map, so nothing is actually lost.
+        + ((c.tiles || 0) > 0 ? ""
            : identBlock("ce", { colour: c.colour, pattern: c.pattern }))
         + "<label>" + t("crew.new.who") + '<select id="ce-policy">'
         + ["approval", "open", "invite"].map(function (p) {
             return '<option value="' + p + '"' + (p === c.join_policy ? " selected" : "")
               + ">" + t("crew.new." + p) + "</option>"; }).join("")
         + "</select></label>"
-        + '<label class="crewfile">' + t("crew.mine.emblem")
-        + '<input type="file" id="ce-logo" accept="image/*"></label>'
+        // Heading, then the mark, then what it is, then the one thing you can do to it.
+        // It used to be a file field labelled "Emblem (small, square)" with the browser's
+        // own "No file chosen" inside it, so the WORD "Emblem" opened a file picker -- which
+        // is why Erwin asked why clicking the emblem uploads another one. It reads as a
+        // caption and behaves as a button. The control below is the button; this is a label.
+        + '<div class="crewembhd">' + esc(t("crew.mine.emblem")) + "</div>"
         // The mark itself, with an X on it when there is an upload to remove. Clearing used
         // to be a ghost button beside Save reading "Use the drawn one" -- which Erwin called
         // weird, and it is: it names the thing you get rather than the thing you do, it sits
@@ -4471,7 +4478,11 @@
              + esc(t("crew.mine.generated")) + '">✕</button>'
            : "")
         + "</div>"
-        + '<p class=hint>' + t("crew.mine.emblemp") + "</p>" 
+        // Only when there is nothing uploaded. With a picture there, the picture is the
+        // answer and a sentence about what we would have drawn is noise.
+        + (c.has_logo ? "" : '<p class=hint>' + t("crew.mine.emblemp") + "</p>")
+        + '<label class="crewfile">' + esc(t("crew.mine.embpick"))
+        + '<input type="file" id="ce-logo" accept="image/*"></label>' 
         // `.crewacts`, like every other button row in this card. Emitted as bare
         // siblings these two had no horizontal spacing at all -- measured 0.00px apart --
         // so Save and "Use the drawn one" read as a single merged control.

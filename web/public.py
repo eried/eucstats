@@ -1127,16 +1127,25 @@ function renderChampions(){
   if(decks.length>1){
     const tick=()=>swapTo((deck+1)%decks.length);
     const SWAP_MS=9000, AFTER_PRESS_MS=30000;
+    // When the press's grace runs out. `pointerleave` resumes from THIS rather than from the
+    // ordinary pace, which is the whole fix: pressing a deck set a 30s grace and then moving
+    // the pointer off the card called start() with no delay and replaced it with a 9s
+    // interval. So asking for Crew Domination and taking your hand away moved you off it
+    // nine seconds later -- and on a phone it is worse, because a tap fires pointerenter and
+    // pointerleave around it, so the grace was destroyed the instant the finger lifted.
+    // Erwin pressed it and was moved back almost at once, which is exactly this.
+    let graceUntil=0;
     const start=(delay)=>{
       clearInterval(ch._rot);clearTimeout(ch._rotWait);
       const run=()=>{clearInterval(ch._rot);ch._rot=setInterval(tick,SWAP_MS);};
-      if(delay){ch._rotWait=setTimeout(()=>{tick();run();},delay);return;}
+      if(delay>0){ch._rotWait=setTimeout(()=>{tick();run();},delay);return;}
       run();
     };
-    ch._restart=()=>start(AFTER_PRESS_MS);
+    ch._restart=()=>{graceUntil=Date.now()+AFTER_PRESS_MS;start(AFTER_PRESS_MS);};
+    const resume=()=>start(Math.max(0,graceUntil-Date.now()));
     start();                                  // the ordinary pace on load
     ch.addEventListener("pointerenter",()=>{clearInterval(ch._rot);clearTimeout(ch._rotWait);});
-    ch.addEventListener("pointerleave",()=>start());
+    ch.addEventListener("pointerleave",resume);
   }
 }
 let CELLS=null;

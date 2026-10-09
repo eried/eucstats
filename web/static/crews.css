@@ -1001,6 +1001,16 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* The crew's mark in settings, with the control that removes an upload sitting ON it rather
    than as a ghost button beside Save. 44px of target for a 20px glyph, because it throws away
    something a leader had to make. */
+/* The emblem's own caption. Same weight as the field labels around it, because that is what
+   it is -- the thing it labels is a picture rather than an input, which is the entire point:
+   the word "Emblem" used to BE the file control, so pressing it opened a picker. */
+.crewembhd { margin: 11px 0 0; font-size: 11px; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--mut, #9aa6c8); }
+/* Tight under the caption, and the hint under it tighter still, so the three read as one
+   block rather than three unrelated rows. */
+.crewembhd + .crewlogo { margin-top: 5px; }
+.crewlogo + .hint { margin: 2px 0 0; }
+
 .crewlogo { position: relative; display: inline-block; margin: 8px 0 2px; line-height: 0; }
 .crewlogo .crewembsm { border-radius: 3px; }
 .crewlogox {
