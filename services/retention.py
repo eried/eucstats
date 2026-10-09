@@ -61,11 +61,25 @@ def run_retention(db, now=None, retention_days=None, disk_floor_gb=None,
     tr = TripRepo(db)
     evicted = 0
 
-    # 1) age-based
-    for ru in tr.evictable_by_age(now, retention_days):
-        db.delete(ru)
-        evicted += 1
-    db.commit()
+    # 1) age-based, unless it is switched off.
+    #
+    # Zero means NEVER evict by age, and it has to mean that, because zero is what anybody
+    # types into a box labelled "days to keep" when they want to keep everything. Under the
+    # arithmetic alone it meant the exact opposite -- `cutoff = now - 0 days` is now, and
+    # every raw upload in the database is older than now. The most natural way to ask for
+    # "keep it all" deleted all of it, through an admin form, in one pass, with no
+    # confirmation and nothing to undo it: the blobs are the one thing in here that cannot be
+    # recomputed from anything else.
+    #
+    # The disk-pressure sweep below is deliberately NOT switched off with it. "Keep
+    # everything" is a wish about data and the floor is a fact about the disk, and the floor
+    # is what makes keeping everything safe to ask for -- it degrades the archive oldest
+    # first instead of letting the box fill up and take the site with it.
+    if retention_days and retention_days > 0:
+        for ru in tr.evictable_by_age(now, retention_days):
+            db.delete(ru)
+            evicted += 1
+        db.commit()
 
     # 2) disk-pressure: evict oldest validated raw until above the floor
     if free_gb(data_dir) < disk_floor_gb:
