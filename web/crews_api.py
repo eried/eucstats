@@ -15,14 +15,15 @@ import re
 import secrets
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
+from fastapi import (APIRouter, BackgroundTasks, Depends, HTTPException, Request,
+                     Response, UploadFile, File)
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models import (Clan, ClanMember, PairToken, Rider, Trip, WebSession,
                     publishable_handle, utcnow)
-from services import crews, pairing, ratelimit, settings, territory
+from services import crews, pairing, ratelimit, settings, telegram, territory
 from services import tiles as T
 
 router = APIRouter(prefix="/api/v1", tags=["crews"])
@@ -724,7 +725,8 @@ def crew_identity(request: Request, response: Response, db: Session = Depends(ge
 
 
 @router.post("/crews")
-def create_crew(payload: dict, request: Request, db: Session = Depends(get_db)):
+def create_crew(payload: dict, request: Request, background_tasks: BackgroundTasks,
+                db: Session = Depends(get_db)):
     cfg = _gate(db)
     if not cfg["creation_open"]:
         raise HTTPException(403, "creation_closed")
@@ -739,6 +741,10 @@ def create_crew(payload: dict, request: Request, db: Session = Depends(get_db)):
     except crews.CrewError as e:
         raise _err(e)
     _stamp_recent(db, ws.store_id, clan.clan_id)
+    # After the stamp, not before: the announcement says how many crews there are and the
+    # new one has to be counted. Backgrounded like every other notifier, so a Telegram
+    # outage cannot fail a crew that has already been created.
+    background_tasks.add_task(telegram.notify_new_crew, clan.clan_id)
     return {"ok": True, "crew": _crew_brief(db, clan)}
 
 

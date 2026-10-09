@@ -38,6 +38,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from conftest import HANDLE                     # noqa: E402
+from services import territory                  # noqa: E402
 from repository.riders import RiderRepo         # noqa: E402
 from repository.trips import TripRepo           # noqa: E402
 from services import stats, telegram            # noqa: E402
@@ -66,13 +67,34 @@ def _seed(db):
     db.commit()
 
 
-ENTRY_KEY = re.compile(r"""(?:entries\[0\]|top)(?:\.get\(|\[)["']([a-z_]+)["']""")
+def _seed_crew(db):
+    """One crew holding ground, so `territory.ranking` has a row to publish."""
+    import models
+    from services import crews, settings
+    settings.set_crews(db, enabled=True, zoom=14, window_days=90, seed=2, cooldown_days=7,
+                       max_members=0, opacity=0.55, creation_open=True)
+    c = crews.create(db, "win", "Contract Crew", "", join_policy="open")
+    row = db.get(models.Clan, c.clan_id)
+    row.terr_best_tiles = row.terr_tiles = 9
+    row.terr_km2 = row.terr_best_km2 = 9.0
+    db.commit()
+    return row
 
-# The announcer reads board entries under the first comment and group entries under the
-# second; everything after the third is message-building, where the keys are optional and read
-# with `.get()`.
+
+ENTRY_KEY = re.compile(
+    r"""(?:entries\[0\]|rows\[0\]|ctop|top)(?:\.get\(|\[)["']([a-z_]+)["']""")
+
+# The announcer reads board entries under the first comment, group entries under the second
+# and the crew board under the third; everything after the last is message-building, where the
+# keys are optional and read with `.get()`.
+#
+# The crew section earned its own marker the moment it existed: it reads `slug`, which a
+# country entry does not publish, so without the split the scan attributed a crew key to the
+# group sources and this test failed on correct code. A fourth source with a fourth shape
+# needs a fourth boundary, not a looser assertion.
 BOARD_SECTION = "# individual rider leaderboards"
 GROUP_SECTION = "# group standings"
+CREW_SECTION = "# The crew holding #1 on the territory board"
 MESSAGE_SECTION = "# group a rider's simultaneous new #1s"
 
 
@@ -86,25 +108,31 @@ def _keys_read_from_an_entry():
     green.
     """
     src = TELEGRAM_PY.read_text(encoding="utf-8")
-    i, j, k = (src.index(BOARD_SECTION), src.index(GROUP_SECTION),
-               src.index(MESSAGE_SECTION))
+    i, j, k, m = (src.index(BOARD_SECTION), src.index(GROUP_SECTION),
+                  src.index(CREW_SECTION), src.index(MESSAGE_SECTION))
     return (sorted(set(ENTRY_KEY.findall(src[i:j]))),
-            sorted(set(ENTRY_KEY.findall(src[j:k]))))
+            sorted(set(ENTRY_KEY.findall(src[j:k]))),
+            sorted(set(ENTRY_KEY.findall(src[k:m]))))
 
 
 def test_the_announcer_reads_keys_the_boards_actually_publish(db):
     """The gate that went quiet, and anything else shaped like it."""
     _seed(db)
-    board_keys, group_keys = _keys_read_from_an_entry()
-    assert board_keys and group_keys, (
+    board_keys, group_keys, crew_keys = _keys_read_from_an_entry()
+    assert board_keys and group_keys and crew_keys, (
         "found no entry keys in telegram.py; the scan's shape has moved, and a scan that "
         "finds nothing is a test that checks nothing")
 
-    # every rider board, plus the three group standings the announcer tracks
+    # every rider board, the three group standings, and the crew board
     sources = {("board", name): fn for name, fn in stats.BOARDS.items()}
     sources[("group", "country")] = stats.by_country
     sources[("group", "wheel")] = stats.by_wheel
     sources[("group", "brand")] = stats.by_brand
+    # The crew board needs a crew on it before it publishes anything, and `_seed` makes
+    # riders, not crews. Without this the source returns nothing, the loop skips it, and the
+    # newest of the four announcements is the one nobody is checking.
+    _seed_crew(db)
+    sources[("crew", "ranking")] = territory.ranking
 
     missing, checked = [], 0
     for (kind, name), fn in sorted(sources.items()):
@@ -118,16 +146,17 @@ def test_the_announcer_reads_keys_the_boards_actually_publish(db):
         got = set(rows[0])
         # The keys THIS SECTION of the announcer reads, not a second copy of them written
         # here. Rename either side and the other goes red naming the field.
-        for key in (board_keys if kind == "board" else group_keys):
+        wanted = {"board": board_keys, "group": group_keys, "crew": crew_keys}[kind]
+        for key in wanted:
             if key not in got:
                 missing.append(
                     f"  {kind} {name} publishes {sorted(got)} -- telegram.py reads {key!r}")
     assert checked >= 6, (
         f"only {checked} sources produced an entry, so this checked almost nothing")
     assert not missing, (
-        f"telegram.py reads {board_keys} out of a board entry and {group_keys} out of a group"
-        f" entry. A key it reads is not published, so the gate falls through and no"
-        f" announcement can ever be sent:" + NL + NL.join(missing))
+        f"telegram.py reads {board_keys} out of a board entry, {group_keys} out of a group"
+        f" entry and {crew_keys} out of a crew entry. A key it reads is not published, so the"
+        f" gate falls through and no announcement can ever be sent:" + NL + NL.join(missing))
 
 
 def test_a_takeover_actually_produces_a_message(db, monkeypatch):

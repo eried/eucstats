@@ -1121,6 +1121,25 @@ def champions(db, window_days: int | None = None) -> dict:
 SCORE_W_PATCH, SCORE_W_SQUARES, SCORE_W_KM2 = 1.0, 0.25, 0.05
 
 
+def counts(db) -> dict:
+    """How many crews there are, and how many riders are in one.
+
+    For the Telegram recap's all-time line, which reads "N crews (M riders)". A rider is
+    counted once however many crews they have passed through, and only where they still are --
+    `left_at is None` -- so the number answers "how many of us ride for a crew today" rather
+    than how many ever signed anything. Disbanded crews are not crews.
+    """
+    import sqlalchemy as sa
+
+    live = db.query(Clan.clan_id).filter(Clan.disbanded_at.is_(None)).subquery()
+    crews_n = db.query(sa.func.count()).select_from(live).scalar() or 0
+    riders_n = (db.query(sa.func.count(sa.distinct(ClanMember.store_id)))
+                .filter(ClanMember.left_at.is_(None),
+                        ClanMember.clan_id.in_(sa.select(live.c.clan_id)))
+                .scalar() or 0)
+    return {"crews": int(crews_n), "riders": int(riders_n)}
+
+
 def standing_score(clan) -> float:
     return (SCORE_W_PATCH * (clan.terr_best_tiles or 0)
             + SCORE_W_SQUARES * (clan.terr_tiles or 0)

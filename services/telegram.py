@@ -38,11 +38,13 @@ _DEFAULTS = {
     "link_url": "https://eucstats.ried.no",
     "new_rider": True,
     "first_ride": True,
+    "new_crew": True,          # a crew was founded
     # "first place takeover" — announce when #1 changes, per category
     "tk_rider": True,          # visible rider leaderboards
     "tk_country": True,        # top country by distance
     "tk_wheel": True,          # top wheel by distance
     "tk_brand": True,          # top brand by distance
+    "tk_crew": True,           # the crew holding #1 on the territory board
     "summary_enabled": True,
     "summary_time": "08:00",   # HH:MM in summary_tz
     "summary_tz": "Europe/Oslo",
@@ -183,6 +185,42 @@ def notify_first_ride(store_id: str) -> None:
         db.close()
 
 
+def notify_new_crew(clan_id: str) -> None:
+    """A crew was founded. The loudest thing that happens in this feature and the one event
+    that is nobody's private business: a crew is a public object with a public page.
+
+    The founder is named only if their own rider row is public, the same gate
+    `notify_new_rider` applies -- founding a crew is not consent to being announced, and a
+    rider who has closed or opted out keeps that either way. The crew is still announced; it
+    just arrives without a name attached.
+    """
+    cfg = get_config()
+    if not (cfg.get("enabled") and cfg.get("new_crew") and is_configured(cfg)):
+        return
+    db = SessionLocal()
+    try:
+        from models import Clan, Rider
+        from services import crews, settings
+        if not settings.crews_enabled(db):
+            return                            # feature is dark; do not announce into a void
+        clan = db.get(Clan, clan_id)
+        if not clan or clan.disbanded_at is not None:
+            return
+        n = crews.counts(db)["crews"]
+        plural = "crew" if n == 1 else "crews"
+        who = ""
+        founder = db.get(Rider, clan.created_by) if clan.created_by else None
+        if founder and founder.deleted_at is None and founder.consent_public:
+            who = (f" — founded by <b>{_esc(founder.display_name)}</b> "
+                   f"{_flag_emoji(founder.flag)}")
+        link = cfg["link_url"].rstrip("/") + "/c/" + clan.slug
+        text = (f"🏴 New crew: <b>{_esc(clan.name)}</b>{who} — "
+                f"now <b>{n}</b> {plural} riding for ground!\n{link}")
+        send_message(text, cfg)
+    finally:
+        db.close()
+
+
 # --- leaderboard records (new #1) ------------------------------------------
 
 def _board_label(board: str) -> tuple[str, str]:
@@ -223,7 +261,8 @@ def check_records() -> None:
     cfg = get_config()
     if not (cfg.get("enabled") and is_configured(cfg)):
         return
-    if not any(cfg.get(k) for k in ("tk_rider", "tk_country", "tk_wheel", "tk_brand")):
+    if not any(cfg.get(k) for k in ("tk_rider", "tk_country", "tk_wheel", "tk_brand",
+                                    "tk_crew")):
         return
     db = SessionLocal()
     try:
@@ -275,6 +314,24 @@ def check_records() -> None:
             if old is not None and old != top["name"]:
                 group_hits.append((kind, top, old))
 
+        # The crew holding #1 on the territory board. Snapshotted by SLUG, not by name: the
+        # three above key on a name because a country or a wheel model does not get renamed,
+        # and a crew does -- on a name this would announce a takeover every time a crew
+        # edited its own title, naming it as both the winner and the loser.
+        crew_hit = None
+        if cfg.get("tk_crew") and settings.crews_enabled(db):
+            try:
+                from services import territory
+                rows = territory.ranking(db, 1)
+            except Exception:
+                rows = []
+            if rows and rows[0].get("slug"):
+                ctop, key = rows[0], "g:crew"
+                snap[key] = ctop["slug"]
+                old_slug = prev.get(key)
+                if old_slug is not None and old_slug != ctop["slug"]:
+                    crew_hit = (ctop, old_slug)
+
         settings.set_meta(db, "tg_record_holders", json.dumps(snap))
         db.commit()
 
@@ -307,6 +364,23 @@ def check_records() -> None:
 
         for kind, top, old_label in group_hits:
             send_message(_group_takeover_text(kind, top, old_label, cfg), cfg)
+
+        if crew_hit:
+            ctop, old_slug = crew_hit
+            from models import Clan
+            beaten = db.query(Clan).filter(Clan.slug == old_slug).first()
+            # The crew that lost it is named only if it is still there. A crew that
+            # disbanded did not get overtaken, it left -- and the row beneath it moving up
+            # is not a takeover worth a trumpet.
+            beat = (f' — past <b>{_esc(beaten.name)}</b>'
+                    if beaten is not None and beaten.disbanded_at is None else '')
+            clink = cfg["link_url"].rstrip("/") + "/c/" + ctop["slug"]
+            sq = ctop.get("best_tiles") or 0
+            noun = 'square' if sq == 1 else 'squares'
+            text = (f"🏴 New top crew! <b>{_esc(ctop.get('name'))}</b>{beat} now holds "
+                    f"the biggest patch on the map — <b>{sq}</b> {noun} in one piece."
+                    f"\n{clink}")
+            send_message(text, cfg)
     finally:
         db.close()
 
@@ -405,6 +479,20 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
                         f"{_flag_emoji(tr.flag)} — {_dist(d)}")
             break
 
+    # Crews on the all-time line, Erwin's ask. Left off entirely when the feature is dark or
+    # nobody has founded one, because "0 crews (0 riders)" is a line about nothing.
+    crew_tail = ""
+    try:
+        from services import crews as _crews, settings as _settings
+        if _settings.crews_enabled(db):
+            cc = _crews.counts(db)
+            if cc["crews"]:
+                crew_tail = (f" · {cc['crews']} {'crew' if cc['crews'] == 1 else 'crews'}"
+                             f" ({cc['riders']} "
+                             f"{'rider' if cc['riders'] == 1 else 'riders'})")
+    except Exception:
+        pass
+
     g = stats.global_summary(db)
     tot_r, tot_t = g.get("riders", 0), g.get("trips", 0)
     tot_c = g.get("countries", 0)
@@ -415,7 +503,7 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
             f"<b>{trips_n}</b> {'ride' if trips_n == 1 else 'rides'} · <b>{_dist(km)}</b>")
     alltime = (f"\nAll-time: {tot_r} {'rider' if tot_r == 1 else 'riders'} · "
                f"{tot_t} {'ride' if tot_t == 1 else 'rides'} · {_dist(g.get('total_km', 0))} · "
-               f"{tot_c} {'country' if tot_c == 1 else 'countries'}")
+               f"{tot_c} {'country' if tot_c == 1 else 'countries'}" + crew_tail)
     return head + yday + top_line + alltime + f"\n👉 {cfg['link_url']}"
 
 
