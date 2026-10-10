@@ -19,6 +19,9 @@ __pycache__/
 
 # Playwright MCP transient artifacts (snapshots/screenshots/logs — may contain account data)
 .playwright-mcp/
+# Flow-review screenshots: captured into the repo root by the browser tool, which only
+# writes under the working directory. They are evidence for one review, not source.
+review/
 /eucstats-*.png
 /members.json
 

@@ -1118,7 +1118,17 @@ def champions(db, window_days: int | None = None) -> dict:
 # that number now, and the one place the old number was load-bearing -- "2 squares off 11th" on
 # your own card -- converts the gap instead of quoting it, because a square added to your
 # biggest patch is worth a known amount of score. See `squares_to_close` below.
-SCORE_W_PATCH, SCORE_W_SQUARES, SCORE_W_KM2 = 1.0, 0.25, 0.05
+# Area is NOT a term any more. It was 0.05 per km2, and measured on the live board it did two
+# things: it delivered the case Erwin asked for -- a crew spread over 48 squares beating one
+# with a tighter 30 -- and it also put a crew holding THIRTEEN squares above one holding
+# fourteen, on nothing but the latitude of the ground. The first survives without it
+# (Peripherique 40.0 against Five Borough 37.5); the second does not happen without it. A
+# reviewer reverse-engineered the weights unprompted and called the board rigged, and they
+# were describing exactly that pair.
+#
+# km2 still breaks an exact tie below -- with area out of the score, two crews holding the
+# same squares in the same shape now score identically, and something has to be last word.
+SCORE_W_PATCH, SCORE_W_SQUARES = 1.0, 0.25
 
 
 def counts(db) -> dict:
@@ -1142,8 +1152,7 @@ def counts(db) -> dict:
 
 def standing_score(clan) -> float:
     return (SCORE_W_PATCH * (clan.terr_best_tiles or 0)
-            + SCORE_W_SQUARES * (clan.terr_tiles or 0)
-            + SCORE_W_KM2 * (clan.terr_km2 or 0.0))
+            + SCORE_W_SQUARES * (clan.terr_tiles or 0))
 
 
 # One square, added to the patch a crew is ranked on, raises its score by this much: it is a
@@ -1181,7 +1190,6 @@ def standing_order_by():
     import sqlalchemy as sa
 
     score = (SCORE_W_PATCH * sa.func.coalesce(Clan.terr_best_tiles, 0)
-             + SCORE_W_SQUARES * sa.func.coalesce(Clan.terr_tiles, 0)
-             + SCORE_W_KM2 * sa.func.coalesce(Clan.terr_km2, 0.0))
+             + SCORE_W_SQUARES * sa.func.coalesce(Clan.terr_tiles, 0))
     return [score.desc(), Clan.terr_best_tiles.desc().nullslast(),
             Clan.terr_best_km2.desc().nullslast()]

@@ -69,19 +69,21 @@ def area_km2(tile: str) -> float:
     """Ground area of a tile. A tile in Oslo covers a quarter of what the same tile covers at
     the equator.
 
-    This used to claim "the crew ranking is in km²", which it never was. It is now mostly in
-    squares and a little in km²: `crews.standing_score` weighs the biggest patch at 1.0 a
-    square, everything else the crew holds at 0.25, and area at 0.05 per km² — and
-    `territory.ranking` sorts on that, as does the join list and the champions card.
+    This used to claim "the crew ranking is in km²", which it never was, and then that it
+    was partly in km², which it no longer is either. `crews.standing_score` is the biggest
+    patch at 1.0 a square plus everything else held at 0.25, and nothing else.
 
-    The hazard the old note ended on still applies to the first two terms: a square is the
-    same amount of riding at every latitude and covers four times the ground at the equator
-    than it does in Oslo, so counting squares quietly favours the north. A reviewer measured
-    it before the area term existed: Equator Express held 83.7 km² and ranked 13th, below a
-    crew holding 24.7. The 0.05 is what gives a crew near the equator a route up the board
-    without letting area overturn it, `crew.board.sub` says out loud that a square covers
-    more ground nearer the equator, and this function is what every km² figure in it is
-    built from."""
+    The 0.05-per-km² term that used to be in it came out after being measured on the live
+    board: it delivered the spread-beats-tight case it was kept for, and it also put a crew
+    holding thirteen squares above one holding fourteen on latitude alone. The first survives
+    without it; the second only happened because of it.
+
+    So the hazard the old note ended on is now the whole story and not a trade: a square is
+    the same amount of riding at every latitude and covers four times the ground at the
+    equator that it does in Oslo, and the board counts squares. km² is reported beside them
+    -- on the board rows, the crew card and the popup -- and this function is what every one
+    of those figures is built from. It also still breaks an exact tie in the standing, which
+    is the one place it can change an order."""
     b = bounds(tile)
     if b is None:
         return 0.0

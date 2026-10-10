@@ -1601,28 +1601,30 @@
         // weighs them. Without this the row sorts by a rule the row does not show, and a
         // reader seeing 15 squares below 14 has no way to find out that 84 km2 against 23 is
         // the reason.
-        return head + '<span class="crewrowdet">'
-          + esc(t("crew.board.det", { a: (e.best_tiles || 0).toLocaleString(),
-                                      b: (e.tiles || 0).toLocaleString(),
-                                      c: fmtKm2(e.km2 || 0) })) + "</span>";
+        // "37 in one · 37 held" on a crew whose ground is all one patch is the same number
+        // twice, and it read as a duplicated field -- true of four rows out of six on the
+        // default board. When they agree there is only one thing to say.
+        var patch = e.best_tiles || 0, held = e.tiles || 0;
+        var det = (patch === held)
+          ? tiles(held) + " · " + fmtKm2(e.km2 || 0)
+          : t("crew.board.det", { a: patch.toLocaleString(),
+                                  b: held.toLocaleString(),
+                                  c: fmtKm2(e.km2 || 0) });
+        return head + '<span class="crewrowdet">' + esc(det) + "</span>";
       },
       // squares, because that is what the board is sorted on and a square is the same amount
       // of riding everywhere. The area sits underneath, where it informs without ranking.
       val: function (e) {
-        // The rows lead with the standing, because that is what the board is ordered by and
-        // leading with anything else produced a column reading 17, 14, 15 downwards -- which
-        // is indistinguishable from a sorting bug. The podium keeps squares: it is the part
-        // people screenshot, and ground held is what the mode is about. Erwin's call on both.
-        if (isRow(e)) {
-          var sc = (e.score != null ? e.score : 0);
-          return '<b class="crewpodn">' + sc.toFixed(1) + "</b>";
-        }
-        var n = e.best_tiles || e.tiles;
-        if (short(e)) return n.toLocaleString();
-        // The figure big, its unit quiet. One string from the translator, so the digits are
-        // found wherever the locale puts them rather than split on a space.
-        return esc(tiles(n)).replace(/(\d[\d.,  ]*)/,
-                                     '<b class="crewpodn">$1</b>');
+        // One unit, from the podium to the last row. It used to be squares on the podium and
+        // the standing below it, which is the split all three reviewers tripped over: "90,
+        // 59, 53, then 50.3 looks like a continuous series and isn't". The number a board
+        // leads with has to be the number it sorts by, everywhere on that board.
+        var sc = (e.score != null ? e.score : 0);
+        if (isRow(e)) return '<b class="crewpodn">' + sc.toFixed(1) + "</b>";
+        // The podium says the unit, because it is the first number anybody reads here and a
+        // bare 132.5 is a quantity of nothing.
+        return esc(t("crew.board.pts", { n: sc.toFixed(1) }))
+          .replace(/(\d[\d.,  ]*)/, '<b class="crewpodn">$1</b>');
       },
       sub: function (e) {
         var gained = FRESH[e.slug] || 0;
@@ -1646,11 +1648,12 @@
         if (e.best_fresh != null) gained = e.best_fresh;
         else if (gained > (e.best_tiles || 0)) gained = e.best_tiles || 0;
         var full = t("crew.board.gained", { v: tiles(gained) });
-        // The podium carries the standing here, since its big number is no longer the thing
-        // the board sorts on and nothing else on the card would say so.
-        var pts = (!isRow(e) && e.score != null)
-          ? '<span class="crewpodpts">'
-            + esc(t("crew.board.pts", { n: e.score.toFixed(1) })) + "</span>" : "";
+        // Squares, now that the big number is points. Same figure the podium used to lead
+        // with, one step down, so nothing is lost -- and it is the line that says what the
+        // points are made of.
+        var pts = (!isRow(e))
+          ? '<span class="crewpodpts">' + esc(tiles(e.best_tiles || e.tiles || 0))
+            + "</span>" : "";
         var patches = (e.regions > 1
           ? plural(null, "crew.patches.few", "crew.patches", e.regions) : "");
         // Compact on a row in a narrow column, AND on a podium card, which is narrower still.
@@ -1659,12 +1662,13 @@
             + gained.toLocaleString() + "</span>" : "";
           if (!isRow(e)) {
             // "2 patches" becomes "2 ·" beside the plus, with the word one hover away.
-            // The separator belongs to the pair, not to the patch count: first place holds
-            // two patches and gained nothing this week, and printing "2 ·" left a bullet
-            // pointing at nothing.
+            // The word, not a bare numeral. Compacting this to "2" was a saving made when
+            // the podium led with squares and this line carried the points; the squares are
+            // here now and there is room. All three reviewers read the bare "2" as the same
+            // badge as the green "+28" two cards over and could not say what either meant.
             var pt = e.regions > 1
-              ? '<span class="crewarea" title="' + esc(patches) + '">'
-                + e.regions.toLocaleString() + (tag ? " · " : "") + "</span>" : "";
+              ? '<span class="crewarea">' + esc(patches)
+                + (tag ? " · " : "") + "</span>" : "";
             return pts + '<span class="crewpodline">' + pt + tag + "</span>";
           }
           return tag;
@@ -4201,19 +4205,23 @@
     rows.forEach(function (c, n) { if (c.slug === slug) i = n; });
     if (i < 0) return "";
     if (i === 0) return '<span class="crewgap top">' + t("crew.rank.top") + "</span>";
-    // The gap in score, said in squares, because squares are the thing a rider can go and
-    // get. "4 squares off 7th" means four more welded to your biggest patch would pass them --
-    // which is true whatever mix of patch, spread and area put them there.
+    // Quoted in points, because that is the unit the board sorts by. Said in squares it could
+    // name a crew you had already beaten on squares -- 15 held sitting below 13, because the
+    // biggest patch outweighs the spread -- so the one actionable line on your own card told
+    // you to go and win something you had already won. Two reviewers reported it as a bug
+    // independently, and both were right about the reading even though the arithmetic was
+    // sound. The squares figure keeps the part you can act on, on the hover.
     var pts = (rows[i - 1].score || 0) - (rows[i].score || 0);
     var gap = pts <= 0 ? 0 : Math.max(1, Math.ceil(pts / SCORE_PER_SQUARE));
     // Your own place first. `crew.rank.off` names the crew ABOVE you -- "1 off 7th" when you
     // are eighth -- and it was the only ordinal on your own card, so it read as your rank.
-    return '<span class="crewgap">' + esc(ordinal(i + 1)) + " &middot; "
-      // `tiles()`, so the noun agrees. As a bare count this was the one number on the
-      // card's most prominent line with nothing after it for a locale to inflect: ja read
-      // `2位まで5`, a numeral with no counter, and fr and nl read "5 of 2nd".
+    return '<span class="crewgap"'
+      + (gap ? ' title="' + esc(t("crew.rank.offsq", { n: tiles(gap) })) + '"' : "")
+      + ">" + esc(ordinal(i + 1)) + " · "
+      // The number carries its unit from `crew.board.pts`, so the digits stay wherever the
+      // locale puts them rather than being split on a space.
       + t(gap === 0 ? "crew.rank.level" : "crew.rank.off",
-          { n: tiles(gap), v: ordinal(i) }) + "</span>";
+          { n: t("crew.board.pts", { n: pts.toFixed(1) }), v: ordinal(i) }) + "</span>";
   }
 
   // 1st, 2nd, 3rd from the host's own podium words, and the bare suffix past that. This
@@ -5208,8 +5216,17 @@
           // km2 on screen, sits 13th. `_crew_brief` has carried `tiles` all along; the row
           // simply never rendered it. The board, the crew's own card and its public page all
           // lead with squares; the two surfaces a stranger actually chooses from did not.
+          // Everything held, and the biggest patch beside it when they differ -- the same
+          // two numbers in the same order the board uses, so a crew does not look smaller
+          // here than it does one card further down. `tiles` used to be the biggest patch
+          // under a label that says squares, which understated a 53-square crew as 31.
+          var ground = c.tiles
+            ? (c.best_tiles && c.best_tiles !== c.tiles
+               ? t("crew.board.det2", { a: c.best_tiles.toLocaleString(), b: tiles(c.tiles) })
+               : tiles(c.tiles))
+            : null;
           var sub = [riders(c.members), policy]
-            .concat(c.tiles ? [tiles(c.tiles)] : [])
+            .concat(ground ? [ground] : [])
             .concat(c.km2 ? [fmtKm2(c.km2)] : [])
             .concat(c._km == null ? [] : [t("crew.join.away", { v: fmtKm(c._km) })])
             .map(function (f) { return '<span class="crewfact">' + f + "</span>"; })

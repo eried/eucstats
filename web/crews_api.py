@@ -304,7 +304,15 @@ def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
             # BOTH from the biggest patch, like the board, the map marker and the crew's own
             # page. `km2` was already best and `tiles` was the total, so one brief carried two
             # different answers to the same question and anything reading it got to choose.
-            "km2": clan.terr_best_km2 or 0.0, "tiles": clan.terr_best_tiles or 0,
+            # `tiles` is EVERYTHING held and `best_tiles` is the biggest patch, the same two
+            # names the board uses. This used to send the biggest patch as `tiles`, so a
+            # browse row read "31 squares" for a crew the board shows as "31 in one, 53
+            # held" -- the row understating a crew by 22 squares at the moment somebody is
+            # choosing which one to join. It was aligned with the board deliberately, back
+            # when the board led with the biggest patch; the board moved and this did not.
+            "km2": clan.terr_km2 or 0.0,
+            "tiles": clan.terr_tiles or 0,
+            "best_tiles": clan.terr_best_tiles or 0,
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
 
 

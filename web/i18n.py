@@ -323,6 +323,10 @@ EN: dict[str, str] = {
     # count in the feature with nothing after it for a locale to inflect, in the most
     # prominent line on the crew card.
     "crew.rank.off": "{n} off {v}",
+    # The hover on the gap line. The gap itself is quoted in points, because that is what
+    # the board sorts by and quoting it in squares let the line name a crew you had
+    # already beaten on squares. This keeps the part a rider can act on.
+    "crew.rank.offsq": "about {n} on the biggest patch",
     "crew.rank.level": "level with {v}",
     "crew.roles.remove": "Remove",
     "crew.roles.removeq": "Take {name} off the crew? Their old rides stay on the map.",
@@ -524,8 +528,11 @@ EN: dict[str, str] = {
     # Patch, everything held, and area -- the three terms the standing weighs, in the
     # order it weighs them. This is what makes a row that sorts below a bigger number
     # explicable from the row itself.
+    # The browse row, where the order is reversed: the total leads and the patch qualifies
+    # it, because a stranger picking a crew is choosing on how much ground it holds.
+    "crew.board.det2": "{b} ({a} in one)",
     "crew.board.det": "{a} in one · {b} held · {c}",
-    "crew.board.sub": "Biggest patch a crew holds, plus credit for its other ground and its area.",
+    "crew.board.sub": "Biggest patch a crew holds, plus a quarter for every other square.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
     "crew.days.few": "{n} days",

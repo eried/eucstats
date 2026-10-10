@@ -447,15 +447,23 @@
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip-path: inset(50%);
 }
+/* A button, not a field. It was a bordered box with a left-aligned placeholder and a caret
+   sitting in it, so three reviewers independently read it as somewhere to TYPE -- one said
+   their first instinct was to type into it. The content is centred with its glyph beside the
+   label now, and the fill is the one the ghost buttons use, so it reads as something you
+   press. The input inside is untouched: still clipped rather than hidden, so it keeps its
+   place in the tab order and in the accessibility tree. */
 .crewfile {
-  display: flex; align-items: center; gap: 9px; position: relative;
-  margin: 9px 0 0; padding: 10px 12px; min-height: 44px;
-  background: rgba(255,255,255,.04); border: 1px solid var(--line, #243055);
+  display: flex; align-items: center; justify-content: center; gap: 8px; position: relative;
+  margin: 9px 0 0; padding: 11px 12px; min-height: 44px;
+  background: rgba(255,255,255,.07); border: 1px solid var(--line, #243055);
   border-radius: 8px; font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
-  color: var(--mut, #9aa6c8);
+  font-weight: 700; color: var(--ink, #e8edfb);
 }
+/* Beside the label rather than pushed to the far edge: `margin-left: auto` put it where a
+   field's clear button lives, which was half the reason the whole thing read as an input. */
 .crewfile::after {
-  content: ""; margin-left: auto; width: 13px; height: 13px; flex: 0 0 13px;
+  content: ""; order: -1; width: 13px; height: 13px; flex: 0 0 13px;
   border: 1.5px solid currentColor; border-radius: 3px;
   background:
     linear-gradient(currentColor, currentColor) center/7px 1.5px no-repeat,

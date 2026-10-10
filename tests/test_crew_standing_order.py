@@ -7,8 +7,10 @@ so his example is precisely where they parted company: the board said the 11 (11
 card said the 20 (15.0 > 13.75). Two screens, two winners, no way for a rider to tell which
 one counted.
 
-The rule is now `crews.standing_score` everywhere -- the biggest patch at 1.0 a square,
-everything else the crew holds at 0.25, area at 0.05 per km². These tests exist because that
+The rule is now `crews.standing_score` everywhere -- the biggest patch at 1.0 a square and
+everything else the crew holds at 0.25. Area was a third term at 0.05 per km² and came out
+after being measured: it delivered the spread-beats-tight case it was kept for, and it also
+put a crew holding thirteen squares above one holding fourteen on latitude alone. These tests exist because that
 is five code paths agreeing by convention: the rebuild that stores `terr_rank`, the board
 query, the join list, the client's own sort, and the sentence on your own card that converts a
 score gap back into squares. Any one of them drifting puts a crew at a different place on a
@@ -119,11 +121,12 @@ def test_the_fixture_is_a_case_the_two_rules_disagree_about(db):
     assert (solid.terr_best_tiles, solid.terr_regions) == (17, 1), (
         f"the solid crew holds {solid.terr_tiles} squares in {solid.terr_regions} patches, "
         f"the biggest of {solid.terr_best_tiles}; the fixture wants 17 in one piece")
-    # Before the area term, so this fixture is not resting on the latitude tiebreak.
+    # The whole formula now, stated here so a changed weight shows up as a failing fixture
+    # rather than as a quietly different board.
     bare = lambda c: c.terr_best_tiles + 0.25 * c.terr_tiles
     assert bare(spread) > bare(solid), (
-        f"patch and squares alone give solid {bare(solid):.2f} against spread "
-        f"{bare(spread):.2f}, so only the 0.05 per km² is separating them here")
+        f"patch and squares give solid {bare(solid):.2f} against spread "
+        f"{bare(spread):.2f}; the fixture no longer shows what it was built to show")
     # the old rule
     assert solid.terr_best_tiles > spread.terr_best_tiles, (
         "biggest-patch-only would not put the solid crew first, so this fixture cannot show "
@@ -226,3 +229,30 @@ def test_the_two_halves_agree_on_what_a_square_is_worth():
     assert "SCORE_PER_CONNECTED_SQUARE = SCORE_W_PATCH + SCORE_W_SQUARES" in py, (
         "the server's constant is no longer derived from the weights, so changing a weight "
         "would leave it stale")
+
+
+def test_area_is_not_a_term_in_the_standing(db):
+    """km² informs and does not rank.
+
+    It was a third term at 0.05 per km², and on the live board it put Harbour Bridge Bombers
+    (13 squares, 54 km²) above Harbour Loop (14 squares, 27 km²) -- a crew ranked over one
+    that had ridden MORE ground, on nothing but the latitude of the ground. A reviewer derived
+    the weights unprompted and called the board rigged, and that pair is what they meant.
+
+    Two crews identical in squares and shape and wildly different in area must now score the
+    same, and tie-break on area rather than rank on it.
+    """
+    _settings(db)
+    a = _crew(db, "north", "Far North")
+    b = _crew(db, "south", "Far South")
+    for row, km2 in ((db.get(models.Clan, a.clan_id), 20.0),
+                     (db.get(models.Clan, b.clan_id), 200.0)):
+        row.terr_best_tiles = row.terr_tiles = 12
+        row.terr_km2 = row.terr_best_km2 = km2
+    db.commit()
+    north, south = db.get(models.Clan, a.clan_id), db.get(models.Clan, b.clan_id)
+    assert crews.standing_score(north) == crews.standing_score(south), (
+        f"same squares, ten times the area, different scores "
+        f"({crews.standing_score(north)} vs {crews.standing_score(south)}) -- area is back in "
+        f"the standing")
+    assert crews.standing_score(north) == 12 + 0.25 * 12
