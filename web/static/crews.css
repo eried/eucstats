@@ -99,7 +99,15 @@
 }
 
 .crewbtn:hover { filter: brightness(1.12); }
-.crewbtn:disabled { opacity: .5; cursor: default; }
+/* .35, not .5. A secondary button is already muted -- #9aa6c8 on this background -- so half
+   of it lands around #576382, which is a colour an ENABLED control could plausibly be. Side
+   by side with a live button you can tell; on its own, which is how a disabled Join in a list
+   is actually met, you cannot, and the reader presses it. The shape and the box are untouched
+   on purpose, so nothing moves when a button comes alive.
+   The reason is already attached and stays so: every disabled control here carries a `title`
+   and an `aria-describedby` pointing at the sentence that explains it. This is only about
+   whether a dead button LOOKS dead. */
+.crewbtn:disabled { opacity: .35; cursor: default; }
 /* The moment after a copy. Full strength, not the dimmed look of a button you cannot
    use yet: it is disabled because it just worked, which is the opposite thing. */
 /* The tick, sized to the line it replaces so the button keeps its height too. */
