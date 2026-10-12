@@ -674,6 +674,18 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   display: flex; justify-content: flex-end;
 }
 
+/* Where Disband lives now. It was in the same row as Leave crew, same shape, same ghost
+   weight, so the control that ends your membership and the control that ends the crew for
+   everybody in it were told apart by one word. A rule and a heading, which is the thing
+   every reader already knows how to read, and the heading carries the same pink the button
+   does so the whole block reads as one warning rather than a section with a red button in it.
+   `h4` only takes a colour here: `.crewcard h4` above sets the size, the spacing and the
+   caps, and this block has no reason to disagree with the other headings about those. */
+.crewdanger {
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,122,156,.28);
+}
+.crewdanger h4 { color: #ff7a9c; }
+
 /* --- standings, contributors, folded personal crew --- */
 
 .crewboard { padding-bottom: 8px; }
@@ -806,6 +818,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   background: rgba(255,138,216,.08); border: 1px solid rgba(255,138,216,.22); }
 .crewinvhead { font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
   color: var(--sec, #ff8ad8); margin-bottom: 6px; }
+/* The sentence between the heading and the address. `.hint` already sets the colour and the
+   size; this only takes the margin back off, because a `<p>` in this box was pushing the
+   address row 1em down from a heading that is 6px above it. */
+.crewinvp { margin: 0 0 7px; }
 .crewinvrow { display: flex; align-items: center; gap: 6px; }
 /* A real input, so the address can be selected, dragged and read by a password manager the
    way any other address can. Read-only rather than disabled: disabled text cannot be
@@ -907,6 +923,42 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewidentrow { display: block; margin: 12px 0 0; }
 .crewpreview { flex: 0 0 auto; }
 .crewpreview .crewsw { border-width: 2px; }
+
+/* ---------- the two pinned ends of the create form ----------
+   Sixty swatches and a select sit between the name field and the button, which on a phone
+   puts the submit below the fold and the preview above the top of it: you pick a pattern
+   with the thing it is drawn on off screen, then go looking for Create crew. Both ends are
+   pinned to the card instead.
+   `.pbody` is the scrolling ancestor and nothing between it and here clips, so `sticky`
+   resolves against the panel's own scroll port. The card is one of six stacked in that port,
+   so each strip sticks only while its own card is on screen, which is the behaviour wanted:
+   neither follows you into the join list below. */
+.crewnewtop {
+  position: sticky; top: -14px; z-index: 2;
+  display: flex; align-items: center; gap: 11px;
+  /* -15px to the sides and the padding back on, so the strip's background reaches the card's
+     border rather than stopping 15px short of it and letting swatches slide through the gap
+     as they pass underneath. */
+  margin: 0 -15px 12px; padding: 10px 15px;
+  border-bottom: 1px solid var(--line, #243055);
+  /* Opaque. The card's own background is 3.5% white over a blurred panel, so a translucent
+     strip showed the grid moving through the preview it is there to hold still. */
+  background: #121a33;
+}
+.crewnewtopw { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+/* The name as typed, which can be 28 characters of anything. */
+.crewnewtopw b { font-size: 14px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.crewnewtopw span { font-size: 11px; color: var(--mut, #9aa6c8); letter-spacing: .3px; }
+/* And the other end. `bottom: -14px` cancels the card's own bottom padding the same way the
+   strip above cancels its top, so the button sits on the card's edge while it is pinned and
+   lands in its normal place when the card's end comes into view. */
+.crewnewgo {
+  position: sticky; bottom: -14px; z-index: 2;
+  margin: 12px -15px 0; padding: 10px 15px;
+  border-top: 1px solid var(--line, #243055); background: #121a33;
+}
+.crewnewgo .crewbtn { width: 100%; }
 .crewpickc, .crewpickp {
   /* the grid counts the columns from the width there is, so the chip takes the cell it got
      rather than sitting in the corner of it */
@@ -1896,12 +1948,17 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    than the sentence, because it is the precise version of something already said. */
 /* Its own line. Appended inline, the date landed after a full stop as a bare token --
    "Keeps people from hopping around farming ground. Oct 13" -- which reads as a sentence that
-   lost its verb. A date on a line of its own reads as a date. The alternative was putting a
-   placeholder inside the sentence, which moves the meaning of a string in nineteen tables for
-   a value the browser already formats in the reader's own locale. */
+   lost its verb. A date on a line of its own reads as a date.
+   It now reads "Back in from 11 Oct." rather than "11 Oct": a line of its own was half the
+   fix, and a reviewer still found two timings on one card with nothing joining them. The
+   label is a string and the date is not, so the browser goes on formatting it in the
+   reader's own locale.
+   No `white-space: nowrap` any more. It was right for a bare token and would cut a sentence
+   in the locales whose "Back in from" is three words -- the trap this file has hit three
+   times. The date itself is held together by a non-breaking space in `whenAgain`. */
 .crewwhen {
   display: block; margin-top: 5px; font-variant-numeric: tabular-nums;
-  white-space: nowrap; font-weight: 600; opacity: .9;
+  font-weight: 600; opacity: .9;
 }
 
 /* Which way a crew is going. The green and the orange are the two already in this file for
@@ -1971,6 +2028,16 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   color: var(--ink, #e8edfb); }
 .crewpopb:hover { background: rgba(255,255,255,.12); }
 .crewpopb:focus-visible { outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8); }
+/* Which of the two is the one to press. `Details` opens the crew, which is what somebody who
+   has just tapped a rectangle is asking for; `Highlight squares` is the specialist action and
+   now says so twice over, in its weight and in its words. `flex: 0 1 auto` on the filled one
+   so the longer label gets the room it needs -- it still wraps rather than being cut, which is
+   the trap the comment above this block is about. */
+.crewpopb.prime { flex: 0 1 auto; padding-inline: 12px; font-weight: 600;
+  border-color: transparent; background: var(--sec, #ff8ad8); color: #10131f; }
+.crewpopb.prime:hover { background: var(--sec, #ff8ad8); filter: brightness(1.08); }
+.crewpopb.ghost { background: transparent; color: var(--mut, #9fb0d9); }
+.crewpopb.ghost:hover { background: rgba(255,255,255,.08); color: var(--ink, #e8edfb); }
 
 /* The board row "Details" lands on. The panel can be a long scroll, and arriving silently in
    the middle of a table leaves you hunting for what just happened. */

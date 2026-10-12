@@ -94,7 +94,7 @@ EN: dict[str, str] = {
     "crew.signin.tap": "On this phone? Tap the code to open EUC Planet.",
     # starting one
     "crew.new.h": "Start a crew",
-    "crew.new.p": "We picked colours nobody else is flying. Change them if you like.",
+    "crew.new.p": "We picked colours nobody else is flying. Change them now: once your first square is on the map they stay as they are.",
     "crew.new.name": "Name",
     "crew.new.desc": "Description",
     "crew.new.colours": "Colours",
@@ -118,6 +118,7 @@ EN: dict[str, str] = {
     # while the patterns beside them said "stripes" -- in the grid where somebody who cannot
     # see the difference needs words most. The name is derived from the hex; see colourName.
     "crew.new.colourn": "{v}, colour {n}",
+    "crew.new.identw": "{c}, {p}",
     "crew.hue.red": "red",
     "crew.hue.orange": "orange",
     "crew.hue.brown": "brown",
@@ -170,6 +171,7 @@ EN: dict[str, str] = {
     "crew.cancel": "Cancel",
     "crew.join.pending": "Waiting on a leader to let you in.",
     "crew.join.wait.h": "Cooling off",
+    "crew.join.wait.from": "Back in from {d}.",
     "crew.join.wait.p": "You just walked out of one. Next crew in {n}. Keeps people from hopping around farming ground.",
     "crew.first.building": "The map is still being drawn. Ground shows up within the hour.",
     "crew.first.h": "Ride something first",
@@ -217,6 +219,7 @@ EN: dict[str, str] = {
     "crew.mine.cancel": "Pull the request",
     "crew.mine.cancelq": "Pull your request to {name}? Costs you nothing.",
     "crew.mine.disband": "Disband",
+    "crew.mine.dangerh": "Ends it for everyone",
     "crew.mine.disbandq": "Disband {name}? Colours go back in the box and the map fades out on its own. No waiting afterwards. You can start or join another straight away.",
     # The same question when other people are in it. The single-string version was read
     # out word for word to the leader of a five-rider crew sitting first on the board,
@@ -246,11 +249,11 @@ EN: dict[str, str] = {
     # string rather than `tiles()` plus the per-row `crew.lose.cold` fragment -- a counted
     # sentence assembled out of another string's words is how `crew.how.7` shipped broken
     # grammar to German and Russian. `{v}` arrives pluralised, like its sibling above.
-    "crew.lose.cold.n": "{v} gone cold. Anyone could take them with one ride.",
+    "crew.lose.cold.n": "{v} unridden. Anyone could take them with one ride.",
     "crew.lose.gap": "{v} and it's theirs",
     "crew.lose.now": "this week",
     "crew.lose.soon": "creeping up",
-    "crew.lose.cold": "cold, and cheap for anyone",
+    "crew.lose.cold": "unridden, and cheap for anyone",
     "crew.lose.more": "and {v} more",
     "crew.tile.since": "held for {d}",
     "crew.ago.new": "a day or two",
@@ -435,7 +438,7 @@ EN: dict[str, str] = {
     # placeholder became the crew's colour under its own pattern.
     "crew.mine.emblemp": "Drawn from your crew's colours.",
     "crew.mine.embpick": "Upload a picture",
-    "crew.mine.generated": "Use the drawn one",
+    "crew.mine.rmpic": "Remove picture",
     "crew.mine.save": "Save",
     "crew.mine.leave": "Leave crew",
     "crew.mine.signout": "Sign out",
@@ -470,7 +473,7 @@ EN: dict[str, str] = {
     "crew.how.s3": "Your crew",
     "crew.how.c4": "Surrounded. You never rode this one. You rode all the way around it.",
     "crew.how.c5": "Taken this week. Somebody just turned it over, and it is the newest thing on the map.",
-    "crew.how.c3": "Going cold. Nobody has been back, so it sits at its floor. It stays yours until somebody rides it.",
+    "crew.how.c3": "Unridden. Nobody has been back, so it sits at its floor. It stays yours until somebody rides it.",
     "crew.how.c2": "About to flip. One more ride by them and it changes hands.",
     # No unit. This and `crew.how.1` below used "km" as prose for "distance ridden", with no
     # placeholder, so they could never convert and were simply wrong for a reader in miles --
@@ -517,7 +520,7 @@ EN: dict[str, str] = {
     "crew.how.8": "One rider can only put {c} a week into one square, however far they go. So a square goes to whoever brings more people: while two of them keep riding it, one cannot out-ride them. If they stop, it fades like anything else.",
     # The neighbour edge. Stated because it is a rule somebody loses ground to: without
     # it, a crew that rode just as hard wonders why its core held and its rim did not.
-    "crew.how.9": "A square surrounded by a crew's own ground is harder to take from them — about a quarter harder with all four sides, and no harder with none. Patches are won and lost at their edges.",
+    "crew.how.9": "A square surrounded by a crew's own ground is harder to take from them: about a quarter harder with all four sides, and no harder with none. Patches are won and lost at their edges.",
     "crew.empty": "Nobody holds anything yet.",
     # The second half claimed a square is the same ride anywhere, which the board directly
     # below it disproves -- and it is the board's OWN subtitle. The honest version names the
@@ -568,7 +571,7 @@ EN: dict[str, str] = {
     # The collapsed strip on the map that explains the colours. One word, because it sits in
     # a 230px box over the map and competes with the map for attention.
     "crew.key": "Key",
-    "crew.pop.highlight": "Highlight",
+    "crew.pop.highlight": "Highlight squares",
     "crew.pop.details": "Details",
     "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
     "crew.pub.scan": "Scan to find this crew",
@@ -588,7 +591,15 @@ EN: dict[str, str] = {
     # masculine-personal "wszystkich" for people and Russian the animate "всех", and the
     # guard caught the reuse before either shipped.
     "crew.roles.all": "Show all {n}",
+    "crew.roles.more1": "Show {n} more",
+    "crew.roles.more.few": "Show {n} more",
+    "crew.roles.more": "Show {n} more",
     "crew.roles.promote": "Make officer",
+    "crew.roles.promoteq": "Make {name} an officer? They can rename the crew, change its colours and emblem, let riders in and take them off. They cannot end the crew or touch you, and you can stand them down again any time.",
+    "crew.roles.handover": "Hand over",
+    "crew.roles.handoverq": "Hand {name} to {who}? They run it from then on and you become an officer. Only they can give it back.",
+    "crew.tip.handover": "They become the leader. You become an officer.",
+    "crew.roles.handed": "{who} runs {name} now.",
     "crew.roles.demote": "Stand down",
     "crew.mine.signoutq": "Sign out? You need your phone to get back in.",
     # What each of these actually does, in plain words, for the hover and for a screen reader.
@@ -604,6 +615,7 @@ EN: dict[str, str] = {
     # Turning the invite code over. It was generated once and could never be changed, so a
     # code in an old screenshot let somebody into an invite-only crew for ever.
     "crew.mine.invperm": "Invite",
+    "crew.mine.invitep": "Send this to anyone you want in. It works until you replace it.",
     "crew.tip.invperm": "The link that opens this crew. Paste it, print it, stick it on a backpack.",
     "crew.mine.invspoken": "Read it out",
     "crew.mine.newcode": "Replace code",
@@ -630,8 +642,8 @@ EN: dict[str, str] = {
     "crew.tile.safe": "Uncontested",
     "crew.tile.pushed": "Contested",
     "crew.tile.slipping": "About to flip",
-    "crew.tile.free": "Up for grabs",
-    "crew.tile.fading": "Going cold",
+    "crew.tile.free": "Unclaimed",
+    "crew.tile.fading": "Unridden",
     "crew.tile.ringed": "Surrounded",
     "crew.tile.ringedp": "taken by riding right round it",
     "crew.tile.clear": "{v} ahead of anyone else",
@@ -789,14 +801,14 @@ EN: dict[str, str] = {
     "b.commuter.n": "Commuter",
     "b.commuter.d": "Most distance ridden on weekdays",
     "b.freespin.n": "Biggest Freespin",
-    "b.freespin.d": "Highest speed a wheel reached while spinning free — one spike, in km/h",
+    "b.freespin.d": "Highest speed a wheel reached while spinning free: one spike, in km/h",
     "b.cutouts.n": "Falls / Cutouts",
-    "b.cutouts.d": "Most falls detected — riding, then the wheel spinning free and the ride ending",
+    "b.cutouts.d": "Most falls detected: riding, then the wheel spinning free and the ride ending",
     "b.spins.n": "Freespins",
-    "b.spins.d": "Most times the wheel was spun up off the ground — harmless, just for fun",
+    "b.spins.d": "Most times the wheel was spun up off the ground: harmless, just for fun",
     "b.cutout.n": "Falls / Cutouts",
     "b.sag.n": "Voltage Sag",
-    "b.sag.d": "Biggest voltage drop under load — the hardest battery pull",
+    "b.sag.d": "Biggest voltage drop under load: the hardest battery pull",
     "b.rocket.n": "Rocket",
     "b.rocket.d": "Hardest sustained acceleration held for 2s+",
     # new gated / extreme boards (ship disabled). The qualifying ride length + distance

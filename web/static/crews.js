@@ -917,7 +917,7 @@
       var el = document.createElement("div");
       el.className = "crewtip b" + info[0];
       el.innerHTML = "<b>" + esc(p.name) + "</b><span>" + esc(w[0]) + "</span><span>"
-        + esc(w[1]) + (w[2] ? " <i>" + esc(w[2]) + "</i>" : "") + "</span>"
+        + esc(w[1]) + (w[2] ? ' <i>· ' + esc(w[2]) + "</i>" : "") + "</span>"
         + (info[2] ? "<span><em>" + esc(t("crew.tile.fresh")) + "</em></span>" : "");
       map.getCanvasContainer().appendChild(el);
       placeTip(el, px);
@@ -1064,27 +1064,46 @@
     var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
     var POP_H = 170;                       // about the tallest this popup gets
     var panelEl = document.querySelector(".panel.open");
-    var pt = map.project(e.lngLat);
-    if (panelEl) {
-      var pr = panelEl.getBoundingClientRect();
-      // Below that line a downward popup would run into the panel.
-      if (pt.y + POP_H > pr.top) popOpts.anchor = "bottom";
-    }
-    // And the same problem at the other end. The champions card sits in the topbar, so a
-    // popup placed ABOVE a point high on the map opens underneath it -- which is where a
-    // crew's own emblem usually is, since the marker sits at the middle of its region. Only
-    // applied when there is room below, so it can never fight the rule above.
     var topEl = document.querySelector(".topbar");
-    if (popOpts.anchor !== "bottom" && topEl) {
-      var tr = topEl.getBoundingClientRect();
-      var floor = panelEl ? panelEl.getBoundingClientRect().top : window.innerHeight;
-      if (pt.y - POP_H < tr.bottom && floor - pt.y >= POP_H) popOpts.anchor = "top";
+    var pt = map.project(e.lngLat);
+    // Measure both gaps and put the popup in the one it fits, rather than ruling the lower
+    // one out and hoping. This was two rules, each written for its own end of the screen and
+    // the second subordinated to the first with "only applied when there is room below, so
+    // it can never fight the rule above" -- which is the bug: with the panel open there is
+    // almost never room below (the panel is 76dvh and its top lands around a sixth of the
+    // way down), so the first rule fired on nearly every click and the second could not run
+    // at all. Clicking high on the map then opened a 161px popup at y = -48: the crew's name
+    // and the band it is in, both off the top of the window. Measured on the real popup at
+    // 1707x876 with the panel open.
+    //
+    // MapLibre names the popup's OWN edge: "bottom" puts its bottom at the point, so it
+    // opens upward; "top" opens downward.
+    //
+    // The topbar only counts as a ceiling where it actually is. It is a card at the left,
+    // not a bar across the window, and taking its `bottom` as the ceiling everywhere made
+    // the gap above negative for clicks beside it -- 183px of ceiling on a window where the
+    // map's visible strip starts at 0.
+    var tr = topEl ? topEl.getBoundingClientRect() : null;
+    var ceiling = tr && pt.x >= tr.left && pt.x <= tr.right ? tr.bottom : 0;
+    var floor = panelEl ? panelEl.getBoundingClientRect().top : window.innerHeight;
+    var above = pt.y - ceiling, below = floor - pt.y;
+    if (below < POP_H || above < POP_H) {
+      // One side fits: take it. Neither does: open DOWNWARD, whatever the arithmetic says.
+      // The two losses are not equivalent. Opening upward with no room puts the crew's name
+      // and the band it is in off the top of the window, where nothing recovers them;
+      // opening downward puts the two buttons behind the panel, which paints over this
+      // popup whatever its z-index -- `.panel` carries a backdrop-filter, so it is its own
+      // stacking context and 560 inside the map container does not beat it -- and closing
+      // the panel brings them back with the popup still open. Information first, controls
+      // second, which is also the order the popup is written in.
+      popOpts.anchor = below >= POP_H ? "top" : above >= POP_H ? "bottom" : "top";
     }
     POPUP = new maplibregl.Popup(popOpts)
       .setLngLat(e.lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)
-        + "</span><span>" + esc(detail) + (fig ? " <i>" + esc(fig) + "</i>" : "")
+        + "</span><span>" + esc(detail)
+        + (fig ? ' <i>· ' + esc(fig) + "</i>" : "")
         + '</span><span class="crewpop-since"></span>'
         + "</div></div>"
         // The two things there are to do with a crew you just tapped. In the popup rather
@@ -1092,10 +1111,14 @@
         // no hover, and a long press is both undiscoverable and the OS's own gesture. The
         // popup is already on screen and already names the crew, so it is where the actions
         // belong -- and it works identically with a thumb and with a mouse.
+        // Details is the filled one. A first-timer cannot know what "Highlight" does before
+        // pressing it, and the thing they actually want from a square they just tapped is the
+        // crew behind it -- so the button that was leading was the one that needs the label.
+        // It got one: "Highlight squares" rather than a verb with no object.
         + '<div class="crewpopacts">'
-        + '<button type="button" class="crewpopb" data-hl="' + esc(p.slug) + '">'
+        + '<button type="button" class="crewpopb ghost" data-hl="' + esc(p.slug) + '">'
         + esc(t("crew.pop.highlight")) + "</button>"
-        + '<button type="button" class="crewpopb" data-det="' + esc(p.slug) + '">'
+        + '<button type="button" class="crewpopb prime" data-det="' + esc(p.slug) + '">'
         + esc(t("crew.pop.details")) + "</button></div>")
       .addTo(map);
     bindPopActs();
@@ -1808,6 +1831,13 @@
 
   function patchesOf(n) {
     return plural("crew.patch1", "crew.patches.few", "crew.patches", n);
+  }
+
+  // What the fold is hiding, rather than how many members exist. `crew.roles.all` read
+  // "Show all 7" above six visible rows, which names six rows as missing in order to
+  // reveal one. Pluralised, because this is the one number in the sentence.
+  function moreLabel(n) {
+    return plural("crew.roles.more1", "crew.roles.more.few", "crew.roles.more", n);
   }
 
   // How many squares a crew took into its biggest patch this week, honestly. `best_fresh` is
@@ -3691,7 +3721,7 @@
           // The colour's own name, with its index after it: the name is what a reader needs
           // and the number is what tells two near-identical pinks apart.
           var label = t("crew.new.colourn", { v: colourName(c), n: i + 1 })
-            + (gone ? " — " + t("crew.new.gone") : "");
+            + (gone ? " (" + t("crew.new.gone") + ")" : "");
           return '<button type="button" class="crewpickc' + (on ? " on" : "")
             + (gone ? " gone" : "")
             + '" aria-pressed="' + (on ? "true" : "false")
@@ -3712,7 +3742,7 @@
         + esc(t("crew.new.patterns")) + '">' + PATTERNS.map(function (pt, i) {
           var on = pt === ident.pattern;
           var gone = taken[ident.colour + "|" + pt] && own !== ident.colour + "|" + pt;
-          var label = t("crew.pattern." + pt) + (gone ? " — " + t("crew.new.gone") : "");
+          var label = t("crew.pattern." + pt) + (gone ? " (" + t("crew.new.gone") + ")" : "");
           return '<button type="button" class="crewpickp' + (on ? " on" : "")
             + (gone ? " gone" : "")
             + '" aria-pressed="' + (on ? "true" : "false")
@@ -3809,7 +3839,7 @@
       btns.forEach(function (b, i) {
         var pt = b.dataset.p, key = c + "|" + pt;
         var gone = !!taken[key] && own !== key, on = pt === hidP.value;
-        var label = t("crew.pattern." + pt) + (gone ? " — " + t("crew.new.gone") : "");
+        var label = t("crew.pattern." + pt) + (gone ? " (" + t("crew.new.gone") + ")" : "");
         b.disabled = gone;
         b.classList.toggle("gone", gone);
         b.classList.toggle("on", on);
@@ -3949,9 +3979,21 @@
     // reading "#000075", and the thing being chosen is the thing you will see on the map, so
     // the picker shows it with the pattern already on it. `identBlock` builds both grids.
 
-    return '<div class="crewcard">'
+    return '<div class="crewcard crewnew">'
       + "<h3>" + t("crew.new.h") + "</h3>"
       + '<p class=hint>' + t("crew.new.p") + "</p>"
+      // Pinned, so the choice is visible while it is being made. The identity row further
+      // down has carried a 34px swatch beside its label since it was written, and it scrolls
+      // away the moment you reach the grid it describes: sixty swatches is four rows of
+      // colours and one of patterns, and by the time you are picking a pattern the thing it
+      // will be drawn on is off the top of the screen. This one stays, with the name as
+      // typed and the two choices in words, which is the emblem this crew gets if nobody
+      // uploads a picture.
+      + '<div class="crewnewtop">'
+      + '<span class="crewpreview">' + swatch(ident.colour, ident.pattern, 40) + "</span>"
+      + '<span class="crewnewtopw"><b id="cf-topname"></b>'
+      + '<span id="cf-topid"></span></span>'
+      + "</div>"
       // No ghost text. It was "Nordlys Collective" and "Oslo, mostly after dark." --
       // hardcoded English in all eighteen locales, and the name and description of
       // crew #8 on the board, visible in the join list directly under this form. A
@@ -3986,20 +4028,38 @@
       + '<option value="open">' + t("crew.new.open") + "</option>"
       + '<option value="invite">' + t("crew.new.invite") + "</option>"
       + "</select></label>"
+      // Pinned to the bottom of the card for the same reason the preview is pinned to the
+      // top: the submit sat under sixty swatches and a select, which on a phone is below the
+      // fold of a form whose other fields are all above it. A reviewer filled in a name and
+      // went looking for the button.
+      + '<div class="crewnewgo">'
       + '<button class="crewbtn" id="cf-go">' + t("crew.new.go") + "</button>"
+      + "</div>"
       + "</div>";
   }
 
   function bindCreate() {
-    var preview = document.querySelector(".crewpreview .crewsw");
+    // Both of them: the pinned one at the top of the card and the one beside the identity
+    // row's label. `querySelector` took whichever came first in the document and left the
+    // other showing the suggestion for the rest of the form's life.
+    var previews = document.querySelectorAll(".crewnew .crewpreview .crewsw");
+    var topId = document.getElementById("cf-topid");
     var hidC = document.getElementById("cf-colour");
     var hidP = document.getElementById("cf-pattern");
     if (!hidC || !hidP) return;
 
     function sync() {
-      if (preview) {
+      Array.prototype.forEach.call(previews, function (preview) {
         preview.style.background = hidC.value;
         preview.dataset.p = hidP.value;
+      });
+      // The two choices in words, under the name. `colourName` is the same function the
+      // swatch labels use, so the strip and the grid cannot call one colour two things.
+      if (topId) {
+        topId.textContent = hidC.value && hidP.value
+          ? t("crew.new.identw", { c: colourName(hidC.value),
+                                   p: t("crew.pattern." + hidP.value) })
+          : "";
       }
       // the pattern swatches show the chosen colour, so the two choices are seen together
       document.querySelectorAll("#cf-patterns .crewsw").forEach(function (el) {
@@ -4027,6 +4087,11 @@
           // note on `#cf-namewhy`. Nothing is said about an empty field -- a form that
           // objects before you have typed is worse than one that answers when you ask.
           if (pair[0] !== "cf-name") return;
+          // The pinned strip echoes the name as it is typed. Empty rather than a placeholder
+          // when the field is: this form has had hardcoded English ghost text in all
+          // eighteen locales once already, and it was another crew's real name.
+          var top = document.getElementById("cf-topname");
+          if (top) top.textContent = box.value.trim();
           var why = document.getElementById("cf-namewhy");
           if (!why) return;
           var problem = box.value.trim() ? nameProblem(box.value) : null;
@@ -4391,6 +4456,11 @@
     if (c.invite_url) {
       h += '<div class="crewinvbox">'
         + '<div class="crewinvhead">' + esc(t("crew.mine.invperm")) + "</div>"
+        // The verb. "Invite" over a URL and three unlabelled marks said what the box IS and
+        // never what to do with it, and the one question it leaves -- does this thing expire
+        // -- is answered in the same breath, because the answer is no and `Replace code`
+        // below is the only thing that ends it.
+        + '<p class="hint crewinvp">' + esc(t("crew.mine.invitep")) + "</p>"
         + '<div class="crewinvrow">'
         + '<input class="crewinvurl" id="cm-invurl" readonly value="'
         + esc(c.invite_url.replace(/^https?:\/\//, "")) + '" aria-label="'
@@ -4505,14 +4575,28 @@
             // Nothing an officer presses on another officer can work: the server
             // refuses both, and the refusal it renders reads "Only a leader or officer
             // can do that" at somebody who is one. Only the leader outranks an officer.
+            // Handing the crew over, on an officer's row and only for the leader. The
+            // service has always allowed it: `set_role` with role="leader" sets the caller
+            // to officer in the same commit, and refuses every shape that would leave the
+            // crew with nobody in charge. Nothing reached it, so a leader who wanted out
+            // had one route -- promote somebody, leave, and wait for them to claim a crew
+            // that now looks abandoned. Officers only, which is the rule `leave()` already
+            // enforces: you have to make somebody an officer before you can go.
+            var hand = me.role === "leader" && x.role === "officer"
+                       && x.store_id && x.store_id !== me.handle
+              ? '<button class="crewbtn mini ghost" data-hand="' + esc(x.store_id)
+                + '" data-name="' + esc(x.name) + '" title="'
+                + esc(t("crew.tip.handover")) + '">' + t("crew.roles.handover")
+                + "</button>"
+              : "";
             var btn = x.store_id && x.store_id === me.handle ? ""
               : x.role === "leader" ? ""
               : x.role === "officer" && me.role !== "leader" ? ""
               : '<button class="crewbtn mini ghost" data-role="'
                 + (x.role === "officer" ? "member" : "officer") + '" data-sid="'
-                + esc(x.store_id || "") + '">'
+                + esc(x.store_id || "") + '" data-name="' + esc(x.name) + '">'
                 + t(x.role === "officer" ? "crew.roles.demote" : "crew.roles.promote")
-                + "</button>"
+                + "</button>" + hand
                 + '<button class="crewbtn mini ghost" data-kick="'
                 + esc(x.store_id || "") + '" data-name="' + esc(x.name) + '"'
                 + ' title="' + esc(t("crew.tip.remove")) + '">'
@@ -4525,7 +4609,7 @@
           }).join("")
         + (me.roster.length > ROSTER_SHOWN
            ? '<button class="crewbtn mini ghost crewshowall" id="cr-more"'
-             + ' aria-expanded="false">' + t("crew.roles.all", { n: me.roster.length })
+             + ' aria-expanded="false">' + moreLabel(me.roster.length - ROSTER_SHOWN)
              + "</button>"
            : "")
         + "</div>";
@@ -4582,8 +4666,8 @@
         + '<div class="crewlogo">' + emb(c.slug, 52)
         + (c.has_logo
            ? '<button type="button" class="crewlogox" id="ce-clearlogo" title="'
-             + esc(t("crew.mine.generated")) + '" aria-label="'
-             + esc(t("crew.mine.generated")) + '">✕</button>'
+             + esc(t("crew.mine.rmpic")) + '" aria-label="'
+             + esc(t("crew.mine.rmpic")) + '">✕</button>'
            : "")
         + "</div>"
         // Only when there is nothing uploaded. With a picture there, the picture is the
@@ -4611,16 +4695,24 @@
       + '<button class="crewbtn ghost" id="cm-leave" title="'
       + esc(t(me.status === "pending" ? "crew.tip.cancel" : "crew.tip.leave")) + '">'
       + t(me.status === "pending" ? "crew.mine.cancel" : "crew.mine.leave") + "</button>"
-      + (me.role === "leader"
-         ? '<button class="crewbtn ghost danger" id="cm-disband" title="'
-           + esc(t("crew.tip.disband")) + '">' + t("crew.mine.disband")
-           + "</button>"
-         : "")
       + (me.role !== "leader" && me.leader_stale && me.can_claim
          ? '<button class="crewbtn ghost" id="cm-claim" title="' + esc(t("crew.tip.claim"))
            + '">' + t("crew.mine.claim") + "</button>"
          : "")
       + "</div>"
+      // Disband, out of that row and behind a rule with a heading over it. It sat beside
+      // Leave crew at the same weight and in the same shape: one ends your membership, the
+      // other ends the crew for everybody in it, and the only thing telling them apart was
+      // the word on the button. Both already confirm, and this one already makes you type
+      // the crew's name -- but a guard you meet after pressing is not the same as a button
+      // that looks like what it does.
+      + (me.role === "leader"
+         ? '<div class="crewdanger"><h4>' + esc(t("crew.mine.dangerh")) + "</h4>"
+           + '<div class="crewacts">'
+           + '<button class="crewbtn ghost danger" id="cm-disband" title="'
+           + esc(t("crew.tip.disband")) + '">' + t("crew.mine.disband")
+           + "</button></div></div>"
+         : "")
       // Its own bar: the control that ends your session is not the control that leaves your
       // crew, and neither is the irreversible one.
       + '<div class="crewfoot"><button class="crewbtn ghost" id="cm-signout" title="'
@@ -4698,11 +4790,49 @@
     });
     document.querySelectorAll("[data-role]").forEach(function (b) {
       b.onclick = function () {
-        api("POST", "/api/v1/crews/" + c.slug + "/role",
-            { store_id: b.dataset.sid, role: b.dataset.role }).then(function (r) {
-          if (r.ok) { reveal(".crewmine-wrap"); show(); }
-          else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
-        });
+        function go() {
+          api("POST", "/api/v1/crews/" + c.slug + "/role",
+              { store_id: b.dataset.sid, role: b.dataset.role }).then(function (r) {
+            if (r.ok) { reveal(".crewmine-wrap"); show(); }
+            else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
+          });
+        }
+        // Promotion asks first, and the question is what the badge carries. Three
+        // endpoints admit an officer -- the crew's own fields, the emblem upload and its
+        // delete -- plus letting riders in and taking them off, and nothing on this screen
+        // said any of it: a leader pressed a button called "Make officer" to find out what
+        // an officer is. The two powers it does NOT carry are in there too, because they
+        // are the two a leader is actually weighing, and so is the fact that it comes back
+        // off, since "Stand down" only appears once the badge is already on.
+        //
+        // Demotion does not ask. It takes powers away rather than handing them out, it is
+        // the undo for this button, and a confirm on an undo is how people stop reading
+        // confirms.
+        if (b.dataset.role === "officer") {
+          ask(t("crew.roles.promoteq", { name: b.dataset.name }),
+              t("crew.roles.promote"), go, b);
+        } else {
+          go();
+        }
+      };
+    });
+    // Handing the crew over. `role: "leader"` is the same endpoint, and the server demotes
+    // the caller to officer inside the same commit -- which is the whole content of the
+    // question, so it is what the confirm says.
+    document.querySelectorAll("[data-hand]").forEach(function (b) {
+      b.onclick = function () {
+        ask(t("crew.roles.handoverq", { name: c.name, who: b.dataset.name }),
+            t("crew.roles.handover"), function () {
+          api("POST", "/api/v1/crews/" + c.slug + "/role",
+              { store_id: b.dataset.hand, role: "leader" }).then(function (r) {
+            if (r.ok) {
+              pendingStatus = t("crew.roles.handed",
+                                { who: b.dataset.name, name: c.name });
+              reveal(".crewmine-wrap");
+              show();
+            } else if (!onWrite(r)) setStatus(errMsg(r.err), true, b);
+          });
+        }, b, true);
       };
     });
     var leave = document.getElementById("cm-leave");
@@ -5159,7 +5289,17 @@
     } catch (e) {
       try { out = d.toLocaleDateString(); } catch (e2) { return ""; }
     }
-    return ' <span class="crewwhen">' + esc(out) + "</span>";
+    // With a word in front of it. The date used to sit in this span on its own, directly
+    // after a sentence counting days down, so the card showed two timings with nothing
+    // joining them: "Next crew in 2 days." and a grey "11 Oct". `crew.join.wait.from`
+    // carries the words and the browser still formats the date, which is why `{d}` is
+    // substituted into an already-translated string rather than being one.
+    // A non-breaking space inside the date, so "11 Oct" cannot split across two lines now
+    // that there are words around it. The stylesheet used to hold the whole span `nowrap`,
+    // which was right for a bare token and is the text-cutting trap for a sentence: this
+    // string is nineteen translations long and German's is not "Back in from".
+    return ' <span class="crewwhen">'
+      + esc(t("crew.join.wait.from", { d: out.replace(/ /g, " ") })) + "</span>";
   }
 
   function joinHTML(crews, me) {

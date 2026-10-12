@@ -63,6 +63,17 @@ def _inline_stylesheet():
 # Every selector allowed to clip, and what was measured in the locale that needs the most
 # room. Adding a row here is the review; the measurement belongs in the note.
 REVIEWED = {
+    ".crewnewtopw b":
+        "the crew's name echoed on the pinned strip at the top of the create form, as it is "
+        "typed. Not translated copy -- it is the rider's own 28 characters, and the field "
+        "they came from is a few lines below with the whole string in it, so an ellipsis "
+        "here loses nothing that is not still on screen. Measured in the real card at the "
+        "panel width a 390px phone produces (`min(94vw, 720px)` = 366.6px, card inner "
+        "318px, name box 237px): a 29-character real name, `Five Borough Crew Riders Oslo`, "
+        "is 204px and fits whole; the only strings that reach the ellipsis are 28 "
+        "characters of capital W (345px) and of capital M (314px), which is the cap. The "
+        "nowrap is what keeps the strip one line high while it is stuck to the top of a "
+        "scrolling card.",
     ".crewrowname":
         "a crew's name on a board row, above the patch/held/area line. The nowrap and the "
         "ellipsis are not new: `podList` wraps every label in a span carrying exactly this "
@@ -72,14 +83,6 @@ REVIEWED = {
         "that can overflow on these rows is the detail line, and that one wraps -- see "
         "`.crewrowdet` in crews.css, which was measured in Ukrainian and changed because "
         "of it.",
-    ".crewwhen":
-        "the exact moment a cooldown lifts, beside the sentence saying how long is left. The "
-        "nowrap holds one date together so it cannot break between the day and the time; the "
-        "`.crewmsg` around it wraps normally, so the line moves rather than the date being "
-        "cut. Measured on the real element in en, de, ru, pl, tr, uk, ja, fr, pt-BR and "
-        "zh-Hant: the widest is zh-Hant `10月11日 下午02:14` at 99px, "
-        "against a 293px card at 390 and 433px at 1280, with no overflow on the card or the "
-        "page at either width.",
     ".crewfact":
         "one fact out of a join row's meta line -- `4 riders`, `leader says yes`, `137 km²`, "
         "`223 km from here`. The nowrap is here so the line breaks BETWEEN facts: without it a "

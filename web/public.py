@@ -867,7 +867,7 @@ document.getElementById("prefresh").onclick=()=>{const b=document.getElementById
   if(!ADMIN){pk.style.display="none";return;}
   pk.style.display="";
   pk.onclick=()=>{ASPUBLIC=!ASPUBLIC;pk.classList.toggle("on",ASPUBLIC);
-    pk.title=ASPUBLIC?"Showing the public view — click to reveal hidden":"Preview as a normal visitor";
+    pk.title=ASPUBLIC?"Showing the public view. Click to reveal hidden.":"Preview as a normal visitor";
     applyDock();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}};})();
 
 const MEDAL='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6v2H3v3a4 4 0 0 0 4 4 5 5 0 0 0 4 3.9V18H8v3h8v-3h-3v-3.1A5 5 0 0 0 17 11a4 4 0 0 0 4-4V4h-3V2Zm0 4h1v1a2 2 0 0 1-1 1.7V6ZM5 7V6h1v2.7A2 2 0 0 1 5 7Z"/></svg>';
