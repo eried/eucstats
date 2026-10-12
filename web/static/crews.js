@@ -1554,31 +1554,92 @@
       + (up ? "\u25b2" : "\u25bc") + Math.abs(was - now) + "</span>";
   }
 
+  /* The podium's figure and its unit, on one line, at the largest size that lets them be.
+
+     "122.0" is 81px at 26px and the figure box on a podium card is 113px, which leaves 32px
+     for the word after it. That is enough for Korean's `점` and Chinese's `分` and for
+     nothing else: English wrapped on the gold card, and German, Spanish, Dutch, Portuguese
+     and Japanese wrapped on all three. Erwin asked for exactly this to stop happening --
+     "compact the pts in points" -- and the stylesheet cannot do it, because the width that
+     has to fit depends both on the locale's word for points AND on how many digits the crew
+     in question has earned. A four-digit score wraps at any fixed size.
+
+     So it is measured, once per render, and stepped down until the pair fits one line or
+     until 16px, below which it has stopped being the number the card leads with and a wrap
+     is the better answer. It only ever steps DOWN from whatever the stylesheet asked for, so
+     the phone block's 22 and 18 still set the ceiling at their own widths.
+
+     Nothing is cut at any step. These cards carry `overflow: hidden` for the shine sweep, so
+     a `white-space: nowrap` here would not overflow, it would remove the last word -- which
+     is the mistake this file has now made three times, and once in eleven locales at once. */
+  function fitPodPoints(root) {
+    var scope = root || document;
+    var tries = 0;
+
+    // Shrink one card's figure until it and its unit share a line, and report where it
+    // stopped. 16 is the floor: below that it is not the number the card leads with any
+    // more, and a wrap is the better answer.
+    function shrink(km, n) {
+      n.style.fontSize = "";
+      var size = parseFloat(window.getComputedStyle(n).fontSize) || 26;
+      while (size > 16) {
+        if (km.getBoundingClientRect().height
+            <= n.getBoundingClientRect().height + 2) break;
+        size -= 2;
+        n.style.fontSize = size + "px";
+      }
+      return size;
+    }
+
+    function run() {
+      var cards = scope.querySelectorAll(".crewboard .pod .km");
+      if (!cards.length) return;
+      var pairs = [], smallest = Infinity;
+      Array.prototype.forEach.call(cards, function (km) {
+        var n = km.querySelector(".crewpodn");
+        if (!n) return;
+        // Nothing is on screen yet. `panel.innerHTML` runs while the panel is still
+        // opening, and every rect is 0 then -- which makes "the box is no taller than the
+        // figure" trivially TRUE and leaves every card at full size, wrapped. That is this
+        // function silently doing nothing, which is the shape of bug this file keeps paying
+        // for, so it asks again rather than believing a zero.
+        if (n.getBoundingClientRect().height < 4) return;
+        pairs.push([km, n]);
+        smallest = Math.min(smallest, shrink(km, n));
+      });
+      if (!pairs.length) {
+        if (++tries < 12) requestAnimationFrame(run);
+        return;
+      }
+      // One size for all three. Measured per card they came out 20, 24 and 22 in German,
+      // because each has a different number of digits -- and a gold figure set smaller than
+      // the bronze beside it reads as a mistake, not as a fit. The podium is one row of
+      // three; the tightest card sets the size for the row.
+      pairs.forEach(function (pair) {
+        pair[1].style.fontSize = smallest + "px";
+      });
+    }
+
+    requestAnimationFrame(run);
+    // Again once the display face has arrived. Orbitron is a webfont: measured against the
+    // fallback the figure is narrower, fits, and then grows under the real face and wraps --
+    // so a cold load would keep whatever the fallback happened to allow.
+    try {
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function () { tries = 0; run(); });
+      }
+    } catch (e) {}
+  }
+
   function rankingHTML(rows) {
     if (!rows || !rows.length) {
       return '<div class="empty">' + t("crew.empty") + "</div>";
     }
     FRESH = freshByCrew();
     if (!H.podList) return plainRank(rows);
-    // 560 is the phone breakpoint the stylesheet and the fly-to already use. The podium is
-    // exempt: podList hands the same val and sub to the cards and to the rows below them.
-    // The CARD this renders into, not the window. `window.innerWidth <= 560` meant that at
-    // 1280 the board asked for the long labels -- "55 squares", "+55 squares this week" --
-    // and got a 435px table to put them in, because every card in this panel is capped at a
-    // 31rem measure however wide the window is. Rows wrapped to three and four lines and ran
-    // 75px tall against a 22px line box. The question was never how big the window is.
-    var col = Math.min(panel ? panel.clientWidth : window.innerWidth, 528) - 32;
-    var tight = col <= 520;
     var top3 = rows.slice(0, 3);
     // below the podium, which draws its own emblem above the name
     var isRow = function (e) { return top3.indexOf(e) < 0; };
-    var short = function (e) { return tight && isRow(e); };
-    // The podium was exempt from `tight` on the grounds that podList hands the same val and
-    // sub to the cards and to the rows. True, and it meant the three widest cells on the
-    // board wore the longest strings: at 412px "+31 squares this week" took three lines",
-    // "Holmenkollen Climb" took two, and the three cards came out visibly different heights.
-    // They are 1/3 of a 412px card each -- about 125px -- which is narrower than any row.
-    var shortPod = function (e) { return tight && !isRow(e); };
     return H.podList(rows, {
       iconFn: function (e) {
         return '<img class="crewpodemb crewembgo" data-emb="' + esc(e.slug)
@@ -1597,23 +1658,12 @@
         // the detail simply ran on after the name, clipping it. The name keeps that one-line
         // ellipsis treatment; the wrapper is what the detail can sit under.
         head = '<span class="crewrowname">' + head + "</span>";
-        // Patch, everything held, area: the three terms the standing weighs, in the order it
-        // weighs them. Without this the row sorts by a rule the row does not show, and a
-        // reader seeing 15 squares below 14 has no way to find out that 84 km2 against 23 is
-        // the reason.
-        // "37 in one · 37 held" on a crew whose ground is all one patch is the same number
-        // twice, and it read as a duplicated field -- true of four rows out of six on the
-        // default board. When they agree there is only one thing to say.
-        var patch = e.best_tiles || 0, held = e.tiles || 0;
-        var det = (patch === held)
-          ? tiles(held) + " · " + fmtKm2(e.km2 || 0)
-          : t("crew.board.det", { a: patch.toLocaleString(),
-                                  b: held.toLocaleString(),
-                                  c: fmtKm2(e.km2 || 0) });
-        return head + '<span class="crewrowdet">' + esc(det) + "</span>";
+        // What the row is made of, under the name it belongs to. Without it the row
+        // sorts by a rule the row does not show.
+        return head + '<span class="crewrowdet">' + groundLine(e) + "</span>";
       },
-      // squares, because that is what the board is sorted on and a square is the same amount
-      // of riding everywhere. The area sits underneath, where it informs without ranking.
+      // Points, because that is what the board is sorted on. What they are made of goes
+      // on the line underneath.
       val: function (e) {
         // One unit, from the podium to the last row. It used to be squares on the podium and
         // the standing below it, which is the split all three reviewers tripped over: "90,
@@ -1623,58 +1673,20 @@
         if (isRow(e)) return '<b class="crewpodn">' + sc.toFixed(1) + "</b>";
         // The podium says the unit, because it is the first number anybody reads here and a
         // bare 132.5 is a quantity of nothing.
+        // The digits and nothing else. The class used to swallow the space after them too,
+        // which was invisible while `.crewpodn` was a block and read "122.0points" the
+        // moment it became inline -- an inline-block trims a trailing space at its own edge.
+        // `toFixed` never emits a thousands separator, so there is nothing else to catch.
         return esc(t("crew.board.pts", { n: sc.toFixed(1) }))
-          .replace(/(\d[\d.,  ]*)/, '<b class="crewpodn">$1</b>');
+          .replace(/([\d.,]+)/, '<b class="crewpodn">$1</b>');
       },
+      // One line under the podium's number: everything held, in how many pieces, and
+      // what came in this week. It was three stacked lines -- squares, then patches, then
+      // the gain -- which made the gold card seven rows and 230px tall beside a 194px
+      // silver. Empty on the ranked rows, where the same sentence already sits under the
+      // crew's name and a fourth column would only push the name narrower.
       sub: function (e) {
-        var gained = FRESH[e.slug] || 0;
-        // No km2 here. The board ranks on squares, and area beside it inverted the ranking
-        // two rows apart: 29 squares at 21 km2 above 20 squares at 120 km2. Area lives on the
-        // crew's own card and in the popup, where nothing is being compared.
-        // `tiles()`, so the noun carries the agreement. As a bare count this read
-        // "1 новых на этой неделе" on five rows of the default board.
-        // Counted inside the region the board RANKS on, not across the whole holding: the
-        // row said "29 squares · +49 squares this week", because the figure is the biggest
-        // contiguous patch and the delta was every fresh cell a crew held. Two quantities,
-        // one noun, a plus between them. The note four lines above says area beside squares
-        // inverted the ranking two rows apart, and the same reasoning was never applied here.
-        // The rebuild counts it, because the components only exist there and a second flood
-        // fill per crew per board render is not worth the bytes it would save. My first
-        // attempt at this clamped the whole-holding count at the ranked figure, which is a
-        // number true of nothing: 49 fresh cells over 3 patches printed "+29" beside a
-        // 29-square patch, reading as though the entire block had been won this week.
-        // The clamp stays as the fallback for a row from an older rebuild -- stale beats
-        // wrong -- and `best_fresh` is used wherever the rebuild has supplied it.
-        if (e.best_fresh != null) gained = e.best_fresh;
-        else if (gained > (e.best_tiles || 0)) gained = e.best_tiles || 0;
-        var full = t("crew.board.gained", { v: tiles(gained) });
-        // Squares, now that the big number is points. Same figure the podium used to lead
-        // with, one step down, so nothing is lost -- and it is the line that says what the
-        // points are made of.
-        var pts = (!isRow(e))
-          ? '<span class="crewpodpts">' + esc(tiles(e.best_tiles || e.tiles || 0))
-            + "</span>" : "";
-        var patches = (e.regions > 1
-          ? plural(null, "crew.patches.few", "crew.patches", e.regions) : "");
-        // Compact on a row in a narrow column, AND on a podium card, which is narrower still.
-        if (short(e) || shortPod(e)) {
-          var tag = gained ? '<span class="crewgain" title="' + esc(full) + '">+'
-            + gained.toLocaleString() + "</span>" : "";
-          if (!isRow(e)) {
-            // "2 patches" becomes "2 ·" beside the plus, with the word one hover away.
-            // The word, not a bare numeral. Compacting this to "2" was a saving made when
-            // the podium led with squares and this line carried the points; the squares are
-            // here now and there is room. All three reviewers read the bare "2" as the same
-            // badge as the green "+28" two cards over and could not say what either meant.
-            var pt = e.regions > 1
-              ? '<span class="crewarea">' + esc(patches)
-                + (tag ? " · " : "") + "</span>" : "";
-            return pts + '<span class="crewpodline">' + pt + tag + "</span>";
-          }
-          return tag;
-        }
-        return pts + '<span class="crewarea">' + patches + "</span>"
-          + (gained ? ' <span class="crewgain">' + esc(full) + "</span>" : "");
+        return isRow(e) ? "" : '<span class="crewpodpts">' + groundLine(e) + "</span>";
       },
       click: true
     });
@@ -1751,9 +1763,16 @@
         + '"><td class=rk>' + (i + 1) + "</td>"
         + '<td><span class="celln">' + emb(r.slug, 16)
         + "<span>" + esc(r.name) + "</span></span></td>"
-        + "<td class=val>" + tiles(r.best_tiles || r.tiles) + "</td>"
-        // the sub column used to repeat the same unit with a different number beside it
-        + '<td class="val sub">' + fmtKm2(r.best_km2) + "</td></tr>";
+        // Points and the sentence that explains them, the same two the real board shows.
+        // This fallback was still leading with squares and putting km2 beside it, which is
+        // the exact split -- two scoring languages on one leaderboard -- that the board
+        // above was rewritten to end. Nobody reads this version often, which is precisely
+        // why it goes on disagreeing until somebody looks.
+        + "<td class=val>" + esc(t("crew.board.pts",
+            { n: (r.score != null ? r.score : 0).toFixed(1) })) + "</td>"
+        + '<td class="val sub">'
+        + esc(t("crew.board.inp", { a: tiles(r.tiles || 0),
+                                    b: patchesOf(r.regions || 1) })) + "</td></tr>";
     }).join("") + "</tbody></table>";
   }
 
@@ -1786,6 +1805,41 @@
   }
 
   function tiles(n) { return plural("crew.tile1", "crew.tiles.few", "crew.tiles", n); }
+
+  function patchesOf(n) {
+    return plural("crew.patch1", "crew.patches.few", "crew.patches", n);
+  }
+
+  // How many squares a crew took into its biggest patch this week, honestly. `best_fresh` is
+  // counted by the rebuild inside the region the board ranks on; the clamp below is the
+  // fallback for a row baked before that field existed, where stale beats wrong.
+  function freshOf(e) {
+    var g = FRESH[e.slug] || 0;
+    if (e.best_fresh != null) g = e.best_fresh;
+    else if (g > (e.best_tiles || 0)) g = e.best_tiles || 0;
+    return g;
+  }
+
+  // "53 squares in 2 patches · +1" -- everything a crew holds, in how many pieces, and
+  // what came in this week, on ONE line.
+  //
+  // It was three: a squares line, a patches line and a gain line on the podium, plus a
+  // separate "31 in one · 53 held · 118 km²" under every row name. The gold card came
+  // out seven rows and 230px tall against a 194px silver, and Erwin asked why it was so many
+  // lines. The three facts are one sentence, so they are written as one.
+  //
+  // No km². Area has not been a term in the standing since it was measured putting thirteen
+  // squares above fourteen, and a figure that does not rank has no business on a ranked row;
+  // it is still on the crew's own card and in the map popup, where nothing is being compared.
+  function groundLine(e) {
+    var line = esc(t("crew.board.inp", { a: tiles(e.tiles || 0),
+                                         b: patchesOf(e.regions || 1) }));
+    var g = freshOf(e);
+    if (!g) return line;
+    return line + ' · <span class="crewgain" title="'
+      + esc(t("crew.board.gained", { v: tiles(g) })) + '">+' + g.toLocaleString()
+      + "</span>";
+  }
 
   function riders(n) { return plural("crew.rider1", "crew.riders.few", "crew.riders", n); }
 
@@ -5216,14 +5270,13 @@
           // km2 on screen, sits 13th. `_crew_brief` has carried `tiles` all along; the row
           // simply never rendered it. The board, the crew's own card and its public page all
           // lead with squares; the two surfaces a stranger actually chooses from did not.
-          // Everything held, and the biggest patch beside it when they differ -- the same
-          // two numbers in the same order the board uses, so a crew does not look smaller
-          // here than it does one card further down. `tiles` used to be the biggest patch
-          // under a label that says squares, which understated a 53-square crew as 31.
+          // `tiles` used to be the biggest patch under a label that says squares, which
+          // understated a 53-square crew as 31. It is everything held now, phrased with
+          // the same sentence the board puts under a crew's name, so a crew does not
+          // describe its ground one way here and another way one card further down.
           var ground = c.tiles
-            ? (c.best_tiles && c.best_tiles !== c.tiles
-               ? t("crew.board.det2", { a: c.best_tiles.toLocaleString(), b: tiles(c.tiles) })
-               : tiles(c.tiles))
+            ? t("crew.board.inp", { a: tiles(c.tiles),
+                                    b: patchesOf(c.regions || 1) })
             : null;
           var sub = [riders(c.members), policy]
             .concat(ground ? [ground] : [])
@@ -5742,7 +5795,40 @@
     if (!map.getLayer("crew-fill")) buildLayers();
     setHeat(false);
     heatUnderTerritory(true);
+    syncLayerBox();
     return !!map.getLayer("crew-fill");
+  }
+
+  /* ---------- the one map layer that turns itself on ----------
+
+     Opening this panel paints every crew's ground over the map and dims the heatmap under it;
+     closing it puts both back. That is the right default and it was also invisible: nothing
+     on screen said the territory was a layer at all, let alone one the reader could be rid
+     of. Erwin: "the crew ones is constantly toggled based on if the crew is selected or not,
+     which gives the user the illusion of control over this".
+
+     So the gear grows a box that MIRRORS this state rather than inventing a second one, and
+     setting it does what it says. There is deliberately nothing stored: the overlay's life is
+     the panel's life -- it goes on when Crews opens and off when another panel takes the
+     screen -- so a remembered answer would only ever be read back in the one moment it is
+     about to be overwritten. Turn it off and the panel stays, the map goes plain, and the box
+     tells you which of the two you are looking at. */
+  function syncLayerBox() {
+    try {
+      if (window.syncCrewLayerBox) window.syncCrewLayerBox(!!visible);
+    } catch (e) {}
+  }
+
+  function setOverlay(on) {
+    if (on) {
+      if (showOnMap()) frameTerritory();
+      return;
+    }
+    visible = false;
+    clearLayers();
+    heatUnderTerritory(false);
+    setHeat(true);
+    syncLayerBox();
   }
 
   function show() {
@@ -5777,6 +5863,7 @@
     if (TERR && !map.getLayer("crew-fill")) buildLayers();
     setHeat(false);
     heatUnderTerritory(true);
+    syncLayerBox();
     // Signed out, or on a reopen, this is everything needed. Signed in it fires again from
     // `render()`, because which crew is yours arrives with that request and not before --
     // the same ordering that painted your own ground like a stranger's for nine passes.
@@ -6010,6 +6097,9 @@
         + "</div>"
         + '<div class="crewcol crewcolside">' + board + "</div>";
       panel.innerHTML = h;
+      // After the markup is in the document and before anything scrolls to a position
+      // measured against it -- the figure can change the height of all three podium cards.
+      fitPodPoints(panel);
       // Put the rider back where they were. Pressing Refresh threw the scroll away: a
       // reviewer measured 2038px -- three and a half screens into an expanded join list --
       // gone, with nothing saying anything had happened.
@@ -6527,6 +6617,9 @@
       });
     },
     show: show,
+    // The gear's "Crew squares" box: what it reads, and what it does.
+    overlayOn: function () { return !!visible; },
+    setOverlay: setOverlay,
     // closing the panel leaves the territory drawn, but there is nothing to poll for once
     // nobody is looking at the code
     // The panel slid away; the mode is still on and the map is still painted. Recording it
@@ -6546,6 +6639,7 @@
       clearLayers();          // rectangles belong to this mode and nowhere else
       heatUnderTerritory(false);
       setHeat(true);
+      syncLayerBox();
     },
     reload: reloadTerritory
   };

@@ -163,6 +163,7 @@ CARDS = {
     "crew.day1": "none",
     "crew.days": "none",
     "crew.days.": "none",
+    "crew.patch1": "none",
     "crew.patches": "none",
     "crew.patches.": "none",
 }

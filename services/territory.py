@@ -1393,6 +1393,17 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
     # recomputed once per crew: 50M, 81M and 53M iterations at that size, 21 seconds of the
     # 36. Built once out here it is 1.2 seconds and nothing holds the lock.
     holder_of = {xy: cid for cid, pts in kept.items() for xy in pts}
+    # Who lost what to whom, since this is the one moment the old map and the new one exist
+    # side by side. Territory keeps no history -- `prev` is read from the rows that are about
+    # to be deleted -- so a square changing hands is knowable here and nowhere afterwards.
+    # Counted per (loser, winner) pair; the recap picks the biggest. Ground going from nobody
+    # to somebody is a crew riding, not a takeover, so only tiles that HAD a holder count.
+    flips: dict[tuple[str, str], int] = {}
+    for _tile, _was in prev.items():
+        _p = T.parse(_tile)
+        _now = holder_of.get((_p[1], _p[2])) if _p else None
+        if _now and _was and _now != _was:
+            flips[(_was, _now)] = flips.get((_was, _now), 0) + 1
     buckets = bucket(holder_of)
     # Where anybody has actually ridden this window, plus every square touching it. This is
     # what keeps "where to ride next" off the water -- see the filter in targets_for. Built
@@ -1674,9 +1685,18 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         fh.write(body)
     tmp.replace(p)                              # atomic: a reader never sees half a file
 
+    # Milestones, after the map is on disk and the crew rows are committed -- this reads
+    # `terr_tiles` and `terr_best_tiles` back out of the database, so it cannot run before
+    # they are written, and it must not be able to stop a redraw that has already succeeded.
+    try:
+        from services import telegram
+        telegram.check_crew_events(db, flips)
+    except Exception:
+        _log.exception("territory: crew milestones failed")
+
     return {"crews": len(payload["crews"]), "tiles": len(won), "held": len(cells_flat) // 5,
             "regions": len(regions_out), "bytes": p.stat().st_size,
-            "window_days": window_days, "zoom": zoom}
+            "window_days": window_days, "zoom": zoom, "flips": sum(flips.values())}
 
 
 def cached(zoom: int = T.DEFAULT_ZOOM) -> bytes | None:

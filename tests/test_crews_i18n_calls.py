@@ -63,7 +63,12 @@ NO_AGREEMENT = {
     # `оч.`, pl `pkt`, all invariant after a numeral -- and the value is a DECIMAL, which in
     # Russian and Ukrainian takes the genitive singular whatever the digits are (`129,9
     # очка`), so there is no plural branch for the machinery to choose between.
-    "crew.board.pts": "`{n} pts` -- an abbreviated unit, and a decimal, which does not pluralise",
+    # It says "points" now rather than "pts", so "an abbreviated unit" no longer carries it.
+    # What does: the value is `score.toFixed(1)`, so it is ALWAYS a decimal -- "122.0", never
+    # "122" -- and a decimal takes the genitive singular in ru/uk (`122,0 очка`) and in pl
+    # (`122,0 punktu`) whatever the digits are. There is no branch for the plural machinery to
+    # choose, which is why the number is passed bare.
+    "crew.board.pts": "`{n} points` -- always a decimal, which takes one fixed form",
     # The roster's fold. Read in all three: ru `Показать всех {n}`, pl `Pokaż wszystkich {n}`,
     # uk `Показати всіх {n}` -- the number ENDS the clause in every one, and the word
     # before it is a fixed form that does not agree with it. Turkish, Japanese and Chinese

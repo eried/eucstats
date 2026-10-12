@@ -313,12 +313,16 @@ def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
             "km2": clan.terr_km2 or 0.0,
             "tiles": clan.terr_tiles or 0,
             "best_tiles": clan.terr_best_tiles or 0,
+            # How many pieces that ground is in. The browse row says "53 squares in 2 patches"
+            # now, the same sentence the board puts under a crew's name, and without this it
+            # had to claim one patch for every crew on the list.
+            "regions": clan.terr_regions or 0,
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
 
 
 @router.get("/crews/champions")
 def crew_champions(response: Response, db: Session = Depends(get_db)):
-    """The crews card beside the riders one in the topbar.
+    """The crews card beside the riders one in the topbar: the top three of the board.
 
     Behind the same kill switch as everything else here, so when crews are off the card simply
     never appears rather than rendering empty. Cached like the rider champions: the same answer

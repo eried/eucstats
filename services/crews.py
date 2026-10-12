@@ -1051,51 +1051,47 @@ def _require_power(db, store_id: str, clan_id: str) -> ClanMember:
     return m
 
 
-def champions(db, window_days: int | None = None) -> dict:
-    """Crew champion of the day / week / month, for the card beside the rider one.
+def champions(db, limit: int = 3) -> dict:
+    """The crews card beside the rider one in the topbar: the top of the board, nothing else.
 
-    What this measures, said plainly because it is a choice and not an obvious one: kilometres
-    ridden FOR a crew inside each window. Territory itself has no history -- `terr_best_tiles`
-    and friends are current state, rewritten wholesale by each rebuild -- so "the crew that led
-    on squares last Tuesday" is not a question this database can answer. Distance ridden for
-    the crew is the thing that produces squares, it is stored per trip with a timestamp, and it
-    is exactly the shape the rider champions already use, so the two cards mean comparable
-    things.
+    It used to be a day / week / month card, like the rider one, measuring kilometres ridden
+    FOR a crew inside each window -- because territory has no history and "who led on squares
+    last Tuesday" is not a question this database can answer. That was sound, and the card it
+    produced was not: the row was chosen by kilometres and the figure beside it was squares
+    held, so the number on screen was never the number that put the crew there, and the board
+    one panel away ranked the same crews on a third quantity again. Erwin: "there is a
+    mismatch now, crew domination shows squares and who owns the streets shows pts".
 
-    The crew's standing (`score`) rides along for the card to show: that IS the weighted
-    patch/squares/area figure, and it is current state by definition.
+    So it shows the first three rows of the board, in the board's order, in the board's unit.
+    Same comparator (`standing_order_by`), same `score`, and the windows are gone rather than
+    being given a figure that does not belong to them. A crew that has never ridden still
+    cannot appear, because a crew with no territory scores zero and sorts last.
+
+    `km` rides along for anything that wants to say how far the crew has gone; nothing on the
+    card prints it today.
     """
-    from datetime import timedelta
-    import sqlalchemy as sa
-    from models import Trip
-
-    now = utcnow()
-    windows = {"day": now - timedelta(days=1),
-               "week": now - timedelta(days=7),
-               "month": now - timedelta(days=30)}
-    out: dict = {}
-    for key, since in windows.items():
-        row = (db.query(Trip.clan_id, sa.func.sum(Trip.distance_km).label("km"))
-               .filter(Trip.clan_id.isnot(None),
-                       Trip.validation_status == "validated",
-                       Trip.start_utc.isnot(None), Trip.start_utc >= since)
-               .group_by(Trip.clan_id)
-               .order_by(sa.desc("km")).first())
-        if row is None or not row[1]:
-            out[key] = None
-            continue
-        clan = db.get(Clan, row[0])
-        if clan is None or clan.disbanded_at is not None:
-            out[key] = None
-            continue
-        out[key] = {"slug": clan.slug, "name": clan.name,
-                    "colour": clan.colour, "pattern": clan.pattern,
-                    "km": round(float(row[1]), 1),
-                    "tiles": clan.terr_best_tiles or 0,
-                    "km2": round(clan.terr_best_km2 or 0.0, 1),
-                    "score": round(standing_score(clan), 1)}
-    return out
-
+    rows = (db.query(Clan)
+            .filter(Clan.disbanded_at.is_(None))
+            .order_by(*standing_order_by())
+            .limit(max(1, int(limit))).all())
+    top = [{"slug": c.slug, "name": c.name,
+            "colour": c.colour, "pattern": c.pattern,
+            "tiles": c.terr_tiles or 0,
+            "best_tiles": c.terr_best_tiles or 0,
+            "regions": c.terr_regions or 0,
+            "km2": round(c.terr_km2 or 0.0, 1),
+            # Two places, like `territory.ranking`, because the client formats both with
+            # `toFixed(1)` and the two roundings do not agree. Cykelslangen scores 66.25:
+            # Python rounds that to 66.2 (ties to even) and JavaScript's toFixed prints
+            # 66.3, so the card said 66.2 beside a board saying 66.3 -- a tenth of a point
+            # of daylight between two screens that had just been made to agree.
+            "score": round(standing_score(c), 2)}
+           for c in rows]
+    # Nothing at all rather than three zeroes: a board of crews holding no ground is a card
+    # about nothing, and the client hides the deck when `top` is empty.
+    if not any(c["score"] for c in top):
+        top = []
+    return {"top": top}
 
 # Biggest patch is king, and the rest of what a crew holds is worth something.
 #
@@ -1132,9 +1128,10 @@ SCORE_W_PATCH, SCORE_W_SQUARES = 1.0, 0.25
 
 
 def counts(db) -> dict:
-    """How many crews there are, and how many riders are in one.
+    """How many crews there are, how many riders are in one, and how much ground they hold.
 
-    For the Telegram recap's all-time line, which reads "N crews (M riders)". A rider is
+    For the Telegram recap's crew line, which reads "N crews, M riders, K squares held". A
+    rider is
     counted once however many crews they have passed through, and only where they still are --
     `left_at is None` -- so the number answers "how many of us ride for a crew today" rather
     than how many ever signed anything. Disbanded crews are not crews.
@@ -1147,7 +1144,12 @@ def counts(db) -> dict:
                 .filter(ClanMember.left_at.is_(None),
                         ClanMember.clan_id.in_(sa.select(live.c.clan_id)))
                 .scalar() or 0)
-    return {"crews": int(crews_n), "riders": int(riders_n)}
+    # And how much ground all of them hold between them, for the recap's crew line. Summed
+    # over everything held rather than over biggest patches: the question is how much of the
+    # map has been claimed, not how concentrated anybody is.
+    squares_n = (db.query(sa.func.coalesce(sa.func.sum(Clan.terr_tiles), 0))
+                 .filter(Clan.disbanded_at.is_(None)).scalar() or 0)
+    return {"crews": int(crews_n), "riders": int(riders_n), "squares": int(squares_n)}
 
 
 def standing_score(clan) -> float:

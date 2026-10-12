@@ -60,14 +60,18 @@ def test_counts_sees_live_crews_and_the_riders_still_in_them(db):
     _rider(db, "b", "Bo")
     a = _crew(db, "a", "Northern Lights")
     _crew(db, "b", "Southern Cross")
-    assert crews.counts(db) == {"crews": 2, "riders": 2}
+    assert crews.counts(db) == {"crews": 2, "riders": 2, "squares": 0}
+    a.terr_tiles, _ = 31, None
+    db.commit()
+    assert crews.counts(db)["squares"] == 31, (
+        "the ground every crew holds between them is not being summed for the recap line")
 
     # a disbanded crew is not a crew, and its member is not in one
     a.disbanded_at = models.utcnow()
     db.commit()
-    assert crews.counts(db) == {"crews": 1, "riders": 1}, (
+    assert crews.counts(db) == {"crews": 1, "riders": 1, "squares": 0}, (
         "a disbanded crew is still being counted, so the recap overstates the feature "
-        "every morning")
+        "every morning -- and its ground is still on the board's total")
 
 
 def test_a_rider_who_left_is_not_counted(db):
@@ -98,17 +102,61 @@ def _summary(db, cfg=None):
                                        dict(cfg or CFG))
 
 
-def test_the_all_time_line_carries_crews_and_their_riders(db):
+def test_the_crew_line_is_its_own_line_and_carries_the_ground(db):
+    """Erwin: "can we split the crew info into a new line".
+
+    It used to ride on the end of the all-time line as `· 2 crews (2 riders)`, behind the
+    country count -- a whole second leaderboard inside a parenthesis, saying nothing about
+    the thing the feature is about.
+    """
     _on(db)
     _rider(db, "a", "Ann")
     _rider(db, "b", "Bo")
     c = _crew(db, "a", "Northern Lights")
     db.add(models.ClanMember(clan_id=c.clan_id, store_id="b", role="member"))
+    c.terr_tiles, c.terr_best_tiles = 31, 18
     db.commit()
     text = _summary(db)
     assert text, "the recap went silent on a day with a ride in it"
-    assert "2 crews (2 riders)" in text or "1 crew (2 riders)" in text, (
-        "the all-time line does not carry the crew counts:" + NL + text)
+    lines = text.split(NL)
+    crew_line = [ln for ln in lines if "Crews:" in ln]
+    assert len(crew_line) == 1, (
+        "the crew counts are not on a line of their own:" + NL + text)
+    assert "riders" in crew_line[0] and "31" in crew_line[0], (
+        "the crew line does not carry the riders and the ground they hold:" + NL + text)
+    assert "crew" not in [ln for ln in lines if ln.startswith("All-time")][0].lower(), (
+        "the all-time line is still carrying the crew tail as well:" + NL + text)
+
+
+def test_the_crew_line_names_who_is_leading(db):
+    _on(db)
+    _rider(db, "a", "Ann")
+    _rider(db, "b", "Bo")
+    big = _crew(db, "a", "Northern Lights")
+    small = _crew(db, "b", "Fjord Few")
+    big.terr_tiles, big.terr_best_tiles = 40, 30
+    small.terr_tiles, small.terr_best_tiles = 12, 9
+    db.commit()
+    text = _summary(db)
+    assert "Northern Lights" in text and "leads on" in text, (
+        "the recap does not say which crew is on top:" + NL + text)
+    assert "Fjord Few" not in text, (
+        "the recap named a crew that is not leading:" + NL + text)
+    # the board says 40.0 points for 30 + 0.25 x 40; the recap must not round differently
+    assert "40.0" in text, (
+        "the recap states the standing in a different precision from the board:" + NL + text)
+
+
+def test_a_board_of_crews_holding_nothing_has_no_leader_to_name(db):
+    """A crew that has never ridden anywhere scores zero, and three zeroes in a row is a
+    line about nothing. The count line stays; the crown does not appear."""
+    _on(db)
+    _rider(db, "a", "Ann")
+    _crew(db, "a", "Northern Lights")
+    text = _summary(db)
+    assert "Crews:" in text, "the count line vanished along with the leader"
+    assert "leads on" not in text, (
+        "the recap crowned a crew that holds no ground:" + NL + text)
 
 
 def test_no_crews_means_no_crew_line(db):
@@ -116,7 +164,7 @@ def test_no_crews_means_no_crew_line(db):
     _rider(db, "a", "Ann")
     text = _summary(db)
     assert text
-    assert "crew" not in text.lower(), (
+    assert "crews:" not in text.lower(), (
         "the recap advertises crews on a site that has none:" + NL + text)
 
 
@@ -127,7 +175,7 @@ def test_crews_switched_off_keeps_the_line_out(db):
     _on(db, enabled=False)
     text = _summary(db)
     assert text
-    assert "crew" not in text.lower(), (
+    assert "crews:" not in text.lower(), (
         "the feature is dark and the recap is still talking about it:" + NL + text)
 
 
@@ -234,3 +282,198 @@ def test_renaming_the_leader_announces_nothing(db, monkeypatch):
     assert not sent, (
         "a crew renaming itself was announced as a takeover, naming it as both the winner "
         "and the loser: " + NL.join(sent))
+
+
+# --- the crews card beside the rider one -----------------------------------
+
+def test_champions_is_the_top_of_the_board_in_the_board_order(db):
+    """Erwin: "there is a mismatch now, crew domination shows squares and who owns the
+    streets shows pts". The card is the first three rows of the board now, so it cannot
+    disagree with it -- same comparator, same unit."""
+    _on(db)
+    _rider(db, "a", "Ann")
+    _rider(db, "b", "Bo")
+    _rider(db, "c", "Cal")
+    spread = _crew(db, "a", "Two Cities")
+    tight = _crew(db, "b", "One Block")
+    small = _crew(db, "c", "Corner Shop")
+    # 10 + 10 against 11 in one piece: Erwin's own case, where the two screens used to
+    # disagree -- the board said the 11 and the card said the 20.
+    spread.terr_best_tiles, spread.terr_tiles, spread.terr_regions = 10, 20, 2
+    tight.terr_best_tiles, tight.terr_tiles, tight.terr_regions = 11, 11, 1
+    small.terr_best_tiles, small.terr_tiles, small.terr_regions = 3, 3, 1
+    db.commit()
+
+    top = crews.champions(db)["top"]
+    assert [c["name"] for c in top] == ["Two Cities", "One Block", "Corner Shop"]
+    assert top[0]["score"] == 15.0, (
+        "the card is not carrying the standing the board sorts on")
+    assert top[0]["regions"] == 2, "the card cannot say how many pieces the ground is in"
+
+
+def test_champions_says_nothing_when_nobody_holds_anything(db):
+    """Three crews on zero is a card about nothing. The client hides the deck on an empty
+    top rather than printing a podium of noughts."""
+    _on(db)
+    _rider(db, "a", "Ann")
+    _crew(db, "a", "Northern Lights")
+    assert crews.champions(db)["top"] == []
+
+
+def test_champions_leaves_out_a_crew_that_disbanded(db):
+    _on(db)
+    _rider(db, "a", "Ann")
+    _rider(db, "b", "Bo")
+    gone = _crew(db, "a", "Northern Lights")
+    here = _crew(db, "b", "Fjord Few")
+    gone.terr_best_tiles, gone.terr_tiles = 40, 40
+    here.terr_best_tiles, here.terr_tiles = 5, 5
+    db.commit()
+    assert crews.champions(db)["top"][0]["name"] == "Northern Lights"
+    gone.disbanded_at = models.utcnow()
+    db.commit()
+    assert [c["name"] for c in crews.champions(db)["top"]] == ["Fjord Few"]
+
+
+# --- crew milestones -------------------------------------------------------
+#
+# All three are measured against a snapshot of the last redraw, because territory keeps no
+# history: the map is rewritten wholesale every rebuild and the only record of what it used
+# to say is the one these write. The behaviour that matters most is the SILENT first sight --
+# switching one of these on must announce what happens next, not what already happened.
+
+MILES = dict(CFG, crew_first=True, crew_squares=True, crew_flip=True,
+             new_crew=False, tk_crew=False)
+
+
+def test_the_first_sight_of_a_crew_is_recorded_and_not_announced(db, monkeypatch):
+    sent = _capture(monkeypatch, MILES)
+    _on(db)
+    _rider(db, "a", "Ann")
+    c = _crew(db, "a", "Northern Lights")
+    c.terr_best_tiles, c.terr_tiles = 400, 400
+    db.commit()
+    telegram.check_crew_events(db)
+    assert sent == [], (
+        "turning a milestone on announced a crew's whole history at once: " + repr(sent))
+    # ...and now it is a baseline, so nothing fires again for standing still
+    telegram.check_crew_events(db)
+    assert sent == []
+
+
+def test_a_crews_first_patch_is_announced_once(db, monkeypatch):
+    sent = _capture(monkeypatch, MILES)
+    _on(db)
+    _rider(db, "a", "Ann")
+    c = _crew(db, "a", "Northern Lights")
+    telegram.check_crew_events(db)            # baseline: on the board, holding nothing
+    assert sent == []
+    c.terr_best_tiles, c.terr_tiles = 4, 4
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 1 and "Northern Lights" in sent[0], sent
+    assert "first patch" in sent[0], sent
+    assert "/c/" + c.slug in sent[0], "the message does not link to the crew"
+    telegram.check_crew_events(db)
+    assert len(sent) == 1, "a crew got on the map twice: " + repr(sent)
+
+
+def test_round_numbers_fire_upward_only(db, monkeypatch):
+    """Squares go DOWN every week a crew does not ride. A ladder that fired on every
+    crossing would turn ordinary decay into a drumbeat."""
+    sent = _capture(monkeypatch, MILES)
+    _on(db)
+    _rider(db, "a", "Ann")
+    c = _crew(db, "a", "Northern Lights")
+    c.terr_best_tiles, c.terr_tiles = 20, 49
+    db.commit()
+    telegram.check_crew_events(db)            # baseline, below the first rung
+    assert sent == []
+    c.terr_tiles = 51
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 1 and "50" in sent[0], sent
+    c.terr_tiles = 44                         # faded back under it
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 1, "decaying past a rung announced it: " + repr(sent)
+    c.terr_tiles = 52                         # and climbed again
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 1, "the same rung was announced twice: " + repr(sent)
+    c.terr_tiles = 101
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 2 and "100" in sent[1], sent
+
+
+def test_the_first_patch_and_a_rung_are_not_both_announced(db, monkeypatch):
+    """A crew that appears on the map already holding sixty squares is one piece of news."""
+    sent = _capture(monkeypatch, MILES)
+    _on(db)
+    _rider(db, "a", "Ann")
+    c = _crew(db, "a", "Northern Lights")
+    telegram.check_crew_events(db)
+    c.terr_best_tiles, c.terr_tiles = 55, 60
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 1 and "first patch" in sent[0], sent
+
+
+def _two(db):
+    _on(db)
+    _rider(db, "a", "Ann")
+    _rider(db, "b", "Bo")
+    return _crew(db, "a", "Northern Lights"), _crew(db, "b", "Fjord Few")
+
+
+def test_ground_changing_hands_names_both_crews(db, monkeypatch):
+    sent = _capture(monkeypatch, MILES)
+    loser, winner = _two(db)
+    telegram.check_crew_events(db, {(loser.clan_id, winner.clan_id): 14})
+    assert len(sent) == 1, sent
+    assert "Fjord Few" in sent[0] and "Northern Lights" in sent[0], sent
+    assert "14" in sent[0], sent
+
+
+def test_a_small_shove_at_the_frontier_is_not_news(db, monkeypatch):
+    """Below the floor it is the normal give and take where two patches meet, which happens
+    somewhere on the map nearly every redraw."""
+    sent = _capture(monkeypatch, MILES)
+    loser, winner = _two(db)
+    telegram.check_crew_events(db, {(loser.clan_id, winner.clan_id): telegram.FLIP_MIN - 1})
+    assert sent == [], sent
+
+
+def test_only_the_biggest_flip_is_announced(db, monkeypatch):
+    """A redraw that moves a frontier moves it in several places at once, and a crew that has
+    just lost a neighbourhood does not need five notifications about it."""
+    sent = _capture(monkeypatch, MILES)
+    loser, winner = _two(db)
+    telegram.check_crew_events(db, {(loser.clan_id, winner.clan_id): 12,
+                                    (winner.clan_id, loser.clan_id): 30})
+    assert len(sent) == 1, sent
+    assert sent[0].index("Northern Lights") < sent[0].index("Fjord Few"), (
+        "the message has the winner and the loser the wrong way round: " + sent[0])
+
+
+def test_ground_lost_by_a_crew_that_disbanded_is_not_a_takeover(db, monkeypatch):
+    sent = _capture(monkeypatch, MILES)
+    loser, winner = _two(db)
+    loser.disbanded_at = models.utcnow()
+    db.commit()
+    telegram.check_crew_events(db, {(loser.clan_id, winner.clan_id): 40})
+    assert sent == [], (
+        "a crew walking off the map was announced as a conquest: " + repr(sent))
+
+
+def test_the_toggles_are_separate(db, monkeypatch):
+    sent = _capture(monkeypatch, dict(MILES, crew_first=False, crew_squares=True))
+    _on(db)
+    _rider(db, "a", "Ann")
+    c = _crew(db, "a", "Northern Lights")
+    telegram.check_crew_events(db)
+    c.terr_best_tiles, c.terr_tiles = 4, 4
+    db.commit()
+    telegram.check_crew_events(db)
+    assert sent == [], "first patch fired with its own toggle off: " + repr(sent)

@@ -1052,19 +1052,28 @@ function renderChampions(){
   const tip=((C.formula?`<b>${C.formula}</b><br>`:"")+t("champ.tip")).replace(/"/g,"&quot;");
   // Two decks in one slot when crews are on: riders, then crews, swapping on a timer.
   //
-  // The crews card is deliberately a different animal -- its own title, the crew's own colour
-  // and pattern where the rider card shows a flag, and squares where that one shows points --
-  // because a reader glancing up has to know which leaderboard they are looking at without
-  // reading it. Erwin: "maybe the crews should look different".
-  const crewLine=(lab,c)=>c?`<div class="cline" data-crew="${c.slug}"><span class="clab">${lab}</span><img class="cemb" alt="" src="/api/v1/crews/${encodeURIComponent(c.slug)}/emblem"/><b>${c.name}</b><span class="cscore">${t("crew.tiles",{n:c.tiles})}</span></div>`:`<div class="cline"><span class="clab">${lab}</span><span class="mut">${t("champ.norides")}</span></div>`;
-  const haveCrews=!!(CC&&(CC.day||CC.week||CC.month));
-  // The crews deck is ranked on squares held, not on the rider formula, so it cannot borrow
+  // The crews card is deliberately a different animal -- its own title, and the crew's own
+  // colour and pattern where the rider card shows a flag -- because a reader glancing up has
+  // to know which leaderboard they are looking at without reading it. Erwin: "maybe the crews
+  // should look different".
+  //
+  // What it is NOT different about any more is the unit. It used to print squares held beside
+  // a Day/Week/Month row that had been chosen on kilometres ridden, while the board one panel
+  // away ranked the same crews on points: three quantities, one subject. Erwin: "there is a
+  // mismatch now, crew domination shows squares and who owns the streets shows pts". It is
+  // the first three rows of that board now, in its order and its unit, so the two screens
+  // cannot disagree. `pod.1/2/3` are the same rank words the podium uses.
+  const RKW=[t("pod.1"),t("pod.2"),t("pod.3")];
+  const crewLine=(lab,c)=>`<div class="cline" data-crew="${c.slug}"><span class="clab">${lab}</span><img class="cemb" alt="" src="/api/v1/crews/${encodeURIComponent(c.slug)}/emblem"/><b>${c.name}</b><span class="cscore">${t("crew.board.pts",{n:(c.score||0).toFixed(1)})}</span></div>`;
+  const crewTop=(CC&&CC.top)||[];
+  const haveCrews=crewTop.length>0;
+  // The crews deck is ranked on the standing, not on the rider formula, so it cannot borrow
   // the riders tip -- it was explaining a score this card does not show.
   const tipCrews=t("champ.tip.crews").replace(/"/g,"&quot;");
   const decks=[{cls:"",label:t("champ.title"),mark:FLAG,tip:tip,
                 rows:line(t("champ.day"),C.day)+line(t("champ.week"),C.week)+line(t("champ.month"),C.month)}];
   if(haveCrews)decks.push({cls:" crews",label:t("champ.crews"),mark:CREWMARK,tip:tipCrews,
-                rows:crewLine(t("champ.day"),CC.day)+crewLine(t("champ.week"),CC.week)+crewLine(t("champ.month"),CC.month)});
+                rows:crewTop.map((c,i)=>crewLine(RKW[i]||("#"+(i+1)),c)).join("")});
   // Crews first when the visitor was sent here by a crew link, which is the one case where we
   // know what they came for. Erwin asked for this explicitly.
   const crewFirst=haveCrews&&(/^#?crews$/i.test(location.hash||"")||/[?&]crew=/.test(location.search||""));
@@ -1199,6 +1208,29 @@ function addHeat(){
   map.setPaintProperty("heat","heatmap-opacity-transition",{duration:1500});
   requestAnimationFrame(()=>map.setPaintProperty("heat","heatmap-opacity",HEAT.opacity));   // softer, more organic
 }
+/* The one map layer a visitor can be surprised by.
+   It switches itself on when the Crews panel opens and off when another panel takes over, and
+   until now nothing on screen said so -- Erwin: "the crew ones is constantly toggled based on
+   if the crew is selected or not, which gives the user the illusion of control". So the state
+   gets a box. Ticking it paints the territory and dims the heatmap; unticking it gives the
+   plain map back and leaves the panel exactly where it was, which is the half that was
+   impossible before.
+   Absent entirely when crews are off site-wide, and when crews.js has not finished loading --
+   a checkbox whose handler does not exist yet is worse than no checkbox. */
+function crewLayerRow(){
+  if(!(window.__CREWCFG__&&window.__CREWCFG__.enabled))return"";
+  if(!(window.EUCCrews&&window.EUCCrews.setOverlay))return"";
+  const on=window.EUCCrews.overlayOn();
+  return `<div class="crow"><span>${t("cfg.layers")}</span><label class="cck"><input type="checkbox" id="crewsqchk"${on?' checked':''}> ${t("cfg.crewsq")}</label></div>`;
+}
+
+/* Called by crews.js whenever it turns the overlay on or off by itself, so an open popover
+   does not go on showing the state from before the panel opened. */
+window.syncCrewLayerBox=function(on){
+  const b=document.getElementById("crewsqchk");
+  if(b)b.checked=!!on;
+};
+
 function setupCfg(){
   const gear=document.getElementById("gear"),cfg=document.getElementById("cfg");
   function render(){
@@ -1210,6 +1242,7 @@ function setupCfg(){
     cfg.innerHTML=`<div class="crow"><span>${t("cfg.language")}</span><select id="langsel" class="csel">${langs}</select></div>`+
       `<div class="crow"><span>${t("cfg.units")}</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">${t("u.metric")}</button><button data-u="mph" class="${UNIT!=='kmh'?'on':''}">${t("u.imperial")}</button></div></div>`+
       `<div class="crow"><span>${t("cfg.map")}</span><select id="mapsel" class="csel">${maps.map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
+      crewLayerRow()+
       `<div class="crow"><span>${t("cfg.intro")}</span><span class="introctl">`+
         `<label class="cck${adminOff?' dis':''}" title="${adminOff?t('cfg.intro_off'):t('cfg.intro_play')}"><input type="checkbox" id="introchk"${on?' checked':''}${adminOff?' disabled':''}> ${t("cfg.enabled")}</label>`+
         `<button id="introbtn" class="cbtn"${on?'':' disabled'}>${t("cfg.replay")}</button>`+
@@ -1218,6 +1251,8 @@ function setupCfg(){
     if(lsel)lsel.onchange=async()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}await ensureLang(LANG);applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
     cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
+    const sq=cfg.querySelector("#crewsqchk");
+    if(sq) sq.onchange=()=>{ try{window.EUCCrews.setOverlay(sq.checked);}catch(e){} };
     const chk=cfg.querySelector("#introchk"),ib=cfg.querySelector("#introbtn");
     if(chk) chk.onchange=()=>{ if(chk.checked){localStorage.removeItem("eucstats_intro_off");}else{localStorage.setItem("eucstats_intro_off","1");} if(ib)ib.disabled=!chk.checked; };
     if(ib) ib.onclick=()=>{ if(ib.disabled)return; try{localStorage.removeItem("eucstats_intro_seen");}catch(e){} ib.disabled=true; location.reload(); };
@@ -1226,7 +1261,10 @@ function setupCfg(){
   // One toggle, two buttons: the floating gear on a pointer that can reach it, and the
   // panel-header one on touch, where it cannot. `pgear` is in the markup from the start,
   // so this binds once and the stylesheet decides which is on screen.
-  const toggleCfg=e=>{e.stopPropagation();cfg.classList.toggle("open");};
+  // Re-rendered on the way open, not only when something inside it changes. The Crew squares
+  // row cannot exist before crews.js has loaded and told us the mode is there, and the box's
+  // tick has to be the state right now rather than the state at first paint.
+  const toggleCfg=e=>{e.stopPropagation();if(!cfg.classList.contains("open"))render();cfg.classList.toggle("open");};
   gear.onclick=toggleCfg;
   { const pg=document.getElementById("pgear"); if(pg) pg.onclick=toggleCfg; }
   // Escape and a click outside. It opened on the gear and closed on the gear, and on nothing

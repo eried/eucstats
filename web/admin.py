@@ -2739,6 +2739,12 @@ def _telegram_card() -> str:
           <label><input type=checkbox name=tk_brand{ck(cfg['tk_brand'])}> brand</label> &nbsp;
           <label><input type=checkbox name=tk_crew{ck(cfg['tk_crew'])}> crew</label>
         </p>
+        <p style="margin-top:8px"><b>Crew milestones</b>, read off the map after each redraw: &nbsp;
+          <label><input type=checkbox name=crew_first{ck(cfg['crew_first'])}> first patch</label> &nbsp;
+          <label><input type=checkbox name=crew_squares{ck(cfg['crew_squares'])}> round-number squares</label> &nbsp;
+          <label><input type=checkbox name=crew_flip{ck(cfg['crew_flip'])}> ground changing hands</label>
+        </p>
+        <p class=hint style="margin:-4px 0 0">Each one is silent the first time it sees a crew, so switching it on announces what happens next and not what already has. &ldquo;Ground changing hands&rdquo; needs {telegram.FLIP_MIN}+ squares taken off one crew by another in a single redraw.</p>
         <p class=hint style="margin:-4px 0 0">Rider takeovers fire only for <b>visible</b> leaderboards; group (country/wheel/brand) takeovers are by total distance. Only a different #1 fires.</p>
         <div class=calgrid>
           <label class=thr>Daily summary time <span class=mut>· HH:MM</span>
@@ -2964,6 +2970,8 @@ def telegram_save(request: Request,
                   tk_rider: str = Form(""), tk_country: str = Form(""),
                   tk_wheel: str = Form(""), tk_brand: str = Form(""),
                   new_crew: str = Form(""), tk_crew: str = Form(""),
+                  crew_first: str = Form(""), crew_squares: str = Form(""),
+                  crew_flip: str = Form(""),
                   summary_enabled: str = Form(""), summary_time: str = Form("08:00"),
                   summary_tz: str = Form("Europe/Oslo")):
     if not _is_authenticated(request):
@@ -2975,6 +2983,8 @@ def telegram_save(request: Request,
                   tk_rider=bool(tk_rider), tk_country=bool(tk_country),
                   tk_wheel=bool(tk_wheel), tk_brand=bool(tk_brand),
                   new_crew=bool(new_crew), tk_crew=bool(tk_crew),
+                  crew_first=bool(crew_first), crew_squares=bool(crew_squares),
+                  crew_flip=bool(crew_flip),
                   summary_enabled=bool(summary_enabled),
                   summary_time=(summary_time.strip() or "08:00"),
                   summary_tz=(summary_tz.strip() or "Europe/Oslo"))

@@ -16,6 +16,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import math
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -29,6 +30,10 @@ logger = logging.getLogger("eucstats.telegram")
 _CONFIG_FILE = config.DATA_DIR / "telegram.json"
 _API = "https://api.telegram.org/bot{token}/{method}"
 _TIMEOUT = 10.0
+
+# A newline, by codepoint. Writing one into an f-string in this file has produced a
+# SyntaxError three times, every time through a shell heredoc that ate the backslash.
+NL = chr(10)
 
 _DEFAULTS = {
     "enabled": False,          # master switch — off = nothing posts
@@ -45,6 +50,11 @@ _DEFAULTS = {
     "tk_wheel": True,          # top wheel by distance
     "tk_brand": True,          # top brand by distance
     "tk_crew": True,           # the crew holding #1 on the territory board
+    # Crew milestones, read off the map after each rebuild. Each is silent the first time it
+    # sees a crew, so switching one on does not announce the history that came before it.
+    "crew_first": True,        # a crew's ground appears on the map for the first time
+    "crew_squares": True,      # a crew crosses 50 / 100 / 250 / 500 ... squares held
+    "crew_flip": True,         # a big piece of ground changes hands in one redraw
     "summary_enabled": True,
     "summary_time": "08:00",   # HH:MM in summary_tz
     "summary_tz": "Europe/Oslo",
@@ -121,6 +131,17 @@ def send_message(text: str, cfg: dict | None = None) -> tuple[bool, str]:
 
 
 # --- text helpers ----------------------------------------------------------
+
+def _pts(score) -> str:
+    """A standing, printed the way the board prints it.
+
+    Scores land on quarters, so the second decimal is 0, 25, 50 or 75 and the one that
+    matters is 25: Python's `round` and `format` both go to even there and give 66.2, while
+    the JavaScript `toFixed(1)` the site renders with gives 66.3. The recap is read beside
+    the board, so it follows the board.
+    """
+    return format(math.floor(float(score) * 10 + 0.5) / 10, ".1f")
+
 
 def _esc(s) -> str:
     return html.escape(str(s or ""))
@@ -385,6 +406,143 @@ def check_records() -> None:
         db.close()
 
 
+
+# Where a crew's ground stood at the last redraw, so this can tell a milestone from a number
+# that has simply always been there. One row per crew, keyed by SLUG for the same reason the
+# takeover snapshot is: a crew renames itself and a primary key does not.
+_CREW_STATE = "tg_crew_state"
+
+# Round numbers of squares, in the order they are crossed. Only ever announced upward, and only
+# the highest one reached, so a crew that fades back under 100 and climbs again is not a second
+# announcement -- the squares a crew holds go DOWN every week it does not ride, and a ladder
+# that fired on every crossing would turn ordinary decay into a drumbeat.
+_SQUARE_RUNGS = (50, 100, 250, 500, 1000, 2500, 5000)
+
+# How much ground has to change hands in one redraw before it is news. Ten squares is roughly a
+# neighbourhood: below that it is the normal give and take at the edge of two patches, which
+# happens somewhere on the map nearly every redraw.
+FLIP_MIN = 10
+
+
+def _rung(n: int) -> int:
+    """The highest rung at or below n, or 0."""
+    hit = 0
+    for r in _SQUARE_RUNGS:
+        if n >= r:
+            hit = r
+    return hit
+
+
+def check_crew_events(db, flips: dict | None = None) -> None:
+    """Crew milestones, called by `territory.rebuild` once the new map is written.
+
+    Three things, each behind its own toggle:
+
+      * a crew's ground appearing on the map for the first time -- the 2x2 block that turns a
+        name into territory, and the one moment in this feature that happens exactly once per
+        crew;
+      * a crew crossing a round number of squares held;
+      * a big piece of ground changing hands between two crews in one redraw.
+
+    Everything here is measured against a snapshot of the last redraw rather than against the
+    rides that caused it, because territory has no history: the map is rewritten wholesale and
+    the only record of what it used to say is the one kept here. A crew seen for the first time
+    is recorded SILENTLY -- turning one of these on, or founding the feature, must not announce
+    everything that already happened.
+
+    Best-effort and never raises: a rebuild that drew the map correctly has done its job
+    whether or not a message went out.
+    """
+    cfg = get_config()
+    if not (cfg.get("enabled") and is_configured(cfg)):
+        return
+    if not any(cfg.get(k) for k in ("crew_first", "crew_squares", "crew_flip")):
+        return
+    try:
+        from services import settings
+        from models import Clan
+        if not settings.crews_enabled(db):
+            return
+        try:
+            prev = json.loads(settings.get_meta(db, _CREW_STATE, "") or "{}")
+        except Exception:
+            prev = {}
+
+        live = db.query(Clan).filter(Clan.disbanded_at.is_(None)).all()
+        snap, first_hits, rung_hits = {}, [], []
+        for c in live:
+            best, held = int(c.terr_best_tiles or 0), int(c.terr_tiles or 0)
+            was = prev.get(c.slug)
+            # A HIGH-WATER mark, not the rung the crew is standing on. Squares go down every
+            # week a crew does not ride, so storing the current rung meant a crew that drifted
+            # from 51 to 44 and back to 52 passed fifty twice, and would go on passing it every
+            # time the weather turned. Once announced, a rung is spent.
+            reached = max(_rung(held), int((was or {}).get("r") or 0))
+            snap[c.slug] = {"b": best, "t": held, "r": reached}
+            if was is None:
+                continue                      # first sight of this crew: record, say nothing
+            if cfg.get("crew_first") and not was.get("b") and best:
+                first_hits.append((c, best, held))
+                continue                      # its first patch IS the milestone; not both
+            if cfg.get("crew_squares") and reached > int(was.get("r") or 0):
+                rung_hits.append((c, reached, held))
+
+        settings.set_meta(db, _CREW_STATE, json.dumps(snap))
+        db.commit()
+
+        base = cfg["link_url"].rstrip("/")
+        for c, best, held in first_hits:
+            sq = _n(best, "square")
+            extra = f" of {_n(held, 'square')} held" if held > best else ""
+            send_message(
+                f"🏴 <b>{_esc(c.name)}</b> is on the map — its first patch, "
+                f"<b>{sq}</b>{extra}."
+                f"{NL}{base}/c/{c.slug}", cfg)
+
+        for c, rung, held in rung_hits:
+            send_message(
+                f"📍 <b>{_esc(c.name)}</b> just passed <b>{rung}</b> squares "
+                f"— {_n(held, 'square')} held."
+                f"{NL}{base}/c/{c.slug}", cfg)
+
+        if cfg.get("crew_flip") and flips:
+            _announce_flip(db, flips, cfg, base)
+    except Exception:
+        logger.exception("telegram: crew events failed")
+    # no finally/close: the caller owns this session
+
+
+def _n(n: int, noun: str) -> str:
+    return f"{n:,} {noun}" + ("" if n == 1 else "s")
+
+
+def _announce_flip(db, flips: dict, cfg: dict, base: str) -> None:
+    """The single biggest piece of ground that changed hands, if it is big enough.
+
+    One message, not one per pair: a redraw that moves a frontier moves it in several places at
+    once, and a crew that has just lost a neighbourhood does not need five notifications about
+    it. `flips` is {(loser_id, winner_id): squares} from the rebuild, which is the only place
+    the two maps exist side by side.
+    """
+    from models import Clan
+    pair, n = max(flips.items(), key=lambda kv: kv[1])
+    if n < FLIP_MIN:
+        return
+    lost_by, won_by = pair
+    winner = db.get(Clan, won_by) if won_by else None
+    if winner is None or winner.disbanded_at is not None:
+        return
+    loser = db.get(Clan, lost_by) if lost_by else None
+    # Ground taken off a crew that has since disbanded is not a takeover, and unclaimed ground
+    # being claimed is just a crew riding -- neither is the story this message tells.
+    if loser is None or loser.disbanded_at is not None:
+        return
+    send_message(
+        f"⚔️ <b>{_esc(winner.name)}</b> took <b>{_n(n, 'square')}</b> off "
+        f"<b>{_esc(loser.name)}</b> in one redraw."
+        f"{NL}{base}/c/{winner.slug}", cfg)
+
+
 # --- daily summary ---------------------------------------------------------
 
 def _zone(name: str):
@@ -479,17 +637,33 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
                         f"{_flag_emoji(tr.flag)} — {_dist(d)}")
             break
 
-    # Crews on the all-time line, Erwin's ask. Left off entirely when the feature is dark or
-    # nobody has founded one, because "0 crews (0 riders)" is a line about nothing.
-    crew_tail = ""
+    # Crews, on their own two lines. They used to ride along on the end of the all-time line
+    # as "· 14 crews (62 riders)", which put a whole second leaderboard in a parenthesis
+    # behind the country count -- and said nothing about the thing the feature is actually
+    # about, which is ground. Erwin: "can we split the crew info into a new line".
+    #
+    # Left off entirely when the feature is dark or nobody has founded one, because
+    # "0 crews, 0 riders" is a line about nothing. The second line needs a crew that actually
+    # holds something: a board of names holding no squares has no leader to name, and
+    # `champions` returns an empty top in exactly that case.
+    crew_lines = ""
     try:
         from services import crews as _crews, settings as _settings
         if _settings.crews_enabled(db):
             cc = _crews.counts(db)
             if cc["crews"]:
-                crew_tail = (f" · {cc['crews']} {'crew' if cc['crews'] == 1 else 'crews'}"
-                             f" ({cc['riders']} "
-                             f"{'rider' if cc['riders'] == 1 else 'riders'})")
+                crew_lines = (
+                    NL + "🏴 Crews: <b>" + str(cc["crews"]) + "</b> "
+                    + ("crew" if cc["crews"] == 1 else "crews") + " · "
+                    + str(cc["riders"]) + " "
+                    + ("rider" if cc["riders"] == 1 else "riders") + " · <b>"
+                    + format(cc["squares"], ",") + "</b> "
+                    + ("square" if cc["squares"] == 1 else "squares") + " held")
+                lead = (_crews.champions(db, 1).get("top") or [None])[0]
+                if lead:
+                    crew_lines += (NL + "👑 <b>" + _esc(lead["name"])
+                                   + "</b> leads on <b>" + _pts(lead["score"])
+                                   + "</b> points")
     except Exception:
         pass
 
@@ -503,8 +677,9 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
             f"<b>{trips_n}</b> {'ride' if trips_n == 1 else 'rides'} · <b>{_dist(km)}</b>")
     alltime = (f"\nAll-time: {tot_r} {'rider' if tot_r == 1 else 'riders'} · "
                f"{tot_t} {'ride' if tot_t == 1 else 'rides'} · {_dist(g.get('total_km', 0))} · "
-               f"{tot_c} {'country' if tot_c == 1 else 'countries'}" + crew_tail)
-    return head + yday + top_line + alltime + f"\n👉 {cfg['link_url']}"
+               f"{tot_c} {'country' if tot_c == 1 else 'countries'}")
+    return (head + yday + top_line + alltime + crew_lines
+            + NL + "👉 " + cfg["link_url"])
 
 
 def run_daily_if_due() -> None:

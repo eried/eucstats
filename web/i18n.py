@@ -30,6 +30,7 @@ EN: dict[str, str] = {
     "crew.tiles": "{n} squares",
     "crew.tiles.few": "{n} squares",
     "crew.tile1": "{n} square",
+    "crew.patch1": "{n} patch",
     "crew.patches.few": "{n} patches",
     "crew.patches": "{n} patches",
     "crew.inall": "{v} all told",
@@ -524,14 +525,18 @@ EN: dict[str, str] = {
     # The standing, as a unit. The board ranks on it, so on the rows it IS the big
     # number and a bare figure beside "59 squares" on the podium would be a quantity of
     # nothing.
-    "crew.board.pts": "{n} pts",
+    "crew.board.pts": "{n} points",
     # Patch, everything held, and area -- the three terms the standing weighs, in the
     # order it weighs them. This is what makes a row that sorts below a bigger number
     # explicable from the row itself.
-    # The browse row, where the order is reversed: the total leads and the patch qualifies
-    # it, because a stranger picking a crew is choosing on how much ground it holds.
-    "crew.board.det2": "{b} ({a} in one)",
-    "crew.board.det": "{a} in one · {b} held · {c}",
+    # Everything a crew holds and how many pieces it is in, as one sentence -- `{a}` is
+    # already "53 squares" and `{b}` already "2 patches", both pluralised by the caller, so
+    # a locale is free to drop the preposition and separate them however it likes.
+    #
+    # It replaces two keys that between them put four figures on a board row: the biggest
+    # patch, everything held, the area, and the weekly gain in a column of its own. The gold
+    # card came out seven rows tall. A crew's ground is one fact and reads as one line.
+    "crew.board.inp": "{a} in {b}",
     "crew.board.sub": "Biggest patch a crew holds, plus a quarter for every other square.",
     "crew.signin.noapp": "No app yet? Get EUC Planet.",
     "crew.mine.leaveq0": "Leave {name}? You can join another one straight away.",
@@ -645,6 +650,10 @@ EN: dict[str, str] = {
     "act.refresh": "Refresh",
     # cogwheel settings menu
     "cfg.units": "Units",
+    # The one map layer a visitor can be surprised by: it switches itself on when the Crews
+    # panel opens, and before this there was no way to see that, let alone undo it.
+    "cfg.layers": "Map layers",
+    "cfg.crewsq": "Crew squares",
     "u.metric": "Metric",
     "u.imperial": "Imperial",
     "cfg.map": "Map",
@@ -679,7 +688,7 @@ EN: dict[str, str] = {
     "champ.norides": "no rides yet",
     "champ.toggle": "Show / hide",
     "champ.tip": "Our secret recipe: distance is king, lifted by your top speed and time on the wheel.",
-    "champ.tip.crews": "A crew is ranked on the biggest patch of ground it holds, counted in squares.",
+    "champ.tip.crews": "The three crews holding the most ground. A crew scores its biggest unbroken patch, plus a quarter for every other square it holds.",
     # empty / error states
     "empty.nodata": "no data yet",
     "empty.norecords": "no records yet",
