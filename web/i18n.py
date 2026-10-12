@@ -149,6 +149,7 @@ EN: dict[str, str] = {
     "crew.new.go": "Create crew",
     # joining
     "crew.join.h": "Join a crew",
+    "crew.rivals.h": "Other crews",
     # Sixteen crews is about 1,800px with no way to narrow it, and once joining
     # comes before founding that 1,800px is also what stands in front of the
     # create form. Six nearest, a box, and the rest behind the toggle.

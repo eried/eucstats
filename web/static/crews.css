@@ -762,6 +762,69 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   background: var(--pan, #0b1020);
 }
 .crewmine-wrap > summary::-webkit-details-marker { display: none; }
+
+/* ---------- the pinned card ----------
+   The summary carries three things now: the crew, the figure the board ranks it on, and the
+   two controls a member actually reaches for. It wraps, so the buttons take a line of their
+   own at any width rather than squeezing the name -- the name's own `min-width: 8.5em` above
+   is what the measuring in this file has repeatedly come back to. */
+.crewmine-wrap > summary { flex-wrap: wrap; }
+/* The standing, on your own crew, where it was missing: the card showed a rank and never the
+   number the rank comes from. Tabular so it does not jitter between redraws.
+   No `nowrap`. It would have been defensible -- `flex: 0 0 auto` in a wrapping row means a
+   figure that does not fit moves to its own line rather than being cut -- but defensible is
+   not measured, and this file's rule is that a `nowrap` ships with a measurement beside it or
+   it does not ship. Allowed to wrap, the worst case is "122,0" over "Punkte", which is ugly
+   and readable; `nowrap` on a wrong guess is a word with its end missing. */
+.crewpinpts {
+  margin-left: auto; flex: 0 0 auto; font-weight: 700; font-size: 13px;
+  color: var(--sec, #ff8ad8); font-variant-numeric: tabular-nums;
+}
+/* Their own line, always. Sharing one with the name meant the buttons set the row's height
+   and the name lost the width -- the exact trade this file has already been measured into
+   twice. `order` puts them last even though the figure is emitted after them in source. */
+.crewpinacts { flex: 1 0 100%; order: 9; display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: 2px; }
+/* The count of riders waiting, on the button that answers them rather than beside the name.
+   `display: inline-block` and a fixed line box, so a two-digit count does not grow the
+   button's height. */
+.crewpindot {
+  display: inline-block; margin-left: 6px; min-width: 16px; padding: 0 4px;
+  border-radius: 9px; background: var(--sec, #ff8ad8); color: #10131f;
+  font: 700 10px/16px system-ui, sans-serif; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- the other crews, on a member's panel ----------
+   Facts and a chevron. No Join: `join()` refuses while any membership exists, so a Join here
+   could never be pressed, and a column of permanently dead buttons is what this feature was
+   already caught doing once. The row opens that crew on the board instead. */
+.crewrivals h4 { margin-top: 0; }
+.crewrivrow {
+  display: flex; align-items: center; gap: 9px; padding: 7px 2px; cursor: pointer;
+  border-radius: 4px;
+}
+.crewrivrow + .crewrivrow { border-top: 1px solid rgba(255,255,255,.06); }
+.crewrivrow:hover { background: rgba(255,255,255,.05); }
+.crewrivrow:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+}
+/* `min-width: 0` so a long crew name gives way instead of pushing the chevron off the card
+   -- the same fix three other rows in this file carry. */
+.crewrivtx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+/* The name WRAPS. An ellipsis was the first instinct, and `.crewrowname` on the board does
+   exactly that -- but that one ships with a measurement, and this one could not get an
+   honest reading: the two-column split is a viewport media query, so shrinking the panel to
+   a phone's width in a desktop window leaves the card at 218px and measures a layout no
+   phone ever shows. A crew's name is the one thing on this row somebody is reading it for,
+   these rows are already two lines tall, and a name that takes three is cheaper than a name
+   with its end cut off. `anywhere`, because the longest single token in a crew name is
+   whatever a rider typed. */
+.crewrivtx b { font-size: 12.5px; overflow-wrap: anywhere; }
+/* The ground line wraps for the same reason: it is a sentence in nineteen languages and
+   Ukrainian's is the long one. */
+.crewrivsub { font-size: 11px; color: var(--mut, #9aa6c8); line-height: 1.35; }
+.crewrivgo { flex: 0 0 auto; color: var(--mut, #9aa6c8); font-size: 15px; }
 /* `flex: 1` is `flex: 1 1 0%` -- a zero basis, so under any pressure this collapsed to its
    longest word while `.crewsumrole` beside it, at `flex: 0 1 auto`, kept the full width of
    its 48-character metadata string. Measured at 390: the crew's name got 61px and wrapped

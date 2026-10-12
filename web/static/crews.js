@@ -4316,6 +4316,20 @@
     return sinceBits(lastSeen(c.slug), sinceSnap(c.slug, terr)).length > 0;
   }
 
+  // A crew's points, off the board, formatted the way the board formats them. The brief the
+  // panel holds (`_crew_brief`) carries squares, patches and members but not the standing --
+  // the score is computed by the ranking, so this reads it from the same rows the board was
+  // built from rather than inventing a second arithmetic for the same number.
+  function pointsOf(slug) {
+    var src = BOARD || (TERR && TERR.crews) || [];
+    for (var i = 0; i < src.length; i++) {
+      if (src[i].slug === slug && src[i].score != null) {
+        return t("crew.board.pts", { n: src[i].score.toFixed(1) });
+      }
+    }
+    return "";
+  }
+
   function standing(slug) {
     var src = BOARD || (TERR && TERR.crews);
     if (!src || !src.length) return "";
@@ -4982,6 +4996,39 @@
       });
     }
 
+    // The two buttons on the pinned card. Both live inside the <summary>, so each has to
+    // stop the click reaching the accordion -- and then open it deliberately, because the
+    // thing they scroll to is inside it and scrolling to a closed <details> lands on the
+    // summary with the content still folded away.
+    function jump(sel, openManage) {
+      var wrap = document.querySelector(".crewmine-wrap");
+      if (wrap) wrap.open = true;
+      if (openManage) {
+        var mg = document.querySelector("details.crewmanage");
+        if (mg) mg.open = true;
+      }
+      // After the accordion has actually laid out, or the target's position is the one it
+      // had while it was folded -- which is the top of the card, every time.
+      requestAnimationFrame(function () {
+        var el = document.querySelector(sel);
+        if (!el) return;
+        try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+        catch (e) { el.scrollIntoView(); }
+        flashRow(el);
+      });
+    }
+    var pinInv = document.getElementById("cm-pininv");
+    if (pinInv) pinInv.onclick = function (ev) {
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+      jump(".crewinvbox", false);
+    };
+    var pinRoster = document.getElementById("cm-pinroster");
+    if (pinRoster) pinRoster.onclick = function (ev) {
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+      // Pending requests sit at the top of the roster block, which is inside "Manage crew".
+      jump(".crewpend", true);
+    };
+
     // The permanent invite: copy it, show it big enough to scan, or hand it to the phone's
     // own share sheet. Same three things the share modal offers for the public page, because
     // this is the same act with a link that also admits you.
@@ -5302,6 +5349,41 @@
       + esc(t("crew.join.wait.from", { d: out.replace(/ /g, " ") })) + "</span>";
   }
 
+  /* ---------- the other crews, for somebody who is already in one ----------
+
+     `joinHTML` renders for riders OUTSIDE a crew only -- cooling off, waiting, removed,
+     folded, declined, or never joined -- so a member in good standing saw no other crew
+     anywhere in the panel except as a row on the board. "Who am I up against" had no answer
+     short of leaving.
+
+     Facts and a chevron, no Join. A Join here could never be pressed (`join()` refuses while
+     any membership exists) and a row of permanently dead buttons is the thing this feature
+     has already been caught doing once. The row opens that crew on the board instead, which
+     is where everything the panel knows about a crew that is not yours already lives. */
+  function rivalsHTML(crews, me) {
+    var mine = me.crew && me.crew.slug;
+    var rows = (crews || []).filter(function (c) { return c.slug !== mine; });
+    if (!rows.length) return "";
+    // The board's own order, so the list and the board cannot disagree about who is ahead.
+    rows = ranked(rows);
+    return '<div class="crewcard crewrivals"><h4>' + esc(t("crew.rivals.h")) + "</h4>"
+      + rows.map(function (c) {
+          return '<div class="crewrivrow sel" data-rival="' + esc(c.slug) + '">'
+            + swatch(c.colour, c.pattern, 14)
+            + '<span class="crewrivtx"><b>' + esc(c.name) + "</b>"
+            + '<span class="crewrivsub">'
+            + esc([(c.tiles
+                    ? t("crew.board.inp", { a: tiles(c.tiles),
+                                            b: patchesOf(c.regions || 1) })
+                    : tiles(0)),
+                   riders(c.members)].filter(Boolean).join(" · "))
+            + "</span></span>"
+            + '<span class="crewrivgo" aria-hidden="true">›</span>'
+            + "</div>";
+        }).join("")
+      + "</div>";
+  }
+
   function joinHTML(crews, me) {
     // The countdown used to be returned INSTEAD of the list, so twenty-one crews existed
     // and a rider could not look at one of them for a week. The stated reason for hiding the
@@ -5484,6 +5566,13 @@
   // any crew outside the nearest six.
   var listOpen = false;
   var paintList = null;
+
+  function bindRivals() {
+    [].slice.call(document.querySelectorAll("[data-rival]")).forEach(function (row) {
+      pressable(row, row.querySelector("b") ? row.querySelector("b").textContent : "",
+                function () { openCrewDetail(row.dataset.rival); });
+    });
+  }
 
   function bindList() {
     var list = document.getElementById("cj-list");
@@ -6123,20 +6212,51 @@
           + '<span class="crewsumrole">'
           + (me.status === "pending"
              ? t("crew.role.waiting")
-             : [standing(me.crew.slug), riders(me.crew.members),
+             // The ground, in the same sentence the board and the browse list print. This
+             // line used to open with the rank -- "3rd" -- and the figure it ranks on was
+             // nowhere on the card at all, so your own crew was the one crew in the panel
+             // whose standing you could not read. The rank goes with it: it is the number
+             // on the right now, and the board two cards down says the rest.
+             // Nothing held yet is said as nothing held, not as "0 squares in 1 patch" --
+             // a crew that has never taken ground has no patch to be in, and a brand new
+             // crew is exactly who reads this line hardest.
+             : [(me.crew.tiles
+                 ? t("crew.board.inp", { a: tiles(me.crew.tiles),
+                                         b: patchesOf(me.crew.regions || 1) })
+                 : tiles(0)),
+                riders(me.crew.members),
                 t(me.role === "leader" ? "crew.mine.youare"
                   : me.role === "officer" ? "crew.mine.youofficer" : "crew.mine.youmember")]
                .filter(Boolean).join(" \u00b7 "))
           + "</span>"
           + "</span>"
+          // The figure the board sorts by, on your own crew, where it was missing.
+          + (me.status === "pending" ? ""
+             : '<span class="crewpinpts">' + esc(pointsOf(me.crew.slug)) + "</span>")
           // The accordion can be shut, and a leader who shut it had no way at all to learn
           // that somebody was waiting.
-          + (me.pending && me.pending.length
-             // Its own class, not `.dockdot` as well: crews.css is linked BEFORE public.py's
-             // inline <style>, so the inline `.dockdot { position: absolute }` would win at
-             // equal specificity and this would be pinned to the summary's top-right corner.
-             ? '<span class="crewsumdot" title="' + esc(knockText(me.pending.length)) + '">'
-               + me.pending.length + "</span>" : "")
+          // The two things a member does here, on the card itself rather than a scroll and a
+          // disclosure away: the invite box, and the roster where requests are answered.
+          // Settings is deliberately not among them -- you set a crew up once, and it is the
+          // door to Leave and Disband, which do not belong on a card you see every visit.
+          //
+          // Inside the <summary>, so they are there whether the accordion is open or shut;
+          // their handlers stop the click reaching it, the same way the emblem's does.
+          // The waiting count rides on "The crew" rather than sitting beside the name: the
+          // old dot said SOMETHING was waiting and the button that answers it was two taps
+          // away inside "Manage crew". Leaders and officers only, because nobody else can
+          // act on a request.
+          + (me.status === "pending" ? ""
+             : '<span class="crewpinacts">'
+               + '<button type="button" class="crewbtn mini ghost" id="cm-pininv">'
+               + esc(t("crew.mine.invperm")) + "</button>"
+               + '<button type="button" class="crewbtn mini ghost" id="cm-pinroster"'
+               + (me.pending && me.pending.length
+                  ? ' title="' + esc(knockText(me.pending.length)) + '"' : "")
+               + ">" + esc(t("crew.roles.h"))
+               + (me.pending && me.pending.length
+                  ? '<b class="crewpindot">' + me.pending.length + "</b>" : "")
+               + "</button></span>")
           + "</summary>"
           + myCrewHTML(me) + "</details>"
           // The one state that can last for days was the only one with nothing to move on to.
@@ -6146,7 +6266,7 @@
           // that this state had taken away. Look-only, because `join()` refuses while the
           // request stands: the rider reads what is out there and the card above says how to
           // free themselves to act on it.
-          + (me.status === "pending" ? joinHTML(all, me) : "");
+          + (me.status === "pending" ? joinHTML(all, me) : rivalsHTML(all, me));
       } else if (me.removed_by) {
         ackNotice("removed");
         own += '<div class="crewcard"><h3>' + t("crew.removed.h") + "</h3>"
@@ -6269,6 +6389,10 @@
         // toggle were both inert, and with no `paint()` every row rendered unfolded, so
         // "Show all 22" was false the moment it appeared. Binding what was rendered.
         if (me.status === "pending") { bindJoin(); bindList(); }
+        // The other crews, for a member. Each row takes you to that crew's row on the board,
+        // which is the one place the panel already holds everything it knows about a crew
+        // that is not yours -- where it stands, what it holds, which way it is moving.
+        else bindRivals();
       } else { bindCreate(); bindJoin(); bindList(); }
       bindSignOut();
       bindHelp();

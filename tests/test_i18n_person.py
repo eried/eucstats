@@ -96,6 +96,7 @@ CARDS = {
     "crew.knocks": "rider",
     "crew.knocks.few": "rider",
     "crew.join.": "rider",
+    "crew.rivals.": "rider",
     "crew.how.": "rider",
     "crew.e.": "rider",
     "crew.err": "rider",
@@ -479,7 +480,11 @@ SHARED = {
 HOME = {
     "crew.good.": {"sinceLine"},
     "crew.signin.": {"signInHTML", "startPairing", "offerRetry", "qrGrid", "inviteNote"},
-    "crew.mine.": {"myCrewHTML", "bindMine", "leaveQuestion", "contributorsHTML", "errMsg"},
+    # `render` builds the pinned summary at the top of that same card -- the crew, its
+    # standing, and the two buttons that reach the invite box and the roster further down
+    # it. Same card, same reader; it is the card's header, not another card borrowing it.
+    "crew.mine.": {"myCrewHTML", "bindMine", "leaveQuestion", "contributorsHTML", "errMsg",
+                   "render"},
     # `offerInvite` is the join card's arrival path: it unfolds the list and has to put the
     # list's own "Show fewer" label back on the toggle, because it changed the state that
     # label describes. Same card, same reader.
@@ -507,7 +512,7 @@ HOME = {
     "crew.new.": {"createHTML", "myCrewHTML", "identGrids", "identBlock", "bindCreate"},
     "crew.pattern.": {"createHTML", "identGrids", "bindCreate"},
     # `moreLabel` is the roster fold's label, pluralised. Same card as the roster it folds.
-    "crew.roles.": {"myCrewHTML", "bindMine", "moreLabel"},
+    "crew.roles.": {"myCrewHTML", "bindMine", "moreLabel", "render"},
 }
 
 
