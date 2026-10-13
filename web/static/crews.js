@@ -5204,9 +5204,16 @@
       // first-block square -- and `TARGETS` is assigned inside targetsHTML, which used to be
       // concatenated on the next line. It was answering from the previous card's array, and
       // from an empty one the first time the panel opened.
-      var tgt = { first: false };
+      // `.html` as well as `.first`. Both of these are built here for the same reason -- the
+      // hero line below asks whether the first target is a first-block square, and `TARGETS`
+      // is assigned inside `targetsHTML` -- but the MARKUP has to survive the trip too.
+      // It stopped doing so: the call was moved up here for the ordering and the assignment
+      // it used to sit inside kept everything except its output, so "Where to ride next"
+      // was built, translated into nineteen languages, and thrown away on every render.
+      // Six days of a card with a section missing and nothing failing.
+      var tgt = { first: false, html: "" };
       if (me.status !== "pending") {
-        targetsHTML(r.body.targets);          // for TARGETS, which the map rings read
+        tgt.html = targetsHTML(r.body.targets);   // also for TARGETS, which the map rings read
         tgt.first = !!(TARGETS.length && TARGETS[0].first);
       }
       // "0 squares in one piece" is the first line of the first card a new leader sees, and
@@ -5232,9 +5239,12 @@
         // `0 km2 · ` with nothing following the dot -- on the first card every founder
         // sees, which is the third time this shape has shipped.
         + (terr.tiles || tgt.first ? "" : " · " + t("crew.mine.start", { n: SEED })) + "</div>"
-        + (me.status === "pending" ? "" : safely(function () {
-            loseHTML(c.slug);                 // for LOSING, same reason
-            return "";
+        // The same thing happened to "What you could lose": `loseHTML` was left running for
+        // `LOSING`, which the map's dashed outlines read, and its return value replaced with
+        // an empty string. The list it builds -- the squares a rival is one ride from taking
+        // -- has not been on this card since.
+        + (me.status === "pending" ? "" : tgt.html + safely(function () {
+            return loseHTML(c.slug);
           }))
         // Behind a guard, and so is the losing list above it. This whole body is one
         // assignment, so when `contributorsHTML` threw -- `av()` called an `esc` that does

@@ -835,8 +835,21 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    [image][name / standing][badge] instead of letting the standing fall out to the summary's
    own left edge when it wrapped. Wide enough and the two sit side by side; narrower and the
    standing drops to a second line that still starts where the name starts. */
+/* `1 1 0`, not `1 1 auto`, now that the summary itself wraps.
+   The comments above are about the row BEFORE it wrapped, where an `auto` basis was what
+   stopped the name collapsing. With `flex-wrap: wrap` on the summary an `auto` basis means
+   this block's hypothetical size is its content -- long, because the metadata line under the
+   name is a sentence -- so it no longer fit beside the emblem and took a line of its own,
+   leaving a 26px emblem alone on the line above it. Measured at a real 390px viewport: 177px
+   of summary, the emblem orphaned, the figure on a third line.
+   A zero basis puts the emblem, this block and the figure back on one row and the buttons on
+   the next: 128px. The fear the older comment records does not come back -- the name is never
+   cut (`scrollWidth === clientWidth` in every case tried), it keeps the full 149px column
+   rather than collapsing to its longest word, and a 27-character name wraps to two lines
+   inside that column, which is 147px of summary. The German metadata line changes none of
+   those numbers. */
 .crewsumtxt {
-  flex: 1 1 auto; min-width: 0;
+  flex: 1 1 0; min-width: 0;
   display: flex; flex-wrap: wrap; align-items: baseline;
   column-gap: 8px; row-gap: 1px;
 }
