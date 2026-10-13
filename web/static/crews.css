@@ -780,20 +780,15 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   margin-left: auto; flex: 0 0 auto; font-weight: 700; font-size: 13px;
   color: var(--sec, #ff8ad8); font-variant-numeric: tabular-nums;
 }
-/* Their own line, always. Sharing one with the name meant the buttons set the row's height
-   and the name lost the width -- the exact trade this file has already been measured into
-   twice. `order` puts them last even though the figure is emitted after them in source. */
-.crewpinacts { flex: 1 0 100%; order: 9; display: flex; gap: 6px; flex-wrap: wrap;
-  margin-top: 2px; }
-/* The count of riders waiting, on the button that answers them rather than beside the name.
-   `display: inline-block` and a fixed line box, so a two-digit count does not grow the
-   button's height. */
-.crewpindot {
-  display: inline-block; margin-left: 6px; min-width: 16px; padding: 0 4px;
-  border-radius: 9px; background: var(--sec, #ff8ad8); color: #10131f;
-  font: 700 10px/16px system-ui, sans-serif; text-align: center;
-  font-variant-numeric: tabular-nums;
+/* What the crew says about itself, on its own line under the name. `1 0 100%` so it always
+   takes a line rather than sharing one with the standing, and `order` keeps it above that
+   line whatever the source order is. Wraps: it is up to 280 characters of a rider's own
+   prose and there is no honest width to cut it at. */
+.crewsumdesc {
+  flex: 1 0 100%; order: 1; font-weight: 400; font-size: 12px;
+  color: var(--mut, #9aa6c8); line-height: 1.4; overflow-wrap: anywhere;
 }
+.crewsumrole { order: 2; }
 
 /* ---------- the other crews, on a member's panel ----------
    Facts and a chevron. No Join: `join()` refuses while any membership exists, so a Join here

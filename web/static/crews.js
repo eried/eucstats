@@ -4459,9 +4459,10 @@
               + "</div>"; }).join("")
         + "</div>";
     }
-    // Classed so a rename can find it. See the save handler: this card is deliberately NOT
-    // rebuilt after an edit, so whatever changed has to be written into the DOM by hand.
-    if (c.description) h += '<p class="crewdesc">' + esc(c.description) + "</p>";
+    // The description is in the summary now, with the name and the standing, so it is not
+    // emitted again here. The comment this replaces said the card was deliberately not
+    // rebuilt after an edit and the DOM had to be patched by hand; that stopped being true
+    // when the save handler went back to calling `show()`, which carries the scroll across.
     // The invitation, directly under what the crew says about itself: the two things a leader
     // hands to somebody. The address sits in a box of its own and is selectable, because the
     // commonest thing to do with it after copying is to read it out or check it; the two
@@ -4996,38 +4997,6 @@
       });
     }
 
-    // The two buttons on the pinned card. Both live inside the <summary>, so each has to
-    // stop the click reaching the accordion -- and then open it deliberately, because the
-    // thing they scroll to is inside it and scrolling to a closed <details> lands on the
-    // summary with the content still folded away.
-    function jump(sel, openManage) {
-      var wrap = document.querySelector(".crewmine-wrap");
-      if (wrap) wrap.open = true;
-      if (openManage) {
-        var mg = document.querySelector("details.crewmanage");
-        if (mg) mg.open = true;
-      }
-      // After the accordion has actually laid out, or the target's position is the one it
-      // had while it was folded -- which is the top of the card, every time.
-      requestAnimationFrame(function () {
-        var el = document.querySelector(sel);
-        if (!el) return;
-        try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
-        catch (e) { el.scrollIntoView(); }
-        flashRow(el);
-      });
-    }
-    var pinInv = document.getElementById("cm-pininv");
-    if (pinInv) pinInv.onclick = function (ev) {
-      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-      jump(".crewinvbox", false);
-    };
-    var pinRoster = document.getElementById("cm-pinroster");
-    if (pinRoster) pinRoster.onclick = function (ev) {
-      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-      // Pending requests sit at the top of the roster block, which is inside "Manage crew".
-      jump(".crewpend", true);
-    };
 
     // The permanent invite: copy it, show it big enough to scan, or hand it to the phone's
     // own share sheet. Same three things the share modal offers for the public page, because
@@ -6213,6 +6182,11 @@
           + "<span>" + esc(me.crew.name) + "</span>"
           // read back as "Harbour Bridge Bombersleader" without this
           + '<span class="crewsumsep"> &middot; </span>'
+          // What the crew says about itself, up here with the rest of its identity. It used
+          // to sit between the knocking list and the invite box, so a one-line sentence in
+          // the crew's own voice read as a caption to the list of people waiting to get in.
+          + (me.crew.description
+             ? '<span class="crewsumdesc">' + esc(me.crew.description) + "</span>" : "")
           // What the card used to open with, moved up beside the name: where the crew stands,
           // how many ride for it, and what you are to it. "LEADER" alone spent the width on
           // the least interesting true thing on the line.
@@ -6245,28 +6219,13 @@
              : '<span class="crewpinpts">' + esc(pointsOf(me.crew.slug)) + "</span>")
           // The accordion can be shut, and a leader who shut it had no way at all to learn
           // that somebody was waiting.
-          // The two things a member does here, on the card itself rather than a scroll and a
-          // disclosure away: the invite box, and the roster where requests are answered.
-          // Settings is deliberately not among them -- you set a crew up once, and it is the
-          // door to Leave and Disband, which do not belong on a card you see every visit.
-          //
-          // Inside the <summary>, so they are there whether the accordion is open or shut;
-          // their handlers stop the click reaching it, the same way the emblem's does.
-          // The waiting count rides on "The crew" rather than sitting beside the name: the
-          // old dot said SOMETHING was waiting and the button that answers it was two taps
-          // away inside "Manage crew". Leaders and officers only, because nobody else can
-          // act on a request.
-          + (me.status === "pending" ? ""
-             : '<span class="crewpinacts">'
-               + '<button type="button" class="crewbtn mini ghost" id="cm-pininv">'
-               + esc(t("crew.mine.invperm")) + "</button>"
-               + '<button type="button" class="crewbtn mini ghost" id="cm-pinroster"'
-               + (me.pending && me.pending.length
-                  ? ' title="' + esc(knockText(me.pending.length)) + '"' : "")
-               + ">" + esc(t("crew.roles.h"))
-               + (me.pending && me.pending.length
-                  ? '<b class="crewpindot">' + me.pending.length + "</b>" : "")
-               + "</button></span>")
+          // No shortcut buttons. There were two, Invite and The crew, and on the real card
+          // they pointed at things already on screen: the knocking block sits 120px below
+          // this summary and carries the same waiting count, and the invite box 260px below
+          // that. A control that scrolls you to something you can already see is furniture,
+          // and the duplicated badge made the card look like it was telling you twice.
+          // The waiting count stays where it does its work -- on the KNOCKING heading, which
+          // is a block with names and Let in / No under it, and on the dock icon.
           + "</summary>"
           + myCrewHTML(me) + "</details>"
           // The one state that can last for days was the only one with nothing to move on to.
