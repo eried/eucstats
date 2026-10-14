@@ -48,6 +48,7 @@ DEFAULTS = {
     "min_fall_len": 3,        # a fall must persist: one sample is a sensor blip, and
     "min_fall_s": 2.0,        # it must cover real time, whatever the logging rate
     "max_gap_s": 5.0,         # a longer gap makes every rate meaningless
+    "load_trail": 3,          # samples past the event the motor must ALSO be idle for
 }
 _W_PER_A = 100.0              # the watts cutoff tracks the amp cutoff
 _CHANNEL_JITTER = 0.05        # amps of variation that prove the current channel is reporting
@@ -82,6 +83,10 @@ def _track_kmh(samples, half: int = 2, max_span_s: float = 8.0) -> list:
     real ground covered during the reported standstill. A speed field can stall or round to
     zero; a position that keeps advancing cannot. Taken over a few samples either side, so one
     bad fix moves it a little instead of inventing a stop.
+
+    It can still read a false nought where the smoothing window fits inside one REPEATED
+    fix - no distance divided by real seconds - so it is never the only thing standing
+    between an ordinary ride and a reported fall.
     """
     out = [None] * len(samples)
     fixed = [i for i, s in enumerate(samples) if s.lat is not None and s.lon is not None]
@@ -149,7 +154,7 @@ def _at_rest(samples, lo, hi, c, track=None) -> bool:
     return len(win) >= 3 and _median(win) < _MOVING_KMH
 
 
-def _stopped(s, c, needs_fix: bool, track) -> bool:
+def _stopped(samples, i, c, needs_fix: bool, track) -> bool:
     """Did the GROUND stop, as opposed to the receiver losing the satellites?
 
     A GPS speed of exactly 0.0 is what a log writes both when the rider is standing still and
@@ -160,6 +165,7 @@ def _stopped(s, c, needs_fix: bool, track) -> bool:
     An absent gps_speed is unknown, never zero - `(s.gps_speed or 0)` would call every log
     without a GPS channel permanently stopped.
     """
+    s = samples[i]
     if s.gps_speed is None or s.gps_speed >= c["gps_stopped_kmh"]:
         return False
     if needs_fix and (s.lat is None or s.lon is None):
@@ -218,7 +224,7 @@ def _flag(samples, c, has_motor, needs_fix, track) -> list:
             continue                              # a logging gap makes every rate a lie
         # (a) the wheel turns and the ground does not. A candidate only: riding through a GPS
         #     dropout looks exactly the same, which the load tests below are there to settle.
-        if b.speed > c["free_spin_kmh"] and _stopped(b, c, needs_fix, track[i]):
+        if b.speed > c["free_spin_kmh"] and _stopped(samples, i, c, needs_fix, track[i]):
             flags[i] = True
             continue
         # (b) a speed CHANGE a loaded wheel cannot produce, in either direction. Braking
@@ -426,8 +432,22 @@ def detect(samples, cal: dict | None = None, trace: list | None = None) -> dict:
         # nothing on the way past; counting those samples made hard braking look like a wheel
         # with no rider on it (trips 36ef1885, f539c9cf). A median asks the question that
         # actually matters - was the motor working THROUGHOUT - and one crossing cannot move it.
-        amps = [abs(x.current) for x in ev if x.current is not None]
-        watts = [abs(x.power) / _W_PER_A for x in ev if x.power is not None]
+        # The load window runs PAST the event, and that asymmetry is the whole point.
+        #
+        # Regen braking sweeps the current from -16 A up through zero to +7 A, so a short
+        # event can land entirely inside the crossing: Amoenus's trips 2b176ffe and 911245cb
+        # read 0.0, 0.7, 1.0 A and -3.0, -0.8, -0.1 A across every sample they contain, and a
+        # median of those says "nothing loading the motor" however it is taken. Both were
+        # ordinary rides, at 25 and at 13 km/h, and both came out as falls.
+        #
+        # What tells them apart is what happens NEXT. A cutout leaves the motor off - the
+        # wheel freewheels or lies still, and the current stays near nothing. A rider braking
+        # is back at -12 A a second later. So the trailing samples join the median while the
+        # leading ones never can: a real cutout is loaded right up to the moment it lets go,
+        # and asking the run-up to be idle too would throw every genuine one away.
+        win = samples[start:end + 1 + c["load_trail"]]
+        amps = [abs(x.current) for x in win if x.current is not None]
+        watts = [abs(x.power) / _W_PER_A for x in win if x.power is not None]
         load = _median(amps if amps else watts)
         idle = 1.0 if load is None else (1.0 if load < c["motor_active_a"] else 0.0)
         peak_accel = 0.0                          # the most violent speed change either way

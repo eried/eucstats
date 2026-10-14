@@ -308,6 +308,59 @@ def test_coarse_gps_that_repeats_a_fix_is_not_a_standstill():
     assert detect(rows)["fall"] == 1
 
 
+def test_a_stale_fix_while_riding_is_not_a_stop():
+    """Amoenus, trip 2b176ffe, samples 1348-1375, and a reported fall that never happened.
+
+    He is riding at 24-27 km/h for the whole half minute, regenerating 7 to 14 A the entire
+    time, and the position advances 36 m every six samples - about 21 km/h, which agrees with
+    the wheel. The gps_speed column reads 0.0 on every single sample.
+
+    What made it a fall is that the track was read across two samples that carried the SAME
+    coordinates, so it divided no distance by four seconds and returned a confident 0.0 km/h.
+    A frozen fix is the absence of a measurement, not a measurement of nought, and a stale one
+    that later jumps 36 m proves the rider was moving the whole way through it.
+    """
+    rows = [(0, 23.9, -9.8, None, None), (1, 24.5, -9.8, None, None),
+            (2, 25.2, -7.5, None, None), (3, 25.7, -7.9, 56.94479, 24.21620),
+            (4, 25.5, -7.7, 56.94479, 24.21620), (5, 25.2, -7.4, 56.94479, 24.21620),
+            (6, 24.9, -6.6, 56.94479, 24.21620), (7, 24.8, -12.0, 56.94479, 24.21620),
+            (8, 26.0, -9.9, 56.94479, 24.21620), (9, 26.7, -10.2, 56.94489, 24.21564),
+            (10, 27.4, -1.6, 56.94489, 24.21564), (11, 25.6, 0.0, 56.94489, 24.21564),
+            (12, 23.9, 0.7, 56.94489, 24.21564), (13, 22.1, 1.0, 56.94489, 24.21564),
+            (14, 21.1, -1.8, 56.94489, 24.21564), (15, 19.8, -1.7, None, None),
+            (16, 19.9, -1.2, None, None), (17, 20.4, -7.8, None, None),
+            (18, 21.4, -13.9, None, None), (19, 23.0, -9.2, None, None),
+            (20, 23.0, -9.5, None, None), (22, 24.0, -12.3, 56.94500, 24.21488),
+            (23, 25.1, -10.1, 56.94500, 24.21488), (24, 26.1, -11.1, 56.94500, 24.21488),
+            (25, 26.6, -6.4, 56.94500, 24.21488), (26, 26.8, -2.2, 56.94500, 24.21488),
+            (27, 25.6, -5.8, 56.94500, 24.21488), (28, 25.0, -6.5, None, None)]
+    log = [sp(dt, w, 0.0, a, lat, lon) for dt, w, a, lat, lon in rows]
+    got = detect(log)
+    # Spikes are allowed to stay: this log IS broken, and that bucket is the detector saying
+    # so to us rather than to him. Neither of the two boards may claim anything.
+    assert (got["fall"], got["spin"]) == (0, 0)
+
+
+def test_a_regen_zero_crossing_inside_a_stale_fix_is_not_a_fall():
+    """Amoenus, trip 911245cb, samples 914-930. The same stale-fix shape at 13 km/h, and the
+    reason a median load could not save it: the event is three samples long and the current
+    sweeps -3.0, -0.8, -0.1 A straight through zero on its way back up, so every sample in the
+    window sits near nothing while the wheel is braking under a rider. Widening the window is
+    no answer either - a real cutout is loaded right up to the moment it lets go. The fix has
+    to be the ground: the position jumps 35 m, so he was riding."""
+    rows = [(0, 12.9, -4.6, 56.94838, 24.19432), (1, 13.0, -4.9, 56.94838, 24.19432),
+            (2, 13.1, -2.4, 56.94838, 24.19432), (3, 12.8, -1.7, 56.94838, 24.19432),
+            (4, 12.4, -4.1, 56.94870, 24.19427), (5, 12.9, -4.3, 56.94870, 24.19427),
+            (6, 13.1, -3.0, 56.94870, 24.19427), (7, 12.7, -0.8, 56.94870, 24.19427),
+            (8, 12.3, -0.1, 56.94870, 24.19427), (9, 11.9, 0.9, 56.94870, 24.19427),
+            (10, 11.2, -3.7, 56.94870, 24.19427), (12, 11.0, -2.0, 56.94870, 24.19424),
+            (13, 10.3, -2.5, 56.94870, 24.19424), (14, 10.0, -0.8, 56.94870, 24.19424),
+            (15, 9.5, -1.6, 56.94870, 24.19424), (16, 8.9, -3.1, 56.94870, 24.19424),
+            (17, 8.9, -2.2, 56.94870, 24.19424)]
+    log = [sp(dt, w, 0.0, a, lat, lon) for dt, w, a, lat, lon in rows]
+    assert detect(log)["fall"] == 0
+
+
 # --- Free spins, defined by SPEED alone. ---------------------------------------------------
 # A free spin is a wheel accelerating to a speed no loaded wheel could have reached: lift one
 # off the ground and the balance algorithm spins it up in a second or two. That is a speed
