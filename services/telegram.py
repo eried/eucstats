@@ -235,7 +235,7 @@ def notify_new_crew(clan_id: str) -> None:
             who = (f" — founded by <b>{_esc(founder.display_name)}</b> "
                    f"{_flag_emoji(founder.flag)}")
         link = cfg["link_url"].rstrip("/") + "/c/" + clan.slug
-        text = (f"🏴 New crew: <b>{_esc(clan.name)}</b>{who} — "
+        text = (f"🚩 New crew: <b>{_esc(clan.name)}</b>{who} — "
                 f"now <b>{n}</b> {plural} riding for ground!\n{link}")
         send_message(text, cfg)
     finally:
@@ -398,7 +398,7 @@ def check_records() -> None:
             clink = cfg["link_url"].rstrip("/") + "/c/" + ctop["slug"]
             sq = ctop.get("best_tiles") or 0
             noun = 'square' if sq == 1 else 'squares'
-            text = (f"🏴 New top crew! <b>{_esc(ctop.get('name'))}</b>{beat} now holds "
+            text = (f"🚩 New top crew! <b>{_esc(ctop.get('name'))}</b>{beat} now holds "
                     f"the biggest patch on the map — <b>{sq}</b> {noun} in one piece."
                     f"\n{clink}")
             send_message(text, cfg)
@@ -495,7 +495,7 @@ def check_crew_events(db, flips: dict | None = None) -> None:
             sq = _n(best, "square")
             extra = f" of {_n(held, 'square')} held" if held > best else ""
             send_message(
-                f"🏴 <b>{_esc(c.name)}</b> is on the map — its first patch, "
+                f"🚩 <b>{_esc(c.name)}</b> is on the map — its first patch, "
                 f"<b>{sq}</b>{extra}."
                 f"{NL}{base}/c/{c.slug}", cfg)
 
@@ -637,6 +637,13 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
                         f"{_flag_emoji(tr.flag)} — {_dist(d)}")
             break
 
+    # Crews, on their own two lines, with a blank line either side: without it the counts
+    # run straight on from the all-time totals and two unrelated things read as one list.
+    #
+    # The icon is a red flag on a post, not U+1F3F4. That one is the base codepoint the
+    # regional flag sequences are built from, so alone it renders as a muddy dark pennant
+    # that all but disappears on a dark theme. Erwin: "it is a black flag that looks weird".
+    #
     # Crews, on their own two lines. They used to ride along on the end of the all-time line
     # as "· 14 crews (62 riders)", which put a whole second leaderboard in a parenthesis
     # behind the country count -- and said nothing about the thing the feature is actually
@@ -653,7 +660,7 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
             cc = _crews.counts(db)
             if cc["crews"]:
                 crew_lines = (
-                    NL + "🏴 Crews: <b>" + str(cc["crews"]) + "</b> "
+                    NL + NL + "🚩 Crews: <b>" + str(cc["crews"]) + "</b> "
                     + ("crew" if cc["crews"] == 1 else "crews") + " · "
                     + str(cc["riders"]) + " "
                     + ("rider" if cc["riders"] == 1 else "riders") + " · <b>"
@@ -679,7 +686,7 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
                f"{tot_t} {'ride' if tot_t == 1 else 'rides'} · {_dist(g.get('total_km', 0))} · "
                f"{tot_c} {'country' if tot_c == 1 else 'countries'}")
     return (head + yday + top_line + alltime + crew_lines
-            + NL + "👉 " + cfg["link_url"])
+            + NL + NL + "👉 " + cfg["link_url"])
 
 
 def run_daily_if_due() -> None:

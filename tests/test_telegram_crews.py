@@ -128,6 +128,36 @@ def test_the_crew_line_is_its_own_line_and_carries_the_ground(db):
         "the all-time line is still carrying the crew tail as well:" + NL + text)
 
 
+def test_the_crew_block_is_set_apart_and_not_flagged_in_black(db):
+    """Erwin: "do we have another option for the crews section? like an extra enter and a
+    different icon, because right now it is a black flag that looks weird".
+
+    He is right about the glyph. U+1F3F4 is the base codepoint that the regional flag
+    sequences are built on top of, so on its own it renders as a muddy dark pennant that all
+    but disappears against a dark Telegram theme. A red flag on a post reads at a glance and
+    keeps the capture-the-flag meaning the feature is built around.
+
+    The blank lines matter as much: without them the crew counts run straight on from the
+    all-time totals, so two unrelated things read as one list.
+    """
+    _on(db)
+    _rider(db, "a", "Ann")
+    c = _crew(db, "a", "Northern Lights")
+    c.terr_tiles, c.terr_best_tiles = 31, 18
+    db.commit()
+    text = _summary(db)
+    lines = text.split(NL)
+    assert "🏴" not in text, "the black flag is still in the recap:" + NL + text
+    crew_at = next(i for i, ln in enumerate(lines) if "Crews:" in ln)
+    assert lines[crew_at].startswith("🚩"), (
+        "the crew line does not lead with the red flag:" + NL + text)
+    assert lines[crew_at - 1] == "", (
+        "nothing separates the crew block from the totals above it:" + NL + text)
+    link_at = next(i for i, ln in enumerate(lines) if "👉" in ln)
+    assert lines[link_at - 1] == "", (
+        "the link is still stuck to the block above it:" + NL + text)
+
+
 def test_the_crew_line_names_who_is_leading(db):
     _on(db)
     _rider(db, "a", "Ann")
