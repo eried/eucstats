@@ -111,18 +111,34 @@ def world(site):
 
 
 @pytest.fixture(scope="module")
-def page(world):
+def browser():
+    """One browser for the whole module.
+
+    The sync API allows exactly one live `sync_playwright()` per thread, so the second fixture
+    that opened its own died with "Please use the Async API instead" and took every test using
+    the first one down with it. Contexts are the cheap part; the driver is not.
+    """
     with sync_playwright() as pw:
         try:
-            browser = pw.chromium.launch()
+            br = pw.chromium.launch()
         except Exception as exc:                # no browser binary installed
             pytest.skip(f"playwright has no browser available: {exc}")
-        ctx = browser.new_context(viewport={"width": 390, "height": 844})
-        pg = ctx.new_page()
-        pg.goto(world["base"], wait_until="domcontentloaded")
-        yield pg
-        ctx.close()
-        browser.close()
+        yield br
+        br.close()
+
+
+def _page(browser, world, **ctx_args):
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, **ctx_args)
+    pg = ctx.new_page()
+    pg.goto(world["base"], wait_until="domcontentloaded")
+    return ctx, pg
+
+
+@pytest.fixture(scope="module")
+def page(browser, world):
+    ctx, pg = _page(browser, world)
+    yield pg
+    ctx.close()
 
 
 def _open_panel(page):
@@ -134,8 +150,104 @@ def _open_panel(page):
     page.wait_for_function(
         "() => { const i = document.querySelector('.intro');"
         "        return i && !i.hasAttribute('inert'); }", timeout=30000)
-    page.click(".dock button[data-p=crews]")
+    # And then press it only if it is not already open. The dock button TOGGLES, every test in
+    # this file calls this helper, and they all share one page -- so the calls alternated
+    # between opening the panel and closing it, and whichever ones landed on a close spent
+    # twenty seconds waiting for a `.crewcard` that was sitting right there, hidden. It was
+    # `test_a_counted_string_never_renders_an_object` that drew the short straw; which test it
+    # is depends only on how many are in the file above it.
+    already = page.evaluate("() => { const p = document.getElementById('panel');"
+                            "        return !!(p && p.classList.contains('open')"
+                            "                  && p.querySelector('.crewcard')); }")
+    if not already:
+        page.click(".dock button[data-p=crews]")
     page.wait_for_selector(".crewcard", timeout=20000)
+
+
+@pytest.fixture(scope="module")
+def phone(browser, world):
+    """The same site, opened by a finger.
+
+    `has_touch` is not decoration here. It is what makes `pointer: coarse` match, and the bug
+    this fixture exists for is invisible to a mouse: the rule that gives a leaderboard row a
+    target a finger can hit is inside that query, so a desktop context measures the old 22px
+    row and passes.
+    """
+    ctx, pg = _page(browser, world, has_touch=True, is_mobile=True)
+    yield pg
+    ctx.close()
+
+
+def _wait_for_champ(page):
+    """The champions card is painted from two fetches, so it is not there on load."""
+    page.wait_for_function(
+        "() => document.querySelectorAll('#champ .cline').length > 0", timeout=30000)
+
+
+def test_a_leaderboard_row_is_a_control_and_not_a_paragraph(phone):
+    """Pressing a crew's name on a phone selected the name.
+
+    Erwin: "why in the crew domination section in the phone i cant tap the name of the crew?
+    is like it selects text instead". The handler was never the problem -- a scripted click on
+    the same row turns the territory on and flies the map to that crew's ground. The problem
+    is that the row was a `<div>` of ordinary selectable text, 22px tall, sitting on top of a
+    pannable map. A finger that presses it and does not leave instantly starts the native
+    selection gesture, and once a browser has committed a touch to selecting, no click
+    follows.
+
+    Three properties because it took three to be wrong at once, and each one alone still
+    leaves a row that misbehaves for a different reason.
+    """
+    _wait_for_champ(phone)
+    rows = phone.evaluate(r"""() => [...document.querySelectorAll('#champ .cline')].map(el => {
+        const cs = getComputedStyle(el);
+        // textContent, not innerText: the card is mid-animation often enough that
+        // innerText comes back empty and the failure message names no row at all.
+        return {text: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40),
+                select: cs.userSelect, touch: cs.touchAction,
+                h: el.getBoundingClientRect().height};
+    })""")
+    assert rows, "the champions card rendered no rows at all"
+    for row in rows:
+        where = repr(row["text"])
+        assert row["select"] == "none", (
+            f"the row {where} is selectable text, so a press on it can become a selection "
+            "instead of a tap")
+        assert row["touch"] == "manipulation", (
+            f"the row {where} leaves touch-action at {row['touch']}, so every tap waits out "
+            "the double-tap-zoom window before it counts")
+        assert row["h"] >= 30, (
+            f"the row {where} is {row['h']:.1f}px tall to a finger, which is not a target")
+
+
+def test_a_podium_card_does_not_hand_back_a_text_selection(phone):
+    """One tap further along the same journey, and the same mistake.
+
+    A podium card is pressed to open that rider or crew, and its name is the part a finger
+    aims at. The card is large enough that the press usually wins, which is exactly why this
+    would have survived another ten rounds of nobody noticing.
+
+    Built rather than found, the way the map-tip test above builds its tip: the crews in this
+    world hold no ground, so no podium is ever painted here and a test that looked for one
+    looped over nothing and called it a pass. A card made by hand still meets the real
+    stylesheet and the real cascade, which is the whole of what is being asked.
+    """
+    _wait_for_champ(phone)
+    select = phone.evaluate(r"""() => {
+        const el = document.createElement('div');
+        el.className = 'pod p1';
+        el.innerHTML = '<div class="pname">Arctic Wheelers</div>';
+        document.body.appendChild(el);
+        const cs = getComputedStyle(el);
+        const out = {select: cs.userSelect, touch: cs.touchAction};
+        el.remove();
+        return out;
+    }""")
+    assert select["select"] == "none", (
+        "a podium card is selectable text, so pressing the name on it can hand back a "
+        "selection instead of opening it")
+    assert select["touch"] == "manipulation", (
+        f"a podium card leaves touch-action at {select['touch']}")
 
 
 def test_the_panel_opens_at_all(page):

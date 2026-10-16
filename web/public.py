@@ -122,7 +122,21 @@ svg.ic{width:18px;height:18px;display:block}
 .topbar.collapsed .chead>span,.topbar.collapsed .cinfo,.topbar.collapsed .ccol,.topbar.collapsed .cline,.topbar.tight .chead>span,.topbar.tight .cinfo,.topbar.tight .ccol,.topbar.tight .cline{display:none}.topbar.collapsed .crows,.topbar.tight .crows{display:none}.topbar.collapsed .cswap:not(.on),.topbar.tight .cswap:not(.on){display:none}.topbar.collapsed .cswap,.topbar.tight .cswap{width:auto;height:auto;margin:0;opacity:1;background:none;border-radius:0;pointer-events:none}.topbar.collapsed .cswap .cflag,.topbar.tight .cswap .cflag{width:18px;height:18px}
 .topbar.collapsed .champ::after,.topbar.tight .champ::after{display:none}
 .topbar.collapsed .cflag,.topbar.tight .cflag{width:24px;height:24px}
-.cline{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0}
+/* These rows are buttons that happen to be made of text, and until this said so a phone did
+   not know it. A press on the crew's name started the native selection gesture instead --
+   callout, two handles, the word highlighted -- and once a browser has committed a touch to
+   selecting, the click never arrives. Erwin: "why in the crew domination section in the phone
+   i cant tap the name of the crew? is like it selects text instead". The handler was never
+   the problem: a scripted click on the same row flies the map to that crew's ground and
+   lights it up.
+   Three things, because it took three to be wrong at once. `user-select` and the iOS callout,
+   so a press is a press. `touch-action: manipulation`, so a tap does not first wait out the
+   double-tap-zoom window on a card that sits on top of a pannable map. And a height a finger
+   can actually find: the row was 22px, which is half of what the platform guidance asks for,
+   and it is only worth spending the space where there IS a finger. */
+.cline{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+@media(pointer:coarse){.cline{min-height:34px}}
 .cline .clab{width:42px;min-width:42px;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
 .cline b{color:var(--gold);font-weight:700;flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cscore{margin-left:auto;color:var(--acc);font-weight:700;font-size:12px}/* The crews deck. Its own tint and its own accent, so a glance tells you which leaderboard
@@ -233,7 +247,12 @@ tr.sel{cursor:pointer}tr.sel:hover{background:rgba(46,168,255,.08)}
 .tab.on{background:rgba(46,168,255,.16);border-color:var(--acc);color:var(--acc)}
 .peek{opacity:.5!important}   /* admin preview: hidden-from-public metric, shown dimmed */
 .podium{display:flex;gap:12px;justify-content:center;align-items:flex-end;padding:8px 0}
-.pod{background:var(--surf);border:1px solid var(--line);border-top-width:3px;border-radius:9px;padding:14px 12px;text-align:center;flex:1 1 0;min-width:0;max-width:158px;cursor:pointer;transition:transform .15s;box-shadow:var(--shadow)}
+/* Selectable for the same reason `.cline` was, and one tap further into the same journey: a
+   podium card is pressed to open that rider or crew, and its name is the part of it a finger
+   aims at. The card is big enough that the press usually wins, so this is the quieter half of
+   the same bug -- but "usually" is not a control. */
+.pod{background:var(--surf);border:1px solid var(--line);border-top-width:3px;border-radius:9px;padding:14px 12px;text-align:center;flex:1 1 0;min-width:0;max-width:158px;cursor:pointer;transition:transform .15s;box-shadow:var(--shadow);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .pod:hover{transform:translateY(-3px)}.pod .av{width:54px;height:54px;margin:0 auto 8px;display:block}
 .pod.p1{border-top-color:var(--gold);margin-bottom:18px}.pod.p2{border-top-color:#cdd3e0}.pod.p3{border-top-color:#8a6038;margin-bottom:0}
 .pod .km{color:var(--acc);font-weight:700;margin-top:3px}.pod .rkn{color:var(--mut);font:700 12px/1 ui-monospace,monospace;letter-spacing:1px}
@@ -1115,11 +1134,17 @@ function renderChampions(){
     if(i!==deck)swapTo(i);
     if(decks.length>1&&ch._restart)ch._restart();
   };});
-  ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.id===el.dataset.sid);if(c)flyToRider(c);};});
+  // Pressing a ROW holds the deck too, for the same reason pressing a dot does: acting on a
+  // name and then being moved off it nine seconds later, while you are still looking at what
+  // the map just did, reads as the card changing its mind. `_restart` is the same 30s grace
+  // the switch takes.
+  const held=()=>{if(decks.length>1&&ch._restart)ch._restart();};
+  ch.querySelectorAll(".cline[data-sid]").forEach(el=>{el.style.cursor="pointer";el.onclick=()=>{const c=[C.day,C.week,C.month].find(x=>x&&x.id===el.dataset.sid);if(c)flyToRider(c);held();};});
   // A crew row opens that crew, the way a rider row flies to that rider.
   ch.querySelectorAll(".cline[data-crew]").forEach(el=>{el.style.cursor="pointer";el.onclick=(e)=>{
     e.stopPropagation();
     if(window.EUCCrews&&window.EUCCrews.openCrew)window.EUCCrews.openCrew(el.dataset.crew);
+    held();
   };});
   const tb=document.querySelector(".topbar");
   const setC=(v)=>{if(tb)tb.classList.toggle("collapsed",v);if(ch)ch.style.cursor=(tb&&tb.classList.contains("tight"))?"default":"pointer";try{localStorage.setItem("eucstats_champ_collapsed",v?"1":"0");}catch(_){}};
