@@ -79,6 +79,73 @@ def site():
     thread.join(timeout=5)
 
 
+def _serpentine(tile_x, tile_y, zoom, rows=3, cols=3, per_leg=36):
+    """A ride that actually covers a block of squares, as lat/lon pairs.
+
+    Territory is earned per square from the track, so a crew with no track holds nothing and
+    `buildEmblems` never runs. Walking the centre line of each tile row end to end puts about
+    a tile's width of riding into every square it crosses, which clears `min_lead_km` (0.42 of
+    an edge) with room to spare at any latitude.
+    """
+    from services import tiles as T
+
+    pts = []
+    for j in range(rows):
+        west, south, east, north = T.bounds(f"{zoom}/{tile_x}/{tile_y + j}")
+        lat = (south + north) / 2.0
+        span = T.bounds(f"{zoom}/{tile_x + cols - 1}/{tile_y + j}")[2] - west
+        lons = [west + (span * (i + 0.5) / (cols * per_leg)) for i in range(cols * per_leg)]
+        if j % 2:                               # serpentine, so the legs join up
+            lons.reverse()
+        pts += [(lat, lon) for lon in lons]
+    return pts
+
+
+def _give_ground(db, store_id, clan_id, lat=59.9139, lon=10.7522, zoom=14):
+    """Ride a 3x3 block of squares for one crew, so the map has an emblem to paint.
+
+    This is what the file used to lack. Three tests here had to build a bare element and ask
+    the stylesheets a question, because no crew in this world held any ground and no `.crewemb`
+    was ever created -- which left the one thing worth checking, whether a badge is painted
+    where the map projected it, outside the suite's reach.
+    """
+    from datetime import timedelta
+
+    from models import Trip, TripTrack, utcnow
+    from services import tiles as T
+    from services import territory
+
+    home = T.parse(T.tile_of(lat, lon, zoom))
+    pts = _serpentine(home[1], home[2], zoom)
+    when = utcnow() - timedelta(days=2)
+    uuid = f"brw-ground-{clan_id}"
+    if db.get(Trip, uuid) is None:
+        db.add(Trip(trip_uuid=uuid, rider_store_id=store_id, clan_id=clan_id,
+                    distance_km=12.0, validation_status="validated",
+                    start_utc=when, end_utc=when + timedelta(hours=1),
+                    start_lat=pts[0][0], start_lon=pts[0][1]))
+        db.add(TripTrack(trip_uuid=uuid, points=_track(when, pts)))
+        db.commit()
+    return territory.rebuild(db, window_days=365, zoom=zoom, seed=2)
+
+
+def _track(start, pts):
+    """A track blob in the shape the ingest pipeline writes. Same helper as
+    `tests/test_territory.py`: raw zlib pairs decode to nothing and silently earn no ground."""
+    from datetime import timedelta
+
+    from ingest.downsample import encode_track
+
+    class S:
+        __slots__ = ("t", "lat", "lon", "speed", "g")
+
+        def __init__(self, t, lat, lon):
+            self.t, self.lat, self.lon, self.speed, self.g = t, lat, lon, 20.0, 0.0
+
+    return encode_track([S(start + timedelta(seconds=i * 5), a, b)
+                         for i, (a, b) in enumerate(pts)])
+
+
 @pytest.fixture(scope="module")
 def world(site):
     """One leader, one rival closing in, and enough squares to exercise the cards."""
@@ -105,7 +172,11 @@ def world(site):
         if theirs is None:
             crews.create(db, "brw-rival", "Rival Crew", "", join_policy="open")
         db.commit()
-        yield {"base": site}
+        # And ground under one of them. Without this the map paints no emblem at all, which is
+        # what kept the badge tests here down to questions about the stylesheet.
+        mine = crews.membership(db, "brw-lead")
+        report = _give_ground(db, "brw-lead", mine.clan_id)
+        yield {"base": site, "territory": report, "clan_id": mine.clan_id}
     finally:
         db.close()
 
@@ -350,12 +421,12 @@ def test_a_crew_emblem_is_positioned_the_way_maplibre_needs(page):
     should have been rather than where they were, and a rotation made them disappear. Erwin:
     "see what happens now when I rotate, they go away".
 
-    Built rather than found, like the podium and the map tip above it: the crews in this world
-    hold no ground, so no emblem is ever painted here. What is being asked is a question about
-    the cascade -- does anything loaded after MapLibre take a marker out of absolute
-    positioning -- and a bare element answers it against the real stylesheets in the real
-    order. A fixture with real territory would also let the painted position be checked; there
-    is none yet, and that is the gap this leaves.
+    Built rather than found, and still worth building. What this one asks is a question about
+    the cascade on its own -- does anything loaded after MapLibre take a marker out of absolute
+    positioning -- and a bare element answers it against the real stylesheets in the real order
+    whether or not any crew happens to hold ground. `world` rides a block of squares now, so
+    `test_an_emblem_is_painted_where_its_own_transform_puts_it` checks the consequence on a
+    real badge; this checks the cause, and names the property to put back.
     """
     _open_panel(page)
     got = page.evaluate("""() => {
@@ -388,3 +459,123 @@ def test_the_panel_reports_no_console_errors(page):
     # Connection noise from the harness's own fixtures is not this feature's fault.
     real = [e for e in errors if "ERR_CONNECTION" not in e and "favicon" not in e]
     assert not real, "the panel logged errors: " + " | ".join(real[:4])
+
+
+@pytest.fixture(scope="module")
+def mapped(browser, world):
+    """A page of its own, with the MapLibre map captured on the way past.
+
+    `crews.js` keeps the map in a module variable and exposes `openCrew`/`setOverlay` and
+    nothing else, which is right -- a marker's bearing is not a thing the site needs to publish.
+    So the map is taken the only way that costs the shipped code nothing: an init script
+    intercepts the one assignment to `window.EUCCrews` and wraps `init`, which the page calls
+    with the map from inside `map.on("load")`.
+
+    Its own context because the test below rotates and pitches the camera, and the shared
+    `page` is module-scoped: leaving a 60-degree bearing behind would hand every test after it
+    a map nobody asked for.
+    """
+    ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    ctx.add_init_script("""
+      (() => {
+        let held;
+        Object.defineProperty(window, 'EUCCrews', {
+          configurable: true,
+          get() { return held; },
+          set(v) {
+            const real = v && v.init;
+            if (real) v.init = function (m) { window.__map = m; return real.apply(this, arguments); };
+            held = v;
+          },
+        });
+      })();
+    """)
+    pg = ctx.new_page()
+    pg.goto(world["base"], wait_until="domcontentloaded")
+    yield pg
+    ctx.close()
+
+
+def _emblems(page):
+    """Every badge on the map, with where its own transform says it is and where it is."""
+    return page.evaluate(r"""() => [...document.querySelectorAll('.crewemb')].map(el => {
+        const t = el.style.transform || '';
+        const px = [...t.matchAll(/-?[\d.]+px/g)].map(m => parseFloat(m[0]));
+        const r = el.getBoundingClientRect();
+        const rot = /rotateZ\((-?[\d.]+)deg\)/.exec(t);
+        const pit = /rotateX\((-?[\d.]+)deg\)/.exec(t);
+        return {
+          transform: t,
+          said: px.length >= 2 ? [px[0], px[1]] : null,
+          drawn: [r.left + r.width / 2, r.top + r.height / 2],
+          rotateZ: rot ? parseFloat(rot[1]) : null,
+          rotateX: pit ? parseFloat(pit[1]) : null,
+          hidden: getComputedStyle(el).display === 'none' || el.style.opacity === '0',
+        };
+      })""")
+
+
+def _show_ground(page):
+    page.wait_for_function("() => !!window.__map", timeout=30000)
+    _open_panel(page)
+    page.evaluate("() => window.EUCCrews.setOverlay(true)")
+    page.wait_for_selector(".crewemb", timeout=20000)
+
+
+def test_an_emblem_is_painted_where_its_own_transform_puts_it(mapped):
+    """The gap the cascade test above had to leave, closed: a real badge on real ground.
+
+    `world` now rides a 3x3 block of squares, so `buildEmblems` actually runs here. The
+    question is the one that found the bug on production -- MapLibre writes the projected
+    position into the element's `transform`, and if anything takes the marker out of absolute
+    positioning that transform offsets from wherever normal flow put it instead. The badge
+    then sits beside its own ground by the stacked height of the markers above it.
+    """
+    _show_ground(mapped)
+    got = _emblems(mapped)
+    assert got, "no emblem was painted, so this test is not asking anything"
+    for e in got:
+        assert e["said"], f"a marker carries no translate at all: {e['transform']!r}"
+        dx = abs(e["drawn"][0] - e["said"][0])
+        dy = abs(e["drawn"][1] - e["said"][1])
+        assert dx < 2 and dy < 2, (
+            f"a badge whose transform says {e['said']} is painted at {e['drawn']} "
+            f"({dx:.0f},{dy:.0f} px off its own ground)")
+
+
+def test_an_emblem_turns_with_the_land_under_it(mapped):
+    """Erwin: "logos should stick in biggest patches of land in the center 2x2 minimum, and
+    rotate with them". Sticking was the `position` fix; turning is this.
+
+    A marker is `rotationAlignment: 'viewport'` by default, so the badge held the same angle
+    whatever the compass did. `'map'` makes MapLibre write `rotateZ(-bearing)` into the same
+    transform that carries the position, so the badge turns with the ground it labels.
+
+    And `pitchAlignment`, which is the trap: a Marker given no `pitchAlignment` does not
+    default to `'viewport'`, it defaults to whatever `rotationAlignment` is. Turning the badge
+    with the compass would therefore also have laid it flat on the ground plane the moment
+    anybody tilted the map -- `rotateX(60deg)`, a badge squashed into a 40%-tall ellipse. Both
+    halves are asserted because one line fixes both and one line can lose both.
+    """
+    _show_ground(mapped)
+    mapped.evaluate("() => window.__map.rotateTo(60, {duration: 0})")
+    mapped.wait_for_timeout(250)
+    assert mapped.evaluate("() => Math.round(window.__map.getBearing())") == 60
+    for e in _emblems(mapped):
+        assert e["rotateZ"] is not None, (
+            f"the badge's transform carries no rotation at a 60 degree bearing: "
+            f"{e['transform']!r} -- it is pinned to the viewport, not to the land")
+        assert abs(e["rotateZ"] - -60) < 1, (
+            f"the map is at bearing 60 and the badge is turned {e['rotateZ']} degrees, so it "
+            "is not following the ground")
+
+    # Tilted as well as turned: the pitchAlignment half.
+    mapped.evaluate("() => window.__map.easeTo({pitch: 55, duration: 0})")
+    mapped.wait_for_timeout(250)
+    assert mapped.evaluate("() => Math.round(window.__map.getPitch())") == 55
+    for e in _emblems(mapped):
+        assert not e["rotateX"], (
+            f"at 55 degrees of pitch the badge is rotated {e['rotateX']} degrees about X, so "
+            "it is being painted into the ground plane instead of facing the reader")
+
+    mapped.evaluate("() => window.__map.easeTo({bearing: 0, pitch: 0, duration: 0})")

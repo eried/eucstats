@@ -719,8 +719,21 @@
         if (ev) ev.stopPropagation();
         if (!popupAtEmblem([lon, lat])) openCrewDetail(crew.slug);
       }, false);
-      var m = new maplibregl.Marker({ element: el, anchor: "center" })
-        .setLngLat([lon, lat]).addTo(map);
+      // The badge turns with the ground it labels. Erwin: "logos should stick in biggest
+      // patches of land in the center 2x2 minimum, and rotate with them". A marker is
+      // `viewport`-aligned by default, so a badge held the same angle whatever the compass
+      // did -- it sat on its square but the square turned underneath it.
+      //
+      // `pitchAlignment` is not optional here, even though `viewport` is what it looks like
+      // the default would be. A Marker given no pitchAlignment inherits `rotationAlignment`,
+      // so asking for the rotation alone would ALSO lay the badge flat on the ground plane
+      // the moment anyone tilted the map: `rotateX(60deg)`, a 96px badge squashed to a 48px
+      // ellipse, initials and all. The map has no `maxPitch` set, so the default 60 is live.
+      var m = new maplibregl.Marker({
+        element: el, anchor: "center",
+        rotationAlignment: "map",              // turn with the land
+        pitchAlignment: "viewport",            // but keep facing the reader
+      }).setLngLat([lon, lat]).addTo(map);
       markers.push(m);
     });
     sizeEmblems();
