@@ -580,14 +580,33 @@ def regions(held: set[tuple[int, int]]) -> list[set[tuple[int, int]]]:
     return out
 
 
+EMBLEM_MIN = 2             # the block an emblem may never go below: `seeded` guarantees one
+EMBLEM_SLACK = 1.0         # how far off centre, in tiles, a bigger block may sit and still win
+
+
 def emblem_slot(comp: set[tuple[int, int]]) -> tuple[int, int, int]:
-    """(x, y, size) of the largest square of tiles inside a region, nearest its middle.
+    """(x, y, size) of the square block the emblem is drawn in: the most central one it can get.
 
     An emblem has to go somewhere square or it comes out stretched, which is the whole reason
-    territory is drawn on Mercator tiles rather than the heatmap's degree cells. Where several
-    squares of the same size fit — a 3x2 block holds two 2x2 squares — the one closest to the
-    region's centre of mass wins, so the emblem reads as centred rather than shoved into a
-    corner.
+    territory is drawn on Mercator tiles rather than the heatmap's degree cells.
+
+    Size used to decide this outright, with centredness only breaking ties between squares of
+    the SAME size -- so on a sprawling patch the badge went wherever the one big block was,
+    which is usually a corner. Jonah's turf on 17 October: 69 squares across a 15x13 box only
+    35% filled, roads radiating out of Haslev rather than a blob. It held exactly two 4x4
+    blocks and both sat in the bottom-left, so the emblem landed 4.86 tiles from the middle of
+    the ground it was labelling -- while thirteen 3x3 blocks sat nearer, the best of them 2.74.
+    Erwin: "logos should stick in biggest patches of land in the center 2x2 minimum".
+
+    So centre decides and size is the tie-break, not the other way round. A bigger block still
+    wins wherever it is about as central -- within EMBLEM_SLACK of the best any block manages,
+    which keeps the big badge on every roughly round patch, and that is most of the map. It
+    loses only where being bigger meant being further out.
+
+    The floor is 2x2 rather than 1 because `seeded` already guarantees it: a patch that is
+    drawn at all is grown from a SEED x SEED block, so a legal answer always exists and a
+    badge is never squeezed onto a single tile. A region that somehow has no 2x2 -- which this
+    function cannot assume, being pure -- falls back to the largest square there is.
     """
     xs = [p[0] for p in comp]
     ys = [p[1] for p in comp]
@@ -595,22 +614,32 @@ def emblem_slot(comp: set[tuple[int, int]]) -> tuple[int, int, int]:
     w, h = max(xs) - x0 + 1, max(ys) - y0 + 1
     cx = sum(xs) / len(xs)
     cy = sum(ys) / len(ys)
-    # dp[i][j] = side of the largest square whose bottom-right corner is (i, j)
+    # dp[i][j] = side of the largest square whose bottom-right corner is (i, j). Every size
+    # from 1 up to that also fits there, which is how the whole field of candidates is reached
+    # without a second sweep: keeping only the best-placed block of each size costs one entry
+    # per size rather than one per block, of which a large region has tens of thousands.
     dp = [[0] * (h + 1) for _ in range(w + 1)]
-    best = (0, None)
+    best_of: dict[int, tuple[float, int, int]] = {}
     for i in range(1, w + 1):
         for j in range(1, h + 1):
             if (x0 + i - 1, y0 + j - 1) not in comp:
                 continue
             s = min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1
             dp[i][j] = s
-            tx, ty = x0 + i - s, y0 + j - s           # top-left of this square
-            d = (tx + s / 2 - cx) ** 2 + (ty + s / 2 - cy) ** 2
-            if s > best[0] or (s == best[0] and best[1] and d < best[1][2]):
-                best = (s, (tx, ty, d))
-    if best[1] is None:
+            for k in range(1, s + 1):
+                tx, ty = x0 + i - k, y0 + j - k       # top-left of the k x k square
+                d = math.hypot(tx + k / 2 - cx, ty + k / 2 - cy)
+                if k not in best_of or d < best_of[k][0]:
+                    best_of[k] = (d, tx, ty)
+    if not best_of:
         return (min(xs), min(ys), 1)
-    return (best[1][0], best[1][1], best[0])
+    sizes = [k for k in best_of if k >= EMBLEM_MIN] or list(best_of)
+    near = min(best_of[k][0] for k in sizes)
+    # Largest among those close enough to the best placement; a tie on size goes to the nearer
+    # one, which is the old rule still doing its old job one level down.
+    pick = max(sizes, key=lambda k: (best_of[k][0] <= near + EMBLEM_SLACK, k, -best_of[k][0]))
+    _d, bx, by = best_of[pick]
+    return (bx, by, pick)
 
 
 # --- the rebuild --------------------------------------------------------------------------

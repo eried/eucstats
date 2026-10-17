@@ -335,6 +335,47 @@ def test_nothing_the_panel_renders_overflows_it(page):
     assert bad["panel"] <= 0, f"the panel scrolls sideways by {bad['panel']}px at 390"
 
 
+def test_a_crew_emblem_is_positioned_the_way_maplibre_needs(page):
+    """Every crew emblem was drawn low, by the stacked height of the markers above it.
+
+    `.crewemb` set `position: relative`, and crews.css loads after maplibre-gl.css, so at
+    equal specificity it beat MapLibre's own `.maplibregl-marker { position: absolute; top: 0;
+    left: 0 }`. Every marker was then laid out in NORMAL FLOW inside the canvas container and
+    offset by its transform from there instead of from the container's origin. On Jonah's turf
+    the map projected his two badges to y=475 and y=185 and the browser painted them at 531
+    and 275 -- 56px and 90px off their own ground, by different amounts, growing with the
+    number of crews on the map.
+
+    `declutterEmblems` compares `map.project` positions, so it was hiding badges by where they
+    should have been rather than where they were, and a rotation made them disappear. Erwin:
+    "see what happens now when I rotate, they go away".
+
+    Built rather than found, like the podium and the map tip above it: the crews in this world
+    hold no ground, so no emblem is ever painted here. What is being asked is a question about
+    the cascade -- does anything loaded after MapLibre take a marker out of absolute
+    positioning -- and a bare element answers it against the real stylesheets in the real
+    order. A fixture with real territory would also let the painted position be checked; there
+    is none yet, and that is the gap this leaves.
+    """
+    _open_panel(page)
+    got = page.evaluate("""() => {
+        const el = document.createElement('div');
+        el.className = 'crewemb maplibregl-marker maplibregl-marker-anchor-center';
+        (document.querySelector('.maplibregl-canvas-container') || document.body)
+            .appendChild(el);
+        const cs = getComputedStyle(el);
+        const out = {position: cs.position, top: cs.top, left: cs.left};
+        el.remove();
+        return out;
+    }""")
+    assert got["position"] == "absolute", (
+        f"a crew emblem computes to position:{got['position']}, so its transform offsets it "
+        "from wherever normal flow put it rather than from the map's origin")
+    assert got["top"] == "0px" and got["left"] == "0px", (
+        f"a crew emblem starts at {got['left']},{got['top']} rather than the map's origin, so "
+        "every projected position is shifted by that much")
+
+
 def test_the_panel_reports_no_console_errors(page):
     """The `esc is not defined` round: a ReferenceError in a render path emptied the crew card
     for every crew with contributors, and every guard in the suite stayed green."""

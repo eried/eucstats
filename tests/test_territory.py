@@ -1,4 +1,6 @@
 """The two rules that decide what territory looks like, and the tie-break that keeps it still."""
+import math
+
 from services.territory import emblem_slot, regions, seeded, winners
 
 
@@ -47,6 +49,59 @@ def test_emblem_sits_square_and_centred():
 
     big = {(x, y) for x in range(6) for y in range(6)}
     assert emblem_slot(big)[2] == 6
+
+
+def test_emblem_goes_where_the_ground_is_not_where_the_biggest_block_is():
+    """A sprawling patch put its badge in a corner, because size decided outright.
+
+    This is Jonah's turf as it stood on 17 October: 69 squares across a 15x13 box only 35%
+    filled -- roads radiating out of Haslev, not a blob. It held exactly two 4x4 blocks and
+    both were in the bottom-left, so the emblem sat 4.9 tiles from the middle of the ground it
+    was labelling while thirteen 3x3 blocks sat nearer, the best of them 2.7.
+
+    Erwin: "logos should stick in biggest patches of land in the center 2x2 minimum".
+    """
+    shape = [
+        ".......##......",
+        "........###....",
+        "..........###..",
+        ".....#########.",
+        ".......#####.##",
+        ".......####....",
+        "..###...###....",
+        "..####..###....",
+        ".#########.....",
+        ".#####.........",
+        "#####..........",
+        "#####..........",
+        ".####..........",
+    ]
+    comp = {(x, y) for y, row in enumerate(shape) for x, ch in enumerate(row) if ch == "#"}
+    cx = sum(p[0] for p in comp) / len(comp)
+    cy = sum(p[1] for p in comp) / len(comp)
+    x, y, size = emblem_slot(comp)
+    assert size >= 2, "never smaller than the 2x2 the seeding rule already guarantees"
+    covered = {(x + i, y + j) for i in range(size) for j in range(size)}
+    assert covered <= comp, "the emblem must sit entirely on ground the crew holds"
+    off = math.hypot(x + size / 2 - cx, y + size / 2 - cy)
+    # The old rule scored 4.86 on this shape, the new one 2.74. A number up near the old
+    # one means the corner is back.
+    assert off < 3.0, f"the emblem sits {off:.2f} tiles from the middle of the patch"
+
+
+def test_a_solid_blob_still_gets_its_big_badge():
+    """Centre decides, but only where being bigger meant being further out.
+
+    Most of the map is roughly round ground, and there the largest block is also a central
+    one. If this fails, the new rule has started shrinking badges it had no reason to touch --
+    which would be a worse bug than the one it was written for, and a quieter one.
+    """
+    blob = {(x, y) for x in range(8) for y in range(8)}
+    assert emblem_slot(blob)[2] == 8, "a solid 8x8 wants the whole 8x8"
+    # the same blob with one tile of tail, which moves the centre of mass without changing
+    # what the eye would call the middle
+    tailed = blob | {(8, 4), (9, 4)}
+    assert emblem_slot(tailed)[2] == 8, "two tiles of tail should not cost 6 tiles of badge"
 
 
 def test_emblem_avoids_a_hole():

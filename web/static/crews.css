@@ -486,9 +486,22 @@
 /* The emblem block. Sized in JS from the zoom so it always fills the square of tiles the
    server picked for it — which is why territory is drawn on Mercator tiles: this image is
    square and it has to land in something square. */
+/* `position: absolute; top: 0; left: 0` is MapLibre's own rule for a marker, and it is the
+   whole of what makes one stick to the ground. This said `relative` instead, and crews.css
+   loads after maplibre-gl.css, so at equal specificity it won -- every emblem was laid out in
+   NORMAL FLOW inside the canvas container and then offset by the transform from wherever the
+   flow had put it, which is not where the map thinks it is.
+   Measured on Jonah's turf: the map projected his two badges to y=475 and y=185 and the
+   browser drew them at 531 and 275, 56px and 90px low. The error is the stacked height of
+   every marker before it in the DOM, so it grows with the number of crews and differs for
+   each one -- the badges sat off their own ground, and `declutterEmblems` then hid them by
+   comparing `map.project` positions that had nothing to do with where they were painted.
+   Erwin: "see what happens now when I rotate, they go away". Nothing inside needs this to be
+   a positioning context; `.crewemb-i` is absolute against `.crewemb-b`, which has its own. */
 .crewemb {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  pointer-events: auto; cursor: pointer; transition: opacity .25s; position: relative;
+  pointer-events: auto; cursor: pointer; transition: opacity .25s;
+  position: absolute; top: 0; left: 0;
 }
 /* A plate behind the emblem. Without it the generated badge uses the crew's own colour over
    the crew's own fill, so it read as the map pattern showing THROUGH the logo rather than the
