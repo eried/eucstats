@@ -579,3 +579,85 @@ def test_an_emblem_turns_with_the_land_under_it(mapped):
             "it is being painted into the ground plane instead of facing the reader")
 
     mapped.evaluate("() => window.__map.easeTo({bearing: 0, pitch: 0, duration: 0})")
+
+
+@pytest.fixture(scope="module")
+def solo_leader(browser, world):
+    """The panel, opened by the only rider in a crew.
+
+    `world` makes `brw-lead` the leader of Browser Crew and puts nobody else in it, which is
+    the shape this is about: for a crew of one, Leave crew ends the crew. Signed in the way a
+    phone signs in -- a pairing code confirmed server-side, then the poll endpoint navigated
+    to once so the browser is handed the same `crew_session` cookie it would get from a scan.
+    """
+    from database import SessionLocal
+    from services import pairing
+
+    db = SessionLocal()
+    try:
+        p = pairing.start(db, purpose="rider")
+        pairing.confirm(db, p["code"], "brw-lead")
+    finally:
+        db.close()
+    ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    pg = ctx.new_page()
+    pg.goto(f"{world['base']}/api/v1/pair/poll?token={p['token']}",
+            wait_until="domcontentloaded")
+    pg.goto(world["base"], wait_until="domcontentloaded")
+    yield pg
+    ctx.close()
+
+
+def test_the_last_rider_in_a_crew_has_to_type_its_name_to_leave(solo_leader):
+    """JonahOnEUC left his own crew by mistake and it was folded by the press.
+
+    Erwin: "there was a crew user who by mistake exited his own crew and then it got deleted
+    ... can we prevent this with a stronger confirmation? since is the last one to leave".
+
+    For a crew of one, Leave crew is Disband with a week's cooldown attached, and the card
+    said the opposite: Leave sat in the ordinary action row as a plain ghost button under a
+    tooltip promising "the rides you already did stay on the map", while Disband sat below a
+    rule, under a heading, behind a gate that makes you type the crew's name. The confirm
+    text did say the crew would end -- but this file's own note on Disband is that "a guard
+    you meet after pressing is not the same as a button that looks like what it does", and
+    the gate is what that note put there.
+
+    So the last one out meets the same gate. Deliberately stopping short of completing it:
+    finishing the leave would fold the crew the rest of this module renders from.
+    """
+    page = solo_leader
+    _open_panel(page)
+    # `Manage` is a collapsed <details>, so the button exists before it is visible.
+    page.wait_for_selector("#cm-leave", state="attached", timeout=20000)
+    page.evaluate("() => { const d = document.querySelector('details.crewmanage');"
+                  "        if (d) d.open = true; }")
+    page.click("#cm-leave")
+    page.wait_for_timeout(400)
+    assert page.query_selector("#crewask-in") is not None, (
+        "the last rider in a crew was asked a yes/no question to end it, the same question a "
+        "member of five gets to walk away from one")
+
+    # And it has to be the right name. An empty box must not pass for one.
+    page.click("#crewask-y")
+    page.wait_for_timeout(400)
+    assert page.query_selector("#cm-leave") is not None, "the crew card is still there"
+    assert page.evaluate("() => { const m = document.querySelector('.crewaskmsg');"
+                         "        return !!(m && !m.hidden && m.textContent.trim()); }"), (
+        "pressing the confirm on an empty box said nothing")
+
+    page.click("#crewask-n")
+    page.wait_for_timeout(200)
+    assert page.query_selector("#crewask-in") is None, "Cancel puts the gate away"
+
+
+def test_the_last_rider_is_not_told_their_rides_stay_on_the_map(solo_leader):
+    """The other half, and the part that was actively misleading. `crew.tip.leave` reads "You
+    stop riding for this crew. The rides you already did stay on the map." -- true for a
+    member of five, false for the only member, whose crew and whose map go with them."""
+    page = solo_leader
+    _open_panel(page)
+    page.wait_for_selector("#cm-leave", state="attached", timeout=20000)
+    title = page.get_attribute("#cm-leave", "title") or ""
+    assert title, "the button explains itself in plain words, or it used to"
+    assert "stay on the map" not in title.lower(), (
+        f"the only rider in a crew is told {title!r}, and nothing of theirs stays on the map")

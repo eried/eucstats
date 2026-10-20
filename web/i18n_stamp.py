@@ -533,6 +533,7 @@ EN_FINGERPRINT = {
     'crew.tip.handover': '05a4a25508c6',
     'crew.tip.invperm': 'c04ed91be114',
     'crew.tip.leave': 'c4b7636b770e',
+    'crew.tip.leave.last': '1e97e1c2f225',
     'crew.tip.newcode': 'a9da6f27dbfb',
     'crew.tip.remove': 'd1c7bc5e3821',
     'crew.tip.signout': 'cf8011d65ea8',

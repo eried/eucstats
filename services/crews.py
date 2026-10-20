@@ -600,7 +600,12 @@ def leave(db, store_id: str) -> None:
     # with the default approval policy anybody who joined it waited forever for a leader who
     # did not exist. Only an admin could clear it, and nothing told them it was there.
     last_one = _active_members(db, m.clan_id) <= 1 and m.status == "active"
-    m.left_at = utcnow()
+    # One timestamp for the walk-out and for the fold it causes, because that is what later
+    # tells this rider apart from somebody who left last week while the crew carried on. See
+    # `unretire`: the row below keeps `status == "active"` so the cooldown still bites, which
+    # means the status cannot say who turned the lights off. The clock can.
+    now = utcnow()
+    m.left_at = now
     if last_one:
         clan = db.get(Clan, m.clan_id)
         if clan and clan.disbanded_at is None:
@@ -615,9 +620,9 @@ def leave(db, store_id: str) -> None:
                     ClanMember.clan_id == m.clan_id,
                     ClanMember.store_id != m.store_id,
                     ClanMember.left_at.is_(None)).all():
-                other.left_at = utcnow()
+                other.left_at = now
                 other.status = "disbanded"
-            _retire(clan)
+            _retire(clan, now)
     db.commit()
 
 
@@ -919,9 +924,14 @@ def disband(db, actor: str, clan_id: str) -> None:
         raise CrewError("many_leaders",
                         "This crew has more than one leader. Hand it to one of them first.")
     clan = db.get(Clan, clan_id)
+    # One moment for everybody this takes down, and for the clan itself below. Stamped per
+    # row inside the loop, the members' times drifted microseconds apart from each other and
+    # from the fold, and a restore has to be able to tell the people a fold took with it from
+    # somebody who had walked out earlier of their own accord. See `_folded_with`.
+    now = utcnow()
     for mm in db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
                                           ClanMember.left_at.is_(None)).all():
-        mm.left_at = utcnow()
+        mm.left_at = now
         # Nobody here walked out. The cooldown exists to stop crew-hopping, and having your
         # crew folded underneath you is not hopping: the members took no action at all, and
         # were being benched a week and shown "You just walked out of one".
@@ -932,11 +942,11 @@ def disband(db, actor: str, clan_id: str) -> None:
     # The admin's disband clears these and the leader's did not, so the same action left two
     # different maps standing for up to a rebuild interval.
     db.query(ClanCell).filter(ClanCell.clan_id == clan_id).delete()
-    _retire(clan)
+    _retire(clan, now)
     db.commit()
 
 
-def _retire(clan) -> None:
+def _retire(clan, when=None) -> None:
     """Fold a crew and give its name back.
 
     `name` and `slug` are UNIQUE for the life of the table, so a disbanded crew went on
@@ -944,11 +954,41 @@ def _retire(clan) -> None:
     freed the moment a crew folds; the name works the same way now, by moving the dead
     crew's out of the way rather than by keeping a graveyard of reserved words.
     """
-    clan.disbanded_at = utcnow()
+    clan.disbanded_at = when or utcnow()
     tag = clan.clan_id[:6]
     if not clan.name.endswith(")"):
         clan.name = f"{clan.name} (folded {tag})"[:60]
     clan.slug = f"{clan.slug}-x{tag}"[:80]
+
+
+def _folded_with(db, clan, folded_at) -> list:
+    """Who a restore brings back: everybody the fold took down with it, and nobody else.
+
+    Two shapes, because a crew can end two ways. `disband()` marks everybody still in it
+    `disbanded`, which is the plain case. `leave()` cannot: the last one out keeps
+    `status == "active"` with a `left_at`, because that is the exact row `cooldown_until`
+    reads and walking out of a crew still costs a week. So for a crew of one there was no
+    `disbanded` row anywhere, the restore found nobody to bring back, and it told the admin
+    that every rider had joined another crew since -- about a rider who had joined nothing.
+    JonahOnEUC lost his crew to that on 2026-10-20 and could not be given it back.
+
+    The timestamp is what tells the rider who turned the lights off apart from one who walked
+    out earlier while the crew carried on. `leave()` and `disband()` both write one moment to
+    the memberships and to the clan, so the fold is `left_at >= disbanded_at` exactly.
+    """
+    rows = db.query(ClanMember).filter(ClanMember.clan_id == clan.clan_id).all()
+    marked = [m for m in rows if m.status in ("disbanded", "disbanded_seen")]
+    walked = [m for m in rows if m.status == "active" and m.left_at is not None
+              and folded_at is not None and m.left_at >= folded_at]
+    if marked or walked:
+        return marked + walked
+    # Folds written before those two timestamps were taken together: the walk-out was stamped
+    # a few queries before the clan was, so the comparison above misses it by about a tenth of
+    # a second (0.11s, measured on the row this was found in). Only reachable when nobody was
+    # marked disbanded at all, which means a crew of one -- so there is exactly one row it can
+    # mean, and no earlier leaver it could be confused with.
+    solo = [m for m in rows if m.status == "active" and m.left_at is not None]
+    return solo if len(solo) == 1 else []
 
 
 def unretire(db, clan) -> str | None:
@@ -970,10 +1010,11 @@ def unretire(db, clan) -> str | None:
     # `members: 0` and no leader, and under the default approval policy anybody who joins
     # waits for an approver who does not exist. That is the shell `leave()` abolishes,
     # rebuilt by the admin screen and reported as a success.
-    coming = [m for m in db.query(ClanMember).filter(
-        ClanMember.clan_id == clan.clan_id,
-        ClanMember.status.in_(("disbanded", "disbanded_seen"))).all()
-        if not membership(db, m.store_id)]
+    # Captured before `disbanded_at` is cleared forty lines down, and before either query
+    # below runs against it.
+    folded_at = clan.disbanded_at
+    fell_with_it = _folded_with(db, clan, folded_at)
+    coming = [m for m in fell_with_it if not membership(db, m.store_id)]
     if not coming:
         return (f"Every rider who was in {name} has joined another crew since. "
                 f"Restoring it would put an empty crew back in the join list.")
@@ -982,9 +1023,7 @@ def unretire(db, clan) -> str | None:
     # `disbanded_seen` too: last_fold rewrites the mark the moment the rider reads their
     # notification, so anybody who had looked at their own fold card was being dropped from
     # the restored crew under a flash saying "restored with its riders".
-    for m in db.query(ClanMember).filter(
-            ClanMember.clan_id == clan.clan_id,
-            ClanMember.status.in_(("disbanded", "disbanded_seen"))).all():
+    for m in fell_with_it:
         # Not somebody who has joined somewhere else since. Reviving them regardless put a
         # rider in two crews at once, with two Leaves and a week's cooldown as the only way
         # out of a state they had no part in creating.

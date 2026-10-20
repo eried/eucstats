@@ -71,6 +71,27 @@
              { name: name, n: days(COOLDOWN_DAYS) });
   }
 
+  // Whether pressing Leave crew would end the crew rather than just end a membership.
+  // `members` is active-only on the server, so a rider still knocking at the door is not
+  // counted as somebody who would be left holding it. A pending request is not a membership
+  // and withdrawing it folds nothing.
+  function lastOut(me) {
+    return !!(me && me.crew && me.status === "active" && (me.crew.members || 0) <= 1);
+  }
+
+  // Does what was typed name this crew? Lifted out of the Disband handler because the last
+  // rider out now meets the same gate, and two copies of this would drift: it is case-folded,
+  // NFC-composed and internally de-spaced for three separate reasons, each one a round where
+  // a leader typed their own crew's name off the screen and was told it was not the name.
+  function sameName(typed, name) {
+    var norm = function (x) {
+      x = (x || "").trim().replace(/\s+/g, " ");
+      if (x.normalize) x = x.normalize("NFC");
+      return x.toLowerCase();
+    };
+    return norm(typed) === norm(name);
+  }
+
   function days(n) {
     if (n <= 0) return t("crew.now");
     return plural("crew.day1", "crew.days.few", "crew.days", n);
@@ -4720,8 +4741,14 @@
       // `title` on each of these: the labels are in this feature's voice and the voice is only
       // free when the plain meaning is one hover away. Pulling a request and leaving a crew
       // are different acts, so they do not share an explanation.
-      + '<button class="crewbtn ghost" id="cm-leave" title="'
-      + esc(t(me.status === "pending" ? "crew.tip.cancel" : "crew.tip.leave")) + '">'
+      // The only rider in a crew gets a different sentence and a different button, because
+      // for them this control IS Disband: it ends the crew, takes its ground off the map, and
+      // charges a week for it. The old tooltip told them their rides stay on the map. A
+      // tester read it, pressed the button, and his crew was gone. `danger` is the same class
+      // Disband wears two rows down; the gate behind it is the same gate.
+      + '<button class="crewbtn ghost' + (lastOut(me) ? " danger" : "") + '" id="cm-leave"'
+      + ' title="' + esc(t(me.status === "pending" ? "crew.tip.cancel"
+                           : lastOut(me) ? "crew.tip.leave.last" : "crew.tip.leave")) + '">'
       + t(me.status === "pending" ? "crew.mine.cancel" : "crew.mine.leave") + "</button>"
       + (me.role !== "leader" && me.leader_stale && me.can_claim
          ? '<button class="crewbtn ghost" id="cm-claim" title="' + esc(t("crew.tip.claim"))
@@ -4878,8 +4905,7 @@
         setStatus(t("crew.e.promote"), true, leave);
         return;
       }
-      ask(pending ? t("crew.mine.cancelq", { name: c.name }) : leaveQuestion(c.name),
-          t(pending ? "crew.mine.cancel" : "crew.mine.leave"), function () {
+      function walkOut() {
         api("POST", "/api/v1/crews/leave", {}).then(function (r) {
           // The card that explains what just happened, not the leaderboard. Flashing
           // `.crewboard` scrolled 0 -> 405 and put the "next crew in 7 days" card at
@@ -4891,7 +4917,24 @@
           if (r.ok) { reveal("#crewstatus"); show(); reloadTerritory(); }
           else if (!onWrite(r)) setStatus(errMsg(r.err), true, leave);
         });
-      }, leave, true);
+      }
+      // The last one out takes the crew with them, so the last one out meets the gate that
+      // takes a crew away: the name, typed, exactly as Disband asks for it two rows down.
+      // `leaveQuestion` has said the crew ends since round twenty and a tester still ended
+      // his crew by pressing a button -- this file's own note on Disband is why, in as many
+      // words: "a guard you meet after pressing is not the same as a button that looks like
+      // what it does". He meant to stop riding for it. One tap did something he cannot undo.
+      if (!pending && lastOut(me)) {
+        askFor(leaveQuestion(c.name) + " " + t("crew.mine.disbandtype", { name: c.name }),
+               c.name, function (typed, ctl) {
+          if (!sameName(typed, c.name)) { ctl.fail(t("crew.e.nomatch")); return; }
+          ctl.close();
+          walkOut();
+        }, leave, { max: 28, confirm: t("crew.mine.leave"), danger: true });
+        return;
+      }
+      ask(pending ? t("crew.mine.cancelq", { name: c.name }) : leaveQuestion(c.name),
+          t(pending ? "crew.mine.cancel" : "crew.mine.leave"), walkOut, leave, true);
     };
     var dis = document.getElementById("cm-disband");
     if (dis) dis.onclick = function () {
@@ -4923,12 +4966,7 @@
         // only thing they can see, and is told it is not the name. The two strings are
         // identical on screen. A reviewer founded that crew and could not disband it: with
         // no other way to end a crew, its leader is stuck for good.
-        var norm = function (x) {
-          x = (x || "").trim().replace(/\s+/g, " ");
-          if (x.normalize) x = x.normalize("NFC");
-          return x.toLowerCase();
-        };
-        if (norm(typed) !== norm(c.name)) { ctl.fail(t("crew.e.nomatch")); return; }
+        if (!sameName(typed, c.name)) { ctl.fail(t("crew.e.nomatch")); return; }
         ctl.close();
         api("POST", "/api/v1/crews/" + c.slug + "/disband", {}).then(function (r) {
           if (r.ok) {

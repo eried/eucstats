@@ -796,3 +796,88 @@ def test_one_leader_can_still_disband(db):
     clan = crews.create(db, founder, "One Chief", join_policy="open")
     crews.disband(db, founder, clan.clan_id)
     assert db.get(Clan, clan.clan_id).disbanded_at is not None
+
+
+def test_a_crew_folded_by_its_last_rider_leaving_can_be_restored(db):
+    """JonahOnEUC left his own crew by mistake on 2026-10-20 and it could not be given back.
+
+    `leave()` deliberately leaves the last one out marked `active` with a `left_at`, because
+    that is exactly the shape `cooldown_until` looks for and walking out still costs a week.
+    `unretire()` deliberately revives only rows marked `disbanded`. Both are right on their
+    own and together they mean a crew of one can be folded and never restored -- and the
+    sentence the admin screen printed blamed the rider: "Every rider who was in X has joined
+    another crew since", said about somebody who had joined nothing at all.
+
+    A crew folds the moment its last rider walks out, so the rider who walked out is the
+    rider who comes back. The fold's own timestamp is what tells them apart from somebody who
+    left last week while the crew carried on.
+    """
+    _rider(db, "solo1")
+    c = crews.create(db, "solo1", "One Of Us", join_policy="open")
+    crews.leave(db, "solo1")
+    db.refresh(c)
+    assert c.disbanded_at is not None, "the last one out folds the crew"
+
+    assert crews.unretire(db, c) is None, "the only rider it ever had must be able to get it back"
+    db.commit()
+    db.refresh(c)
+    assert c.name == "One Of Us" and c.slug == "one-of-us"
+    assert c.disbanded_at is None
+    assert _active(db, c.clan_id) == 1
+    back = (db.query(ClanMember)
+            .filter(ClanMember.clan_id == c.clan_id, ClanMember.store_id == "solo1").one())
+    assert back.role == "leader", "he founded it; he gets it back the way he left it"
+    assert back.left_at is None
+    # The whole point of giving it back is that it was a mistake, so the week it cost is
+    # given back with it. `cooldown_until` reads the same row.
+    assert crews.cooldown_until(db, "solo1") is None
+
+
+def test_restoring_does_not_drag_back_somebody_who_left_while_it_carried_on(db):
+    """The other side of the rule above. Whoever folded the crew comes back; whoever walked
+    out earlier, of their own accord, while the crew was still running, does not -- their
+    leaving was not the mistake being undone, and they are serving a cooldown for it."""
+    _rider(db, "stay1")
+    _rider(db, "gone1")
+    c = crews.create(db, "stay1", "Carried On", join_policy="open")
+    crews.join(db, "gone1", c.clan_id)
+    crews.leave(db, "gone1")              # leaves; the crew still has its leader
+    db.refresh(c)
+    assert c.disbanded_at is None, "one of two leaving does not fold anything"
+    crews.leave(db, "stay1")              # now the last one out
+    db.refresh(c)
+    assert c.disbanded_at is not None
+
+    assert crews.unretire(db, c) is None
+    db.commit()
+    assert _active(db, c.clan_id) == 1, "only the rider who turned the lights off comes back"
+    gone = (db.query(ClanMember)
+            .filter(ClanMember.clan_id == c.clan_id, ClanMember.store_id == "gone1").one())
+    assert gone.left_at is not None, "somebody who had already walked out stays out"
+
+
+def test_a_crew_folded_before_the_two_clocks_agreed_can_still_be_restored(db):
+    """Jonah's row, exactly as production wrote it.
+
+    `leave()` stamped the walk-out with its own `utcnow()` and `_retire()` stamped the clan
+    with another one a few queries later, so the membership reads 07:57:14.160939 and the
+    clan reads 07:57:14.274449 -- the rider left, by the clock, before the crew he folded
+    did. Every fold written before those two were taken together looks like that, and a rule
+    that asks for `left_at >= disbanded_at` misses all of them by a tenth of a second.
+    """
+    from datetime import timedelta
+
+    _rider(db, "skew1")
+    c = crews.create(db, "skew1", "Old Clocks", join_policy="open")
+    crews.leave(db, "skew1")
+    db.refresh(c)
+    # Put the skew back, the way the rows on the box actually read.
+    m = (db.query(ClanMember)
+         .filter(ClanMember.clan_id == c.clan_id, ClanMember.store_id == "skew1").one())
+    m.left_at = c.disbanded_at - timedelta(microseconds=113510)
+    db.commit()
+
+    assert crews.unretire(db, c) is None, (
+        "a crew folded by the old code is as restorable as one folded by the new")
+    db.commit()
+    assert _active(db, c.clan_id) == 1

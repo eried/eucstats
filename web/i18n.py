@@ -609,6 +609,10 @@ EN: dict[str, str] = {
     # is a card nobody reads, and the question "what does this one do" is asked one button at
     # a time.
     "crew.tip.leave": "You stop riding for this crew. The rides you already did stay on the map.",
+    # The same button, to the only rider in the crew, where every word above it is false: the
+    # crew ends and its ground goes off the map. A tester read the sentence above on a crew of
+    # one, pressed Leave crew, and lost the crew.
+    "crew.tip.leave.last": "You are the last one in it, so this ends the crew and its ground leaves the map.",
     "crew.tip.cancel": "Takes your request back. You are not in the crew either way.",
     "crew.tip.disband": "Ends the crew for everyone in it. This cannot be undone.",
     # "Copy link" and "Copy" sat side by side with nothing on either saying which was which.
