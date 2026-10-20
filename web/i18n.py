@@ -462,7 +462,7 @@ EN: dict[str, str] = {
     # Walking out of a crew you are the last member of ends it. `leave()` retires the clan
     # when nobody active is left AND stamps the cooldown, so the gentle-sounding button
     # destroys the crew and benches you a week, while Disband does it for nothing.
-    "crew.mine.leaveq.last": "Leave {name}? You are the last one in it, so the crew ends with you, and you wait {n} before joining another. Disbanding it costs you no wait at all.",
+    "crew.mine.leaveq.last": "Leave {name}? You are the last one in it, so the crew ends with you. No waiting afterwards. You can start or join another straight away.",
     "crew.role.leader": "leader",
     "crew.role.officer": "officer",
     "crew.role.member": "member",

@@ -602,13 +602,35 @@ def leave(db, store_id: str) -> None:
     last_one = _active_members(db, m.clan_id) <= 1 and m.status == "active"
     # One timestamp for the walk-out and for the fold it causes, because that is what later
     # tells this rider apart from somebody who left last week while the crew carried on. See
-    # `unretire`: the row below keeps `status == "active"` so the cooldown still bites, which
-    # means the status cannot say who turned the lights off. The clock can.
+    # `unretire` and `_folded_with`.
     now = utcnow()
     m.left_at = now
     if last_one:
         clan = db.get(Clan, m.clan_id)
         if clan and clan.disbanded_at is None:
+            # No cooldown for the last one out.
+            #
+            # For a crew of one, Leave and Disband are the same act -- the crew ends either
+            # way -- and they did not cost the same. Disband charges nothing, for the reason
+            # written in its own loop: "the cooldown exists to stop crew-hopping, and having
+            # your crew folded underneath you is not hopping". Neither is ending the only crew
+            # you were in. There is nothing left to hop FROM, no ground kept by a crew that
+            # still exists, and no advantage in it. So the gentler-sounding button charged a
+            # week and the one headed "Ends it for everyone" was free, which is the asymmetry
+            # that caught JonahOnEUC on 2026-10-20: he pressed Leave on a crew of one, lost
+            # the crew, and was benched for leaving a crew that no longer existed.
+            #
+            # `disbanded_seen` is the mark `disband()` gives the rider who pressed its button,
+            # and it is the right one here for both of its halves. The status is what exempts
+            # the row from `cooldown_until`, which reads `status == "active"`; the `_seen` half
+            # is what keeps `last_fold` from announcing "your crew folded" to the one person
+            # who ended it on purpose -- and who now has to type the crew's name to do so,
+            # which is the strongest "seen" this feature has.
+            #
+            # It also simplifies the restore. `_folded_with` had to find this rider by
+            # comparing timestamps precisely because the row stayed `active`; a marked row
+            # lands in its plain first branch like any other fold.
+            m.status = "disbanded_seen"
             # Pending rows too. Retiring the crew and leaving a request open left that rider
             # looking at a card for a crew that does not exist, waiting on a leader who is
             # gone, with no exit anything pointed at.

@@ -58,9 +58,19 @@
   // button ends the crew and benches you for a week, while Disband two rows down does the
   // same thing to the crew for nothing. Neither prompt said so.
   function leaveQuestion(name) {
-    var solo = ME && ME.crew && (ME.crew.members || 0) <= 1;
+    // The last one out, first, and with no count in it. This used to sit UNDER the
+    // `COOLDOWN_DAYS <= 0` test and to be handed the number of days, because ending the only
+    // crew you were in charged a cooldown and disbanding the same crew did not -- so the
+    // question had to disclose the asymmetry: "you wait 7 days before joining another.
+    // Disbanding it costs you no wait at all." Erwin's call was to remove the asymmetry rather
+    // than keep explaining it, so `leave()` now exempts the last one out the same way
+    // `disband()` always has, and both sentences went with the rule they described.
+    //
+    // Above the cooldown test rather than below it, because the fact this states -- the crew
+    // ends with you -- is true whatever the admin has the cooldown set to, and `leaveq0`
+    // ("you can join another one straight away") says nothing about the crew ending at all.
+    if (lastOut(ME)) return t("crew.mine.leaveq.last", { name: name });
     if (COOLDOWN_DAYS <= 0) return t("crew.mine.leaveq0", { name: name });
-    if (solo) return t("crew.mine.leaveq.last", { name: name, n: days(COOLDOWN_DAYS) });
     // A leader leaving a crew that carries on. `leave()` hands the crew to nobody: it is left
     // with officers and no leader until one of them claims it. This prompt said only "No new
     // crew for 7 days" -- what a plain member reads -- to the one person who could hand it

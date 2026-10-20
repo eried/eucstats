@@ -358,7 +358,7 @@ EN_FINGERPRINT = {
     'crew.mine.invspoken': '6fdd42831eed',
     'crew.mine.leave': 'ea96aa3f0920',
     'crew.mine.leaveq': '10533199af76',
-    'crew.mine.leaveq.last': '08114241fcc5',
+    'crew.mine.leaveq.last': 'd21a2df6df52',
     'crew.mine.leaveq.lead': '8f33d1ac9adb',
     'crew.mine.leaveq0': '3dbca8794fe4',
     'crew.mine.manage': 'dcb596d94d73',

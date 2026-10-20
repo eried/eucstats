@@ -833,6 +833,58 @@ def test_a_crew_folded_by_its_last_rider_leaving_can_be_restored(db):
     assert crews.cooldown_until(db, "solo1") is None
 
 
+def test_the_last_rider_out_of_a_crew_is_not_benched_for_a_week(db):
+    """Leave and Disband do the same thing to a crew of one, so they cost the same.
+
+    For the only rider in a crew the two buttons are the same act: the crew ends either way.
+    They did not cost the same. Disband charges nothing, with the reason written into the loop
+    that marks its members -- "the cooldown exists to stop crew-hopping, and having your crew
+    folded underneath you is not hopping". Leave charged seven days. So the gentler-sounding
+    word was the expensive one, and the one that said "ends it for everyone" was free.
+
+    That is the trap JonahOnEUC fell into on 2026-10-20: he pressed Leave on a crew of one,
+    lost the crew, and was benched for a week for leaving a crew that no longer existed.
+    Erwin's call on the asymmetry: solo leave costs nothing.
+
+    `disbanded_seen`, not `disbanded`. The status is what exempts the row from the cooldown,
+    and the `_seen` half is what keeps `last_fold` from telling this rider that their crew
+    folded under them -- they typed its name to end it, which is the strongest "seen" in the
+    feature. It is the same mark `disband()` gives the rider who pressed its button.
+    """
+    _rider(db, "solofree")
+    c = crews.create(db, "solofree", "Lights Out", join_policy="open")
+    crews.leave(db, "solofree")
+    db.refresh(c)
+    assert c.disbanded_at is not None, "the last one out still folds the crew"
+
+    assert crews.cooldown_until(db, "solofree") is None, (
+        "the only rider in a crew was charged a cooldown for ending it, which is what "
+        "disbanding the same crew does for free")
+    # And they can act on that straight away, which is the whole point of it being free.
+    c2 = crews.create(db, "solofree", "Lights Back On", join_policy="open")
+    assert c2.clan_id != c.clan_id
+
+    # Not told their crew was folded underneath them. They ended it on purpose.
+    assert crews.last_fold(db, "solofree") is None, (
+        "the rider who typed the crew's name to end it is being told it folded under them")
+
+
+def test_a_rider_who_walks_out_of_a_crew_that_carries_on_still_waits(db):
+    """The cooldown it would be easy to delete by accident. It exists to stop crew-hopping to
+    farm territory, and hopping is exactly what this rider is in a position to do: the crew
+    they left is still standing, still holds its ground, and they can walk into the next one."""
+    _rider(db, "hopper")
+    _rider(db, "stays")
+    c = crews.create(db, "stays", "Still Here", join_policy="open")
+    crews.join(db, "hopper", c.clan_id)
+    crews.leave(db, "hopper")
+    db.refresh(c)
+    assert c.disbanded_at is None, "the crew still has its leader"
+    assert crews.cooldown_until(db, "hopper") is not None, (
+        "a rider who left a crew that is still running pays no cooldown, so crew-hopping to "
+        "farm ground is free")
+
+
 def test_restoring_does_not_drag_back_somebody_who_left_while_it_carried_on(db):
     """The other side of the rule above. Whoever folded the crew comes back; whoever walked
     out earlier, of their own accord, while the crew was still running, does not -- their
