@@ -409,7 +409,18 @@ def test_a_crew_card_opens_its_clauses_with_words_somebody_has_read(loc):
 # Several keys are legitimately shared, and each one is named rather than waved through, so the
 # next piece of reuse has to be looked at.
 SHARED = {
-    "crew.mine.ao": {"targetsHTML", "crewSheetHTML"},   # "in one piece" -- a fragment, no person
+    # "in one piece" -- a fragment, no person. `groundBits` is the fourth place it lands and
+    # the reason the other three are safe is the reason this one is: the crew's own card, the
+    # targets list, the emblem sheet and now the two browse lists all print the same figure
+    # with the same word after it, and the figure is a count of squares. The alternative was a
+    # second key saying "in one piece" so that rows about OTHER crews could say it, which is
+    # one sentence in nineteen tables free to drift from its twin.
+    "crew.mine.ao": {"targetsHTML", "crewSheetHTML", "groundBits"},
+    # "Best riders", the heading on your own crew's contributors list, now also the label on
+    # the fold that opens the same list for a crew that is not yours. Two words naming a list,
+    # with nobody in them -- and the fold opens into `contributorsHTML`, which is literally
+    # that list, so a different wording here would name one thing twice.
+    "crew.mine.who": {"whoFold"},
     # The three join labels, on the sheet a crew's emblem opens. Same reader, same crew,
     # same word as the browse row -- and literally the same act: the sheet's button closes
     # it and presses that row's button, so a second wording would be two names for one

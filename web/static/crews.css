@@ -804,19 +804,24 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 .crewsumrole { order: 2; }
 
 /* ---------- the other crews, on a member's panel ----------
-   Facts and a chevron. No Join: `join()` refuses while any membership exists, so a Join here
-   could never be pressed, and a column of permanently dead buttons is what this feature was
-   already caught doing once. The row opens that crew on the board instead. */
+   Facts, no Join: `join()` refuses while any membership exists, so a Join here could never be
+   pressed, and a column of permanently dead buttons is what this feature was already caught
+   doing once.
+
+   The row is no longer one control. It was, and it scrolled to this crew's row on the board
+   behind a bare `aria-hidden` chevron -- so the one glyph that looked like a disclosure opened
+   nothing, and the destination was a second copy of facts this row can hold itself. The title
+   lights their ground on the map, the fold under it opens into who rode for them, and the
+   pointer and the focus ring belong to those two rather than to the whole strip. */
 .crewrivals h4 { margin-top: 0; }
 .crewrivrow {
-  display: flex; align-items: center; gap: 9px; padding: 7px 2px; cursor: pointer;
+  display: flex; align-items: flex-start; gap: 9px; padding: 7px 2px;
   border-radius: 4px;
 }
 .crewrivrow + .crewrivrow { border-top: 1px solid rgba(255,255,255,.06); }
-.crewrivrow:hover { background: rgba(255,255,255,.05); }
-.crewrivrow:focus-visible {
-  outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
-}
+/* The swatch sits on the name's line rather than at the top of a four-line block -- the same
+   reading `.crewrow` records for its 46px emblem, one card up. */
+.crewrivrow > .crewsw { margin-top: 2px; }
 /* `min-width: 0` so a long crew name gives way instead of pushing the chevron off the card
    -- the same fix three other rows in this file carry. */
 .crewrivtx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -832,7 +837,74 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* The ground line wraps for the same reason: it is a sentence in nineteen languages and
    Ukrainian's is the long one. */
 .crewrivsub { font-size: 11px; color: var(--mut, #9aa6c8); line-height: 1.35; }
-.crewrivgo { flex: 0 0 auto; color: var(--mut, #9aa6c8); font-size: 15px; }
+
+/* ---------- the title, and where the crew stands ----------
+   The pressable part of a row in either list: the crew's name with its position and movement
+   beside it. It carries the pointer and the focus ring the whole row used to carry, which is
+   now the honest place for them -- the row holds a second control, and a focus ring around
+   both of them says one thing is focused when two can be.
+
+   `min-width: 0` on the name so a long one gives way instead of shoving the position off the
+   card, the same fix four other rows in this file carry. The position does NOT shrink: it is
+   four characters and an arrow, and a wrapped "2nd" is not a position. */
+.crewrivhead {
+  display: flex; align-items: baseline; gap: 7px; cursor: pointer;
+  border-radius: 4px; padding: 1px 2px; margin: -1px -2px;
+}
+/* `min-width: 0` so the name gives way to the position rather than pushing it off the card,
+   and `anywhere` because the name is now a FLEX ITEM and no longer a block filling the row.
+   `.crewrown b` contains its overflow with `overflow: hidden`, but the phone media query
+   turns that off so the name can wrap instead of being cut -- which leaves an unbreakable
+   41-character token with nothing holding it in. This is the same answer `.crewrivtx b`
+   already carries, for the reason recorded there: the longest single token in a crew name is
+   whatever a rider typed. */
+.crewrivhead > b { min-width: 0; overflow-wrap: anywhere; }
+.crewrivhead:hover { background: rgba(255,255,255,.05); }
+.crewrivhead:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+}
+/* Tabular, so a column of positions lines up, and `nowrap` because "2nd" with the arrow
+   wrapped under it reads as two facts. `.crewmoved` inside it keeps its own colours. */
+.crewstand {
+  flex: 0 0 auto; font-size: 11px; color: var(--mut, #9aa6c8); white-space: nowrap;
+  font-variant-numeric: tabular-nums; display: inline-flex; align-items: baseline; gap: 4px;
+}
+/* The join list reaches this through `.crewrown > span`, which sets `font-size: 11px` and the
+   muted colour on every direct span -- correct for the facts line and wrong for a line whose
+   first child is the crew's name. The name takes its own size back from `.crewrown b`; this
+   only has to stop the head inheriting the facts line's wrap and gaps. */
+.crewrown > span.crewrivhead { column-gap: 7px; row-gap: 0; }
+
+/* ---------- Best riders, folded under a row in either list ----------
+   The control the old chevron was mistaken for, doing what it was mistaken for doing. It says
+   where it goes rather than leaving an arrow to be pressed to find out, and it is a real
+   button with `aria-expanded` and `aria-controls` because that is what it is. */
+.crewwhobox { margin-top: 3px; }
+.crewwho {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 0; padding: 2px 4px; margin: 0 -4px; border-radius: 4px;
+  font: inherit; font-size: 11px; color: var(--acc, #2ea8ff); cursor: pointer;
+}
+.crewwho:hover { background: rgba(46,168,255,.1); }
+.crewwho > i { font-style: normal; font-size: 13px; line-height: 1; transition: transform .16s; }
+.crewwho[aria-expanded="true"] > i { transform: rotate(90deg); }
+.crewwhopan { margin-top: 2px; }
+.crewwhopan[hidden] { display: none; }
+/* The fetch lasts about a tenth of a second, so this is three dots and no words -- a state
+   with nothing to translate. */
+.crewwhospin {
+  display: block; width: 26px; height: 6px; margin: 6px 0;
+  background: radial-gradient(circle 3px at 3px 3px, var(--mut, #9aa6c8) 95%, transparent 0)
+              0 0 / 10px 6px repeat-x;
+  animation: crewwhodots 1s linear infinite;
+}
+@keyframes crewwhodots { 0% { opacity: .3 } 50% { opacity: 1 } 100% { opacity: .3 } }
+.crewwhonone { margin: 4px 0 2px; font-size: 11px; }
+/* The list inside the fold is the same component the crew's own card uses, at the size this
+   row can afford: no heading margin fighting the button above it. */
+.crewwhopan .crewcontrib { margin-top: 0; }
+.crewwhopan .crewcontrib h4 { display: none; }
+.crewcmore { margin-top: 4px; }
 /* `flex: 1` is `flex: 1 1 0%` -- a zero basis, so under any pressure this collapsed to its
    longest word while `.crewsumrole` beside it, at `flex: 0 1 auto`, kept the full width of
    its 48-character metadata string. Measured at 390: the crew's name got 61px and wrapped
@@ -979,6 +1051,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 
 .crewcontrib { margin-top: 12px; border-top: 1px solid var(--line, #243055); padding-top: 8px; }
 .crewcrow { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12px; }
+/* `display: flex` above is author CSS and `[hidden]`'s `display: none` is the user agent's, so
+   the author rule wins and a folded row goes on taking its height -- the same trap `.crewrow`
+   fell into with fifteen of twenty-one rows, recorded two hundred lines above. The capped
+   contributors list hides its tail this way, so without this "Show 3 more" would reveal rows
+   that were never hidden. */
+.crewcrow[hidden] { display: none; }
 .crewcrow .av { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%; }
 /* A fixed column, so every bar starts at the same x. Sized to the name, each bar began
    where that rider's name happened to end and three bars had three origins, which is the one

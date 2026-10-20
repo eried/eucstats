@@ -2766,8 +2766,17 @@
 
   // Who actually rode for the crew, over the same window the territory is measured on, so the
   // list explains the shape on the map rather than ranking loyalty.
-  function contributorsHTML(rows) {
+  //
+  // `limit` caps how many rows are SHOWN, not how many are counted. The shares below have one
+  // denominator on purpose -- see the note under them -- and slicing before the arithmetic
+  // would make every percentage a share of the top five instead of a share of the crew, so a
+  // two-rider crew's list would read 61% and 39% in one card and 100% in another. The rest of
+  // the rows are rendered and folded rather than dropped: the overflow button then costs no
+  // request, which is the same bargain the join list makes with its own six.
+  // No argument means no cap, which is the crew's own card, unchanged.
+  function contributorsHTML(rows, limit) {
     if (!rows || !rows.length) return "";
+    var cap = limit && rows.length > limit ? limit : 0;
     // One denominator, because two of them is a chart that argues with its own label. The
     // bar was the share of the leader and the text beside it the share of the crew, so the
     // top rider drew a full-width bar reading "34%" and the rider 3 km behind them drew 97%
@@ -2799,7 +2808,9 @@
       // same id, so this costs nothing but a class. `crew.how.s3` is "Your crew" and already
       // names the reader in nineteen languages; it is the board's marker too.
       var mine = !!(ME && ME.handle && c.id && c.id === ME.handle);
-      return '<div class="crewcrow' + (mine ? " crewrowmine" : "") + '">'
+      return '<div class="crewcrow' + (mine ? " crewrowmine" : "")
+        + (cap && i >= cap ? " crewcrest" : "") + '"'
+        + (cap && i >= cap ? " hidden" : "") + ">"
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
         + (H.cc && c.flag ? H.cc(c.flag) : "")
         + '<span class="crewcname">' + esc(c.name) + roleMark(c.role)
@@ -2807,7 +2818,33 @@
         + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
         + '<span class="crewckm">' + fmtKm(c.km)
         + ' <i>' + t("crew.who.share", { n: share }) + "</i></span></div>";
-    }).join("") + roleKey(rows) + "</div>";
+    }).join("")
+      // `crew.roles.more` rather than a string of its own: this is the same sentence the roles
+      // list prints under the same kind of fold, counting the rows the fold is hiding rather
+      // than the rows that exist. One delegated handler below unfolds whichever list was asked.
+      + (cap ? '<button type="button" class="crewbtn mini ghost crewshowall crewcmore"'
+               + ' aria-expanded="false">' + esc(moreLabel(rows.length - cap)) + "</button>"
+             : "")
+      + roleKey(rows) + "</div>";
+  }
+
+  // The fold under a crew in either list. Unfolds the rows `contributorsHTML` left hidden and
+  // then takes itself away: once they are all on screen the button has nothing left to say,
+  // and leaving it there to toggle back is a control whose only function is to hide something
+  // the reader just asked for.
+  function bindContribMore(root) {
+    [].slice.call((root || document).querySelectorAll(".crewcmore")).forEach(function (b) {
+      b.onclick = function (ev) {
+        ev.stopPropagation();
+        var box = b.parentNode;
+        if (!box) return;
+        [].slice.call(box.querySelectorAll(".crewcrest")).forEach(function (r) {
+          r.hidden = false;
+        });
+        b.setAttribute("aria-expanded", "true");
+        b.remove();
+      };
+    });
   }
 
   // Build an optional section, or nothing. A section that cannot render is a section
@@ -4364,6 +4401,98 @@
     return "";
   }
 
+  // Where a crew stands, and which way it is going, for a row in one of the two lists.
+  //
+  // Read off the BOARD by slug rather than off the list the row sits in, which is the whole
+  // reason this is a function and not an index. "Other crews" filters the reader's own crew
+  // out and the join list sorts by DISTANCE, so a position counted in either place would be a
+  // different number from the one the board two cards down is showing for the same crew --
+  // and the join list's would not even be a position, it would be how near they are.
+  //
+  // Nothing at all for a crew that is not on the board. `ranking()` filters on
+  // `terr_tiles > 0`, so a crew holding no ground genuinely has no position, and the arrow
+  // follows `moved()`'s rule: no previous rank, no arrow. Both silences are the honest ones.
+  function standingHTML(slug) {
+    var src = BOARD || (TERR && TERR.crews) || [];
+    for (var i = 0; i < src.length; i++) {
+      if (src[i].slug !== slug) continue;
+      return '<span class="crewstand">' + esc(ordinal(i + 1)) + moved(src[i], i) + "</span>";
+    }
+    return "";
+  }
+
+  // The fold that opens into a crew's best riders, and the panel it fills.
+  //
+  // A real `<button>` with `aria-expanded` and `aria-controls`, because that is what it is.
+  // The chevron it replaces was a bare `aria-hidden` glyph next to a row that jumped to the
+  // board, and Erwin read it the way anybody would -- as something that opens. It now does,
+  // and it says what it opens into: `crew.mine.who` is "Best riders" in all nineteen locales
+  // and is the heading on your own crew's list of the same thing, so the fold names its own
+  // destination instead of leaving a reader to press an arrow to find out.
+  //
+  // The panel starts empty and is filled on first open from `/crews/{slug}`, which already
+  // serves `contributors` for any crew, not only yours. Sixteen crews are not fetched to
+  // answer a question about one.
+  // Inside the row's text column in both lists, so it needs no wrapping rule of its own.
+  // `.crewrown` and `.crewrivtx` are both block-ish containers whose children already stack,
+  // and the stylesheet says in as many words that granting `flex-wrap` to a row that does not
+  // need it is how the fifth host gets broken. The box also means hiding a join row hides the
+  // fold with it, which a sibling of the row would not have done.
+  function whoFold(slug) {
+    return '<div class="crewwhobox">'
+      + '<button type="button" class="crewwho" data-who="' + esc(slug)
+      + '" aria-expanded="false" aria-controls="' + whoId(slug) + '">'
+      + esc(t("crew.mine.who")) + '<i aria-hidden="true">›</i></button>'
+      + '<div class="crewwhopan" id="' + whoId(slug) + '" hidden></div></div>';
+  }
+
+  // What a crew holds, in the words its own card uses for the same facts.
+  //
+  // The biggest patch leads, because that is what the board ranks on, and the total follows
+  // only when the two differ -- which is the shape `crew.mine.ao` and `crew.inall` were
+  // written for on the crew's own card. These rows used to print `tiles`, everything held,
+  // inside `crew.board.inp`'s "{a} in {b}" -- so a crew the board leads with as "46 in one
+  // patch" read "58 squares in 3 patches" here, two different answers to the same question
+  // on one screen, and the figure the ranking is actually made of was the one missing.
+  function groundBits(c) {
+    var best = c.best_tiles || 0;
+    var all = c.tiles || 0;
+    if (!best && !all) return [tiles(0)];
+    var out = [];
+    if (best) {
+      out.push(tiles(best) + " " + t("crew.mine.ao"));
+      if (all && all !== best) out.push(t("crew.inall", { v: tiles(all) }));
+    } else {
+      out.push(tiles(all));
+    }
+    if ((c.regions || 0) > 1) {
+      out.push(plural(null, "crew.patches.few", "crew.patches", c.regions));
+    }
+    if (c.km2) out.push(fmtKm2(c.km2));
+    return out;
+  }
+
+  // Slugs are `[a-z0-9-]` by construction (`crews._slug`), so this is already an id; the
+  // prefix only keeps it from colliding with anything else on a panel that carries a dozen.
+  function whoId(slug) {
+    return "crewwho-" + String(slug).replace(/[^a-z0-9-]/gi, "");
+  }
+
+  // The crew's name with its position beside it, for a row in either list.
+  //
+  // A control only when there is ground to light. `blink` frames the crew's biggest patch and
+  // returns without doing anything if there is no patch, so binding every row would put a
+  // control that does nothing on exactly the rows where nothing is the honest answer -- the
+  // dead button this file twice records itself shipping. A crew holding nothing still shows
+  // its name, its riders and its own words; that row simply is not pressable, and `data-lit`
+  // is what says which rows are.
+  function headHTML(c) {
+    var lit = (c.best_tiles || c.tiles || 0) > 0;
+    return '<span class="crewrivhead' + (lit ? " sel" : "") + '"'
+      + (lit ? ' data-lit="' + esc(c.slug) + '"' : "")
+      + "><b>" + esc(c.name) + "</b>" + standingHTML(c.slug) + "</span>";
+  }
+
   function standing(slug) {
     var src = BOARD || (TERR && TERR.crews);
     if (!src || !src.length) return "";
@@ -5386,10 +5515,17 @@
      anywhere in the panel except as a row on the board. "Who am I up against" had no answer
      short of leaving.
 
-     Facts and a chevron, no Join. A Join here could never be pressed (`join()` refuses while
-     any membership exists) and a row of permanently dead buttons is the thing this feature
-     has already been caught doing once. The row opens that crew on the board instead, which
-     is where everything the panel knows about a crew that is not yours already lives. */
+     Facts, no Join. A Join here could never be pressed (`join()` refuses while any membership
+     exists) and a row of permanently dead buttons is the thing this feature has already been
+     caught doing once.
+
+     The row used to be one big control that scrolled down to this crew's row on the board,
+     behind a bare `›`. Both halves of that were wrong and Erwin named both: the glyph reads as
+     a disclosure and opened nothing in place, and the destination was a second copy of facts
+     the row could simply carry. So the row carries them -- position, movement, the ground the
+     ranking is made of, the area, the riders and the crew's own words -- the title lights that
+     crew's ground on the map, and the fold under it opens into who is actually riding for
+     them. Nothing here jumps the reader somewhere else to read a number. */
   function rivalsHTML(crews, me) {
     var mine = me.crew && me.crew.slug;
     var rows = (crews || []).filter(function (c) { return c.slug !== mine; });
@@ -5398,17 +5534,21 @@
     rows = ranked(rows);
     return '<div class="crewcard crewrivals"><h4>' + esc(t("crew.rivals.h")) + "</h4>"
       + rows.map(function (c) {
-          return '<div class="crewrivrow sel" data-rival="' + esc(c.slug) + '">'
+          return '<div class="crewrivrow" data-rival="' + esc(c.slug) + '">'
             + swatch(c.colour, c.pattern, 14)
-            + '<span class="crewrivtx"><b>' + esc(c.name) + "</b>"
+            + '<span class="crewrivtx">'
+            // The pressable part, and only this: the fold below is a button, and a button
+            // inside something carrying `role="button"` is one control announcing itself as
+            // two. Erwin asked for exactly this split -- "the click of the title is just the
+            // higlight and center in map and the chevron shows the riders".
+            + headHTML(c)
             + '<span class="crewrivsub">'
-            + esc([(c.tiles
-                    ? t("crew.board.inp", { a: tiles(c.tiles),
-                                            b: patchesOf(c.regions || 1) })
-                    : tiles(0)),
-                   riders(c.members)].filter(Boolean).join(" · "))
-            + "</span></span>"
-            + '<span class="crewrivgo" aria-hidden="true">›</span>'
+            + esc(groundBits(c).concat([riders(c.members)]).join(" · "))
+            + "</span>"
+            + (c.description
+               ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
+            + whoFold(c.slug)
+            + "</span>"
             + "</div>";
         }).join("")
       + "</div>";
@@ -5526,20 +5666,26 @@
           // understated a 53-square crew as 31. It is everything held now, phrased with
           // the same sentence the board puts under a crew's name, so a crew does not
           // describe its ground one way here and another way one card further down.
-          var ground = c.tiles
-            ? t("crew.board.inp", { a: tiles(c.tiles),
-                                    b: patchesOf(c.regions || 1) })
-            : null;
+          // `groundBits` now, the same facts in the same words as the crew's own card and the
+          // "Other crews" list beside this one -- which also means the biggest patch, the
+          // figure the board ranks on, finally appears in the list a stranger chooses from.
+          // It had never been here: the row printed everything held, under a sentence whose
+          // "{a} in {b}" shape says the opposite.
           var sub = [riders(c.members), policy]
-            .concat(ground ? [ground] : [])
-            .concat(c.km2 ? [fmtKm2(c.km2)] : [])
+            .concat(groundBits(c))
             .concat(c._km == null ? [] : [t("crew.join.away", { v: fmtKm(c._km) })])
             .map(function (f) { return '<span class="crewfact">' + f + "</span>"; })
             .join(" ");
           return '<div class="crewrow' + (i >= SHOWN ? " crewrest" : "") + '"'
             + ' data-name="' + esc((c.name || "").toLowerCase()) + '">' + emb(c.slug, 26)
-            + '<div class="crewrown"><b>' + esc(c.name) + "</b><span>" + sub + "</span>"
+            // Same head as the rivals row: the name is the control that lights their ground,
+            // with where they stand and which way they are going beside it. Somebody about to
+            // spend a seven-day cooldown on a choice is the reader who most needs to see the
+            // ground before committing to it, and this list showed neither the position nor
+            // the map.
+            + '<div class="crewrown">' + headHTML(c) + "<span>" + sub + "</span>"
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
+            + whoFold(c.slug)
             + "</div>"
             + (locked
                // No `</div>` here. The row's own closer is appended to the whole expression
@@ -5597,10 +5743,97 @@
   var listOpen = false;
   var paintList = null;
 
+  /* The name block in either list lights that crew's ground and flies to it.
+
+     It used to scroll the panel to the crew's row on the board and flash it, which is what
+     `openCrewDetail` is for and is still what Details on a tapped square does. Erwin's reading
+     of it: "details will only focus on the same thing we already have? because then is a bit
+     pointless". Correct -- the board row carries the position, the ground and the movement,
+     and the rows in these two lists now carry all three themselves, so the jump went from
+     being the only way to see those facts to being a scroll to a second copy of them.
+     `blink` is the gesture that had never been wired here: the crew's biggest patch framed
+     and lit, the same animation Highlight squares runs from the map's own popup.
+
+     Not the whole row. The fold beside it is a button, and a button inside something with
+     `role="button"` is one control reporting as two -- so the pressable part is the text and
+     the fold is its sibling. */
   function bindRivals() {
-    [].slice.call(document.querySelectorAll("[data-rival]")).forEach(function (row) {
-      pressable(row, row.querySelector("b") ? row.querySelector("b").textContent : "",
-                function () { openCrewDetail(row.dataset.rival); });
+    [].slice.call(document.querySelectorAll("[data-lit]")).forEach(function (head) {
+      var slug = head.getAttribute("data-lit");
+      var nm = head.querySelector("b");
+      // The crew's name AND what pressing it does. A control labelled only with the name tells
+      // a screen reader there is a button called "Arctic Wheelers" and nothing about why.
+      pressable(head, (nm ? nm.textContent : "") + " · " + t("crew.pop.highlight"),
+                function () { lightUp(slug); });
+    });
+    bindWho();
+  }
+
+  // Light a crew's ground from a list row. The popup's own Highlight button dismisses itself
+  // first, "because on a phone the popup is 188x161 parked directly over the ground it has
+  // just lit" -- the panel is 71% of a 390x844 screen, so it is the same bug wearing a bigger
+  // coat, and `closeIfCovering` is the measurement that already exists for it. On a desktop
+  // the panel leaves the map in view and stays open, so the row you pressed is still there.
+  function lightUp(slug) {
+    blink(slug);
+    closeIfCovering();
+  }
+
+  // Fetched once per crew and kept: a reader comparing two rivals folds them open and shut
+  // several times, and `/crews/{slug}` is a roster, a territory and a contributors query.
+  var whoGot = Object.create(null);
+
+  function fillWho(pan, slug) {
+    pan.removeAttribute("aria-busy");
+    var rows = whoGot[slug];
+    // A crew can hold ground with nobody currently riding for it -- squares last as long as
+    // the window and the riding that won them can have stopped weeks ago -- so this is a real
+    // state and not an error, and it says which it is.
+    pan.innerHTML = (rows && rows.length)
+      ? contributorsHTML(rows, 5)
+      : '<p class="hint crewwhonone">' + esc(t("crew.rivals.none")) + "</p>";
+    bindContribMore(pan);
+    // The names are not links, and that is a fact about the site rather than a choice made
+    // here. There is no public page for a rider to link TO: `public_id` is used in exactly one
+    // place, `/api/v1/riders/{id}/avatar`, and the only thing a rider row does anywhere else
+    // on the site is `flyToRider`, which needs a position this payload does not carry. Linking
+    // them is a server change (a rider page, or a position on `contributors`), not a span.
+  }
+
+  function bindWho() {
+    [].slice.call(document.querySelectorAll(".crewwho")).forEach(function (b) {
+      b.onclick = function (ev) {
+        // The name block around it flies the map. One press, one thing.
+        ev.stopPropagation();
+        var slug = b.getAttribute("data-who");
+        var pan = document.getElementById(whoId(slug));
+        if (!pan) return;
+        if (b.getAttribute("aria-expanded") === "true") {
+          pan.hidden = true;
+          b.setAttribute("aria-expanded", "false");
+          return;
+        }
+        pan.hidden = false;
+        b.setAttribute("aria-expanded", "true");
+        if (pan.dataset.filled) return;
+        pan.dataset.filled = "1";
+        if (whoGot[slug]) { fillWho(pan, slug); return; }
+        // No text, so nothing to translate for a state that lasts about a tenth of a second.
+        pan.setAttribute("aria-busy", "true");
+        pan.innerHTML = '<span class="crewwhospin" aria-hidden="true"></span>';
+        api("GET", "/api/v1/crews/" + encodeURIComponent(slug)).then(function (r) {
+          if (!r.ok) {
+            pan.removeAttribute("aria-busy");
+            // Pressable again: a dropped request is not an answer, and the fold is the only
+            // way to ask a second time.
+            delete pan.dataset.filled;
+            pan.innerHTML = '<div class="crewmsg bad">' + esc(errMsg(r.err)) + "</div>";
+            return;
+          }
+          whoGot[slug] = (r.body && r.body.contributors) || [];
+          fillWho(pan, slug);
+        });
+      };
     });
   }
 
@@ -6408,12 +6641,11 @@
         // has `me.crew`, so this branch used to leave that list unbound: the filter and the
         // toggle were both inert, and with no `paint()` every row rendered unfolded, so
         // "Show all 22" was false the moment it appeared. Binding what was rendered.
-        if (me.status === "pending") { bindJoin(); bindList(); }
-        // The other crews, for a member. Each row takes you to that crew's row on the board,
-        // which is the one place the panel already holds everything it knows about a crew
-        // that is not yours -- where it stands, what it holds, which way it is moving.
+        if (me.status === "pending") { bindJoin(); bindList(); bindRivals(); }
+        // The other crews, for a member: a title that lights their ground and a fold that
+        // opens into who rode for it.
         else bindRivals();
-      } else { bindCreate(); bindJoin(); bindList(); }
+      } else { bindCreate(); bindJoin(); bindList(); bindRivals(); }
       bindSignOut();
       bindHelp();
       offerInvite(me);

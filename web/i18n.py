@@ -150,6 +150,15 @@ EN: dict[str, str] = {
     # joining
     "crew.join.h": "Join a crew",
     "crew.rivals.h": "Other crews",
+    # The one state the Best riders fold can open into that has nothing to list. A crew can
+    # hold ground and have nobody on it: the squares last as long as the window and the riding
+    # that won them can have stopped weeks ago. Whether there is anybody to name is only known
+    # once that crew has been fetched, which happens when the fold is opened -- so the fold
+    # cannot be hidden in advance, and a control that vanishes when pressed is worse than a
+    # line saying what was found. Every other string this section needs it already has:
+    # `crew.mine.who` is the heading on your own crew's list and `crew.roles.more` is the
+    # overflow button under the roles list.
+    "crew.rivals.none": "Nobody has ridden for them lately.",
     # Sixteen crews is about 1,800px with no way to narrow it, and once joining
     # comes before founding that 1,800px is also what stands in front of the
     # create form. Six nearest, a box, and the rest behind the toggle.

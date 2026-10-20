@@ -39,6 +39,14 @@ CREWS_JS = ROOT / "web" / "static" / "crews.js"
 START = "  function joinHTML(crews, me) {"
 END = "  function bindList() {"
 
+# The helpers a row is built from that live elsewhere in the file, lifted rather than stubbed.
+# `whoFold` contributes a div, a button and another div to EVERY row and `headHTML` a span and
+# a `<b>`, which is exactly the kind of nesting this test exists to count -- stubs standing in
+# for them would leave the count blind to the one thing it is counting. They are contiguous
+# between `pointsOf` and `ordinal`, so one slice takes the lot.
+HELP_START = "  function standingHTML(slug) {"
+HELP_END = "  function ordinal(n) {"
+
 HARNESS = """
 // --- stubs. Only the shapes `joinHTML` touches; nothing here decides the markup. ----------
 const t = (k, v) => k + (v ? "(" + JSON.stringify(v) + ")" : "");
@@ -57,6 +65,19 @@ const groundAway = () => null;
 // `toLocaleString` here would make the assertions depend on the machine's time zone.
 const whenAgain = (iso) => (iso ? ' <span class="crewwhen">Oct 11, 02:14 PM</span>' : "");
 let MAXMEM = 0;
+// What the lifted helpers need. `tiles` and `plural` count things, `ordinal` and `moved` are
+// the board's position and its arrow -- `moved` is the one that can emit markup, so it emits
+// the real shape and the counter sees it.
+const tiles = n => n + " squares";
+const plural = (a, b, c, n) => n + " patches";
+const ordinal = n => n + "th";
+const moved = (e, i) => (e && e.prev_rank != null && e.prev_rank !== i + 1
+  ? '<span class="crewmoved up" aria-hidden="true">\\u25b21</span>' : "");
+// A board holding every crew these scenarios build, so `standingHTML` renders for all of them
+// rather than returning "" and taking the standing out of the test.
+let TERR = null;
+let BOARD = [];
+for (let i = 1; i <= 21; i += 1) BOARD.push({ slug: "crew-" + i, prev_rank: i + 2 });
 
 %(region)s
 
@@ -172,9 +193,15 @@ def _region():
     j = src.index(END, i)
     region = src[i:j]
     for needed in ('class="crewrow', "var locked =", "var pending =", 'id="cj-list"',
-                   "</button>"):
+                   "</button>", "whoFold(", "headHTML(", "groundBits("):
         assert needed in region, f"{needed} is not in the lifted region; this tests nothing"
-    return region
+    hi = src.index(HELP_START)
+    hj = src.index(HELP_END, hi)
+    helpers = src[hi:hj]
+    for needed in ('class="crewwhobox"', 'class="crewwho"', 'class="crewwhopan"',
+                   'class="crewstand"'):
+        assert needed in helpers, f"{needed} is not in the lifted helpers; this tests nothing"
+    return helpers + "\n" + region
 
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None,

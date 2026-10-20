@@ -102,6 +102,19 @@ REVIEWED = {
         "distance beside it carry the row, and the full name is in the title attribute.",
     ".crewrown b":
         "a crew's name in the join list, same reasoning -- user-supplied, unbounded.",
+    ".crewstand":
+        "where a crew stands, beside its name in both browse lists: an ordinal and, when it "
+        "has moved, an arrow and a whole number. Unlike every other entry here this one has "
+        "a hard upper bound, because none of it is prose. The ordinal is `crew.rank.nth` or "
+        "a podium word, and the longest across all 19 locales is four characters -- uk "
+        "`21-е`, sv `21:a`, es `21.º`, en `21th` -- against three for zh `第21`; the arrow "
+        "is one glyph and the places moved cannot exceed the board's own length. So the "
+        "widest this can be is about seven characters, roughly 45px at 11px tabular, inside "
+        "a head that gives the crew's name `min-width: 0` and keeps its own width. The "
+        "nowrap is what stops `21-е` and `▲1` splitting onto two lines and reading as two "
+        "separate facts, which is the same reason `.crewfact` above carries it. Not left to "
+        "prose either: `test_where_a_crew_stands_is_not_cut_off_in_any_language` measures "
+        "scrollWidth against clientWidth on the real rows.",
     ".crewpendr > span:first-child":
         "a rider's name on the roster. It wraps to its own full-width line below 560px "
         "(see the phone block) so the ellipsis only applies where there is room; above that "
