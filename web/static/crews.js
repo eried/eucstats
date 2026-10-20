@@ -1165,11 +1165,14 @@
         + '<button type="button" class="crewpopb prime" data-det="' + esc(p.slug) + '">'
         + esc(t("crew.pop.details")) + "</button></div>")
       .addTo(map);
-    bindPopActs();
+    // The square that was tapped travels with the actions. It is the only thing Highlight
+    // cannot work out for itself, and it is what keeps the camera on the ground under the
+    // finger rather than on the crew's biggest patch in another city.
+    bindPopActs(tileAt(e.lngLat));
   }
 
   // Wired after the popup is in the DOM; MapLibre builds its element on `addTo`.
-  function bindPopActs() {
+  function bindPopActs(at) {
     var el = POPUP && POPUP.getElement && POPUP.getElement();
     if (!el) return;
     var hl = el.querySelector("[data-hl]"), det = el.querySelector("[data-det]");
@@ -1181,7 +1184,7 @@
     if (hl) hl.onclick = function () {
       var slug = hl.getAttribute("data-hl");
       if (POPUP) { POPUP.remove(); POPUP = null; }
-      blink(slug);
+      blink(slug, at);
     };
     if (det) det.onclick = function () {
       var slug = det.getAttribute("data-det");
@@ -1202,16 +1205,23 @@
   }
 
   /* ---------- Highlight ----------
-     The crew's biggest patch lit from its middle outward. Scoped to the patch under the
-     finger rather than every square the crew holds: a crew with ground in two cities would
-     spend most of the animation off screen, lighting up places you cannot see.
-     The wave is a per-square delay keyed on distance from the patch's centre, which is the
-     same trick the sign-in QR uses on its modules. Nothing moves under prefers-reduced-motion;
-     the CSS decides that, not this. */
-  // The patch a crew is ranked on, as features carrying how far out each square sits: 0 at
-  // the middle, 1 at the rim. Both animations below read that number; neither adds or removes
-  // anything while it runs.
-  function patchFeatures(slug) {
+     Every square the crew holds, lit from the middle of ONE patch outward: the patch under
+     the finger when the gesture came from the map, the crew's biggest when it came from a
+     row in a list. The wave is a per-square delay keyed on distance from that patch's
+     centre, which is the same trick the sign-in QR uses on its modules. Nothing moves under
+     prefers-reduced-motion; the CSS decides that, not this.
+
+     It lit one patch and nothing else for a while, and the button is called "Highlight
+     squares". Measured on production the day a tester reported it: Jonah's turf lit 88 of
+     the 108 squares it holds and Arctic Wheelers 30 of 49 -- and because `framePatch` flies
+     to the patch it lights, tapping a square in a crew's smaller patch sent the camera away
+     and left the square under your finger dark. The question somebody asks of a square they
+     just tapped is where ELSE these people are, so all of it lights now and the framing is
+     what keeps the gesture pointed at the square that started it. */
+  // Every square the crew holds, as features carrying how far out each sits from the framed
+  // patch's middle: 0 at that middle, 1 at its rim, and clamped to 1 beyond it. Both
+  // animations below read that number; neither adds or removes anything while it runs.
+  function patchFeatures(slug, anchor) {
     if (!TERR || !map.getLayer("crew-fill")) return null;
     var idx = -1;
     TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
@@ -1220,7 +1230,12 @@
     for (i = 0; i < TERR.cells.length; i += 5) {
       if (TERR.cells[i] === idx) pts.push([TERR.cells[i + 1], TERR.cells[i + 2]]);
     }
-    var patch = biggestPatch(pts);
+    // The patch the camera gets: the one you tapped, or the crew's biggest when nothing was
+    // tapped -- a list row has no square to anchor to, and the figure those rows print is
+    // the biggest patch. `patchWith` answers null for a square this crew does not hold,
+    // which is reachable: the popup is built from the square under the pointer and a rebuild
+    // can move a border under an open popup.
+    var patch = (anchor && patchWith(pts, anchor)) || biggestPatch(pts);
     if (!patch.length) return null;
     var cx = 0, cy = 0;
     patch.forEach(function (q) { cx += q[0]; cy += q[1]; });
@@ -1229,9 +1244,15 @@
     patch.forEach(function (q) { far = Math.max(far, Math.hypot(q[0] - cx, q[1] - cy)); });
     return {
       patch: patch,
-      feats: patch.map(function (q) {
+      // `far` is the framed patch's own radius, not the crew's whole spread, and everything
+      // past the rim is clamped there. Normalising over the lot would be the quiet way to
+      // ruin the sweep: with 0 at the middle of Copenhagen and 1 at a square in Oslo, every
+      // square on screen lands within a hundredth of every other, so the patch you are
+      // looking at flashes all at once and the remaining 1.7s of wave happens 600km away.
+      // Clamped, distant ground lights with the rim and holds the light through the tail.
+      feats: pts.map(function (q) {
         return { type: "Feature",
-                 properties: { d: Math.hypot(q[0] - cx, q[1] - cy) / far },
+                 properties: { d: Math.min(1, Math.hypot(q[0] - cx, q[1] - cy) / far) },
                  geometry: { type: "Polygon", coordinates: tileRing(q[0], q[1], TERR.z) } };
       })
     };
@@ -1264,8 +1285,9 @@
   }
 
   // Twice, and done. Flat opacity: there is no front to follow, the point is only "this one".
-  function blink(slug) {
-    var p = patchFeatures(slug);
+  // `anchor` is the square that was tapped, when there was one; see `patchFeatures`.
+  function blink(slug, anchor) {
+    var p = patchFeatures(slug, anchor);
     if (!p) return;
     framePatch(p.patch);
     setShineFeatures(p.feats);
@@ -6916,6 +6938,28 @@
       if (comp.length > best.length) best = comp;
     }
     return best;
+  }
+
+  // The same four-way flood, started from one square rather than from every square in turn:
+  // the patch containing `at`, or null if the crew does not hold that square. This is what
+  // lets Highlight frame the patch you tapped instead of the crew's biggest one.
+  function patchWith(pts, at) {
+    var own = Object.create(null), i;
+    for (i = 0; i < pts.length; i++) own[pts[i][0] + ":" + pts[i][1]] = pts[i];
+    var k0 = at[0] + ":" + at[1];
+    if (!own[k0]) return null;
+    var seen = Object.create(null), stack = [own[k0]], comp = [];
+    seen[k0] = 1;
+    while (stack.length) {
+      var q = stack.pop();
+      comp.push(q);
+      var nbs = [[q[0] + 1, q[1]], [q[0] - 1, q[1]], [q[0], q[1] + 1], [q[0], q[1] - 1]];
+      for (var j = 0; j < 4; j++) {
+        var k = nbs[j][0] + ":" + nbs[j][1];
+        if (own[k] && !seen[k]) { seen[k] = 1; stack.push(own[k]); }
+      }
+    }
+    return comp;
   }
 
   // Where on screen there is room to put the marked square.

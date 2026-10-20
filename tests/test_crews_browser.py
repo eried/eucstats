@@ -43,6 +43,7 @@ import models  # noqa: E402
 from services import crews, settings, territory  # noqa: E402
 
 
+
 def _free_port():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -101,13 +102,19 @@ def _serpentine(tile_x, tile_y, zoom, rows=3, cols=3, per_leg=36):
     return pts
 
 
-def _give_ground(db, store_id, clan_id, lat=59.9139, lon=10.7522, zoom=14):
-    """Ride a 3x3 block of squares for one crew, so the map has an emblem to paint.
+def _give_ground(db, store_id, clan_id, lat=59.9139, lon=10.7522, zoom=14,
+                 rows=3, cols=3, tag=""):
+    """Ride a block of squares for one crew, so the map has an emblem to paint.
 
     This is what the file used to lack. Three tests here had to build a bare element and ask
     the stylesheets a question, because no crew in this world held any ground and no `.crewemb`
     was ever created -- which left the one thing worth checking, whether a badge is painted
     where the map projected it, outside the suite's reach.
+
+    `tag` is what lets one crew hold ground in two places: the trip's uuid is derived from the
+    crew, so a second call without one is a no-op on an existing row. A crew with exactly one
+    patch cannot answer the question "does Highlight light everything it holds", because
+    everything it holds IS the patch.
     """
     from datetime import timedelta
 
@@ -116,9 +123,9 @@ def _give_ground(db, store_id, clan_id, lat=59.9139, lon=10.7522, zoom=14):
     from services import territory
 
     home = T.parse(T.tile_of(lat, lon, zoom))
-    pts = _serpentine(home[1], home[2], zoom)
+    pts = _serpentine(home[1], home[2], zoom, rows=rows, cols=cols)
     when = utcnow() - timedelta(days=2)
-    uuid = f"brw-ground-{clan_id}"
+    uuid = f"brw-ground-{clan_id}{tag}"
     if db.get(Trip, uuid) is None:
         db.add(Trip(trip_uuid=uuid, rider_store_id=store_id, clan_id=clan_id,
                     distance_km=12.0, validation_status="validated",
@@ -703,6 +710,13 @@ def rivals(browser, world):
         theirs = crews.membership(db, "brw-rival")
         assert theirs is not None, "world did not build Rival Crew"
         _give_ground(db, "brw-rival", theirs.clan_id, lat=55.6761, lon=12.5683)
+        # And a smaller outpost 250km up the coast, in Gothenburg. Highlight lights every
+        # square a crew holds and frames ONE patch, and a crew with a single patch cannot
+        # tell those two things apart: 9 squares held, 9 lit, 9 framed, and a version that
+        # lights only what it frames passes. With the outpost the crew holds 13 and the
+        # camera still belongs over the 9.
+        _give_ground(db, "brw-rival", theirs.clan_id, lat=57.7089, lon=11.9746,
+                     rows=2, cols=2, tag="-out")
         # And one crew holding nothing, which is the row that must NOT be pressable: `blink`
         # frames a crew's biggest patch and returns silently when there is no patch, so a
         # bound row here would be a control that does nothing -- on exactly the rows where
@@ -977,6 +991,65 @@ def test_a_crew_with_no_ground_is_not_a_control(rivals):
 
     lit = [r for r in rows if r["lit"]]
     assert lit, "no row in the list is pressable, so the rule is firing on everything"
+
+
+def _shine_count(page):
+    """How many squares are in the shine source right now.
+
+    `blink` empties it at 1420ms, so every caller reads it before that.
+    """
+    return page.evaluate("""() => {
+        const s = window.__map.getSource('crew-shine-src');
+        if (!s) return null;
+        let d = null;
+        try { d = s.serialize().data; } catch (e) { d = s._data; }
+        return d && d.features ? d.features.length : null;
+      }""")
+
+
+def test_highlight_lights_every_square_a_crew_holds_and_not_only_the_patch_it_frames(rivals):
+    """The tester's report, on the real map: "highlight squares is not highlighting all the
+    squares".
+
+    `patchFeatures` built its features from `biggestPatch(pts)` rather than from `pts`, so the
+    shine source only ever received one connected component. On production that was 88 of
+    Jonah's turf's 108 squares and 30 of Arctic Wheelers' 49 -- and because the camera flies
+    to the patch it lights, a tap on a square in the smaller patch sent the map away from the
+    square under the finger.
+
+    Rival Crew holds a 3x3 in Copenhagen and a 2x2 in Gothenburg, so 13 held against a biggest
+    patch of 9: the number in the source is the whole assertion. `tests/test_crews_highlight_
+    scope.py` owns the geometry under node; this is the same question asked of the real
+    territory payload, the real flood fill and the real GeoJSON source.
+    """
+    page = rivals
+    _rivals_open(page)
+    page.evaluate("() => window.EUCCrews.setOverlay(true)")
+    page.wait_for_timeout(300)
+    held = page.evaluate("""async () => {
+        const r = await fetch('/api/v1/crews?limit=60');
+        const b = await r.json();
+        const row = document.querySelector('.crewrivrow');
+        const slug = row && row.dataset.rival;
+        const c = (b.crews || []).find(x => x.slug === slug);
+        return c ? { slug: slug, tiles: c.tiles, best: c.best_tiles, regions: c.regions } : null;
+      }""")
+    assert held, "the first row in Other crews names no crew the API knows"
+    assert held["tiles"] > held["best"], (
+        f"{held['slug']} holds {held['tiles']} squares in a biggest patch of {held['best']}; "
+        "the fixture's outpost did not materialise, so this test cannot tell the two apart")
+    page.click(".crewrivrow .crewrivhead")
+    # `framePatch` flies for 700ms and the first peak is at 760ms; the source is emptied at
+    # 1420ms.
+    page.wait_for_timeout(1100)
+    lit = _shine_count(page)
+    assert lit == held["tiles"], (
+        f"{lit} squares were lit of the {held['tiles']} that crew holds; its biggest patch is "
+        f"{held['best']}, so this is the patch and not the ground")
+    # Back over Browser Crew's ground in Oslo. The camera test below measures a crossing of
+    # the Skagerrak, and it starts from wherever this left the map.
+    page.evaluate("() => window.__map.jumpTo({ center: [10.7522, 59.9139], zoom: 10 })")
+    page.wait_for_timeout(200)
 
 
 def test_pressing_a_rival_name_flies_to_its_ground_and_lights_it(rivals):
