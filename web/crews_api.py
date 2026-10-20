@@ -317,6 +317,18 @@ def _crew_brief(db: Session, clan: Clan, counts: dict | None = None) -> dict:
             # now, the same sentence the board puts under a crew's name, and without this it
             # had to claim one patch for every crew on the list.
             "regions": clan.terr_regions or 0,
+            # What the board ranks on, and the tiebreak under it. This endpoint already
+            # returns crews in the board's order -- `standing_order_by()` -- and the client
+            # re-sorts anyway, because a list it filters or merges has to be able to put
+            # itself back in order. Its comparator leads on `score`, which was not here: so
+            # `(b.score || 0) - (a.score || 0)` was `0 - 0` for every pair and the sort fell
+            # through to `best_tiles`, which is not what the board ranks on. A crew spread
+            # over two cities then sorted BELOW a compact crew it beats, under a standing
+            # printed on its own row saying otherwise -- the demo world rendered 1st through
+            # 5th and then 7th above 6th. Two places, like `territory.ranking`, because the
+            # client prints both with `toFixed(1)` and the two roundings disagree at .x5.
+            "score": round(crews.standing_score(clan), 2),
+            "best_km2": round(clan.terr_best_km2 or 0.0, 1),
             "emblem": f"/api/v1/crews/{clan.slug}/emblem"}
 
 
