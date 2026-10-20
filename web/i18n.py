@@ -150,6 +150,13 @@ EN: dict[str, str] = {
     # joining
     "crew.join.h": "Join a crew",
     "crew.rivals.h": "Other crews",
+    # The same list, read by somebody with no pass. "Other crews" needs a crew of your own to
+    # be other THAN, and signed out there is none: the panel is the sign-in card and the
+    # standings, and the standings only have rows for crews that hold ground. A tester on
+    # production, where two crews exist and both are ranked, read first and second place with
+    # nothing after them and asked whether the list is "only with people that have been
+    # signed".
+    "crew.rivals.all": "All crews",
     # The one state the Best riders fold can open into that has nothing to list. A crew can
     # hold ground and have nobody on it: the squares last as long as the window and the riding
     # that won them can have stopped weeks ago. Whether there is anybody to name is only known

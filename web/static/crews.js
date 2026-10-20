@@ -5564,7 +5564,11 @@
     if (!rows.length) return "";
     // The board's own order, so the list and the board cannot disagree about who is ahead.
     rows = ranked(rows);
-    return '<div class="crewcard crewrivals"><h4>' + esc(t("crew.rivals.h")) + "</h4>"
+    // Headed for whoever is reading. Signed out there is no crew of your own for these to be
+    // other than, and this list is the only place a stranger can see a crew that holds no
+    // ground: the board has no row for one.
+    return '<div class="crewcard crewrivals"><h4>'
+      + esc(t(me.paired ? "crew.rivals.h" : "crew.rivals.all")) + "</h4>"
       + rows.map(function (c) {
           return '<div class="crewrivrow" data-rival="' + esc(c.slug) + '">'
             + swatch(c.colour, c.pattern, 14)
@@ -6640,7 +6644,26 @@
              + t("crew.mine.signout") + "</button></div>"
            : "")
         + "</div>"
-        + '<div class="crewcol crewcolside">' + board + "</div>";
+        + '<div class="crewcol crewcolside">' + board
+        // Signed out, the crews themselves. Every list in this feature used to live in `own`,
+        // which only exists for a paired rider, so a visitor got the sign-in card and the
+        // standings and nothing else -- and the standings have rows only for crews that hold
+        // ground. On production, where two crews exist and both are ranked, that read as a
+        // list truncated after second place; a crew holding nothing was invisible to a
+        // stranger anywhere on the site.
+        //
+        // In the BOARD's column rather than beside the sign-in card, for two reasons. The
+        // cards stack on a phone in column order, so here the stranger gets the way in, then
+        // the standings, then everybody -- and the board, which is the thing that sells this,
+        // stays above a list that can run to sixty rows. And on a desktop `crewcolsolo` makes
+        // this the wide column while the sign-in card is a 360px rail, which is the right way
+        // round for rows carrying a name, a standing, a ground line and a description.
+        //
+        // `rivalsHTML` is the read-only list and needed nothing added: it filters out "your"
+        // crew by a slug a signed-out reader does not have, so it already renders all of them,
+        // and it carries no join control -- joining needs a pass.
+        + (me.paired ? "" : rivalsHTML(all, me))
+        + "</div>";
       panel.innerHTML = h;
       // After the markup is in the document and before anything scrolls to a position
       // measured against it -- the figure can change the height of all three podium cards.

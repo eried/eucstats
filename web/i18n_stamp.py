@@ -433,6 +433,7 @@ EN_FINGERPRINT = {
     'crew.rider1': '9b0f5dd636f6',
     'crew.riders': 'fee417a5c1d1',
     'crew.riders.few': 'fee417a5c1d1',
+    'crew.rivals.all': '75194d46efa1',
     'crew.rivals.h': '26d20b935290',
     'crew.rivals.none': 'abc1d57b4735',
     'crew.role.leader': 'b25f598744d2',

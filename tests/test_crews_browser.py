@@ -42,6 +42,11 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 import models  # noqa: E402
 from services import crews, settings, territory  # noqa: E402
 
+import pathlib  # noqa: E402
+import sys  # noqa: E402
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "web"))
+from i18n import EN  # noqa: E402
 
 
 def _free_port():
@@ -353,6 +358,59 @@ def test_a_rendered_control_is_a_bound_control(page):
     for name, ok in bound.items():
         assert ok, (f"the join list's {name} is rendered but has no handler -- it is a control "
                     "that looks live and does nothing")
+
+
+def test_a_stranger_can_read_the_crews_without_signing_in(page):
+    """Signed out, the only crew list on the page was the board.
+
+    `render` builds the left column as `me.paired ? own : signInHTML()`, and every crew list in
+    the feature -- `joinHTML`, `rivalsHTML` -- is inside `own`. So a visitor with no pass got
+    the sign-in card and the standings, and the standings have rows only for crews that hold
+    ground. A tester reading production, where two crews exist and both are ranked, saw first
+    and second place and nothing after them and asked whether the list is "only with people
+    that have been signed". It was.
+
+    The list rendered here is the read-only one -- the same rows a member sees under Other
+    crews, which already handle a reader with no crew of their own. No join buttons: joining
+    needs a pass, and a row of controls that cannot work is the dead-control mistake this file
+    exists to catch.
+    """
+    _open_panel(page)
+    page.wait_for_selector(".crewsign", timeout=20000)
+    out = page.evaluate("""async () => {
+        const r = await fetch('/api/v1/crews?limit=60');
+        const b = await r.json();
+        const cards = [...document.querySelectorAll('#crewpanel .crewcard')];
+        const list = document.querySelector('.crewrivals');
+        const h = list ? list.querySelector('h4') : null;
+        return {
+          mine: !!document.querySelector('.crewmine-wrap'),
+          known: (b.crews || []).map(c => c.slug).sort(),
+          listed: list
+            ? [...list.querySelectorAll('.crewrivrow')].map(x => x.dataset.rival).sort()
+            : null,
+          heading: h ? h.textContent.trim() : null,
+          joins: list ? list.querySelectorAll('button[data-join], .crewjoin').length : 0,
+          signFirst: !!(cards.length && cards[0].classList.contains('crewsign')),
+          lit: list ? list.querySelectorAll('[data-lit]').length : 0,
+        };
+      }""")
+    assert not out["mine"], "this page is signed in, so it cannot answer for a stranger"
+    assert out["known"], "the world has no crews, so this test is not asking anything"
+    assert out["listed"] is not None, (
+        "signed out there is no crew list on the page at all, only the board -- which has no "
+        "row for a crew that holds nothing")
+    assert out["listed"] == out["known"], (
+        f"the list shows {out['listed']} and the site has {out['known']}")
+    assert out["heading"] == EN["crew.rivals.all"], (
+        f"the list signed out is headed {out['heading']!r}; with no crew of your own there is "
+        "nothing for the others to be other than")
+    assert out["heading"] != EN["crew.rivals.h"], "the signed-out heading is the member's one"
+    assert out["joins"] == 0, (
+        f"{out['joins']} join controls are rendered to somebody who cannot join")
+    assert out["signFirst"], (
+        "the first card a stranger lands on is no longer the way in")
+    assert out["lit"], "no row in the signed-out list does anything when pressed"
 
 
 def test_the_map_tip_is_the_same_size_wherever_it_sits(page):
