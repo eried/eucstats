@@ -416,11 +416,6 @@ SHARED = {
     # second key saying "in one piece" so that rows about OTHER crews could say it, which is
     # one sentence in nineteen tables free to drift from its twin.
     "crew.mine.ao": {"targetsHTML", "crewSheetHTML", "groundBits"},
-    # "Best riders", the heading on your own crew's contributors list, now also the label on
-    # the fold that opens the same list for a crew that is not yours. Two words naming a list,
-    # with nobody in them -- and the fold opens into `contributorsHTML`, which is literally
-    # that list, so a different wording here would name one thing twice.
-    "crew.mine.who": {"whoFold"},
     # The three join labels, on the sheet a crew's emblem opens. Same reader, same crew,
     # same word as the browse row -- and literally the same act: the sheet's button closes
     # it and presses that row's button, so a second wording would be two names for one
@@ -444,7 +439,7 @@ SHARED = {
     # the two call `squaresAway` on the same squares, one over a whole crew and one over a
     # patch of it. A second key would be one sentence in nineteen tables free to drift from
     # its twin, and the two figures sit in the same panel where a reader can compare them.
-    "crew.join.away": {"patchFold"},
+    "crew.join.away": {"patPan"},
     # Flashed on the button when a link lands on the clipboard, including the Share
     # button's fallback on a desktop, where navigator.share rejects. The word reports an
     # event and names nobody, so the crew whose sheet it fires on does not change it.

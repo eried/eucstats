@@ -847,9 +847,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    with its end cut off. `anywhere`, because the longest single token in a crew name is
    whatever a rider typed. */
 .crewrivtx b { font-size: 12.5px; overflow-wrap: anywhere; }
-/* The ground line wraps for the same reason: it is a sentence in nineteen languages and
-   Ukrainian's is the long one. */
-.crewrivsub { font-size: 11px; color: var(--mut, #9aa6c8); line-height: 1.35; }
+/* A flex row with a gap, which is how the join list next door has separated its facts
+   since the round that measured the alternative: a middot between two facts sits at one line
+   edge or the other once the row wraps, and it appeared on 6 of 6 rows at 390. This line was
+   still a single string joined with " \00b7 " -- the older form -- and two of its facts are
+   controls now, which is the other reason the dots had to go: a chevron beside a middot is
+   two glyphs arguing about which of them is the one to press. */
+.crewrivsub { font-size: 11px; color: var(--mut, #9aa6c8); line-height: 1.35;
+  display: flex; flex-wrap: wrap; column-gap: 9px; row-gap: 1px; }
 
 /* ---------- the title, and where the crew stands ----------
    The pressable part of a row in either list: the crew's name with its position and movement
@@ -888,23 +893,27 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    only has to stop the head inheriting the facts line's wrap and gaps. */
 .crewrown > span.crewrivhead { column-gap: 7px; row-gap: 0; }
 
-/* ---------- Best riders, folded under a row in either list ----------
-   The control the old chevron was mistaken for, doing what it was mistaken for doing. It says
-   where it goes rather than leaving an arrow to be pressed to find out, and it is a real
-   button with `aria-expanded` and `aria-controls` because that is what it is. */
-.crewwhobox { margin-top: 3px; }
+/* ---------- the two folds, opened from the counts on the facts line ----------
+   The control the old chevron was mistaken for, doing what it was mistaken for doing -- and
+   now sitting ON the number it is about rather than on a line of its own under it. It is a
+   flex ITEM in the facts line, so it takes that line's gap like every other fact and needs no
+   spacing of its own; the padding is here to give an 11px word a thumb to be pressed with,
+   and the negative margin cancels it so the line still breaks where the gap says.
+
+   The dotted underline is on the label and not on the button, which is why `whoBtn` wraps the
+   words: an underline across the chevron reads as one 13px glyph sitting in a gap. */
 .crewwho {
   display: inline-flex; align-items: center; gap: 4px;
   background: none; border: 0; padding: 2px 4px; margin: 0 -4px; border-radius: 4px;
   font: inherit; font-size: 11px; color: var(--acc, #2ea8ff); cursor: pointer;
 }
+.crewwho > span { text-decoration: underline dotted; text-underline-offset: 2px; }
 .crewwho:hover { background: rgba(46,168,255,.1); }
 /* ---------- Biggest patches, the fold beside it ----------
    Rows of facts about ground, so they are laid out like the facts line in the row above:
    flex items with a gap, which breaks BETWEEN facts and has no separator glyph to strand at
    the start or end of a wrapped line. The note on `.crewfact` records that reasoning at
    length; this is the same answer for the same reason. */
-.crewpatchbox { margin-top: 1px; }
 .crewprow {
   display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; width: 100%;
   background: none; border: 0; border-radius: 4px; padding: 3px 4px; margin: 0 -4px;
@@ -934,7 +943,7 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 }
 .crewwho > i { font-style: normal; font-size: 13px; line-height: 1; transition: transform .16s; }
 .crewwho[aria-expanded="true"] > i { transform: rotate(90deg); }
-.crewwhopan { margin-top: 2px; }
+.crewwhopan { margin-top: 4px; }
 .crewwhopan[hidden] { display: none; }
 /* The fetch lasts about a tenth of a second, so this is three dots and no words -- a state
    with nothing to translate. */
@@ -949,7 +958,14 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* The list inside the fold is the same component the crew's own card uses, at the size this
    row can afford: no heading margin fighting the button above it. */
 .crewwhopan .crewcontrib { margin-top: 0; }
-.crewwhopan .crewcontrib h4 { display: none; }
+/* The heading was hidden because the button above it said "Best riders". The button says "7
+   riders" now, so the panel has to name the list it opened: these are the five who rode the
+   most, not the seven the count was about. Smaller and tighter than `.crewcard h4`, because
+   it heads a fold inside a row and not a card. */
+.crewwhopan h4 { margin: 0 0 3px; font-size: 10px; }
+/* The riders fold gets its hairline from `.crewcontrib`; this is the same line for the other
+   one, so two open folds read as two sections rather than as a drift of rows. */
+.crewpatpan { border-top: 1px solid var(--line, #243055); padding-top: 6px; }
 .crewcmore { margin-top: 4px; }
 /* `flex: 1` is `flex: 1 1 0%` -- a zero basis, so under any pressure this collapsed to its
    longest word while `.crewsumrole` beside it, at `flex: 0 1 auto`, kept the full width of

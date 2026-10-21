@@ -8,7 +8,8 @@ Three things here cannot be read off the source:
 
   * the fold is absent for a crew whose ground is in one piece, because the row above already
     says so and a control that opens onto a restatement is the dead control this file keeps
-    paying for;
+    paying for -- and since the count on that row IS the control now, the same rule decides
+    whether a number is pressable or just a number;
   * every row's area is its OWN patch's area. The crew's total comes down from the server
     already summed and a patch is a subset nobody has summed, so this is the one figure in the
     panel computed on the client -- and a row printing the crew's total beside each patch
@@ -36,6 +37,13 @@ CREWS_JS = ROOT / "web" / "static" / "crews.js"
 
 PATCH_START = "  var PATCH_SHOWN = 5;"
 PATCH_END = "  // What a crew holds, in the words its own card uses for the same facts."
+# `groundBits` builds the facts line the fold now opens FROM, and it is the half of the rule
+# that cannot be read off the fold: it decides whether the patch count is a control or words.
+GROUND_START = PATCH_END
+GROUND_END = "  function whoId(slug) {"
+# The chevron, lifted rather than stubbed for the same reason as the circumference below: a
+# stub cannot tell a button that carries the turning glyph from one that does not.
+CHEV_LINE = "  var CHEV = "
 FILL_START = "  function biggestPatch(pts) {"
 FILL_END = "  // Where on screen there is room to put the marked square."
 TILE_START = "  function tileLon(x, z) {"
@@ -51,10 +59,13 @@ const TERR = { z: %(z)d, crews: [{ slug: "a" }, { slug: "one" }], cells: %(cells
 // --- stubs. None of them decides an order, a count or an area. ----------------------------
 const t = (k, v) => (k === "crew.rivals.patches" ? "Biggest patches"
   : k === "crew.join.away" ? v.v + " from here"
+  : k === "crew.mine.ao" ? "in one patch"
+  : k === "crew.inall" ? v.v + " all told"
   : k + (v ? JSON.stringify(v) : ""));
 const esc = s => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const tiles = n => n + " squares";
+const plural = (one, few, many, n) => n + " patches";
 const fmtKm = v => Math.round(v) + " km";
 // Rounded like the real one, which is what a reader compares between rows.
 const fmtKm2 = v => Math.round(v) + " km2";
@@ -65,11 +76,15 @@ const squaresAway = pts => pts.length * 10;
 
 %(earth)s
 
+%(chev)s
+
 %(tile)s
 
 %(fill)s
 
 %(patch)s
+
+%(ground)s
 
 const rows = html => [...html.matchAll(
   /<button type="button" class="crewprow([^"]*)"([^>]*)>(.*?)<\\/button>/g)].map(m => ({
@@ -79,15 +94,28 @@ const rows = html => [...html.matchAll(
     facts: [...m[3].matchAll(/<span class="crewpatf">([^<]*)<\\/span>/g)].map(f => f[1]),
   }));
 
-const many = patchFold("a");
+const many = patPan("a", allPatches(crewPts("a")));
+// The control, which is a count on the facts line now and not a labelled line of its own.
+const btn = patBtn("a", "6 patches");
+// The facts line itself, for the crew the client can show every patch of and for the crew
+// whose server-side count it cannot: `one` holds a single block here and claims three.
+const line = c => groundBits(c, patsDeco(c.slug, allPatches(crewPts(c.slug))));
 console.log(JSON.stringify({
   many: { rows: rows(many), more: (many.match(/crewcmore/g) || []).length,
           label: (/crewcmore[^>]*>([^<]*)</.exec(many) || [])[1] || "",
-          head: /data-pats="([^"]*)"/.exec(many)[1],
+          head: (/<h4>([^<]*)<\\/h4>/.exec(many) || [])[1] || "",
           pan: /id="([^"]*)" hidden/.exec(many)[1] },
+  btn: { slug: /data-pats="([^"]*)"/.exec(btn)[1],
+         controls: /aria-controls="([^"]*)"/.exec(btn)[1],
+         expanded: /aria-expanded="([^"]*)"/.exec(btn)[1],
+         label: (/<span>([^<]*)<\\/span>/.exec(btn) || [])[1] || "",
+         chevOutsideLabel: /<\\/span><i /.test(btn) },
   // A crew whose ground is in one piece, and a crew with none at all.
-  one: patchFold("one"),
-  nobody: patchFold("nosuch"),
+  one: patPan("one"),
+  nobody: patPan("nosuch"),
+  // The patch count, as the two lists hand it out.
+  shows: line({ slug: "a", best_tiles: 9, tiles: 25, regions: 6, km2: 40 }),
+  cannot: line({ slug: "one", best_tiles: 4, tiles: 4, regions: 3, km2: 9 }),
   // Every patch's area, by the client's own arithmetic, for the cross-check below.
   areas: allPatches(crewPts("a")).map(p => ({
     squares: p.length,
@@ -155,8 +183,11 @@ def _run():
         "earth": _line(EARTH_LINE),
         "tile": _region(TILE_START, TILE_END, ["Math.pow(2, z)"]),
         "fill": _region(FILL_START, FILL_END, ["function allPatches(", "function crewPts("]),
+        "chev": _line(CHEV_LINE),
         "patch": _region(PATCH_START, PATCH_END,
-                         ["function patchFold(", "function tileKm2(", "crewcmore"]),
+                         ["function patPan(", "function patBtn(", "function patsDeco(",
+                          "function tileKm2(", "crewcmore"]),
+        "ground": _region(GROUND_START, GROUND_END, ["function groundBits("]),
     }
     d = pathlib.Path(tempfile.mkdtemp(prefix="patchfold-"))
     try:
@@ -247,12 +278,55 @@ def test_the_client_and_the_server_agree_on_what_a_square_covers():
         f"the six patches sum to {tot:.4f} km2 on the client and {srv:.4f} on the server")
 
 
+def test_the_count_on_the_row_is_what_opens_the_fold():
+    """Erwin: "we put a link in X riders and a link in X patches instead of using the 'Best
+    riders' and 'Biggest patches' buttons ... when everything is collapsed looks more tidy".
+
+    So the fold has no label of its own any more, and two things follow that the markup is the
+    only record of: the number has to carry the button's whole wiring, and the panel has to
+    name the list, because the words that named it are gone.
+    """
+    out = _run()
+    btn = out["btn"]
+    assert btn["slug"] == "a", "the control does not name its crew"
+    assert btn["controls"] == "crewpat-a" and btn["expanded"] == "false", (
+        f"the control points at {btn['controls']!r} while shut={btn['expanded']!r}; a "
+        "disclosure is a button with `aria-expanded` and `aria-controls` wherever it sits")
+    assert btn["label"] == "6 patches", (
+        f"the control reads {btn['label']!r}: the count is the label now, and it is wrapped "
+        "so the dotted underline can be the words")
+    assert btn["chevOutsideLabel"], (
+        "the chevron is inside the underlined label, so the glyph that turns is underlined "
+        "with the words it sits beside")
+    assert out["many"]["head"] == "Biggest patches", (
+        f"the panel is headed {out['many']['head']!r}. The button that used to say it is a "
+        "number now, so a fold with no heading opens onto rows that name nothing")
+
+
+def test_a_patch_count_the_client_cannot_show_stays_words():
+    """`c.regions` is the server's count; the fold is a flood fill over the squares this
+    client holds. A crew whose other ground is outside the loaded region prints "3 patches"
+    with one patch to show -- and a count that opens nothing is the dead control this file
+    keeps paying for. The number stays, because it is the figure the board ranks on.
+    """
+    out = _run()
+    shows = " ".join(out["shows"])
+    cannot = " ".join(out["cannot"])
+    assert 'data-pats="a"' in shows, (
+        f"the patch count is not a control for a crew with six patches to show: {shows!r}")
+    assert "6 patches" in shows, "the count itself is gone from the facts line"
+    assert "3 patches" in cannot, (
+        f"the server's patch count is missing from the facts line: {cannot!r}. It is the "
+        "figure the board ranks on and the row above prints it either way")
+    assert "<button" not in cannot and "data-pats" not in cannot, (
+        f"a crew with one patch on this client got a pressable patch count: {cannot!r}")
+
+
 def test_the_fold_is_wired_where_it_is_rendered():
     """Three names in three files have to agree: the panel's id, the button that controls it
     and the handler that finds it. node sees the markup and not the binding."""
     out = _run()
     src = CREWS_JS.read_text(encoding="utf-8")
-    assert out["many"]["head"] == "a", "the fold's button does not name its crew"
     assert out["many"]["pan"] == "crewpat-a", (
         f"the panel's id is {out['many']['pan']!r}, which `patId` would not build")
     assert "[data-pats]" in src and "[data-pat]" in src, (
@@ -260,10 +334,13 @@ def test_the_fold_is_wired_where_it_is_rendered():
     # Only in Other crews. The join list is a choice between crews and already prints how far
     # the nearest of their ground is.
     riv = src[src.index("function rivalsHTML("):src.index("function joinHTML(")]
-    assert "patchFold(c.slug)" in riv, "Other crews does not render the fold"
+    assert "patPan(c.slug, pats)" in riv and "patsDeco(c.slug, pats)" in riv, (
+        "Other crews does not render the fold, or renders it without the guard that decides "
+        "whether its count can be pressed")
     join = src[src.index("function joinHTML("):]
     join = join[:join.index("function bind")]
-    assert "patchFold(" not in join, "the join list grew a patches fold"
+    assert "patPan(" not in join and "patsDeco(" not in join, (
+        "the join list grew a patches fold")
     # The press rebuilds from the territory rather than closing over the list the fold was
     # drawn from: the map reloads every minute and patches merge.
     binder = src[src.index("function bindPatchFolds()"):src.index("function bindRivals()")]

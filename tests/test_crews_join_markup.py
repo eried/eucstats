@@ -40,10 +40,12 @@ START = "  function joinHTML(crews, me) {"
 END = "  function bindList() {"
 
 # The helpers a row is built from that live elsewhere in the file, lifted rather than stubbed.
-# `whoFold` contributes a div, a button and another div to EVERY row and `headHTML` a span and
-# a `<b>`, which is exactly the kind of nesting this test exists to count -- stubs standing in
-# for them would leave the count blind to the one thing it is counting. They are contiguous
-# between `pointsOf` and `ordinal`, so one slice takes the lot.
+# `whoBtn` contributes a button, a span and an `<i>` INSIDE the facts line and `whoPan` a div
+# after it, and `headHTML` a span and a `<b>` -- which is exactly the kind of nesting this test
+# exists to count, and the fold moving into the line it used to sit under is exactly the kind
+# of move that leaks a closer. Stubs standing in for them would leave the count blind to the
+# one thing it is counting. They are contiguous between `pointsOf` and `ordinal`, so one slice
+# takes the lot.
 HELP_START = "  function standingHTML(slug) {"
 HELP_END = "  function ordinal(n) {"
 
@@ -193,13 +195,12 @@ def _region():
     j = src.index(END, i)
     region = src[i:j]
     for needed in ('class="crewrow', "var locked =", "var pending =", 'id="cj-list"',
-                   "</button>", "whoFold(", "headHTML(", "groundBits("):
+                   "</button>", "whoBtn(", "whoPan(", "headHTML(", "groundBits("):
         assert needed in region, f"{needed} is not in the lifted region; this tests nothing"
     hi = src.index(HELP_START)
     hj = src.index(HELP_END, hi)
     helpers = src[hi:hj]
-    for needed in ('class="crewwhobox"', 'class="crewwho"', 'class="crewwhopan"',
-                   'class="crewstand"'):
+    for needed in ('class="crewwho"', 'class="crewwhopan"', 'class="crewstand"'):
         assert needed in helpers, f"{needed} is not in the lifted helpers; this tests nothing"
     return helpers + "\n" + region
 

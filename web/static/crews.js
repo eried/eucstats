@@ -4599,35 +4599,47 @@
     return "";
   }
 
-  // The fold that opens into a crew's best riders, and the panel it fills.
-  //
-  // A real `<button>` with `aria-expanded` and `aria-controls`, because that is what it is.
-  // The chevron it replaces was a bare `aria-hidden` glyph next to a row that jumped to the
-  // board, and Erwin read it the way anybody would -- as something that opens. It now does,
-  // and it says what it opens into: `crew.mine.who` is "Best riders" in all nineteen locales
-  // and is the heading on your own crew's list of the same thing, so the fold names its own
-  // destination instead of leaving a reader to press an arrow to find out.
-  //
-  // The panel starts empty and is filled on first open from `/crews/{slug}`, which already
-  // serves `contributors` for any crew, not only yours. Sixteen crews are not fetched to
-  // answer a question about one.
-  // Inside the row's text column in both lists, so it needs no wrapping rule of its own.
-  // `.crewrown` and `.crewrivtx` are both block-ish containers whose children already stack,
-  // and the stylesheet says in as many words that granting `flex-wrap` to a row that does not
-  // need it is how the fifth host gets broken. The box also means hiding a join row hides the
-  // fold with it, which a sibling of the row would not have done.
-  function whoFold(slug) {
-    return '<div class="crewwhobox">'
-      + '<button type="button" class="crewwho" data-who="' + esc(slug)
-      + '" aria-expanded="false" aria-controls="' + whoId(slug) + '">'
-      + esc(t("crew.mine.who")) + '<i aria-hidden="true">›</i></button>'
-      + '<div class="crewwhopan" id="' + whoId(slug) + '" hidden></div></div>';
+  /* Best riders, opened from the count the row already prints.
+
+     The fold used to be a line of its own, "Best riders" and a chevron, under a facts line
+     that said "4 riders" two spans to the left -- a label naming what the number beside it
+     already named, and a line of chrome per crew to say it twice. Erwin: "I think we put a
+     link in X riders and a link in X patches instead of using the 'Best riders' and 'Biggest
+     patches' buttons, so the whole thing is streamlined ... just that when everything is
+     collapsed looks more tidy". So the count IS the control: the same button, `aria-expanded`,
+     the same handler and the same panel, two lines shorter per row with everything shut.
+
+     The words moved INTO the panel rather than going away. `.crewwhopan .crewcontrib h4` was
+     hidden precisely because the button above it said "Best riders", and the list still has
+     to name itself: it holds the five who rode the most, while the count that opened it is
+     the whole membership. A reader who presses "7 riders" and is shown four names has been
+     told something untrue unless something on the panel says these are the best of them.
+
+     The label is wrapped in a span so the dotted underline can be the words and not the
+     chevron. Three things on this row are pressable and they are not the same act: the crew's
+     name lights their ground, a fact opens in place, and a rider's name inside the fold flies
+     the map -- dotted says "opens here" where solid would say "goes somewhere". */
+  var CHEV = '<i aria-hidden="true">\u203a</i>';
+
+  function whoBtn(slug, label) {
+    return '<button type="button" class="crewwho" data-who="' + esc(slug)
+      + '" aria-expanded="false" aria-controls="' + whoId(slug) + '"><span>'
+      + label + "</span>" + CHEV + "</button>";
+  }
+
+  // Inside the row's text column in both lists, which is what keeps a hidden join row hiding
+  // its fold with it -- a sibling of the row would have been left behind. It starts empty and
+  // is filled on first open from `/crews/{slug}`, which has served `contributors` for any
+  // crew all along. Sixteen crews are not fetched to answer a question about one.
+  function whoPan(slug) {
+    return '<div class="crewwhopan" id="' + whoId(slug) + '" hidden></div>';
   }
 
   /* Biggest patches, the second fold under a crew in Other crews.
 
      Erwin asked for it beside Best riders -- "In other crews what else can we add? 'Biggest
-     patches'? similar to the Best riders" -- and it answers the question the row above it
+     patches'? similar to the Best riders" -- and it is opened from the patch count on the row
+     above, for the reason written over `whoBtn`. It answers the question the row above it
      raises and then drops: "9 squares in one patch, 13 all told, 3 patches" says there are
      two more places these people ride and will not say where. Each row is pressable and
      flies to that patch, which makes the fold a way around a crew's ground and not a table.
@@ -4638,15 +4650,36 @@
      crew holding nothing: there is nothing to fill it with, and a control that opens onto an
      empty box is the dead control this file keeps paying for. */
   var PATCH_SHOWN = 5;
-  function patchFold(slug) {
-    var patches = allPatches(crewPts(slug));
+
+  function patBtn(slug, label) {
+    return '<button type="button" class="crewwho" data-pats="' + esc(slug)
+      + '" aria-expanded="false" aria-controls="' + patId(slug) + '"><span>'
+      + label + "</span>" + CHEV + "</button>";
+  }
+
+  /* The patch count is a control only when pressing it opens something.
+
+     `c.regions` is the server's count of a crew's patches and `patches` here is a flood fill
+     over the squares this client happens to hold, so the two can disagree: a crew whose other
+     ground lies outside the loaded region reads "3 patches" with one patch to show. The number
+     is still printed, because it is the figure the board ranks on -- it simply stays words,
+     which is the same silence `patPan` has always kept for a crew holding one piece. A count
+     that opens nothing is the dead control this file keeps paying for. */
+  function patsDeco(slug, patches) {
+    return patches.length > 1 ? function (s) { return patBtn(slug, s); } : null;
+  }
+
+  /* The panel the patch count opens. `patches` is handed in by the row, which needs the same
+     list to decide whether that count is pressable at all; read here as well it would be two
+     flood fills per crew per render. The guard stays where it is, because it is also what
+     makes the fold ABSENT rather than empty -- and the heading is here for the reason Best
+     riders needed one: the button that used to name this list is now a number. */
+  function patPan(slug, patches) {
+    patches = patches || allPatches(crewPts(slug));
     if (patches.length < 2) return "";   // one patch is what the row above already says
     var cap = patches.length > PATCH_SHOWN ? PATCH_SHOWN : 0;
-    return '<div class="crewwhobox crewpatchbox">'
-      + '<button type="button" class="crewwho" data-pats="' + esc(slug)
-      + '" aria-expanded="false" aria-controls="' + patId(slug) + '">'
-      + esc(t("crew.rivals.patches")) + '<i aria-hidden="true">\u203a</i></button>'
-      + '<div class="crewwhopan crewpatpan" id="' + patId(slug) + '" hidden>'
+    return '<div class="crewwhopan crewpatpan" id="' + patId(slug) + '" hidden>'
+      + "<h4>" + esc(t("crew.rivals.patches")) + "</h4>"
       + patches.map(function (patch, n) {
           var km2 = patch.reduce(function (a, q) {
             return a + tileKm2(q[0], q[1], TERR.z);
@@ -4669,7 +4702,7 @@
                + ' aria-expanded="false">'
                + esc(moreLabel(patches.length - cap)) + "</button>"
              : "")
-      + "</div></div>";
+      + "</div>";
   }
 
   function patId(slug) {
@@ -4696,21 +4729,26 @@
   // inside `crew.board.inp`'s "{a} in {b}" -- so a crew the board leads with as "46 in one
   // patch" read "58 squares in 3 patches" here, two different answers to the same question
   // on one screen, and the figure the ranking is actually made of was the one missing.
-  function groundBits(c) {
+  function groundBits(c, deco) {
     var best = c.best_tiles || 0;
     var all = c.tiles || 0;
-    if (!best && !all) return [tiles(0)];
+    if (!best && !all) return [esc(tiles(0))];
     var out = [];
     if (best) {
-      out.push(tiles(best) + " " + t("crew.mine.ao"));
-      if (all && all !== best) out.push(t("crew.inall", { v: tiles(all) }));
+      out.push(esc(tiles(best) + " " + t("crew.mine.ao")));
+      if (all && all !== best) out.push(esc(t("crew.inall", { v: tiles(all) })));
     } else {
-      out.push(tiles(all));
+      out.push(esc(tiles(all)));
     }
     if ((c.regions || 0) > 1) {
-      out.push(plural(null, "crew.patches.few", "crew.patches", c.regions));
+      // The one fact either list may hand back as a control rather than as words. Escaped
+      // first and decorated after, so what `deco` wraps is already safe -- the alternative is
+      // a function that escapes in one branch and trusts in the other, which is how the
+      // pattern gets copied wrong the third time.
+      var p = esc(plural(null, "crew.patches.few", "crew.patches", c.regions));
+      out.push(deco ? deco(p) : p);
     }
-    if (c.km2) out.push(fmtKm2(c.km2));
+    if (c.km2) out.push(esc(fmtKm2(c.km2)));
     return out;
   }
 
@@ -5793,24 +5831,32 @@
     return '<div class="crewcard crewrivals"><h4>'
       + esc(t(me.paired ? "crew.rivals.h" : "crew.rivals.all")) + "</h4>"
       + rows.map(function (c) {
+          // The patches, read once: `patsDeco` needs them to decide whether the count this
+          // row prints can be pressed, and `patPan` needs the same list to build the fold.
+          var pats = allPatches(crewPts(c.slug));
+          var bits = groundBits(c, patsDeco(c.slug, pats))
+            .concat([whoBtn(c.slug, esc(riders(c.members)))]);
           return '<div class="crewrivrow" data-rival="' + esc(c.slug) + '">'
             + swatch(c.colour, c.pattern, 14)
             + '<span class="crewrivtx">'
-            // The pressable part, and only this: the fold below is a button, and a button
-            // inside something carrying `role="button"` is one control announcing itself as
-            // two. Erwin asked for exactly this split -- "the click of the title is just the
-            // higlight and center in map and the chevron shows the riders".
+            // The pressable part of the TITLE line, and only this: the folds are buttons on
+            // the line below, and a button inside something carrying `role="button"` is one
+            // control announcing itself as two. Erwin asked for exactly this split -- "the
+            // click of the title is just the higlight and center in map and the chevron
+            // shows the riders".
             + headHTML(c)
             + '<span class="crewrivsub">'
-            + esc(groundBits(c).concat([riders(c.members)]).join(" · "))
+            + bits.map(function (f) {
+                return '<span class="crewfact">' + f + "</span>";
+              }).join(" ")
             + "</span>"
             + (c.description
                ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
-            + whoFold(c.slug)
+            + whoPan(c.slug)
             // Second, because who rides for a crew is what a reader asks first and where
             // they ride is the follow-up. Only in this list: the join list is a choice
             // between crews and already prints how far the nearest of their ground is.
-            + patchFold(c.slug)
+            + patPan(c.slug, pats)
             + "</span>"
             + "</div>";
         }).join("")
@@ -5934,9 +5980,12 @@
           // figure the board ranks on, finally appears in the list a stranger chooses from.
           // It had never been here: the row printed everything held, under a sentence whose
           // "{a} in {b}" shape says the opposite.
-          var sub = [riders(c.members), policy]
+          // The rider count opens Best riders here too. No patch count: this list has no
+          // patches fold, so that fact stays a fact -- see `patPan`'s note.
+          var sub = [whoBtn(c.slug, esc(riders(c.members))), esc(policy)]
             .concat(groundBits(c))
-            .concat(c._km == null ? [] : [t("crew.join.away", { v: fmtKm(c._km) })])
+            .concat(c._km == null ? []
+                    : [esc(t("crew.join.away", { v: fmtKm(c._km) }))])
             .map(function (f) { return '<span class="crewfact">' + f + "</span>"; })
             .join(" ");
           return '<div class="crewrow' + (i >= SHOWN ? " crewrest" : "") + '"'
@@ -5948,7 +5997,7 @@
             // the map.
             + '<div class="crewrown">' + headHTML(c) + "<span>" + sub + "</span>"
             + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
-            + whoFold(c.slug)
+            + whoPan(c.slug)
             + "</div>"
             + (locked
                // No `</div>` here. The row's own closer is appended to the whole expression

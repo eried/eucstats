@@ -854,12 +854,12 @@ def _rival_row(page):
           oldChevron: !!q('.crewrivgo'),
           headRole: head ? head.getAttribute('role') : null,
           headLabel: head ? (head.getAttribute('aria-label') || '') : '',
-          fold: q('.crewwho') ? {
-            label: q('.crewwho').textContent.trim(),
-            expanded: q('.crewwho').getAttribute('aria-expanded'),
-            controls: q('.crewwho').getAttribute('aria-controls'),
+          fold: q('.crewwho[data-who]') ? {
+            label: q('.crewwho[data-who]').textContent.trim(),
+            expanded: q('.crewwho[data-who]').getAttribute('aria-expanded'),
+            controls: q('.crewwho[data-who]').getAttribute('aria-controls'),
           } : null,
-          panelId: q('.crewwhopan') ? q('.crewwhopan').id : null,
+          panelId: q('.crewwhopan:not(.crewpatpan)') ? q('.crewwhopan:not(.crewpatpan)').id : null,
           overflowsCard: !!(hr && cr && hr.right > cr.right + 1),
         };
       }""")
@@ -907,22 +907,107 @@ def test_a_rival_name_is_a_control_that_says_what_it_does(rivals):
 
 
 def test_the_fold_says_where_it_goes_before_it_is_pressed(rivals):
-    """The whole complaint, in one assertion: an arrow that opens something has to say what.
+    """The original complaint was an arrow that opened something without saying what. The fold
+    still says it; the words are the count it is about.
 
-    `crew.mine.who` is "Best riders" in all nineteen locales and is the heading over the same
-    list on your own crew's card, so the fold names its own destination rather than leaving a
-    reader to press a glyph to find out -- and it is a real button carrying `aria-expanded`
-    and `aria-controls`, which is what a disclosure is.
+    Erwin: "I think we put a link in X riders and a link in X patches instead of using the
+    'Best riders' and 'Biggest patches' buttons, so the whole thing is streamlined ... just
+    that when everything is collapsed looks more tidy". `4 riders` names the list as well as
+    `Best riders` did and the row already had to print it, so the label was one line of chrome
+    per crew saying what the line above it said. It is still a real button carrying
+    `aria-expanded` and `aria-controls`, which is what a disclosure is.
     """
     _rivals_open(rivals)
     row = _rival_row(rivals)
     assert row["fold"], "there is no fold under the row at all"
-    assert row["fold"]["label"], "the fold has no label, so it is a bare glyph again"
+    assert any(ch.isdigit() for ch in row["fold"]["label"]), (
+        f"the fold reads {row['fold']['label']!r}, which is not the count the row prints")
+    assert row["fold"]["label"] in row["sub"], (
+        f"the fold's label {row['fold']['label']!r} is not part of the facts line "
+        f"{row['sub']!r}: it is still a line of its own")
     assert row["fold"]["expanded"] == "false", (
         f"the fold reports aria-expanded={row['fold']['expanded']!r} while shut")
     assert row["fold"]["controls"] and row["fold"]["controls"] == row["panelId"], (
         f"the fold points at {row['fold']['controls']!r} and the panel it opens is "
         f"{row['panelId']!r}")
+
+
+def test_a_count_on_the_facts_line_is_pressable_where_a_thumb_lands(rivals):
+    """What the source cannot answer: whether an 11px word in a line of five facts is a
+    control a finger can hit, and whether it still looks like one before it is hovered.
+
+    `.click()` bypasses hit testing, so the number under the thumb is measured with
+    `elementFromPoint` -- the row carries other controls, and the one directly above this line
+    is the crew's name, which flies the map.
+    """
+    _rivals_open(rivals)
+    seen = rivals.evaluate(r"""() => {
+        const row = document.querySelector('.crewrivrow');
+        const sub = row.querySelector('.crewrivsub');
+        const who = row.querySelector('.crewwho[data-who]');
+        const lab = who.querySelector('span');
+        // NOT a neighbouring fact: the facts line is a flex row and `align-items` defaults to
+        // stretch, so every item on it reports the height of the tallest -- the control's own
+        // height, which made that comparison read 19 against 19 and pass whatever the padding
+        // was. The label inside the button is the thing the padding is added to.
+        // The panel scrolls and the first row can be below the fold, where `elementFromPoint`
+        // answers null for every coordinate -- which reads exactly like a control nothing can
+        // press. Put it on screen first, then measure where it actually is.
+        who.scrollIntoView({ block: 'center' });
+        const r = who.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {
+          inLine: sub.contains(who),
+          label: who.textContent.replace(/\s+/g, ' ').trim(),
+          // The line AND the style: with the rule gone the style still computes to
+          // 'solid', which is the default for text that carries no decoration at all.
+          underline: getComputedStyle(lab).textDecorationLine + ' '
+                   + getComputedStyle(lab).textDecorationStyle,
+          colour: getComputedStyle(who).color,
+          chevron: !!who.querySelector('i'),
+          chevronInLabel: !!lab.querySelector('i'),
+          hit: hit ? (who.contains(hit) ? 'control' : (hit.className || hit.tagName))
+                   : 'nothing at ' + Math.round(r.left) + ',' + Math.round(r.top),
+          box: [Math.round(r.width), Math.round(r.height)],
+          labBox: Math.round(lab.getBoundingClientRect().height),
+          oldBoxes: row.querySelectorAll('.crewwhobox').length,
+          facts: sub.querySelectorAll('.crewfact').length,
+          rowHeight: Math.round(row.getBoundingClientRect().height),
+          // Every fact in the list against the card it sits in. The line is a flex row that
+          // wraps now, and a fact is `nowrap`, so the thing that can go wrong at 390 is one
+          // long fact running past the edge rather than the line failing to break.
+          worstOverflow: Math.round(Math.max(...[...document.querySelectorAll('.crewrivrow')]
+            .flatMap(rw => {
+              const edge = rw.closest('.crewcard').getBoundingClientRect().right;
+              return [...rw.querySelectorAll('.crewfact')]
+                .map(f => f.getBoundingClientRect().right - edge);
+            }))),
+        };
+      }""")
+    assert seen["inLine"] and not seen["oldBoxes"], (
+        f"the control is not inside the facts line (oldBoxes={seen['oldBoxes']}), so nothing "
+        "was streamlined: the row still carries a line per fold")
+    assert seen["facts"] >= 3, (
+        f"the facts line holds {seen['facts']} facts, so this is not the line the counts "
+        "were meant to join")
+    assert seen["hit"] == "control", (
+        f"a press in the middle of the count lands on {seen['hit']!r}: the number is "
+        "underlined like a control and something else answers for it")
+    assert seen["box"][1] >= seen["labBox"] + 3, (
+        f"the control is {seen['box'][1]}px tall around a {seen['labBox']}px label. The "
+        "padding on `.crewwho` is what buys an 11px word something to be pressed with, and "
+        "the label is the only thing on that line whose height the padding is added to")
+    assert seen["underline"] == "underline dotted", (
+        f"the label's decoration is {seen['underline']!r}. A dotted underline is what "
+        "separates a fact that opens in place from the crew's name above it, which goes "
+        "somewhere, and from the plain facts beside it, which do nothing")
+    assert seen["worstOverflow"] <= 1, (
+        f"a fact on the line runs {seen['worstOverflow']}px past the right edge of its own "
+        "card at this width. The facts wrap between themselves and never inside one, so a "
+        "single fact wider than the card is the only way this happens")
+    assert seen["chevron"] and not seen["chevronInLabel"], (
+        "the chevron is missing, or it is inside the underlined label, which draws a line "
+        "under the one glyph on the row that turns")
 
 
 def test_the_fold_opens_into_who_rode_for_that_crew(rivals):
@@ -940,20 +1025,24 @@ def test_the_fold_opens_into_who_rode_for_that_crew(rivals):
     page.on("request",
             lambda r: hits.append(r.url) if ("/crews/" + slug) in r.url else None)
 
-    page.click(".crewrivrow .crewwho")
+    page.click(".crewrivrow .crewwho[data-who]")
     page.wait_for_selector(".crewwhopan .crewcrow", timeout=20000)
     got = page.evaluate("""() => {
-        const pan = document.querySelector('.crewwhopan');
+        const pan = document.querySelector('.crewwhopan:not(.crewpatpan)');
         const rows = [...pan.querySelectorAll('.crewcrow')];
         const txt = (r, s) => { const e = r.querySelector(s); return e ? e.textContent.trim() : ''; };
         return {
           hidden: pan.hidden,
-          expanded: document.querySelector('.crewwho').getAttribute('aria-expanded'),
+          expanded: document.querySelector('.crewwho[data-who]').getAttribute('aria-expanded'),
           names: rows.map(r => txt(r, '.crewcname')),
           kms: rows.map(r => txt(r, '.crewckm')),
           spinner: !!pan.querySelector('.crewwhospin'),
           busy: pan.getAttribute('aria-busy'),
-          heading: !!pan.querySelector('.crewcontrib h4'),
+          heading: (() => {
+            const h = pan.querySelector('.crewcontrib h4');
+            return h ? { text: h.textContent.trim(),
+                         shown: getComputedStyle(h).display !== 'none' } : null;
+          })(),
         };
       }""")
     assert got["expanded"] == "true", "the fold did not report itself open"
@@ -965,14 +1054,22 @@ def test_the_fold_opens_into_who_rode_for_that_crew(rivals):
         f"the rider is listed as {got['kms'][0]!r}, with no distance against their name")
     assert not got["spinner"] and not got["busy"], (
         "the loading state is still on screen after the rows arrived")
+    # The heading used to be `display: none` here, because the button above it said "Best
+    # riders". The button says "4 riders" now, and the two are not the same claim: this list
+    # holds the five who rode the most, while the count is the whole membership. A reader who
+    # presses "7 riders" and is shown four names has been told something untrue unless the
+    # panel says which four.
+    assert got["heading"] and got["heading"]["shown"] and got["heading"]["text"], (
+        f"the panel is headed {got['heading']!r}: the words that named this list moved onto "
+        "the count, and nothing took their place")
     assert len(hits) == 1, f"one fold opened and {len(hits)} requests went out: {hits}"
 
     # Shut and open again. The answer is kept, so a reader comparing two rivals pays once.
-    page.click(".crewrivrow .crewwho")
+    page.click(".crewrivrow .crewwho[data-who]")
     page.wait_for_timeout(150)
-    assert page.evaluate("() => document.querySelector('.crewwhopan').hidden") is True, (
+    assert page.evaluate("() => document.querySelector('.crewwhopan:not(.crewpatpan)').hidden") is True, (
         "pressing the open fold did not shut it")
-    page.click(".crewrivrow .crewwho")
+    page.click(".crewrivrow .crewwho[data-who]")
     page.wait_for_timeout(250)
     assert page.evaluate("() => !!document.querySelector('.crewwhopan .crewcrow')"), (
         "reopening the fold lost the list")
@@ -1037,7 +1134,7 @@ def test_a_crew_with_no_ground_is_not_a_control(rivals):
           sub: r.querySelector('.crewrivsub') ? r.querySelector('.crewrivsub').textContent : '',
           lit: head ? head.hasAttribute('data-lit') : null,
           role: head ? head.getAttribute('role') : null,
-          fold: !!r.querySelector('.crewwho'),
+          fold: !!r.querySelector('.crewwho[data-who]'),
         };
       })""")
     ghost = [r for r in rows if r["name"] == "Ghost Crew"]
@@ -1428,7 +1525,7 @@ def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):
         const pb = document.getElementById('pbody');          // live, after the re-render
         if (!row || !pb) return null;
         const rb = row.getBoundingClientRect(), b = pb.getBoundingClientRect();
-        const fold = row.querySelector('.crewwho');
+        const fold = row.querySelector('.crewwho[data-who]');
         return {
           popup: !!document.querySelector('.crewpop'),
           open: !!document.querySelector('.panel.open'),
@@ -1436,7 +1533,7 @@ def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):
           offCentre: Math.abs((rb.top + rb.bottom) / 2 - (b.top + b.bottom) / 2),
           scrolled: Math.round(pb.scrollTop),
           foldOpen: fold ? fold.getAttribute('aria-expanded') : null,
-          riders: (row.querySelector('.crewwhopan') || {}).textContent || '',
+          riders: (row.querySelector('.crewwhopan:not(.crewpatpan)') || {}).textContent || '',
         };
       }""", rival)
     assert seen, "the crew has no row in Other crews to land on"
@@ -1461,9 +1558,9 @@ def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):
     page.wait_for_timeout(1200)
     after = page.evaluate("""(slug) => {
         const row = document.querySelector('[data-rival="' + slug + '"]');
-        const fold = row && row.querySelector('.crewwho');
+        const fold = row && row.querySelector('.crewwho[data-who]');
         return { expanded: fold ? fold.getAttribute('aria-expanded') : null,
-                 riders: row ? (row.querySelector('.crewwhopan') || {}).textContent || '' : '' };
+                 riders: row ? (row.querySelector('.crewwhopan:not(.crewpatpan)') || {}).textContent || '' : '' };
       }""", rival)
     assert after["expanded"] == "true" and "km" in after["riders"], (
         f"after a render the fold is {after['expanded']} and holds "
@@ -1532,6 +1629,9 @@ def test_the_patches_fold_lists_a_crews_patches_and_lights_the_one_you_press(riv
                    text: r.textContent.replace(/\s+/g, ' ').trim() })) };
       }""", rival)
     assert rows, "a crew with two patches has no patches fold"
+    assert any(ch.isdigit() for ch in rows["label"]), (
+        f"the patches fold is opened from {rows['label']!r} rather than from the patch count "
+        "the row above already prints")
     assert len(rows["rows"]) == 2, (
         f"the fold lists {len(rows['rows'])} rows for a crew with two patches: {rows['rows']}")
     assert "9 squares" in rows["rows"][0]["text"] and "4 squares" in rows["rows"][1]["text"], (
@@ -1565,7 +1665,7 @@ def test_a_fold_the_reader_opened_survives_the_next_render(rivals):
     rival = _rival_slug(page)
     opened = page.evaluate("""(slug) => {
         const row = document.querySelector('[data-rival="' + slug + '"]');
-        const who = row.querySelector('.crewwho');
+        const who = row.querySelector('.crewwho[data-who]');
         const pats = row.querySelector('[data-pats]');
         if (who.getAttribute('aria-expanded') !== 'true') who.click();
         if (pats && pats.getAttribute('aria-expanded') !== 'true') pats.click();
@@ -1579,9 +1679,9 @@ def test_a_fold_the_reader_opened_survives_the_next_render(rivals):
     page.wait_for_timeout(1200)
     after = page.evaluate("""(slug) => {
         const row = document.querySelector('[data-rival="' + slug + '"]');
-        const who = row.querySelector('.crewwho');
+        const who = row.querySelector('.crewwho[data-who]');
         const pats = row.querySelector('[data-pats]');
-        const pan = row.querySelector('.crewwhopan');
+        const pan = row.querySelector('.crewwhopan:not(.crewpatpan)');
         return { who: who.getAttribute('aria-expanded'),
                  pats: pats ? pats.getAttribute('aria-expanded') : null,
                  hidden: pan ? pan.hidden : null,
@@ -1598,7 +1698,7 @@ def test_a_fold_the_reader_opened_survives_the_next_render(rivals):
     # Leave them as they were found.
     page.evaluate("""(slug) => {
         const row = document.querySelector('[data-rival="' + slug + '"]');
-        const who = row.querySelector('.crewwho');
+        const who = row.querySelector('.crewwho[data-who]');
         const pats = row.querySelector('[data-pats]');
         if (who.getAttribute('aria-expanded') === 'true') who.click();
         if (pats && pats.getAttribute('aria-expanded') === 'true') pats.click();
@@ -1616,7 +1716,7 @@ def test_a_name_in_best_riders_flies_to_where_that_rider_rides(rivals):
     _open_panel(page)
     page.wait_for_selector(".crewrivrow", timeout=20000)
     page.evaluate("""() => {
-        const b = document.querySelector('.crewrivrow .crewwho');
+        const b = document.querySelector('.crewrivrow .crewwho[data-who]');
         if (b && b.getAttribute('aria-expanded') !== 'true') b.click();
       }""")
     page.wait_for_selector(".crewcfly", timeout=15000)
