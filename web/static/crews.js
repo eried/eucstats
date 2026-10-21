@@ -6030,14 +6030,13 @@
   // the row's text block, where a button inherits none of the type and all of the chrome.
   function bindPatchFolds() {
     [].slice.call(document.querySelectorAll("[data-pats]")).forEach(function (b) {
+      var slug = b.getAttribute("data-pats");
       b.onclick = function (ev) {
         ev.stopPropagation();
-        var pan = document.getElementById(patId(b.getAttribute("data-pats")));
-        if (!pan) return;
-        var open = b.getAttribute("aria-expanded") === "true";
-        pan.hidden = open;
-        b.setAttribute("aria-expanded", open ? "false" : "true");
+        setPat(b, b.getAttribute("aria-expanded") !== "true");
       };
+      // Same re-apply as the riders fold beside it, for the same render.
+      if (patOpen[slug]) setPat(b, true);
     });
     [].slice.call(document.querySelectorAll("[data-pat]")).forEach(function (r) {
       r.onclick = function (ev) {
@@ -6053,6 +6052,15 @@
       };
     });
     bindContribMore(document);
+  }
+
+  function setPat(b, open) {
+    var slug = b.getAttribute("data-pats");
+    var pan = document.getElementById(patId(slug));
+    patOpen[slug] = open;
+    if (!pan) return;
+    pan.hidden = !open;
+    b.setAttribute("aria-expanded", open ? "true" : "false");
   }
 
   function bindRivals() {
@@ -6095,40 +6103,71 @@
     bindContribFly(pan);
   }
 
+  /* Which folds are open, by crew, kept across renders.
+
+     `render()` rebuilds the whole panel from `me`, so everything a fold did to the DOM was
+     thrown away by the next repaint -- which is the same sentence this file already writes
+     about `revealNext` and the arrival flash, and the same answer: hold the state here and
+     re-apply it after the render. Two things made it visible at once. The knock poll renders
+     every thirty seconds when there is news, so a reader comparing two crews' riders had the
+     fold shut under them; and Details opens the panel, which renders, so the riders fold it
+     unfolds on the way past was collapsed again a moment later. The second was measured on
+     production, where the panel had to be opened by the press -- locally it was already open,
+     nothing re-rendered, and it looked right.
+
+     `whoGot` means re-applying costs nothing: the roster is cached per crew, so the panel is
+     refilled from memory rather than re-fetched. */
+  var whoOpen = Object.create(null);
+  var patOpen = Object.create(null);
+
   function bindWho() {
     [].slice.call(document.querySelectorAll(".crewwho")).forEach(function (b) {
       b.onclick = function (ev) {
         // The name block around it flies the map. One press, one thing.
         ev.stopPropagation();
-        var slug = b.getAttribute("data-who");
-        var pan = document.getElementById(whoId(slug));
-        if (!pan) return;
-        if (b.getAttribute("aria-expanded") === "true") {
-          pan.hidden = true;
-          b.setAttribute("aria-expanded", "false");
-          return;
-        }
-        pan.hidden = false;
-        b.setAttribute("aria-expanded", "true");
-        if (pan.dataset.filled) return;
-        pan.dataset.filled = "1";
-        if (whoGot[slug]) { fillWho(pan, slug); return; }
-        // No text, so nothing to translate for a state that lasts about a tenth of a second.
-        pan.setAttribute("aria-busy", "true");
-        pan.innerHTML = '<span class="crewwhospin" aria-hidden="true"></span>';
-        api("GET", "/api/v1/crews/" + encodeURIComponent(slug)).then(function (r) {
-          if (!r.ok) {
-            pan.removeAttribute("aria-busy");
-            // Pressable again: a dropped request is not an answer, and the fold is the only
-            // way to ask a second time.
-            delete pan.dataset.filled;
-            pan.innerHTML = '<div class="crewmsg bad">' + esc(errMsg(r.err)) + "</div>";
-            return;
-          }
-          whoGot[slug] = (r.body && r.body.contributors) || [];
-          fillWho(pan, slug);
-        });
+        if (b.getAttribute("aria-expanded") === "true") { shutWho(b); return; }
+        openWho(b);
       };
+      // Re-applied after the render that just threw it away. Only what the reader opened:
+      // `whoOpen` is set by their own press and by Details, and by nothing else.
+      if (whoOpen[b.getAttribute("data-who")]) openWho(b);
+    });
+  }
+
+  function shutWho(b) {
+    var slug = b.getAttribute("data-who");
+    var pan = document.getElementById(whoId(slug));
+    whoOpen[slug] = false;
+    if (!pan) return;
+    pan.hidden = true;
+    b.setAttribute("aria-expanded", "false");
+  }
+
+  function openWho(b) {
+    var slug = b.getAttribute("data-who");
+    var pan = document.getElementById(whoId(slug));
+    whoOpen[slug] = true;
+    if (!pan || b.getAttribute("aria-expanded") === "true") return;
+    pan.hidden = false;
+    b.setAttribute("aria-expanded", "true");
+    if (pan.dataset.filled) return;
+    pan.dataset.filled = "1";
+    if (whoGot[slug]) { fillWho(pan, slug); return; }
+    // No text, so nothing to translate for a state that lasts about a tenth of a second.
+    pan.setAttribute("aria-busy", "true");
+    pan.innerHTML = '<span class="crewwhospin" aria-hidden="true"></span>';
+    api("GET", "/api/v1/crews/" + encodeURIComponent(slug)).then(function (r) {
+      if (!r.ok) {
+        pan.removeAttribute("aria-busy");
+        // Pressable again: a dropped request is not an answer, and the fold is the only
+        // way to ask a second time.
+        delete pan.dataset.filled;
+        whoOpen[slug] = false;
+        pan.innerHTML = '<div class="crewmsg bad">' + esc(errMsg(r.err)) + "</div>";
+        return;
+      }
+      whoGot[slug] = (r.body && r.body.contributors) || [];
+      fillWho(pan, slug);
     });
   }
 
@@ -7153,12 +7192,15 @@
       var row = panel.querySelector('[data-rival="' + key + '"]')
              || panel.querySelector('.crewboard [data-slug="' + key + '"]');
       if (!row) return;
-      // The riders, opened on the way past. The fold fetches `/crews/{slug}` the first time
-      // it is pressed, so starting it before the scroll means the names are usually there by
-      // the time the row is. Pressing the button rather than setting the attributes: the
-      // panel, the spinner, the cache and the failure path all live in that one handler.
+      // The riders, opened on the way past. `whoOpen` rather than a press, because a press
+      // is undone by the render this very function may have started -- which is exactly what
+      // production did with it: the fold opened and the rebuilt row came back shut. The flag
+      // is what `bindWho` re-applies after every render, and `openWho` is the same path the
+      // reader's own press takes, so the panel, the spinner, the cache and the failure path
+      // are not duplicated here.
+      whoOpen[key] = true;
       var fold = row.querySelector('.crewwho[data-who="' + key + '"]');
-      if (fold && fold.getAttribute("aria-expanded") !== "true") fold.click();
+      if (fold) openWho(fold);
       try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {
         row.scrollIntoView();
       }

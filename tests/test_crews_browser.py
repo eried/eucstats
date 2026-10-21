@@ -1452,6 +1452,23 @@ def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):
         "board row it replaced")
     assert "km" in seen["riders"], (
         f"the fold is open and holds {seen['riders'][:60]!r}, with nobody in it")
+    # And it is still open after the next render, which is the half this test could not see.
+    # Details opens the panel, the panel renders, and the render rebuilds the row -- so
+    # whether the fold survived came down to which of the two landed first. It passed here
+    # with code that failed on production, where the render had a `/crews/me` to wait for;
+    # forcing one turns the race into an answer.
+    page.evaluate("() => window.EUCCrews.show()")
+    page.wait_for_timeout(1200)
+    after = page.evaluate("""(slug) => {
+        const row = document.querySelector('[data-rival="' + slug + '"]');
+        const fold = row && row.querySelector('.crewwho');
+        return { expanded: fold ? fold.getAttribute('aria-expanded') : null,
+                 riders: row ? (row.querySelector('.crewwhopan') || {}).textContent || '' : '' };
+      }""", rival)
+    assert after["expanded"] == "true" and "km" in after["riders"], (
+        f"after a render the fold is {after['expanded']} and holds "
+        f"{after['riders'][:40]!r}: the panel rebuilt the row and threw away what Details "
+        "had just opened")
     _restore_mine(page)
 
 
@@ -1535,6 +1552,57 @@ def test_the_patches_fold_lists_a_crews_patches_and_lights_the_one_you_press(riv
     assert abs(after[1] - 57.7089) < 1.5 and abs(after[0] - 11.9746) < 2.5, (
         f"the camera ended at {after}, which is not over the Gothenburg outpost the pressed "
         "row names")
+
+
+def test_a_fold_the_reader_opened_survives_the_next_render(rivals):
+    """The knock poll renders every thirty seconds when there is news, and `render()` rebuilds
+    the whole panel from `me`. Everything a fold did to the DOM went with it, so a reader
+    comparing two crews had both folds shut under them mid-comparison -- which was true of
+    Best riders before this round and is the same defect Details tripped over.
+    """
+    page = rivals
+    _rivals_open(page)
+    rival = _rival_slug(page)
+    opened = page.evaluate("""(slug) => {
+        const row = document.querySelector('[data-rival="' + slug + '"]');
+        const who = row.querySelector('.crewwho');
+        const pats = row.querySelector('[data-pats]');
+        if (who.getAttribute('aria-expanded') !== 'true') who.click();
+        if (pats && pats.getAttribute('aria-expanded') !== 'true') pats.click();
+        return { who: who.getAttribute('aria-expanded'),
+                 pats: pats ? pats.getAttribute('aria-expanded') : null };
+      }""", rival)
+    assert opened["who"] == "true" and opened["pats"] == "true", (
+        f"the folds did not open to begin with: {opened}")
+    page.wait_for_timeout(600)
+    page.evaluate("() => window.EUCCrews.show()")
+    page.wait_for_timeout(1200)
+    after = page.evaluate("""(slug) => {
+        const row = document.querySelector('[data-rival="' + slug + '"]');
+        const who = row.querySelector('.crewwho');
+        const pats = row.querySelector('[data-pats]');
+        const pan = row.querySelector('.crewwhopan');
+        return { who: who.getAttribute('aria-expanded'),
+                 pats: pats ? pats.getAttribute('aria-expanded') : null,
+                 hidden: pan ? pan.hidden : null,
+                 riders: pan ? (pan.textContent || '') : '' };
+      }""", rival)
+    assert after["who"] == "true" and not after["hidden"], (
+        f"Best riders came back {after['who']} after a render, with the panel hidden="
+        f"{after['hidden']}")
+    assert "km" in after["riders"], (
+        f"the fold is open and empty after the render: {after['riders'][:40]!r}. The roster is "
+        "cached per crew, so re-applying it should cost no request and lose no names")
+    assert after["pats"] == "true", (
+        "the patches fold came back shut after a render")
+    # Leave them as they were found.
+    page.evaluate("""(slug) => {
+        const row = document.querySelector('[data-rival="' + slug + '"]');
+        const who = row.querySelector('.crewwho');
+        const pats = row.querySelector('[data-pats]');
+        if (who.getAttribute('aria-expanded') === 'true') who.click();
+        if (pats && pats.getAttribute('aria-expanded') === 'true') pats.click();
+      }""", rival)
 
 
 def test_a_name_in_best_riders_flies_to_where_that_rider_rides(rivals):
