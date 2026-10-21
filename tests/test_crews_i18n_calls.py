@@ -58,6 +58,12 @@ NO_AGREEMENT = {
     "crew.e.rate.in": "`{n} min` -- an abbreviated unit after the number in every locale",
     "crew.e.rate.inh": "`{n} h` -- the same",
     "crew.who.share": "`{n}%`",
+    # Which of a crew's patches you are standing on, in the map popup: "patch 2 of 3". The
+    # number does not count the noun, it names which one -- so the noun stays singular in
+    # front of it and nothing inflects: ru `кусок 2 из 3`, pl `plama 2 z 3`, uk `шматок 2 з 3`,
+    # the same shape as "part 2 of 3" in all three. The count that COULD inflect is the total,
+    # and it is the last word in every locale that declines.
+    "crew.pop.of": "`patch {n} of {v}` -- the number names which patch, not how many",
     # The standing on a podium card. Two reasons it cannot inflect, and the second is the
     # stronger one. The unit is abbreviated in every locale that declines -- ru `оч.`, uk
     # `оч.`, pl `pkt`, all invariant after a numeral -- and the value is a DECIMAL, which in

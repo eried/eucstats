@@ -1803,14 +1803,53 @@ def contributors(db, clan_id: str, window_days: int = WINDOW_DAYS, limit: int = 
              db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
                                          ClanMember.store_id.in_(ids),
                                          ClanMember.left_at.is_(None)).all()}
+    # Where each of them rides, for the panel to fly to when their name is pressed. The
+    # leaderboards have carried this for every row they publish since they existed; this list
+    # is the one place a rider's name appears with nothing behind it.
+    locs = _last_starts(db, ids)
     out = []
     for store_id, km, n in rows:
         r = riders.get(store_id)
         # Same rule as everywhere else: a contributors list is public.
-        out.append({"id": r.public_id if (r and publishable_handle(r.public_id)) else None,
+        pub = bool(r and publishable_handle(r.public_id))
+        # The coordinate is held to a stricter rule than the name, and deliberately.
+        #
+        # A name on this list is the crew's own business: it is published for every rider who
+        # rode for the crew, which is what the list is FOR. A position is not -- "a rider's
+        # last start point is their street", in services/privacy.py's own words -- so it is
+        # published only for a rider who is publicly listed at all, which is the same
+        # `consent_public` the leaderboards filter on. A rider who turned that off keeps their
+        # name on their crew's list and gives up nothing else; their row simply is not
+        # pressable, which is already the case for every rider with no trip carrying a start.
+        loc = locs.get(store_id) if (pub and r.consent_public is not False) else None
+        out.append({"id": r.public_id if pub else None,
                     "name": r.display_name if r else "?",
                     "flag": r.flag if r else None,
                     "has_avatar": bool(r and r.avatar_png),
                     "role": roles.get(store_id, "past"),
+                    "lat": loc[0] if loc else None,
+                    "lon": loc[1] if loc else None,
                     "km": round(km or 0.0, 1), "rides": n})
     return out
+
+
+def _last_starts(db, ids: list) -> dict:
+    """The latest start point for each of several riders, in one query.
+
+    `stats._rider_loc` answers this for one rider and is called once per row of a
+    leaderboard; a fold that opens on a tap and lists five names would be five round trips
+    for a panel that is already waiting on a roster and a territory. Latest start rather than
+    any start, because that is the coordinate the boards publish for the same rider -- two
+    surfaces of this site put the same person in two places otherwise.
+    """
+    if not ids:
+        return {}
+    last = (db.query(Trip.rider_store_id.label("sid"),
+                     sa.func.max(Trip.start_utc).label("at"))
+            .filter(Trip.rider_store_id.in_(ids), Trip.start_lat.isnot(None))
+            .group_by(Trip.rider_store_id).subquery())
+    rows = (db.query(Trip.rider_store_id, Trip.start_lat, Trip.start_lon)
+            .join(last, sa.and_(Trip.rider_store_id == last.c.sid,
+                                Trip.start_utc == last.c.at))
+            .filter(Trip.start_lat.isnot(None)).all())
+    return {sid: (lat, lon) for sid, lat, lon in rows}

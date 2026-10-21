@@ -157,6 +157,10 @@ EN: dict[str, str] = {
     # nothing after them and asked whether the list is "only with people that have been
     # signed".
     "crew.rivals.all": "All crews",
+    # The second fold under a crew in that list, beside Best riders. Biggest first, and only
+    # the first few: a crew with scattered ground can be in a dozen patches and the fold is
+    # for seeing where they are, not for counting.
+    "crew.rivals.patches": "Biggest patches",
     # The one state the Best riders fold can open into that has nothing to list. A crew can
     # hold ground and have nobody on it: the squares last as long as the window and the riding
     # that won them can have stopped weeks ago. Whether there is anybody to name is only known
@@ -338,6 +342,12 @@ EN: dict[str, str] = {
     # about a rider who had joined nobody.
     "crew.decl.full": "no room right now",
     "crew.who.share": "{n}%",
+    # Pressing a rider's name in Best riders. The host has flown riders from every
+    # leaderboard since before this mode existed, and what it shows is the area they
+    # ride in rather than a point -- the label says that and not "show on map", which
+    # would promise a pin on a doorstep.
+    "crew.who.onmap": "Show the area this rider rides in",
+
     "crew.rank.top": "top of the board",
     "crew.rank.nth": "{n}th",
     # `{n}` comes through `tiles()`, so the noun agrees. As a bare integer this was the one
@@ -588,7 +598,16 @@ EN: dict[str, str] = {
     # The collapsed strip on the map that explains the colours. One word, because it sits in
     # a 230px box over the map and competes with the map for attention.
     "crew.key": "Key",
+    # The name in a list row, which lights everything the crew holds.
     "crew.pop.highlight": "Highlight squares",
+    # The popup's own button, which lights the one patch you tapped and nothing else. Two
+    # gestures because they answer different questions: pointing at a square asks about THAT
+    # ground, and a crew's name asks where else these people are.
+    "crew.pop.patch": "Highlight patch",
+    # Walking a crew's patches, biggest first. Only on the popup, and only for a crew that
+    # has more than one.
+    "crew.pop.next": "Next patch",
+    "crew.pop.of": "patch {n} of {v}",
     "crew.pop.details": "Details",
     "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
     "crew.pub.scan": "Scan to find this crew",

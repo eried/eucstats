@@ -91,6 +91,17 @@ REVIEWED = {
         "separators, so nothing is cut -- the longest single fact is uk "
         "`за 223 км відсюди` at "
         "about 120px in a 292px row at 390.",
+    ".crewpatf":
+        "one fact out of a row in the Biggest patches fold -- `27 squares`, `70 km2`, "
+        "`742 km from here`. Same reasoning as `.crewfact` above, which is the facts line "
+        "this fold sits under: the nowrap is here so the row breaks BETWEEN facts rather "
+        "than inside `742 km`, and the row itself wraps. Measured with the real span's font "
+        "(11px Chakra Petch) over all 19 locales at the worst values a reader can reach -- "
+        "9,999 squares, 99,999 km2 and 19,999 km, which is half the earth away: the widest "
+        "single fact is nl `19.999 km hiervandaan` at 114px, then en at 102 and es at 98. "
+        "The row is about 298px at a 390px phone (card inner 318px less the ordinal column "
+        "and its gap), so the longest fact in the widest language has 184px to spare and "
+        "nothing here is ever cut.",
     ".crewboard table .val":
         "a figure and its unit -- `13 squares`, `91 клетка`. Measured at 390 in all 19: the "
         "column is sized from its widest row, and the longest (uk `клітинок`) fits.",

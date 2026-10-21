@@ -1,6 +1,19 @@
-"""What "Highlight squares" lights, and which patch the camera gets.
+"""What each highlight lights, and which patch the camera gets.
 
-The button says *squares* and lit one patch. `patchFeatures` collected every square a crew
+Two gestures share `patchFeatures`, and the whole of the difference between them is the third
+argument:
+
+  * a crew's NAME, in Other crews or on the board, runs the wave over every square the crew
+    holds -- the question a name asks is where else these people are;
+  * the popup's own button is called Highlight PATCH and lights the patch under your finger
+    and nothing else -- the question a square asks is about that ground.
+
+One function either way, so the framing, the normalising and the clamp cannot differ between
+them. Which is also why the scope is worth pinning from both ends: a `patchOnly` that leaked
+into the wave would quietly undo the report below, and a wave that leaked into the button
+would light two cities when a reader pointed at one square.
+
+The report that split them. The button said *squares* and lit one patch. `patchFeatures` collected every square a crew
 holds and then threw most of them away -- `biggestPatch(pts)` -- so the shine source only ever
 received one connected component, and `framePatch` flew the camera to that component. Measured
 on production the day this was found: Jonah's turf lit 88 of the 108 squares it holds, Arctic
@@ -10,8 +23,8 @@ the squares. I don't understand."
 
 Two separate facts, so two separate things are checked here:
 
-  * every square the crew holds goes into the source, because the question somebody asks of a
-    square they just tapped is where ELSE these people are;
+  * what goes into the shine source is the whole crew for the wave and the framed patch alone
+    for the button;
   * the patch the camera frames is the one under their finger, falling back to the crew's
     biggest when the gesture came from a list row instead of from the map.
 
@@ -71,7 +84,7 @@ const look = p => p && ({
 });
 
 const out = {
-  // No tap: a list row, which has no square to anchor to.
+  // The wave. No tap: a list row, which has no square to anchor to.
   none: look(patchFeatures("a")),
   // A tap inside the small patch, and inside the big one.
   small: look(patchFeatures("a", [200, 200])),
@@ -79,6 +92,11 @@ const out = {
   // A square this crew does not hold at all.
   foreign: look(patchFeatures("a", [150, 150])),
   other: look(patchFeatures("b")),
+  // The popup's button, which is the same calls with the scope closed down to one patch.
+  smallOnly: look(patchFeatures("a", [200, 200], true)),
+  bigOnly: look(patchFeatures("a", [101, 101], true)),
+  noneOnly: look(patchFeatures("a", null, true)),
+  foreignOnly: look(patchFeatures("a", [150, 150], true)),
 };
 console.log(JSON.stringify(out));
 """
@@ -126,15 +144,34 @@ def _tiles(rows):
     return sorted((int(a), int(b)) for a, b in rows)
 
 
-def test_highlight_lights_every_square_the_crew_holds():
-    """The whole report. Twenty squares held, twenty squares lit, from any of the gestures."""
+def test_the_wave_lights_every_square_the_crew_holds():
+    """The whole report. Twenty-nine squares held, twenty-nine lit, from any of the gestures
+    that run the wave -- a crew's name in either list, and its mark on the map."""
     out = _run()
     want = _tiles([list(q) for q in BIG + SMALL])
     for how in ("none", "small", "big", "foreign"):
         got = _tiles(out[how]["feats"])
         assert got == want, (
-            f"pressing Highlight ({how}) lit {len(got)} of the {len(want)} squares this crew "
-            f"holds; the ones left dark are {sorted(set(want) - set(got))}")
+            f"the wave ({how}) lit {len(got)} of the {len(want)} squares this crew holds; the "
+            f"ones left dark are {sorted(set(want) - set(got))}")
+
+
+def test_the_popup_lights_the_patch_you_tapped_and_nothing_else():
+    """The other half of the split. Erwin, on the round that made the wave light everything:
+    "lets convert the highlight squares blinking to highlight patch (so it only blinks the
+    patch)". The button names a patch, so lighting a second city from it would be the same
+    class of mistake as the report above, pointing the other way.
+    """
+    out = _run()
+    cases = {"smallOnly": SMALL, "bigOnly": BIG, "noneOnly": BIG, "foreignOnly": BIG}
+    for how, want in cases.items():
+        got = _tiles(out[how]["feats"])
+        assert got == _tiles([list(q) for q in want]), (
+            f"Highlight patch ({how}) lit {len(got)} squares; the patch it framed has "
+            f"{len(want)}, and the extras are {sorted(set(got) - {tuple(q) for q in want})}")
+        # The framed patch and the lit squares are the same set, which is the whole claim.
+        assert got == _tiles(out[how]["patch"]), (
+            f"Highlight patch ({how}) lit squares the camera was not framing")
 
 
 def test_another_crews_ground_is_not_lit_by_accident():
@@ -220,8 +257,30 @@ def test_the_popup_hands_the_highlight_the_square_that_was_tapped():
     assert "bindPopActs(tileAt(" in src, (
         "the popup does not hand its own square to the actions it binds, so Highlight cannot "
         "know what you tapped")
-    assert "function bindPopActs(at)" in src, (
+    assert "function bindPopActs(at" in src, (
         "bindPopActs does not take the tapped square")
     assert "blink(slug, at)" in src, (
         "the popup's Highlight button calls blink without the square that was tapped")
     assert "function blink(slug, anchor)" in src, "blink does not accept an anchor"
+    # The scope lives at exactly one call site, and it is this one.
+    assert "patchFeatures(slug, anchor, true)" in src, (
+        "blink no longer asks for the framed patch alone, so the popup's Highlight patch "
+        "button lights every square the crew holds")
+
+
+def test_the_popups_name_is_the_control_that_opens_the_crew():
+    """Details left the second button so Next patch could have it, and landed on the name --
+    Erwin: "clicking the name of the crew in this flyout can do the details thing". A name
+    that silently stopped being pressable would leave the popup with no way into the crew at
+    all, and nothing else on the page would look any different.
+    """
+    src = CREWS_JS.read_text(encoding="utf-8")
+    assert 'class="crewpopnm" data-det=' in src, (
+        "the crew's name in the popup does not carry the Details hook")
+    assert "pressable(det," in src, (
+        "the name is not made pressable, so it is a caption that happens to have a handler: "
+        "no role, no tab stop and nothing said to a screen reader")
+    assert "<button" not in src[src.index('class="crewpopnm"'):
+                                src.index('class="crewpopnm"') + 400], (
+        "the name looks like it has become a button again, which the stylesheet's own note "
+        "says repaints the lines under it")

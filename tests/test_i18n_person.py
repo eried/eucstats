@@ -439,6 +439,12 @@ SHARED = {
     "crew.lose.h": {"legendHTML"},              # the card's own name, used as a key's label
     "crew.targets.h": {"legendHTML"},
     "crew.tiles": {"targetsHTML"},              # a count
+    # "{v} from here", written for the join list and now also on every row of the Biggest
+    # patches fold. A fragment with nobody in it, and the same measurement in both places:
+    # the two call `squaresAway` on the same squares, one over a whole crew and one over a
+    # patch of it. A second key would be one sentence in nineteen tables free to drift from
+    # its twin, and the two figures sit in the same panel where a reader can compare them.
+    "crew.join.away": {"patchFold"},
     # Flashed on the button when a link lands on the clipboard, including the Share
     # button's fallback on a desktop, where navigator.share rejects. The word reports an
     # event and names nobody, so the crew whose sheet it fires on does not change it.
@@ -514,7 +520,10 @@ HOME = {
     # split into a second function when the flat list became a set of groups.
     "crew.lose.": {"loseHTML", "groupedRows", "ringTip"},
     "crew.decl.": {"myCrewHTML"},
-    "crew.tile.": {"tileWords", "legendHTML", "fadesIn", "onCellClick", "onCellHover",
+    # `openCrewPop` is the popup itself, split out of `onCellClick` so Next patch can raise
+    # the same one over ground in another city. It renders the "held for" line; the handler
+    # that calls it now renders nothing.
+    "crew.tile.": {"tileWords", "legendHTML", "fadesIn", "openCrewPop", "onCellHover",
                    "ringTip", "targetsHTML"},
     "crew.legend.": {"legendHTML"},
     # `bindCreate` writes the pinned preview at the top of that same form: the colour and

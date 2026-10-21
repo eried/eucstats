@@ -1071,11 +1071,22 @@
     }
     var f = e.features && e.features[0];
     if (!f) return;
-    var p = f.properties;
+    openCrewPop(e.lngLat, f.properties);
+  }
+
+  /* The popup, at a coordinate and for a crew, rather than at a click.
+
+     Next patch raises this same popup over ground in another city, which is the whole reason
+     it is a function: that press has no click event to build from, and everything the popup
+     says below the name -- the band, how much riding is left before the square flips, how
+     long it has been held -- is read from the tile under it. Handed a coordinate it states
+     the facts about THAT square instead of carrying a copy of the facts about the square you
+     first tapped 600km away. */
+  function openCrewPop(lngLat, p) {
     // The band is the answer to "am I actually taking this off them?". Without it the only
     // signal is the shade, and a shade on its own is something you notice after the fact.
     // the clicked tile, not the shape it belongs to
-    var xy = tileAt(e.lngLat), tx = xy[0], ty = xy[1];
+    var xy = tileAt(lngLat), tx = xy[0], ty = xy[1];
     var info = TILEINFO[tx + ":" + ty] || [p.band || 0, 0];
     // the number is the whole point: "about to flip" without it is a warning with no content
     var words = tileWords(info[0], info[1], ty);
@@ -1084,7 +1095,7 @@
     if (POPUP) POPUP.remove();
     // How long they have held it. The server has computed this all along and nothing read it,
     // so the mode had no past tense at all: who holds what, never for how long.
-    api("GET", "/api/v1/territory/at?lat=" + e.lngLat.lat + "&lon=" + e.lngLat.lng)
+    api("GET", "/api/v1/territory/at?lat=" + lngLat.lat + "&lon=" + lngLat.lng)
       .then(function (r) {
         if (!r.ok || !r.body || !r.body.since || !POPUP) return;
         var el = POPUP.getElement && POPUP.getElement();
@@ -1105,11 +1116,22 @@
     // the point you pressed, so it grows into the visible strip instead of under the panel.
     // Only when the panel is actually covering that point, so a click on open map keeps
     // MapLibre's own placement.
+    // Which of this crew's patches the square belongs to, and how many there are. Both come
+    // out of the territory the client already holds: a flood fill over one crew's squares,
+    // not another field on every payload. `pi` is -1 for a square the crew does not hold,
+    // which is reachable -- `popupAtEmblem` hands over the emblem's own coordinate, and a
+    // rebuild can move a border under an open popup -- so the counter is printed only when
+    // there is something true to print.
+    var patches = allPatches(crewPts(p.slug));
+    var pi = patchIndexAt(patches, [tx, ty]);
+    var hop = patches.length > 1;
     var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
-    var POP_H = 170;                       // about the tallest this popup gets
+    // About the tallest this popup gets, which is what the placement arithmetic below is
+    // measured against. A crew with more than one patch gets the counter line as well.
+    var POP_H = hop ? 190 : 170;
     var panelEl = document.querySelector(".panel.open");
     var topEl = document.querySelector(".topbar");
-    var pt = map.project(e.lngLat);
+    var pt = map.project(lngLat);
     // Measure both gaps and put the popup in the one it fits, rather than ruling the lower
     // one out and hoping. This was two rules, each written for its own end of the screen and
     // the second subordinated to the first with "only applied when there is room below, so
@@ -1143,39 +1165,60 @@
       popOpts.anchor = below >= POP_H ? "top" : above >= POP_H ? "bottom" : "top";
     }
     POPUP = new maplibregl.Popup(popOpts)
-      .setLngLat(e.lngLat)
+      .setLngLat(lngLat)
       .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
-        + '/emblem" alt=""/><div><b>' + esc(p.name) + "</b><span>" + esc(state)
+        // The name is the control that opens the crew, which is where Details went when the
+        // second button became Next patch. It stays a `<b>` rather than gaining a wrapper:
+        // the stylesheet colours this block by element and by sibling order, so an extra
+        // span here would quietly repaint the two lines under it.
+        + '/emblem" alt=""/><div><b class="crewpopnm" data-det="' + esc(p.slug) + '">'
+        + esc(p.name) + "</b><span>" + esc(state)
         + "</span><span>" + esc(detail)
         + (fig ? ' <i>· ' + esc(fig) + "</i>" : "")
-        + '</span><span class="crewpop-since"></span>'
+        + "</span>"
+        // Where you are in the crew's ground, for a crew that has more than one patch. Last
+        // of the three lines, again because `span + span` paints by position.
+        + (hop && pi >= 0
+           ? '<span class="crewpopct">'
+             + esc(t("crew.pop.of", { n: pi + 1, v: patches.length })) + "</span>"
+           : "")
+        + '<span class="crewpop-since"></span>'
         + "</div></div>"
         // The two things there are to do with a crew you just tapped. In the popup rather
         // than behind a hover delay or a long press: this is a phone-first mode, phones have
         // no hover, and a long press is both undiscoverable and the OS's own gesture. The
         // popup is already on screen and already names the crew, so it is where the actions
         // belong -- and it works identically with a thumb and with a mouse.
-        // Details is the filled one. A first-timer cannot know what "Highlight" does before
-        // pressing it, and the thing they actually want from a square they just tapped is the
-        // crew behind it -- so the button that was leading was the one that needs the label.
-        // It got one: "Highlight squares" rather than a verb with no object.
+        // Highlight lights the patch you tapped and says so. It used to say "squares" and
+        // light every square the crew holds, which is the right answer to a different
+        // question -- pointing at a square asks about that ground. The crew's whole holdings
+        // are what the name runs the wave over, in a list and now here.
+        //
+        // Next patch is the filled one where it exists, because browsing is what the popup
+        // is for once you know whose square you are on, and Highlight carries the label
+        // instead when it is alone: the only control on a popup should not look secondary.
         + '<div class="crewpopacts">'
-        + '<button type="button" class="crewpopb ghost" data-hl="' + esc(p.slug) + '">'
-        + esc(t("crew.pop.highlight")) + "</button>"
-        + '<button type="button" class="crewpopb prime" data-det="' + esc(p.slug) + '">'
-        + esc(t("crew.pop.details")) + "</button></div>")
+        + '<button type="button" class="crewpopb ' + (hop ? "ghost" : "prime")
+        + '" data-hl="' + esc(p.slug) + '">'
+        + esc(t("crew.pop.patch")) + "</button>"
+        + (hop
+           ? '<button type="button" class="crewpopb prime" data-next="' + esc(p.slug) + '">'
+             + esc(t("crew.pop.next")) + "</button>"
+           : "")
+        + "</div>")
       .addTo(map);
     // The square that was tapped travels with the actions. It is the only thing Highlight
     // cannot work out for itself, and it is what keeps the camera on the ground under the
     // finger rather than on the crew's biggest patch in another city.
-    bindPopActs(tileAt(e.lngLat));
+    bindPopActs(tileAt(lngLat), p, patches, pi);
   }
 
   // Wired after the popup is in the DOM; MapLibre builds its element on `addTo`.
-  function bindPopActs(at) {
+  function bindPopActs(at, p, patches, pi) {
     var el = POPUP && POPUP.getElement && POPUP.getElement();
     if (!el) return;
     var hl = el.querySelector("[data-hl]"), det = el.querySelector("[data-det]");
+    var nx = el.querySelector("[data-next]");
     // The popup goes, same as its sibling below. Highlight means "show me this patch on the
     // map", and on a phone the popup is 188x161 parked directly over the ground it has just
     // lit -- so the one gesture whose entire output is an animation on the map covered the
@@ -1186,11 +1229,72 @@
       if (POPUP) { POPUP.remove(); POPUP = null; }
       blink(slug, at);
     };
-    if (det) det.onclick = function () {
+    // The name, which is a control now rather than a caption. A `pressable` and not a
+    // `<button>`: it is inside the popup's text block, where a button would inherit none of
+    // the type and all of the chrome, and this is the same treatment the name in a list row
+    // already gets for the same press. The label says what it does -- a screen reader given
+    // only the name is told there is a button called "Arctic Wheelers" and nothing about why.
+    if (det) pressable(det, (p && p.name ? p.name + " \u00b7 " : "") + t("crew.pop.details"),
+                       function () {
       var slug = det.getAttribute("data-det");
       if (POPUP) { POPUP.remove(); POPUP = null; }
       openCrewDetail(slug);
-    };
+    });
+    if (nx) nx.onclick = function () { hopPatch(p, patches, pi); };
+  }
+
+  /* Walking a crew's patches from the popup, one press at a time.
+     Next closes this popup, flies to the next patch and blinks it, then raises the same popup
+     on that patch's middle square -- so the control is back under the same thumb, counting
+     2 of 3, 3 of 3, 1 of 3. Without that the second patch is a dead end: the popup it came
+     from is gone, and finding a third one means hunting the map for a square of the right
+     colour, which is the thing this button exists to spare you.
+
+     The popup comes back AFTER the blink rather than with it. It is 188x161 on a phone and
+     what it would cover is the patch that has just lit -- the bug this file already records
+     fixing once, by having Highlight dismiss the popup before lighting anything. Raising it
+     again 700ms later would re-create that bug with extra steps, so `BLINK_MS` is the blink's
+     own length and the two cannot drift apart. */
+  var hopTok = 0;
+  function hopPatch(p, patches, pi) {
+    if (!p || !patches || patches.length < 2) return;
+    // From a square the crew does not hold, `pi` is -1 and this is patch 0: the biggest, which
+    // is where a reader who has lost their place wants to start. No special case needed, and
+    // the one I first wrote (`pi < 0 ? -1 : pi`) was the same arithmetic wearing a conditional.
+    var next = (pi + 1) % patches.length;
+    var patch = patches[next];
+    if (POPUP) { POPUP.remove(); POPUP = null; }
+    // Anchored on a square inside the patch, so `patchFeatures` frames and lights that one
+    // rather than the crew's biggest.
+    blink(p.slug, patch[0]);
+    var tok = ++hopTok;
+    setTimeout(function () {
+      // Pressed again, or tapped somewhere else, while the blink was running: that gesture is
+      // the one the reader is watching and this one is stale.
+      if (tok !== hopTok || POPUP) return;
+      openCrewPop(squareCentre(middleSquare(patch)), p);
+    }, BLINK_MS + 60);
+  }
+
+  // The square nearest the middle of a patch, which is where the popup goes: on their ground
+  // and not on a corner of it. A patch is not always convex -- an L of squares has a centroid
+  // outside itself -- so this is the nearest square to that point rather than the point.
+  function middleSquare(patch) {
+    var cx = 0, cy = 0;
+    patch.forEach(function (q) { cx += q[0]; cy += q[1]; });
+    cx /= patch.length; cy /= patch.length;
+    var best = patch[0], bd = Infinity;
+    patch.forEach(function (q) {
+      var d = Math.hypot(q[0] - cx, q[1] - cy);
+      if (d < bd) { bd = d; best = q; }
+    });
+    return best;
+  }
+
+  // The middle of a square, as the coordinate a popup is anchored at.
+  function squareCentre(q) {
+    return { lng: (tileLon(q[0], TERR.z) + tileLon(q[0] + 1, TERR.z)) / 2,
+             lat: (tileLat(q[1], TERR.z) + tileLat(q[1] + 1, TERR.z)) / 2 };
   }
 
   // The framing for Highlight.
@@ -1221,15 +1325,10 @@
   // Every square the crew holds, as features carrying how far out each sits from the framed
   // patch's middle: 0 at that middle, 1 at its rim, and clamped to 1 beyond it. Both
   // animations below read that number; neither adds or removes anything while it runs.
-  function patchFeatures(slug, anchor) {
+  function patchFeatures(slug, anchor, patchOnly) {
     if (!TERR || !map.getLayer("crew-fill")) return null;
-    var idx = -1;
-    TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
-    if (idx < 0) return null;
-    var pts = [], i;
-    for (i = 0; i < TERR.cells.length; i += 5) {
-      if (TERR.cells[i] === idx) pts.push([TERR.cells[i + 1], TERR.cells[i + 2]]);
-    }
+    var pts = crewPts(slug);
+    if (!pts.length) return null;
     // The patch the camera gets: the one you tapped, or the crew's biggest when nothing was
     // tapped -- a list row has no square to anchor to, and the figure those rows print is
     // the biggest patch. `patchWith` answers null for a square this crew does not hold,
@@ -1250,7 +1349,12 @@
       // square on screen lands within a hundredth of every other, so the patch you are
       // looking at flashes all at once and the remaining 1.7s of wave happens 600km away.
       // Clamped, distant ground lights with the rim and holds the light through the tail.
-      feats: pts.map(function (q) {
+      //
+      // `patchOnly` is the popup's button, which is called Highlight PATCH and lights that
+      // patch alone. The wave, which a crew's name runs, lights the lot: a name asks where
+      // else these people are and a square asks about itself. One function either way, so
+      // the framing, the normalising and the clamp cannot differ between the two gestures.
+      feats: (patchOnly ? patch : pts).map(function (q) {
         return { type: "Feature",
                  properties: { d: Math.min(1, Math.hypot(q[0] - cx, q[1] - cy) / far) },
                  geometry: { type: "Polygon", coordinates: tileRing(q[0], q[1], TERR.z) } };
@@ -1287,7 +1391,7 @@
   // Twice, and done. Flat opacity: there is no front to follow, the point is only "this one".
   // `anchor` is the square that was tapped, when there was one; see `patchFeatures`.
   function blink(slug, anchor) {
-    var p = patchFeatures(slug, anchor);
+    var p = patchFeatures(slug, anchor, true);
     if (!p) return;
     framePatch(p.patch);
     setShineFeatures(p.feats);
@@ -1301,8 +1405,12 @@
     [[760, on], [960, off], [1130, on], [1330, off]].forEach(function (step) {
       setTimeout(step[1], step[0]);
     });
-    setTimeout(function () { paintShine([]); }, 1420);
+    setTimeout(function () { paintShine([]); }, BLINK_MS);
   }
+
+  // How long the whole blink takes, from the camera leaving to the light going out. Named
+  // because `hopPatch` waits it out before putting the popup back over that ground.
+  var BLINK_MS = 1420;
 
   // How the front is shaped. LEAD is how far ahead of itself a square starts to catch the
   // light; TAIL is how long it keeps it afterwards -- longer, so the wave has a direction
@@ -2840,12 +2948,22 @@
       // same id, so this costs nothing but a class. `crew.how.s3` is "Your crew" and already
       // names the reader in nineteen languages; it is the board's marker too.
       var mine = !!(ME && ME.handle && c.id && c.id === ME.handle);
+      // Pressable only when there is somewhere to go: a rider with no trip carrying a start
+      // point has no position, and one who is not publicly listed is not given one. Those
+      // rows keep the name and lose the press, which is the same rule `headHTML` follows for
+      // a crew holding no ground.
+      var fly = !!(H.flyToRider && c.lat != null && c.lon != null);
       return '<div class="crewcrow' + (mine ? " crewrowmine" : "")
         + (cap && i >= cap ? " crewcrest" : "") + '"'
         + (cap && i >= cap ? " hidden" : "") + ">"
         + (H.av ? H.av(c.id, c.has_avatar, c) : "")
         + (H.cc && c.flag ? H.cc(c.flag) : "")
-        + '<span class="crewcname">' + esc(c.name) + roleMark(c.role)
+        + '<span class="crewcname">'
+        + (fly ? '<span class="crewcfly" data-fly="' + esc(c.id || "")
+                 + '" data-lat="' + c.lat + '" data-lon="' + c.lon + '">'
+                 + esc(c.name) + "</span>"
+               : esc(c.name))
+        + roleMark(c.role)
         + (mine ? ' <b class="crewyou">' + esc(t("crew.you")) + "</b>" : "") + "</span>"
         + '<span class="crewcbar"><i style="width:' + pct + '%"></i></span>'
         + '<span class="crewckm">' + fmtKm(c.km)
@@ -2864,6 +2982,34 @@
   // then takes itself away: once they are all on screen the button has nothing left to say,
   // and leaving it there to toggle back is a control whose only function is to hide something
   // the reader just asked for.
+  /* A rider's name, pressed, flies to where they ride.
+
+     The note that used to sit here said this was impossible -- "there is no public page for a
+     rider to link TO ... `flyToRider`, which needs a position this payload does not carry" --
+     and it was right about the page and wrong about the gesture. Erwin: "Best riders you
+     asked about click on the names, and we have handler for this no? we already allow this in
+     Riders". The handler is the host's, it has been flying riders from every leaderboard
+     since before this mode existed, and what it needed was the position. `contributors` now
+     carries one for every rider it may publish one for, so this is the host's own function
+     reached through `H` -- the ring, the daily jitter that keeps the dot off their doorstep,
+     and closing the panel are all decisions made once, there.
+
+     Delegated off attributes rather than handed the rows: this list is inserted in two
+     places, under your own crew's card and inside the fold under somebody else's row, and
+     both of them already call the binder next to it. */
+  function bindContribFly(root) {
+    [].slice.call((root || document).querySelectorAll(".crewcfly")).forEach(function (el) {
+      var row = { id: el.getAttribute("data-fly"),
+                  lat: +el.getAttribute("data-lat"), lon: +el.getAttribute("data-lon") };
+      pressable(el, (el.textContent || "") + " \u00b7 " + t("crew.who.onmap"), function (ev) {
+        // The fold's own button is a sibling and the row around it flies the crew; this is
+        // the third control in one line of text.
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        if (H.flyToRider) H.flyToRider(row);
+      });
+    });
+  }
+
   function bindContribMore(root) {
     [].slice.call((root || document).querySelectorAll(".crewcmore")).forEach(function (b) {
       b.onclick = function (ev) {
@@ -4478,6 +4624,70 @@
       + '<div class="crewwhopan" id="' + whoId(slug) + '" hidden></div></div>';
   }
 
+  /* Biggest patches, the second fold under a crew in Other crews.
+
+     Erwin asked for it beside Best riders -- "In other crews what else can we add? 'Biggest
+     patches'? similar to the Best riders" -- and it answers the question the row above it
+     raises and then drops: "9 squares in one patch, 13 all told, 3 patches" says there are
+     two more places these people ride and will not say where. Each row is pressable and
+     flies to that patch, which makes the fold a way around a crew's ground and not a table.
+
+     No request behind it. Best riders has to ask the server for a roster; the patches are a
+     flood fill over squares this client already has, so the panel fills on the press with no
+     spinner, no cache and no failure path. That is also why there is no fold at all for a
+     crew holding nothing: there is nothing to fill it with, and a control that opens onto an
+     empty box is the dead control this file keeps paying for. */
+  var PATCH_SHOWN = 5;
+  function patchFold(slug) {
+    var patches = allPatches(crewPts(slug));
+    if (patches.length < 2) return "";   // one patch is what the row above already says
+    var cap = patches.length > PATCH_SHOWN ? PATCH_SHOWN : 0;
+    return '<div class="crewwhobox crewpatchbox">'
+      + '<button type="button" class="crewwho" data-pats="' + esc(slug)
+      + '" aria-expanded="false" aria-controls="' + patId(slug) + '">'
+      + esc(t("crew.rivals.patches")) + '<i aria-hidden="true">\u203a</i></button>'
+      + '<div class="crewwhopan crewpatpan" id="' + patId(slug) + '" hidden>'
+      + patches.map(function (patch, n) {
+          var km2 = patch.reduce(function (a, q) {
+            return a + tileKm2(q[0], q[1], TERR.z);
+          }, 0);
+          var away = squaresAway(patch);
+          return '<button type="button" class="crewprow'
+            + (cap && n >= cap ? " crewcrest" : "") + '"'
+            + (cap && n >= cap ? " hidden" : "")
+            + ' data-pat="' + esc(slug) + '" data-pati="' + n + '">'
+            + '<i class="crewpatn">' + (n + 1) + "</i>"
+            + '<span class="crewpatf">' + esc(tiles(patch.length)) + "</span>"
+            + '<span class="crewpatf">' + esc(fmtKm2(km2)) + "</span>"
+            + (away == null ? ""
+               : '<span class="crewpatf">'
+                 + esc(t("crew.join.away", { v: fmtKm(away) })) + "</span>")
+            + "</button>";
+        }).join("")
+      // The same button and the same handler the riders fold uses for the rows it is hiding.
+      + (cap ? '<button type="button" class="crewbtn mini ghost crewshowall crewcmore"'
+               + ' aria-expanded="false">'
+               + esc(moreLabel(patches.length - cap)) + "</button>"
+             : "")
+      + "</div></div>";
+  }
+
+  function patId(slug) {
+    return "crewpat-" + String(slug).replace(/[^a-z0-9-]/gi, "");
+  }
+
+  // One square's ground area, by the arithmetic the server scores with (services/tiles.py):
+  // the width shrinks toward the poles and a degree of latitude does not. The crew's own total
+  // comes down from the server already summed, and a patch is a subset nobody has summed --
+  // so this is the one figure in the panel computed on both sides, and it has a test pinning
+  // the two together.
+  function tileKm2(x, y, z) {
+    var w = tileLon(x, z), e = tileLon(x + 1, z);
+    var n = tileLat(y, z), s = tileLat(y + 1, z);
+    var mid = (n + s) / 2 * Math.PI / 180;
+    return Math.abs((e - w) / 360 * EARTH_C_KM * Math.cos(mid) * (n - s) * 111.32);
+  }
+
   // What a crew holds, in the words its own card uses for the same facts.
   //
   // The biggest patch leads, because that is what the board ranks on, and the total follows
@@ -4512,7 +4722,7 @@
 
   // The crew's name with its position beside it, for a row in either list.
   //
-  // A control only when there is ground to light. `blink` frames the crew's biggest patch and
+  // A control only when there is ground to light. `shine` frames the crew's biggest patch and
   // returns without doing anything if there is no patch, so binding every row would put a
   // control that does nothing on exactly the rows where nothing is the honest answer -- the
   // dead button this file twice records itself shipping. A crew holding nothing still shows
@@ -4940,6 +5150,12 @@
 
   function bindMine(me) {
     var c = me.crew;
+    // The reader's own hand on the card, which is the other half of `mineShut`: fold it and
+    // it stays folded, open it and it stays open, through every poll. `doReveal` opens every
+    // collapsed ancestor of whatever it is revealing, so an arrival that lands on this card
+    // clears the flag through the same listener.
+    var wrap = panel.querySelector("details.crewmine-wrap");
+    if (wrap) wrap.ontoggle = function () { mineShut = !wrap.open; };
     // `.then(show)` and nothing else: no `r.ok`, no `onWrite`, no `setStatus`. With
     // `/decide` answering 400 these two did NOTHING visible -- the knock stayed on the card
     // and the only trace was a red line in devtools -- and they are the two buttons a leader
@@ -5434,6 +5650,7 @@
         // the card showed a 21px gap. The figures never depended on the contributor list;
         // they were sharing a `+`.
         + safely(function () { return contributorsHTML(r.body.contributors); });
+      bindContribFly(el);
       el.querySelectorAll("[data-mine]").forEach(function (fig) {
         pressable(fig, t("crew.mine.onmap"), function () {
           flyToCrew(fig.dataset.mine);
@@ -5484,16 +5701,22 @@
   // when we have never seen a ride, which is the only honest answer then.
   function groundAway(slug) {
     if (!TERR || !map) return null;
-    var idx = -1;
-    TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
-    if (idx < 0) return null;
+    var pts = crewPts(slug);
+    return pts.length ? squaresAway(pts) : null;
+  }
+
+  // How far the nearest of a set of squares is, from home if the rider has one and from the
+  // middle of the screen otherwise. The browse list measures a whole crew with it and the
+  // patches fold measures one patch at a time: the same measurement, because both figures are
+  // printed in the same panel and a patch cannot be further away than the crew it belongs to.
+  function squaresAway(pts) {
+    if (!map) return null;
     var home = ME && ME.home;
     var c = home ? { lat: home.lat, lng: home.lon } : map.getCenter();
     var best = null;
-    for (var i = 0; i < TERR.cells.length; i += 5) {
-      if (TERR.cells[i] !== idx) continue;
-      var lon = (tileLon(TERR.cells[i + 1], TERR.z) + tileLon(TERR.cells[i + 1] + 1, TERR.z)) / 2;
-      var lat = (tileLat(TERR.cells[i + 2], TERR.z) + tileLat(TERR.cells[i + 2] + 1, TERR.z)) / 2;
+    for (var i = 0; i < pts.length; i++) {
+      var lon = (tileLon(pts[i][0], TERR.z) + tileLon(pts[i][0] + 1, TERR.z)) / 2;
+      var lat = (tileLat(pts[i][1], TERR.z) + tileLat(pts[i][1] + 1, TERR.z)) / 2;
       var dy = (lat - c.lat) * 111.32;
       var dx = (lon - c.lng) * 111.32 * Math.cos(c.lat * Math.PI / 180);
       var d = Math.sqrt(dx * dx + dy * dy);
@@ -5584,6 +5807,10 @@
             + (c.description
                ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
             + whoFold(c.slug)
+            // Second, because who rides for a crew is what a reader asks first and where
+            // they ride is the follow-up. Only in this list: the join list is a choice
+            // between crews and already prints how far the nearest of their ground is.
+            + patchFold(c.slug)
             + "</span>"
             + "</div>";
         }).join("")
@@ -5787,12 +6014,47 @@
      pointless". Correct -- the board row carries the position, the ground and the movement,
      and the rows in these two lists now carry all three themselves, so the jump went from
      being the only way to see those facts to being a scroll to a second copy of them.
-     `blink` is the gesture that had never been wired here: the crew's biggest patch framed
-     and lit, the same animation Highlight squares runs from the map's own popup.
+     The wave, which is the animation this gesture asked for all along -- Erwin: "can we do
+     the other highlight (not the blinking) when the name of the crew is clicked? I prefer the
+     wave one for this". It frames the crew's biggest patch and sweeps out from the middle of
+     it, and every square the crew holds lights, including the ones in another city. That is
+     the question a name asks: not "what is this square" but where else are these people.
+     The popup's own button keeps the two flashes and keeps them to one patch, because a
+     square is a question about itself.
 
      Not the whole row. The fold beside it is a button, and a button inside something with
      `role="button"` is one control reporting as two -- so the pressable part is the text and
      the fold is its sibling. */
+  // The patches fold, and the rows inside it. Both are real buttons, so there is no
+  // `pressable` here: the only reason the name above them is not one is that it lives inside
+  // the row's text block, where a button inherits none of the type and all of the chrome.
+  function bindPatchFolds() {
+    [].slice.call(document.querySelectorAll("[data-pats]")).forEach(function (b) {
+      b.onclick = function (ev) {
+        ev.stopPropagation();
+        var pan = document.getElementById(patId(b.getAttribute("data-pats")));
+        if (!pan) return;
+        var open = b.getAttribute("aria-expanded") === "true";
+        pan.hidden = open;
+        b.setAttribute("aria-expanded", open ? "false" : "true");
+      };
+    });
+    [].slice.call(document.querySelectorAll("[data-pat]")).forEach(function (r) {
+      r.onclick = function (ev) {
+        ev.stopPropagation();
+        var patches = allPatches(crewPts(r.getAttribute("data-pat")));
+        var patch = patches[+r.getAttribute("data-pati")];
+        // Rebuilt from the territory on the press rather than captured when the fold was
+        // drawn: the map reloads every minute and the patch that was third can have merged
+        // into the second. An index into a stale list would light somebody else's ground.
+        if (!patch || !patch.length) return;
+        blink(r.getAttribute("data-pat"), patch[0]);
+        closeIfCovering();
+      };
+    });
+    bindContribMore(document);
+  }
+
   function bindRivals() {
     [].slice.call(document.querySelectorAll("[data-lit]")).forEach(function (head) {
       var slug = head.getAttribute("data-lit");
@@ -5803,6 +6065,7 @@
                 function () { lightUp(slug); });
     });
     bindWho();
+    bindPatchFolds();
   }
 
   // Light a crew's ground from a list row. The popup's own Highlight button dismisses itself
@@ -5811,7 +6074,7 @@
   // coat, and `closeIfCovering` is the measurement that already exists for it. On a desktop
   // the panel leaves the map in view and stays open, so the row you pressed is still there.
   function lightUp(slug) {
-    blink(slug);
+    shine(slug);
     closeIfCovering();
   }
 
@@ -5829,11 +6092,7 @@
       ? contributorsHTML(rows, 5)
       : '<p class="hint crewwhonone">' + esc(t("crew.rivals.none")) + "</p>";
     bindContribMore(pan);
-    // The names are not links, and that is a fact about the site rather than a choice made
-    // here. There is no public page for a rider to link TO: `public_id` is used in exactly one
-    // place, `/api/v1/riders/{id}/avatar`, and the only thing a rider row does anywhere else
-    // on the site is `flyToRider`, which needs a position this payload does not carry. Linking
-    // them is a server change (a rider page, or a position on `contributors`), not a span.
+    bindContribFly(pan);
   }
 
   function bindWho() {
@@ -6284,6 +6543,21 @@
     revealNext = sel;
   }
 
+  /* Whether your own crew's card is folded away, kept across renders.
+
+     Setting `details.open = false` on the live node is not enough and the reason is written
+     two functions below for the arrival flash: "anything this function does to the DOM is
+     thrown away by the next repaint unless something re-does it". `openCrewDetail` opens the
+     panel, which renders, which rebuilds the card from `me` with `open` on it -- so pressing
+     a crew's name on the map from a closed panel collapsed a card that did not exist yet and
+     then printed it expanded. Signed out there is no such card at all, which is why a first
+     pass of this looked right in a browser.
+
+     It also holds the other way round, which the `<details>` could not do before: a leader
+     who folds their own card away had it spring open again on the next poll. `bindMine` keeps
+     the flag in step with whatever the reader does to it, so now it stays where they put it. */
+  var mineShut = false;
+
   // The arrival flash, re-applied after every render inside its window. `revealNext` and
   // `doReveal` do the same dance for the scroll position, for the same reason: anything this
   // function does to the DOM is thrown away by the next repaint unless something re-does it.
@@ -6482,7 +6756,7 @@
         own += "";
         // Folded by default put the only actionable thing in the feature behind a
         // disclosure triangle, under a 25-row board.
-        own += '<details class="crewmine-wrap" open'
+        own += '<details class="crewmine-wrap"' + (mineShut ? "" : " open")
           + '><summary>' + '<img class="crewsumemb" alt="" src="' + me.crew.emblem + '"/>'
 
           // The name and the standing live in one block BESIDE the emblem, rather than as
@@ -6843,17 +7117,48 @@
     flyToCrew(slug);
   }
 
-  // What "Details" on a tapped square opens: the panel, scrolled to that crew's row on the
-  // board and lit for a moment. The board row is everything the panel knows about a crew
-  // that is not yours -- where it stands, how much it holds, how it is moving -- and before
-  // this there was no way to get from a colour on the map to it except by reading sixteen
-  // names. The flash matters: the panel can be a long scroll, and landing silently in the
-  // middle of a table leaves you looking for what just happened.
+  /* What the crew's name in the popup opens: the panel, scrolled to that crew's own row in
+     Other crews, lit for a moment, with the riders behind it already unfolding.
+
+     It used to land on the board row, which has the position and the figures and nothing
+     else -- "details will only focus on the same thing we already have? because then is a
+     bit pointless", and the row in the list has carried the name, the standing, the ground,
+     the patches, the crew's own words and its riders since the round that put them there.
+     The board row stays as the fallback, because your own crew has no row in that list: it
+     filters itself out, so Details on your own colour lands where it always did.
+
+     The flash matters either way: the panel can be a long scroll, and landing silently in
+     the middle of it leaves you looking for what just happened. */
   function openCrewDetail(slug) {
     if (!panelOpen) show();
+    var key = slug.replace(/"/g, "");
+    // Somebody else's crew, so your own gets out of the way. `.crewmine-wrap` is a
+    // `<details open>` holding the roster, the settings and the manage block -- on a phone
+    // that is most of a screen standing between this press and the row it is aiming at.
+    // Erwin: "I am clicking not on my crew the 'my crew options' should be not expanced
+    // since I want to check the other crews."
+    //
+    // Here and not in `render`, which runs on every poll: shut there, a leader reading their
+    // own roster would have it close under them a few seconds later.
+    var mine = ME && ME.crew && ME.crew.slug;
+    // Somebody else's crew folds yours away; your own unfolds it, because Details on your own
+    // colour is a request to look at that card and not to shut it.
+    mineShut = slug !== mine;
     setTimeout(function () {
-      var row = panel.querySelector('.crewboard [data-slug="' + slug.replace(/"/g, "") + '"]');
+      // The render has happened by now, so this is the node the reader is looking at. Both
+      // halves are needed: the flag survives the next render and this moves the card the
+      // reader is in front of, which a flag alone would leave until something else redrew.
+      var wrap = panel.querySelector("details.crewmine-wrap");
+      if (wrap && wrap.open === mineShut) wrap.open = !mineShut;
+      var row = panel.querySelector('[data-rival="' + key + '"]')
+             || panel.querySelector('.crewboard [data-slug="' + key + '"]');
       if (!row) return;
+      // The riders, opened on the way past. The fold fetches `/crews/{slug}` the first time
+      // it is pressed, so starting it before the scroll means the names are usually there by
+      // the time the row is. Pressing the button rather than setting the attributes: the
+      // panel, the spinner, the cache and the failure path all live in that one handler.
+      var fold = row.querySelector('.crewwho[data-who="' + key + '"]');
+      if (fold && fold.getAttribute("aria-expanded") !== "true") fold.click();
       try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {
         row.scrollIntoView();
       }
@@ -6983,6 +7288,67 @@
       }
     }
     return comp;
+  }
+
+  // Every square one crew holds, as [x, y] pairs. Four places read `TERR.cells` for exactly
+  // this, each with its own copy of the stride and the crew lookup; this is the copy they
+  // share. The stride is five numbers per square and the first is the crew's index.
+  function crewPts(slug) {
+    var out = [];
+    if (!TERR || !TERR.cells || !TERR.crews) return out;
+    var idx = -1;
+    TERR.crews.forEach(function (c, i) { if (c.slug === slug) idx = i; });
+    if (idx < 0) return out;
+    for (var i = 0; i < TERR.cells.length; i += 5) {
+      if (TERR.cells[i] === idx) out.push([TERR.cells[i + 1], TERR.cells[i + 2]]);
+    }
+    return out;
+  }
+
+  // Every patch, biggest first. `biggestPatch` is this with the tail thrown away, and keeping
+  // them separate is deliberate: the board and the camera want the one patch and nothing else,
+  // and saying so at the call site is clearer than taking [0] everywhere.
+  //
+  // Ties are broken north-west first so the order a reader walks with Next patch is the same
+  // order the fold lists them in, and the same on every reload -- a flood fill's own order
+  // follows the cell array, which the server is free to emit differently tomorrow.
+  function allPatches(pts) {
+    var own = Object.create(null), i;
+    for (i = 0; i < pts.length; i++) own[pts[i][0] + ":" + pts[i][1]] = pts[i];
+    var seen = Object.create(null), out = [];
+    for (i = 0; i < pts.length; i++) {
+      var k0 = pts[i][0] + ":" + pts[i][1];
+      if (seen[k0]) continue;
+      seen[k0] = 1;
+      var stack = [pts[i]], comp = [];
+      while (stack.length) {
+        var q = stack.pop();
+        comp.push(q);
+        var nbs = [[q[0] + 1, q[1]], [q[0] - 1, q[1]], [q[0], q[1] + 1], [q[0], q[1] - 1]];
+        for (var j = 0; j < 4; j++) {
+          var k = nbs[j][0] + ":" + nbs[j][1];
+          if (own[k] && !seen[k]) { seen[k] = 1; stack.push(own[k]); }
+        }
+      }
+      out.push(comp);
+    }
+    out.forEach(function (c) {
+      c.sort(function (a, b) { return a[1] - b[1] || a[0] - b[0]; });
+    });
+    out.sort(function (a, b) {
+      return b.length - a.length || a[0][1] - b[0][1] || a[0][0] - b[0][0];
+    });
+    return out;
+  }
+
+  // Which patch holds a square, or -1. What the popup's counter counts.
+  function patchIndexAt(patches, at) {
+    for (var i = 0; i < patches.length; i++) {
+      for (var j = 0; j < patches[i].length; j++) {
+        if (patches[i][j][0] === at[0] && patches[i][j][1] === at[1]) return i;
+      }
+    }
+    return -1;
   }
 
   // Where on screen there is room to put the marked square.

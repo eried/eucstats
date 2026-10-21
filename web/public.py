@@ -1488,7 +1488,11 @@ async function init(){
     CELLS=await j("/map/cells?zoom="+HEAT.zoom); addHeat();
     if(window.EUCCrews&&window.__CREWCFG__&&window.__CREWCFG__.enabled)
       window.EUCCrews.init(map,{setPanel:setPanel,closePanel:closePanel,t:t,
-        podList:podList,av:av,cc:cc,mph:mph});   // same podium AND same unit switch as every other board
+        podList:podList,av:av,cc:cc,mph:mph,
+        // Best riders under a crew flies to a rider the same way the boards do -- the ring,
+        // the daily jitter and the closed panel all live in that one function, and a second
+        // copy of it inside the panel would be a second privacy decision to keep in step.
+        flyToRider:flyToRider});   // same podium AND same unit switch as every other board
     mapReady=true; doIntro();
     // After the crews panel is registered, so `/#crews` can actually reach it. Also on a
     // later hash change, because the landing page's link may be followed from an open tab.

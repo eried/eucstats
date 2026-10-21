@@ -244,7 +244,12 @@ def _open_panel(page):
                             "                  && p.querySelector('.crewcard')); }")
     if not already:
         page.click(".dock button[data-p=crews]")
-    page.wait_for_selector(".crewcard", timeout=20000)
+    # Attached, not visible, plus the panel itself. A card can be correctly hidden and still
+    # rendered: your own crew's card lives inside a `<details>` that Details folds away when
+    # you open somebody else's crew, and it is the FIRST `.crewcard` in the panel -- so a wait
+    # for visibility here hung for twenty seconds on a panel that had drawn everything right.
+    page.wait_for_selector(".crewcard", state="attached", timeout=20000)
+    page.wait_for_selector(".panel.open", timeout=20000)
 
 
 @pytest.fixture(scope="module")
@@ -1069,6 +1074,10 @@ def test_highlight_lights_every_square_a_crew_holds_and_not_only_the_patch_it_fr
     """The tester's report, on the real map: "highlight squares is not highlighting all the
     squares".
 
+    This is the NAME in Other crews, which runs the wave. The map popup's own button is the
+    other half of the pair and keeps to one patch; `test_the_popup_lights_one_patch_and_walks
+    _to_the_next` below holds that end.
+
     `patchFeatures` built its features from `biggestPatch(pts)` rather than from `pts`, so the
     shine source only ever received one connected component. On production that was 88 of
     Jonah's turf's 108 squares and 30 of Arctic Wheelers' 49 -- and because the camera flies
@@ -1113,8 +1122,10 @@ def test_highlight_lights_every_square_a_crew_holds_and_not_only_the_patch_it_fr
 def test_pressing_a_rival_name_flies_to_its_ground_and_lights_it(rivals):
     """The gesture that was never wired here, and the one Erwin asked for by name.
 
-    `blink` frames the crew's biggest patch and runs the shine wave over it: the same
-    animation Highlight squares runs from the map's own popup. Rival Crew's ground is in
+    `shine` frames the crew's biggest patch and sweeps the wave out from the middle of it,
+    over every square the crew holds. Erwin asked for this one here specifically -- "can we
+    do the other highlight (not the blinking) when the name of the crew is clicked? I prefer
+    the wave one for this" -- and the popup kept the two flashes. Rival Crew's ground is in
     Copenhagen and the panel opens framed on Browser Crew's in Oslo, so a camera that has
     crossed the Skagerrak is a camera that went where it was told.
 
@@ -1158,3 +1169,408 @@ def test_pressing_a_rival_name_flies_to_its_ground_and_lights_it(rivals):
 # Each locale's longest possible standing, read off the shipped tables rather than copied
 # into this file, so a retranslation that lengthens an ordinal is measured on the next run.
 WORST_ORDINALS = [{'loc': 'da', 'text': '21. ▲12'}, {'loc': 'de', 'text': '21. ▲12'}, {'loc': 'es', 'text': '21.º ▲12'}, {'loc': 'es-419', 'text': '21.º ▲12'}, {'loc': 'fr', 'text': '21e ▲12'}, {'loc': 'it', 'text': '21° ▲12'}, {'loc': 'ja', 'text': '21位 ▲12'}, {'loc': 'ko', 'text': '21위 ▲12'}, {'loc': 'nl', 'text': '21e ▲12'}, {'loc': 'no', 'text': '21. ▲12'}, {'loc': 'pl', 'text': '21. ▲12'}, {'loc': 'pt-BR', 'text': '21º ▲12'}, {'loc': 'ru', 'text': '21-е ▲12'}, {'loc': 'sv', 'text': '21:a ▲12'}, {'loc': 'tr', 'text': '21. ▲12'}, {'loc': 'uk', 'text': '21-е ▲12'}, {'loc': 'zh', 'text': '第21 ▲12'}, {'loc': 'zh-Hant', 'text': '21位 ▲12'}, {'loc': 'en', 'text': '21th ▲12'}]
+
+
+# ---------------------------------------------------------------------------------------
+# The map popup: one patch, the walk, and the name as the way into the crew.
+# ---------------------------------------------------------------------------------------
+
+def _rival_slug(page):
+    """Rival Crew's slug, which is not the store_id of the rider who founded it.
+
+    `crews.create` slugs the NAME, so `brw-rival` owns `rival-crew` -- and a test that hard
+    codes the store_id reads the territory payload, finds no such crew, and says the fixture
+    has no ground.
+    """
+    slug = page.evaluate("""async () => {
+        const b = await fetch('/api/v1/crews?limit=60').then(r => r.json());
+        const c = (b.crews || []).find(x => x.name === 'Rival Crew');
+        return c ? c.slug : null;
+      }""")
+    assert slug, "the API does not list Rival Crew"
+    return slug
+
+
+def _patches_of(page, slug):
+    """A crew's patches, biggest first, read off the real territory payload in the page."""
+    return page.evaluate("""async (slug) => {
+        const t = await fetch('/api/v1/territory').then(r => r.json());
+        const idx = t.crews.findIndex(c => c.slug === slug);
+        if (idx < 0) return null;
+        const pts = [];
+        for (let i = 0; i < t.cells.length; i += 5)
+          if (t.cells[i] === idx) pts.push([t.cells[i + 1], t.cells[i + 2]]);
+        const own = new Set(pts.map(p => p[0] + ':' + p[1])), seen = new Set(), out = [];
+        for (const p of pts) {
+          const k0 = p[0] + ':' + p[1];
+          if (seen.has(k0)) continue;
+          seen.add(k0);
+          const st = [p], comp = [];
+          while (st.length) {
+            const q = st.pop(); comp.push(q);
+            for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+              const k = (q[0]+dx) + ':' + (q[1]+dy);
+              if (own.has(k) && !seen.has(k)) { seen.add(k); st.push([q[0]+dx, q[1]+dy]); }
+            }
+          }
+          out.push(comp);
+        }
+        out.forEach(c => c.sort((a, b) => a[1] - b[1] || a[0] - b[0]));
+        out.sort((a, b) => b.length - a.length || a[0][1] - b[0][1] || a[0][0] - b[0][0]);
+        return { z: t.z, patches: out };
+      }""", slug)
+
+
+def _tap_patch(page, slug, which):
+    """Tap a square of `slug`'s patch number `which` on the real map.
+
+    The camera is jumped to that square with the panel's own height as bottom padding, so the
+    square lands in the strip of map a reader can actually see and the click is a real mouse
+    click that MapLibre hit-tests for itself. `page.click` on the canvas would land in the
+    middle of it, which is a different square or none.
+    """
+    # The panel goes first, and the overlay stays. On a 390x844 phone the panel is 76dvh, so
+    # the strip of map above it is about 203px tall -- and the topbar is a card occupying the
+    # left of it down to y=183. A tap aimed into that strip lands on the chrome over the map,
+    # MapLibre never sees it, and the only symptom is a popup that does not appear. With the
+    # panel shut the whole viewport is map, which is also how a reader taps a square.
+    # `setOverlay(true)` is what keeps the crew layers painted with the panel shut -- the
+    # mode's own `hide()` REMOVES them, and a tap with no `crew-fill` to hit is a tap on the
+    # basemap. The host's `closePanel` is the same function the panel's own close button runs.
+    page.evaluate("() => window.EUCCrews.setOverlay(true)")
+    page.evaluate("() => { if (window.closePanel) window.closePanel(); }")
+    page.wait_for_timeout(300)
+    assert page.evaluate("() => !!window.__map.getLayer('crew-fill')"), (
+        "the crew fill is not on the map, so there is no square to tap")
+    info = _patches_of(page, slug)
+    assert info and len(info["patches"]) > which, (
+        f"{slug} has {len(info['patches']) if info else 0} patches; this test needs "
+        f"{which + 1}")
+    patch = info["patches"][which]
+    pt = page.evaluate("""([q, z]) => {
+        const lon = x => x / Math.pow(2, z) * 360 - 180;
+        const lat = y => { const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+          return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))); };
+        const c = { lng: (lon(q[0]) + lon(q[0] + 1)) / 2,
+                    lat: (lat(q[1]) + lat(q[1] + 1)) / 2 };
+        const panel = document.querySelector('.panel.open');
+        const ph = panel ? window.innerHeight - panel.getBoundingClientRect().top : 0;
+        window.__map.jumpTo({ center: [c.lng, c.lat], zoom: 13, padding: { bottom: ph } });
+        const p = window.__map.project(c);
+        const r = window.__map.getCanvasContainer().getBoundingClientRect();
+        return [r.left + p.x, r.top + p.y];
+      }""", [patch[0], info["z"]])
+    page.wait_for_timeout(900)
+    # What is actually under that point. `page.mouse.click` dispatches at a coordinate
+    # whatever is there, so without this the failure is a missing popup and no reason given.
+    on = page.evaluate("""([x, y]) => {
+        const el = document.elementFromPoint(x, y);
+        return el ? (el.className || el.tagName) + '' : null;
+      }""", [pt[0], pt[1]])
+    assert on and ("maplibregl-canvas" in on or "mapboxgl-canvas" in on), (
+        f"the point meant for a square of {slug} has {on!r} over it, so the tap would land on "
+        "the chrome and the map would never see it")
+    page.mouse.click(pt[0], pt[1])
+    page.wait_for_selector(".crewpop", timeout=10000)
+    return info
+
+
+def _popup(page):
+    return page.evaluate(r"""() => {
+        const p = document.querySelector('.crewpop');
+        if (!p) return null;
+        const nm = p.querySelector('[data-det]');
+        return {
+          text: p.innerText.replace(/\n+/g, ' | '),
+          counter: (p.querySelector('.crewpopct') || {}).textContent || null,
+          buttons: [...p.querySelectorAll('button')].map(b => b.textContent.trim()),
+          name: nm ? { tag: nm.tagName.toLowerCase(), role: nm.getAttribute('role'),
+                       label: nm.getAttribute('aria-label'),
+                       tab: nm.getAttribute('tabindex') } : null,
+        };
+      }""")
+
+
+def _restore_mine(page):
+    """Unfold your own crew's card again.
+
+    `mineShut` is module state in crews.js and these tests share one page, so a test that
+    folds the card away leaves it folded for every test after it. Opening the `<details>`
+    clears the flag through the same `ontoggle` the reader's own hand goes through.
+    """
+    page.evaluate("""() => { const d = document.querySelector('details.crewmine-wrap');
+                             if (d && !d.open) d.open = true; }""")
+
+
+def test_the_popup_lights_one_patch_and_walks_to_the_next(rivals):
+    """Erwin, after the round that made Highlight light everything: "lets convert the
+    highlight squares blinking to highlight patch (so it only blinks the patch) and I wonder
+    instead of 'details' we can have 'Next patch' as the other option (IF available) and zoom
+    and highlight the next patch to browse patches".
+
+    Rival Crew holds 9 squares in Copenhagen and 4 in Gothenburg, 250km apart, which is the
+    fixture that can tell the three claims apart:
+
+      * the button lights the patch under the finger (9, or 4) and not the 13 held;
+      * Next flies to the other patch, lights THAT one, and brings the popup back on it;
+      * the counter names where you are, and it comes from the same flood fill the walk uses.
+
+    None of this is visible to the node tests, which own the geometry: the popup is built by
+    maplibre on `addTo`, the facts under the name are read from the tile, and the hop is three
+    timers deep.
+    """
+    page = rivals
+    _rivals_open(page)
+    rival = _rival_slug(page)
+    info = _tap_patch(page, rival, 1)              # the small Gothenburg outpost
+    sizes = [len(p) for p in info["patches"]]
+    assert len(sizes) == 2 and sizes[0] > sizes[1], (
+        f"the fixture's patches are {sizes}; this test needs a big one and a small one")
+    pop = _popup(page)
+    assert pop["buttons"] == ["Highlight patch", "Next patch"], (
+        f"the popup offers {pop['buttons']}, and a crew with two patches should be offered "
+        "both the patch under the finger and the walk")
+    assert pop["counter"] == f"patch {len(sizes)} of {len(sizes)}", (
+        f"the counter says {pop['counter']!r} for a tap on the smallest of {len(sizes)} "
+        "patches")
+    # The name is the control Details moved on to.
+    assert pop["name"] and pop["name"]["role"] == "button" and pop["name"]["tab"] == "0", (
+        f"the crew's name in the popup is {pop['name']!r}, which is not reachable")
+    assert "Details" in (pop["name"]["label"] or ""), (
+        f"the name's label is {pop['name']['label']!r}, which does not say what pressing it "
+        "does")
+
+    # Highlight patch: the patch under the finger, and nothing in the other city.
+    page.click(".crewpop [data-hl]")
+    page.wait_for_timeout(900)
+    lit = _shine_count(page)
+    assert lit == sizes[1], (
+        f"Highlight patch lit {lit} squares; the patch tapped has {sizes[1]} and the crew "
+        f"holds {sum(sizes)}")
+    assert page.evaluate("() => !document.querySelector('.crewpop')"), (
+        "the popup is still parked over the ground it has just lit")
+    page.wait_for_timeout(700)
+
+    # Next patch: the other one, lit, with the popup back on it and the counter moved.
+    _tap_patch(page, rival, 1)
+    before = page.evaluate("() => { const c = window.__map.getCenter(); return [c.lng, c.lat]; }")
+    page.click(".crewpop [data-next]")
+    page.wait_for_timeout(1000)
+    assert page.evaluate("() => !document.querySelector('.crewpop')"), (
+        "the popup stayed up while the next patch was lighting, which is the thing it is "
+        "dismissed for")
+    hop_lit = _shine_count(page)
+    assert hop_lit == sizes[0], (
+        f"Next patch lit {hop_lit} squares; the patch it walked to has {sizes[0]}")
+    page.wait_for_selector(".crewpop", timeout=10000)
+    back = _popup(page)
+    assert back["counter"] == f"patch 1 of {len(sizes)}", (
+        f"after the walk the popup says {back['counter']!r}; from the last patch the next one "
+        "is the first")
+    after = page.evaluate("() => { const c = window.__map.getCenter(); return [c.lng, c.lat]; }")
+    moved = abs(after[0] - before[0]) + abs(after[1] - before[1])
+    assert moved > 0.5, (
+        f"the camera was at {before} and is at {after}; Next patch lit ground in another city "
+        "and never went there")
+    page.evaluate("""() => { const p = document.querySelector('.crewpop');
+                             if (p) p.remove(); }""")
+
+
+def test_a_crew_with_one_patch_is_offered_no_walk(rivals):
+    """Erwin asked for Next patch "(IF available)", and a crew whose ground is in one piece is
+    where it is not: the walk would fly from the patch to itself and light it again. The
+    button is simply absent, and Highlight takes the filled styling instead -- the only
+    control on a popup should not look like the secondary one.
+
+    Browser Crew holds a single 3x3 in Oslo, which is the shape a version with `hop` hard
+    wired to true passes every other test in this file on.
+    """
+    page = rivals
+    _rivals_open(page)
+    mine = page.evaluate("""async () => {
+        const r = await fetch('/api/v1/crews/me').then(x => x.json());
+        return r && r.crew ? r.crew.slug : null;
+      }""")
+    assert mine, "the signed-in rider is in no crew"
+    info = _tap_patch(page, mine, 0)
+    assert len(info["patches"]) == 1, (
+        f"this crew holds {len(info['patches'])} patches; the test needs the one-patch case")
+    pop = _popup(page)
+    assert pop["buttons"] == ["Highlight patch"], (
+        f"a crew with one patch is offered {pop['buttons']}, and there is nowhere to walk to")
+    assert pop["counter"] is None, (
+        f"the popup counts {pop['counter']!r} for a crew with a single patch")
+    assert page.evaluate("""() => { const b = document.querySelector('.crewpop [data-hl]');
+                                    return b && b.className; }""").find("prime") >= 0, (
+        "the only control on the popup is styled as the secondary one")
+    page.evaluate("() => { const p = document.querySelector('.crewpop'); if (p) p.remove(); }")
+    _restore_mine(page)
+
+
+def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):
+    """Details used to scroll to the board row, which Erwin read as "a bit pointless" -- the
+    position and the figures, which the row in Other crews has carried since the round that
+    put them there. So it lands on that row instead, flashes it, and unfolds its riders.
+
+    The trap here is measuring it: `openCrewDetail` calls `show()`, which re-renders the panel
+    and REPLACES `#pbody`. A reference taken before the press points at a detached node whose
+    `scrollTop` is 0 and whose rect is stale -- which is exactly how a first run of this read
+    as "the panel never scrolled" while the live panel was correctly centred on the row.
+    """
+    page = rivals
+    _rivals_open(page)
+    rival = _rival_slug(page)
+    _tap_patch(page, rival, 0)
+    page.click(".crewpop [data-det]")
+    page.wait_for_timeout(2000)
+    seen = page.evaluate("""(slug) => {
+        const row = document.querySelector('[data-rival="' + slug + '"]');
+        const pb = document.getElementById('pbody');          // live, after the re-render
+        if (!row || !pb) return null;
+        const rb = row.getBoundingClientRect(), b = pb.getBoundingClientRect();
+        const fold = row.querySelector('.crewwho');
+        return {
+          popup: !!document.querySelector('.crewpop'),
+          open: !!document.querySelector('.panel.open'),
+          onScreen: rb.top < b.bottom && rb.bottom > b.top,
+          offCentre: Math.abs((rb.top + rb.bottom) / 2 - (b.top + b.bottom) / 2),
+          scrolled: Math.round(pb.scrollTop),
+          foldOpen: fold ? fold.getAttribute('aria-expanded') : null,
+          riders: (row.querySelector('.crewwhopan') || {}).textContent || '',
+        };
+      }""", rival)
+    assert seen, "the crew has no row in Other crews to land on"
+    assert not seen["popup"], "the popup is still open over the panel it just scrolled"
+    assert seen["open"], "Details did not leave the panel open"
+    assert seen["onScreen"], (
+        f"the row is off screen after Details: panel scrolled to {seen['scrolled']} and the "
+        "row is outside it, so the flash fired where nobody could see it")
+    assert seen["offCentre"] < 120, (
+        f"the row is {seen['offCentre']:.0f}px off the middle of the panel")
+    assert seen["foldOpen"] == "true", (
+        "the riders fold is still shut, so Details landed on a row that says no more than the "
+        "board row it replaced")
+    assert "km" in seen["riders"], (
+        f"the fold is open and holds {seen['riders'][:60]!r}, with nobody in it")
+    _restore_mine(page)
+
+
+def test_opening_another_crew_folds_your_own_out_of_the_way(rivals):
+    """Erwin: "I am clicking not on my crew the 'my crew options' should be not expanced since
+    I want to check the other crews."
+
+    `.crewmine-wrap` is a `<details open>` carrying the roster, the settings and the manage
+    block. On a 390px phone that is most of a screen standing between the press and the row it
+    is aiming at, and it is open by default for a good reason of its own -- it holds the only
+    actionable things in the feature. So it shuts on the way past, and only for somebody
+    else's crew: shut for your own, Details would close the card it was asked to open.
+    """
+    page = rivals
+    _rivals_open(page)
+    assert page.evaluate("""() => { const d = document.querySelector('details.crewmine-wrap');
+                                    return !!(d && d.open); }"""), (
+        "your own crew's card is not open to begin with, so this test cannot tell that "
+        "anything closed it")
+    _tap_patch(page, _rival_slug(page), 0)
+    page.click(".crewpop [data-det]")
+    page.wait_for_timeout(1800)
+    assert page.evaluate("""() => { const d = document.querySelector('details.crewmine-wrap');
+                                    return !!d && !d.open; }"""), (
+        "your own crew's card is still expanded after opening somebody else's, so the row "
+        "Details went to is behind a screenful of your own roster and settings")
+    # And your own crew's name does not close the card it opens.
+    _open_panel(page)
+    page.evaluate("""() => { const d = document.querySelector('details.crewmine-wrap');
+                             if (d) d.open = true; }""")
+    mine = page.evaluate("""async () => {
+        const r = await fetch('/api/v1/crews/me').then(x => x.json());
+        return r && r.crew ? r.crew.slug : null;
+      }""")
+    assert mine, "the signed-in rider is in no crew, so there is nothing to leave open"
+    page.evaluate("(slug) => window.EUCCrews.openCrew(slug)", mine)
+    page.wait_for_timeout(1500)
+    assert page.evaluate("""() => { const d = document.querySelector('details.crewmine-wrap');
+                                    return !!(d && d.open); }"""), (
+        "opening your OWN crew shut your own crew's card")
+
+
+def test_the_patches_fold_lists_a_crews_patches_and_lights_the_one_you_press(rivals):
+    """The fold Erwin asked for beside Best riders, on the real territory.
+
+    Rival Crew's 4-square outpost is 250km from its 9-square patch, so a row that lights the
+    wrong patch sends the camera to another city and a row that lights the crew lights 13.
+    """
+    page = rivals
+    _rivals_open(page)
+    page.evaluate("() => window.EUCCrews.setOverlay(true)")
+    rival = _rival_slug(page)
+    rows = page.evaluate(r"""(slug) => {
+        const b = document.querySelector('[data-pats="' + slug + '"]');
+        if (!b) return null;
+        if (b.getAttribute('aria-expanded') !== 'true') b.click();
+        const pan = document.getElementById('crewpat-' + slug);
+        return { label: b.textContent.trim(), open: !pan.hidden,
+                 rows: [...pan.querySelectorAll('.crewprow')].map(r => ({
+                   i: r.getAttribute('data-pati'),
+                   text: r.textContent.replace(/\s+/g, ' ').trim() })) };
+      }""", rival)
+    assert rows, "a crew with two patches has no patches fold"
+    assert len(rows["rows"]) == 2, (
+        f"the fold lists {len(rows['rows'])} rows for a crew with two patches: {rows['rows']}")
+    assert "9 squares" in rows["rows"][0]["text"] and "4 squares" in rows["rows"][1]["text"], (
+        f"the rows read {[r['text'] for r in rows['rows']]}, which is not 9 then 4")
+    assert "km" in rows["rows"][0]["text"], "a row carries no distance"
+    # And the crew with one patch has no fold at all, which is the dead-control rule.
+    assert page.evaluate("""() => {
+        const rows = [...document.querySelectorAll('.crewrivrow')];
+        const one = rows.find(r => !r.querySelector('[data-pats]'));
+        return !!one;
+      }"""), "every crew in the list has a patches fold, including single-patch ones"
+    page.click(f'#crewpat-{rival} .crewprow[data-pati="1"]')
+    page.wait_for_timeout(900)
+    lit = _shine_count(page)
+    assert lit == 4, (
+        f"pressing the outpost's row lit {lit} squares; that patch has 4 and the crew holds 13")
+    after = page.evaluate("() => { const c = window.__map.getCenter(); return [c.lng, c.lat]; }")
+    assert abs(after[1] - 57.7089) < 1.5 and abs(after[0] - 11.9746) < 2.5, (
+        f"the camera ended at {after}, which is not over the Gothenburg outpost the pressed "
+        "row names")
+
+
+def test_a_name_in_best_riders_flies_to_where_that_rider_rides(rivals):
+    """The names were inert, and the note in crews.js said they had to be: "`flyToRider`,
+    which needs a position this payload does not carry". Erwin: "we already allow this in
+    Riders". The host's own handler draws the ring, jitters the point by up to 1.7km so it is
+    not a doorstep, and closes the panel -- all of which stays in that one function, reached
+    through `H`.
+    """
+    page = rivals
+    _open_panel(page)
+    page.wait_for_selector(".crewrivrow", timeout=20000)
+    page.evaluate("""() => {
+        const b = document.querySelector('.crewrivrow .crewwho');
+        if (b && b.getAttribute('aria-expanded') !== 'true') b.click();
+      }""")
+    page.wait_for_selector(".crewcfly", timeout=15000)
+    seen = page.evaluate("""() => {
+        const el = document.querySelector('.crewcfly');
+        return { label: el.getAttribute('aria-label'), role: el.getAttribute('role'),
+                 lat: +el.getAttribute('data-lat'), lon: +el.getAttribute('data-lon'),
+                 names: document.querySelectorAll('.crewcname').length,
+                 pressable: document.querySelectorAll('.crewcfly').length };
+      }""")
+    assert seen["role"] == "button" and seen["label"], (
+        f"a rider's name is {seen!r}, which is not a control")
+    page.click(".crewcfly")
+    page.wait_for_timeout(3200)
+    end = page.evaluate("""() => { const c = window.__map.getCenter();
+        return { lng: c.lng, lat: c.lat, z: window.__map.getZoom(),
+                 ring: !!window.__map.getLayer('area-line'),
+                 open: !!document.querySelector('.panel.open') }; }""")
+    off = (abs(end["lat"] - seen["lat"]) * 111.32
+           + abs(end["lng"] - seen["lon"]) * 111.32)
+    assert end["ring"], "no ring was drawn, so the rider's area was never marked"
+    assert not end["open"], "the panel is still covering the map it just flew"
+    assert off < 6, (
+        f"the camera landed {off:.1f}km from the rider it was sent to ({seen['lat']}, "
+        f"{seen['lon']}), which is further than the privacy jitter can account for")

@@ -570,6 +570,19 @@
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
 .crewpop-in span { display: block; font-size: 11px; color: var(--mut, #9aa6c8); }
 .crewpop-in span + span { color: #cfe0ff; font-variant-numeric: tabular-nums; }
+/* The crew's name opens its details, which is where Details went when the second button
+   became Next patch. Pressable like the name in a list row, and styled here rather than
+   there because this one is a `<b>`: the block colours its lines by element and by sibling
+   order, so the name could not be given a wrapper without repainting the two lines under it. */
+.crewpopnm { cursor: pointer; border-radius: 4px; padding: 0 3px; margin: 0 -3px; }
+.crewpopnm:hover { background: rgba(255,255,255,.08); text-decoration: underline; }
+.crewpopnm:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+}
+/* Which of their patches you are standing on. Muted against the two lines above it, which are
+   facts about this square -- this one is about where the square sits in the crew's ground.
+   Beats `span + span` on specificity, which would otherwise paint it as a second fact. */
+.crewpop-in .crewpopct { color: var(--mut, #9aa6c8); font-variant-numeric: tabular-nums; }
 
 /* --- Crew Pass --- */
 
@@ -886,6 +899,39 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
   font: inherit; font-size: 11px; color: var(--acc, #2ea8ff); cursor: pointer;
 }
 .crewwho:hover { background: rgba(46,168,255,.1); }
+/* ---------- Biggest patches, the fold beside it ----------
+   Rows of facts about ground, so they are laid out like the facts line in the row above:
+   flex items with a gap, which breaks BETWEEN facts and has no separator glyph to strand at
+   the start or end of a wrapped line. The note on `.crewfact` records that reasoning at
+   length; this is the same answer for the same reason. */
+.crewpatchbox { margin-top: 1px; }
+.crewprow {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; width: 100%;
+  background: none; border: 0; border-radius: 4px; padding: 3px 4px; margin: 0 -4px;
+  font: inherit; font-size: 11px; color: var(--mut, #9aa6c8); text-align: left;
+  cursor: pointer;
+}
+.crewprow:hover { background: rgba(255,255,255,.06); color: var(--ink, #e8edfb); }
+.crewprow:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+}
+/* The ordinal, which is the patch's number in the walk the popup's Next patch follows. Fixed
+   width so the facts beside it line up down the fold rather than stepping in and out with
+   the digit. */
+.crewpatn {
+  flex: 0 0 auto; min-width: 1.1em; font-style: normal; font-variant-numeric: tabular-nums;
+  color: var(--acc, #2ea8ff);
+}
+.crewpatf { flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.crewpatf:first-of-type { color: var(--ink, #e8edfb); }
+/* A rider's name in Best riders, which flies to where they ride. The same treatment as the
+   crew's name in the popup and for the same reason: it is inside a line of text, where a
+   `<button>` would inherit none of the type and all of the chrome. */
+.crewcfly { cursor: pointer; border-radius: 3px; padding: 0 2px; margin: 0 -2px; }
+.crewcfly:hover { background: rgba(255,255,255,.08); text-decoration: underline; }
+.crewcfly:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+}
 .crewwho > i { font-style: normal; font-size: 13px; line-height: 1; transition: transform .16s; }
 .crewwho[aria-expanded="true"] > i { transform: rotate(90deg); }
 .crewwhopan { margin-top: 2px; }
