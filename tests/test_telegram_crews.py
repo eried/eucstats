@@ -437,6 +437,40 @@ def test_round_numbers_fire_upward_only(db, monkeypatch):
     assert len(sent) == 2 and "100" in sent[1], sent
 
 
+def test_a_rung_landed_on_exactly_does_not_print_the_same_number_twice(db, monkeypatch):
+    """Erwin, reading the channel: "why it says passed 50 squares, 50 held? what is the
+    meaning of those 2x50?"
+
+    There was none. The line carried a tail saying what the crew holds, which is worth saying
+    when the crew has climbed past the rung and is standing on 53 -- and when it lands exactly
+    on fifty the tail is the rung again, in different words. The first-patch message three
+    lines above it has had the same guard since it was written; this one never got it.
+
+    The verb went with it: you do not pass a mark you are standing on.
+    """
+    sent = _capture(monkeypatch, MILES)
+    _on(db)
+    _rider(db, "a", "Ann")
+    c = _crew(db, "a", "Northern Lights")
+    c.terr_best_tiles, c.terr_tiles = 20, 49
+    db.commit()
+    telegram.check_crew_events(db)                # baseline, one square short
+    assert sent == []
+    c.terr_tiles = 50                             # exactly on it
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 1, sent
+    assert sent[0].count("50") == 1, (
+        "the rung is printed twice in one sentence: " + sent[0].split(chr(10))[0])
+    # And the tail is still there when it says something the rung does not.
+    c.terr_tiles = 103
+    db.commit()
+    telegram.check_crew_events(db)
+    assert len(sent) == 2, sent
+    assert "100" in sent[1] and "103" in sent[1], (
+        "a crew that sailed past the rung is not told where it landed: " + sent[1])
+
+
 def test_the_first_patch_and_a_rung_are_not_both_announced(db, monkeypatch):
     """A crew that appears on the map already holding sixty squares is one piece of news."""
     sent = _capture(monkeypatch, MILES)

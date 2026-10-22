@@ -177,8 +177,8 @@ def notify_new_rider(store_id: str) -> None:
             return                                # never out a private/closed rider
         total = stats.global_summary(db).get("riders", 0)
         plural = "rider" if total == 1 else "riders"
-        text = (f"🆕 New rider: <b>{_esc(r.display_name)}</b> {_flag_emoji(r.flag)} — "
-                f"now <b>{total}</b> {plural} on EUC Stats!\n{cfg['link_url']}")
+        text = (f"🆕 New rider: <b>{_esc(r.display_name)}</b> {_flag_emoji(r.flag)}. "
+                f"Now <b>{total}</b> {plural} on EUC Stats!\n{cfg['link_url']}")
         send_message(text, cfg)
     finally:
         db.close()
@@ -200,7 +200,7 @@ def notify_first_ride(store_id: str) -> None:
             return
         trip = q.first()
         text = (f"🛞 <b>{_esc(r.display_name)}</b> {_flag_emoji(r.flag)} just logged their "
-                f"first ride — <b>{_dist(trip.distance_km)}</b>!\n{cfg['link_url']}")
+                f"first ride: <b>{_dist(trip.distance_km)}</b>!\n{cfg['link_url']}")
         send_message(text, cfg)
     finally:
         db.close()
@@ -232,11 +232,11 @@ def notify_new_crew(clan_id: str) -> None:
         who = ""
         founder = db.get(Rider, clan.created_by) if clan.created_by else None
         if founder and founder.deleted_at is None and founder.consent_public:
-            who = (f" — founded by <b>{_esc(founder.display_name)}</b> "
+            who = (f", founded by <b>{_esc(founder.display_name)}</b> "
                    f"{_flag_emoji(founder.flag)}")
         link = cfg["link_url"].rstrip("/") + "/c/" + clan.slug
-        text = (f"🚩 New crew: <b>{_esc(clan.name)}</b>{who} — "
-                f"now <b>{n}</b> {plural} riding for ground!\n{link}")
+        text = (f"🚩 New crew: <b>{_esc(clan.name)}</b>{who}. "
+                f"Now <b>{n}</b> {plural} riding for ground!\n{link}")
         send_message(text, cfg)
     finally:
         db.close()
@@ -393,13 +393,13 @@ def check_records() -> None:
             # The crew that lost it is named only if it is still there. A crew that
             # disbanded did not get overtaken, it left -- and the row beneath it moving up
             # is not a takeover worth a trumpet.
-            beat = (f' — past <b>{_esc(beaten.name)}</b>'
+            beat = (f', past <b>{_esc(beaten.name)}</b>,'
                     if beaten is not None and beaten.disbanded_at is None else '')
             clink = cfg["link_url"].rstrip("/") + "/c/" + ctop["slug"]
             sq = ctop.get("best_tiles") or 0
             noun = 'square' if sq == 1 else 'squares'
             text = (f"🚩 New top crew! <b>{_esc(ctop.get('name'))}</b>{beat} now holds "
-                    f"the biggest patch on the map — <b>{sq}</b> {noun} in one piece."
+                    f"the biggest patch on the map: <b>{sq}</b> {noun} in one piece."
                     f"\n{clink}")
             send_message(text, cfg)
     finally:
@@ -493,16 +493,23 @@ def check_crew_events(db, flips: dict | None = None) -> None:
         base = cfg["link_url"].rstrip("/")
         for c, best, held in first_hits:
             sq = _n(best, "square")
-            extra = f" of {_n(held, 'square')} held" if held > best else ""
+            # "9 squares of 53 held", not "of 53 squares held": the noun is already in `sq`
+            # two words earlier, and saying it twice is what the rung line below did wrong.
+            extra = f" of {held:,} held" if held > best else ""
             send_message(
-                f"🚩 <b>{_esc(c.name)}</b> is on the map — its first patch, "
+                f"🚩 <b>{_esc(c.name)}</b> is on the map. Its first patch: "
                 f"<b>{sq}</b>{extra}."
                 f"{NL}{base}/c/{c.slug}", cfg)
 
         for c, rung, held in rung_hits:
+            # The tail only when it adds something the rung has not already said. A crew that
+            # lands exactly on fifty held fifty, and the line read "just passed 50 squares --
+            # 50 squares held", which is one number twice and a verb that is wrong on top of
+            # it: you do not pass a mark you are standing on. The first-patch branch above has
+            # had this guard since it was written; this one never got it.
+            extra = f", now on <b>{held:,}</b>" if held > rung else ""
             send_message(
-                f"📍 <b>{_esc(c.name)}</b> just passed <b>{rung}</b> squares "
-                f"— {_n(held, 'square')} held."
+                f"📍 <b>{_esc(c.name)}</b> just hit <b>{rung}</b> squares{extra}."
                 f"{NL}{base}/c/{c.slug}", cfg)
 
         if cfg.get("crew_flip") and flips:
@@ -634,7 +641,7 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
         tr = db.get(Rider, sid)
         if tr and tr.deleted_at is None and tr.consent_public:
             top_line = (f"\n🏆 Top rider: <b>{_esc(tr.display_name)}</b> "
-                        f"{_flag_emoji(tr.flag)} — {_dist(d)}")
+                        f"{_flag_emoji(tr.flag)} · {_dist(d)}")
             break
 
     # Crews, on their own two lines, with a blank line either side: without it the counts
@@ -678,7 +685,7 @@ def daily_summary_text(db, recap_date, cfg: dict) -> str | None:
     tot_r, tot_t = g.get("riders", 0), g.get("trips", 0)
     tot_c = g.get("countries", 0)
     # full weekday + day + full month, e.g. "Sunday 12 July" (no zero-padding on the day)
-    head = (f"📊 <b>EUC Stats — {recap_date.strftime('%A')} {recap_date.day} "
+    head = (f"📊 <b>EUC Stats · {recap_date.strftime('%A')} {recap_date.day} "
             f"{recap_date.strftime('%B')}</b>")
     yday = (f"\nYesterday: <b>{new_riders}</b> new {'rider' if new_riders == 1 else 'riders'} · "
             f"<b>{trips_n}</b> {'ride' if trips_n == 1 else 'rides'} · <b>{_dist(km)}</b>")
