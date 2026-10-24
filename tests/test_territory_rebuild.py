@@ -182,3 +182,41 @@ def test_a_rebuild_with_no_crews_at_all_still_writes_its_outputs(db):
     assert rep["crews"] == 0 and rep["tiles"] == 0
     payload = json.loads(gzip.decompress(territory.cached(Z)))
     assert payload["crews"] == [] and payload["cells"] == []
+def test_a_bridge_square_is_written_as_a_cell_with_the_riding_behind_it(db):
+    """Through the real rebuild, because the cell write is where this could still go wrong.
+
+    Two blocks meeting at a point and one short ride through the square between them. That
+    square is never led -- it is in `acc` and not in the winners -- so it reaches the cell
+    write by the branch that has no winner entry, the same branch a square gained by
+    enclosure takes. Enclosure writes 0 km because nobody rode there; a bridge must write
+    what was ridden, or the popup tells a rider that the square joining their ground has
+    never been visited.
+    """
+    _settings(db)
+    crew = _crew(db, "br", "Bridge Crew")
+    _ride(db, "br", crew.clan_id, "br-west", _in_tiles([(0, 0), (1, 0), (0, 1), (1, 1)]),
+          km=40.0, days_ago=3)
+    _ride(db, "br", crew.clan_id, "br-east", _in_tiles([(2, 2), (3, 2), (2, 3), (3, 3)]),
+          km=40.0, days_ago=3)
+    # A short hop entirely inside the square at the corner: a visit, nowhere near a claim.
+    # The trip's whole distance lands in that one tile, so the number is exact rather than
+    # whatever a share of a longer ride works out to.
+    gap = _tile(2, 1)
+    assert territory.min_visit_km(gap) < 0.25 < territory.min_lead_km(gap), (
+        "the fixture has drifted out of the band it is meant to sit in: a visit that is "
+        "not a claim")
+    _ride(db, "br", crew.clan_id, "br-gap", _in_tiles([(2, 1)]), km=0.25, days_ago=1)
+
+    territory.rebuild(db, window_days=90, zoom=Z, seed=2)
+
+    cells = {c.tile: c for c in db.query(models.ClanCell)
+             .filter(models.ClanCell.clan_id == crew.clan_id).all()}
+    assert gap in cells, "the square joining the two blocks was not handed over"
+    assert len(cells) == 9, "eight ridden squares and the one between them"
+    assert cells[gap].km > 0, (
+        "the bridge square was written with no kilometres, like a square nobody rode")
+    assert cells[gap].km < territory.min_lead_km(gap), (
+        "it is written as a claim, which it never was")
+
+    row = db.get(models.Clan, crew.clan_id)
+    assert row.terr_best_tiles == 9, "one patch now, and the board ranks on its size"

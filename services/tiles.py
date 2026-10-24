@@ -96,7 +96,11 @@ def area_km2(tile: str) -> float:
 
 def neighbours(tile: str) -> list[str]:
     """The four edge-adjacent tiles. Territory grows through edges, not corners — two blocks
-    touching only at a point are not one region to anybody looking at the map."""
+    touching only at a point are not one region to anybody looking at the map.
+
+    Still true, and `territory._bridge` does not change it: that rule asks a different
+    question, about the unclaimed square NEXT to such a point, which a road can and does run
+    through. Connectivity itself is four-way here and everywhere that reads this."""
     p = parse(tile)
     if p is None:
         return []
