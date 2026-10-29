@@ -633,7 +633,7 @@ def test_the_weekly_cap_cannot_be_doubled_by_riding_at_midnight(db):
 
     This drives accumulate() against real rows rather than re-walking the loop here, because
     a test that carries its own copy of the rule passes whichever rule the code is using."""
-    from datetime import timedelta
+    from datetime import datetime, timedelta
     from ingest.downsample import encode_track
     from models import Clan, ClanMember, Rider, Trip, TripTrack, utcnow
     from services.territory import accumulate, rider_week_cap_km
@@ -652,8 +652,14 @@ def test_the_weekly_cap_cannot_be_doubled_by_riding_at_midnight(db):
     # both rides in one bucket. And a decayed pair cannot discriminate -- at a 21-day
     # half-life, rides nine months back are worth a ten-thousandth either way, so the
     # assertion passed on both rules. The most recent boundary at least a day old is both.
+    #
+    # Found in epoch seconds and converted back, not by subtracting a wall-clock delta from a
+    # local-time datetime: those are not the same journey across a daylight-saving change.
+    # Norway's clocks went back on 25 October 2026 and the old arithmetic landed an hour short
+    # of the boundary, so this guard failed every day of the week that straddled it -- twice a
+    # year, for a reason that has nothing to do with the rule it is guarding.
     probe = utcnow() - timedelta(days=1)
-    anchor = probe - timedelta(seconds=probe.timestamp() % 604800)
+    anchor = datetime.fromtimestamp(probe.timestamp() - probe.timestamp() % 604800)
     assert anchor.timestamp() % 604800 == 0
     # inside one z14 square near Oslo, a line long enough to be a visit at any latitude
     lat, lon = 59.9139, 10.7522
