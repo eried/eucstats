@@ -1097,7 +1097,13 @@ function renderChampions(){
   // know what they came for. Erwin asked for this explicitly.
   const crewFirst=haveCrews&&(/^#?crews$/i.test(location.hash||"")||/[?&]crew=/.test(location.search||""));
   if(crewFirst)decks.reverse();
-  let deck=0;
+  // Which deck is showing outlives this render. `renderChampions` runs again on every poll,
+  // and on a language or a unit change, and the deck used to be a fresh `0` each time -- so
+  // the poll put the reader back on the default card, instantly and at a moment of its own
+  // choosing. Erwin: "when I switch to the crews info thingy in the top left, sometimes it
+  // justs switch back by itself". Remembered by the deck's own class and not by its index,
+  // because `crewFirst` reverses the pair and the crews deck comes and goes with the data.
+  let deck=Math.max(0,decks.findIndex(d=>d.cls===ch._pick));
   const paint=()=>{const d=decks[deck];
     ch.className="champ"+d.cls;
     const q=x=>String(x).replace(/"/g,"&quot;");
@@ -1112,7 +1118,8 @@ function renderChampions(){
   // and nothing in it is legible, so the change itself is never seen happening.
   const swapTo=(i)=>{
     const back=i<deck;
-    deck=i;
+    deck=i;ch._pick=decks[i].cls;             // the automatic swap moves it too, so a poll
+                                              // lands on the deck that is actually showing
     const reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if(reduced){paint();return;}
     // The direction is the one you pressed: choosing the deck on the right sends this one out
@@ -1157,29 +1164,45 @@ function renderChampions(){
   paint();
   // The swap. Paused while a finger or a pointer is on the card, so it never changes under
   // somebody reading it, and not started at all when there is only one deck.
-  clearInterval(ch._rot);
+  const stop=()=>{clearInterval(ch._rot);clearTimeout(ch._rotWait);ch._rot=null;ch._rotWait=null;};
+  stop();ch._restart=null;ch._pause=null;ch._resume=null;
   if(decks.length>1){
     const tick=()=>swapTo((deck+1)%decks.length);
     const SWAP_MS=9000, AFTER_PRESS_MS=30000;
-    // When the press's grace runs out. `pointerleave` resumes from THIS rather than from the
-    // ordinary pace, which is the whole fix: pressing a deck set a 30s grace and then moving
-    // the pointer off the card called start() with no delay and replaced it with a 9s
-    // interval. So asking for Crew Domination and taking your hand away moved you off it
-    // nine seconds later -- and on a phone it is worse, because a tap fires pointerenter and
-    // pointerleave around it, so the grace was destroyed the instant the finger lifted.
-    // Erwin pressed it and was moved back almost at once, which is exactly this.
-    let graceUntil=0;
+    // The grace a press buys, and whether a pointer is resting on the card, live on the
+    // element for the same reason the deck does: this function runs again every poll, and
+    // both of them used to be local to it. A render in the middle of a read threw the 30s
+    // hold away and started the 9s pace again -- under the pointer, which is also how the
+    // "paused while you are reading it" promise was lost. `_rot` and `_rotWait` are nulled
+    // rather than merely cleared, so "is anything armed" is a question with an answer.
+    //
+    // `pointerleave` resumes from the grace rather than from the ordinary pace, which was the
+    // earlier half of this: pressing a deck and taking your hand away called start() with no
+    // delay and replaced the hold with a 9s interval. On a phone it was worse, because a tap
+    // fires pointerenter and pointerleave around it, so the grace died as the finger lifted.
     const start=(delay)=>{
-      clearInterval(ch._rot);clearTimeout(ch._rotWait);
-      const run=()=>{clearInterval(ch._rot);ch._rot=setInterval(tick,SWAP_MS);};
+      stop();
+      if(ch._hover)return;                    // a pointer is on the card: nothing is armed
+      const run=()=>{stop();ch._rot=setInterval(tick,SWAP_MS);};
       if(delay>0){ch._rotWait=setTimeout(()=>{tick();run();},delay);return;}
       run();
     };
-    ch._restart=()=>{graceUntil=Date.now()+AFTER_PRESS_MS;start(AFTER_PRESS_MS);};
-    const resume=()=>start(Math.max(0,graceUntil-Date.now()));
-    start();                                  // the ordinary pace on load
-    ch.addEventListener("pointerenter",()=>{clearInterval(ch._rot);clearTimeout(ch._rotWait);});
-    ch.addEventListener("pointerleave",resume);
+    const left=()=>Math.max(0,(ch._grace||0)-Date.now());
+    ch._restart=()=>{ch._grace=Date.now()+AFTER_PRESS_MS;start(AFTER_PRESS_MS);};
+    ch._pause=()=>{ch._hover=true;stop();};
+    ch._resume=()=>{ch._hover=false;start(left());};
+    // Bound once, for good. Every render added another pair of listeners, each closing over
+    // its own render's timers, so one pointerleave eventually ran a dozen handlers racing for
+    // the same `_rot`. The pair calls through the element, so it is always the live render.
+    if(!ch._rotBound){
+      ch._rotBound=true;
+      ch.addEventListener("pointerenter",()=>{if(ch._pause)ch._pause();});
+      ch.addEventListener("pointerleave",()=>{if(ch._resume)ch._resume();});
+      // And if the browser takes the gesture away mid-touch, which is the one path that could
+      // leave `_hover` set with no leave event behind it and the card held forever.
+      ch.addEventListener("pointercancel",()=>{if(ch._resume)ch._resume();});
+    }
+    start(left());      // the ordinary pace on load, the rest of the grace after a render
   }
 }
 let CELLS=null;

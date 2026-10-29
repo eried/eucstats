@@ -338,6 +338,88 @@ def test_a_podium_card_does_not_hand_back_a_text_selection(phone):
         f"a podium card leaves touch-action at {select['touch']}")
 
 
+def _champ_on(page):
+    """Which deck the switch says is showing, as a `data-go` index."""
+    return page.evaluate("() => { const b = document.querySelector('#champ .cswap.on');"
+                         "        return b ? b.dataset.go : null; }")
+
+
+def _champ_two_decks(page):
+    _wait_for_champ(page)
+    page.wait_for_function("() => document.querySelectorAll('#champ .cswap').length > 1",
+                           timeout=30000)
+
+
+def test_the_deck_the_reader_picked_is_not_switched_back_by_the_poll(page):
+    """Erwin: "when I switch to the crews info thingy in the top left, sometimes it justs
+    switch back by itself".
+
+    The card holds the deck for thirty seconds after a press, and that part works. What it
+    could not survive was `pollStats`, which runs every thirty seconds of its own and calls
+    `renderChampions` -- and every piece of state the rotation owned lived inside that
+    function. A re-render declared `deck = 0` again, painted the default deck with no
+    animation at all, and started the ordinary nine-second pace, so the press's grace was
+    thrown away by a clock the reader cannot see. Pressing Crew Domination and being moved off
+    it anywhere between instantly and thirty seconds later is exactly this, and "sometimes" is
+    the two clocks drifting past each other.
+
+    The same render runs on a language change and a unit change, so this was never only about
+    the poll.
+    """
+    _champ_two_decks(page)
+    first = _champ_on(page)
+    picked = page.evaluate("""() => {
+        const b = [...document.querySelectorAll('#champ .cswap')]
+          .find(x => !x.classList.contains('on'));
+        b.click();
+        return b.dataset.go;
+      }""")
+    page.wait_for_timeout(600)                 # the tear swaps the content at its midpoint
+    assert _champ_on(page) == picked, (
+        f"the switch did not change the deck at all: still on {first}")
+    page.evaluate("() => pollStats()")         # the real poll, not a stand-in for one
+    page.wait_for_timeout(400)
+    assert _champ_on(page) == picked, (
+        f"the poll put the card back on deck {_champ_on(page)} after the reader asked for "
+        f"deck {picked}")
+    state = page.evaluate("() => { const ch = document.getElementById('champ');"
+                          "        return {grace: (ch._grace || 0) - Date.now(),"
+                          "                rot: !!ch._rot}; }")
+    assert state["grace"] > 20000, (
+        f"the press's thirty-second grace came out of the render with {state['grace']}ms left")
+    assert not state["rot"], (
+        "the render armed the ordinary nine-second swap while the press's grace was still "
+        "running, so the deck would be taken away nine seconds later")
+    page.evaluate("""(go) => {
+        const b = document.querySelector('#champ .cswap[data-go="' + go + '"]');
+        if (b) b.click();
+      }""", first)
+    page.wait_for_timeout(600)
+
+
+def test_the_poll_does_not_start_the_swap_under_a_resting_pointer(page):
+    """The other half of the same loss. The swap is paused while a pointer is on the card so
+    it never changes under somebody reading it, and that pause was a cleared interval and
+    nothing else -- no record that the pointer was still there. So any render during the read,
+    and the poll is one every thirty seconds, started the pace again under the pointer.
+    """
+    _champ_two_decks(page)
+    page.dispatch_event("#champ", "pointerenter")
+    page.wait_for_timeout(100)
+    page.evaluate("() => pollStats()")
+    page.wait_for_timeout(400)
+    armed = page.evaluate("() => { const ch = document.getElementById('champ');"
+                          "        return !!(ch._rot || ch._rotWait); }")
+    assert not armed, (
+        "the poll re-armed the swap while the pointer was resting on the card, so the deck "
+        "changes under the reader")
+    page.dispatch_event("#champ", "pointerleave")
+    page.wait_for_timeout(100)
+    back = page.evaluate("() => { const ch = document.getElementById('champ');"
+                         "        return !!(ch._rot || ch._rotWait); }")
+    assert back, "taking the pointer off the card did not start the swap again"
+
+
 def test_the_panel_opens_at_all(page):
     """The floor. If this fails nothing below it means anything."""
     _open_panel(page)
@@ -1742,3 +1824,4 @@ def test_a_name_in_best_riders_flies_to_where_that_rider_rides(rivals):
     assert off < 6, (
         f"the camera landed {off:.1f}km from the rider it was sent to ({seen['lat']}, "
         f"{seen['lon']}), which is further than the privacy jitter can account for")
+
