@@ -42,6 +42,8 @@ DEFAULTS = {
     "impact_min_kmh": 15.0,   # the rider must have been travelling for a crash to be a crash
     "impact_ground_kmh": 8.0, # ground speed still showing when the wheel stopped: the body
     "impact_g": 2.5,          # g that counts as hitting something
+    "impact_pwm": 75.0,       # duty cycle that says the controller ran out of room: a
+                              # wheel at 84% is not accelerating, it is losing
     "impact_amps": 40.0,      # current surge that counts as the motor being stalled
     "impact_stop_s": 5.0,     # seconds the wheel has to go from travelling to nothing
     "impact_hold_s": 5.0,     # seconds everything must then STAY stopped
@@ -317,12 +319,44 @@ def _impact_falls(samples, c, track) -> int:
 
     On trip 10b666ce the first two held and the third did not: the wheel read zero because the
     link had died, and the rider carried on down the road at 25 km/h. He rode away from it.
+
+    Trip 37d3a270 is the case that rewrote the mechanics of all three. Erwin, on mud: "I fell
+    the other day, I think 28/10 so it should be a spike of speed which is a good thing to mark
+    a fall (it was like a free spin because mud)". The log agrees with him exactly - the wheel
+    went 8.1 to 25.9 km/h in one second at 111 A and 84% duty, then read 3.1 while the ground
+    still read 8.7, then nothing for seven seconds - and the detector counted no fall, for
+    three reasons that were all mechanical rather than physical:
+
+      * The ground reading was taken from the single sample where the wheel first dips under
+        3 km/h. His dip straddled that line: 3.1 km/h with the ground at 8.7, then 0.3 with the
+        ground at 5.3. The second reading is the one it used, and it missed the 8 km/h bar by
+        2.7. The window either side of the stop fixes it.
+      * The settle test chose the first at-rest sample by the SMOOTHED track and then
+        disqualified that very sample by the RAW gps reading. The two disagree precisely here:
+        2.4 km/h smoothed against 5.3 raw. A rider still decelerating was read as a rider who
+        never stopped. Both halves read the same source now, the raw one, as the ground test
+        above already does.
+      * His wheel's accelerometer saw 0.47 g through the whole event, so "where the log has an
+        accelerometer, IT decides" decided there was no impact. A traction loss has no impact
+        in it; what it has is a controller at its ceiling. 111 A is more than three times
+        anything else in that ride and 84% duty is one sample in 9,598, so the pair of them
+        together is now proof as well. Both, not either: a noisy duty column on its own cannot
+        manufacture a crash, and 40 A on its own is an ordinary launch on a fast wheel.
+
+    Measured over the 518 rides whose raw log is still stored: 6 falls before, 14 after. Six of
+    the eight new ones are 2.5 g impacts this rule already considered proven and was throwing
+    away on the two mechanical faults above, and two come from the duty-cycle clause.
     """
     n = len(samples)
     out, last_t = 0, None
-    has_g = any(x.g is not None and abs(x.g) > 0 for x in samples)
     draws = sorted(abs(x.current) for x in samples if x.current is not None)
     typical_a = draws[int(len(draws) * 0.95)] if draws else None
+
+    def ground_at(k):
+        """The ground speed this test believes, from one source. See the note above."""
+        v = samples[k].gps_speed
+        return (v if v is not None else _ground(samples, k, track)) or 0.0
+
     for i in range(n):
         s = samples[i]
         if s.speed is None or s.speed >= _MOVING_KMH:
@@ -348,10 +382,10 @@ def _impact_falls(samples, c, track) -> int:
         # smoothed track: smoothing lags, so on the track every ordinary stop still shows
         # 8 km/h at the moment the wheel reaches nothing. That one substitution was the
         # difference between one fall across the library and 108 of them.
-        ground = samples[i].gps_speed
-        if ground is None:
-            ground = _ground(samples, i, track)
-        if ground is None or ground < c["impact_ground_kmh"]:
+        # ...read from the sample either side as well, because which sample counts as "the
+        # wheel has stopped" turns on a 3 km/h line that a real fall can straddle.
+        ground = max(ground_at(k) for k in range(max(0, i - 1), min(n, i + 2)))
+        if ground < c["impact_ground_kmh"]:
             continue
 
         # ...and something actually hit. An impact fall with no impact in it is just a stop,
@@ -363,25 +397,27 @@ def _impact_falls(samples, c, track) -> int:
         # the fallback for a log with no g channel at all, and then it has to be a surge well
         # past anything the trip does elsewhere, not just a big absolute number.
         near = samples[max(0, i - 3):i + 4]
-        if has_g:
-            if not any(x.g is not None and abs(x.g) >= c["impact_g"] for x in near):
-                continue
-        else:
-            amps = [abs(x.current) for x in near if x.current is not None]
-            if not amps or max(amps) < max(c["impact_amps"], 3.0 * (typical_a or 0.0)):
-                continue
+        hit = any(x.g is not None and abs(x.g) >= c["impact_g"] for x in near)
+        amps = [abs(x.current) for x in near if x.current is not None]
+        surge = bool(amps) and max(amps) >= max(c["impact_amps"], 3.0 * (typical_a or 0.0))
+        duty = any(x.pwm is not None and x.pwm >= c["impact_pwm"] for x in near)
+        if not (hit or (surge and duty)):
+            continue
 
         # ...and then everything stops, and stays stopped
         settle = [k for k in range(i, n)
                   if (samples[k].t - s.t).total_seconds() <= c["impact_hold_s"] * 2]
-        rest = [k for k in settle if (_ground(samples, k, track) or 0.0) < _MOVING_KMH]
+        rest = [k for k in settle if ground_at(k) < _MOVING_KMH]
         if not rest:
             continue
         held = [k for k in range(rest[0], n)
                 if (samples[k].t - samples[rest[0]].t).total_seconds() <= c["impact_hold_s"]]
-        if len(held) < 3 or any((samples[k].gps_speed if samples[k].gps_speed is not None
-                                 else _ground(samples, k, track) or 0.0) >= _MOVING_KMH
-                                for k in held):
+        # The MEDIAN of the hold, not every sample in it. A raw gps reading at walking pace
+        # bounces either side of 3 km/h for a few seconds after a stop - Jonah's crash reads
+        # 2.8, 3.5, 2.4, 1.3, 2.8 while he is lying in the road - so "no sample at all above
+        # the line" rejected a rider who had plainly stopped. What it has to separate is
+        # stopping from riding away, and trip 10b666ce rode away at 22 to 32 km/h.
+        if len(held) < 3 or _median([ground_at(k) for k in held]) >= _MOVING_KMH:
             continue
 
         if last_t is None or (s.t - last_t).total_seconds() > 30:

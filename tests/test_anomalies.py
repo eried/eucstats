@@ -559,6 +559,94 @@ def test_an_ordinary_stop_is_not_an_impact_fall_however_smooth_the_gps():
     assert detect(log)["fall"] == 0
 
 
+def msp(dt, wheel, gps, amps, pwm, g, lat, lon):
+    """A sample with the duty cycle in it, which the mud fixture below turns on."""
+    return Sample(t=BASE + timedelta(seconds=dt), speed=wheel, gps_speed=gps, current=amps,
+                  pwm=pwm, g=g, lat=lat, lon=lon)
+
+
+# Trip 37d3a270, Erwin, 2026-10-28, samples 7752-7811. Verbatim, positions included: this one
+# is 69 degrees north, and the fixture is useless if the track does not stop where he did.
+# It starts a minute early, at 31 km/h, deliberately: the current bar this fall is proved
+# against is three times the ride's OWN 95th percentile, so a fixture cut to the event alone
+# makes the 111 A spike its own percentile and proves nothing.
+MUD_SPIN = [
+    (0, 31.5, 27.3, 20.6, 43.0, 0.41, 69.66509, 18.94946), (1, 31.0, 25.8, 32.0, 45.2, 0.42, 69.66512, 18.94965),
+    (2, 29.5, 25.9, 21.9, 40.8, 0.11, 69.66514, 18.94983), (3, 26.9, 23.7, 26.5, 39.3, 0.21, 69.66516, 18.94997),
+    (4, 26.7, 21.0, 34.1, 41.1, 0.54, 69.66518, 18.95008), (5, 26.1, 18.4, 20.4, 37.3, 0.16, 69.66522, 18.95025),
+    (6, 24.2, 20.8, 9.7, 32.3, 0.15, 69.66525, 18.95040), (7, 24.3, 20.9, 15.0, 34.2, 0.38, 69.66528, 18.95051),
+    (8, 26.6, 19.6, 12.4, 35.7, 0.29, 69.66532, 18.95062), (9, 28.6, 24.7, 15.5, 38.6, 0.07, 69.66537, 18.95073),
+    (10, 28.2, 23.8, 8.2, 36.2, 0.26, 69.66541, 18.95085), (11, 23.0, 21.4, 7.1, 30.8, 0.41, 69.66546, 18.95094),
+    (12, 26.2, 19.9, 11.4, 35.4, 0.29, 69.66551, 18.95102), (13, 26.8, 20.5, 8.9, 35.2, 0.10, 69.66556, 18.95111),
+    (14, 25.9, 20.9, 10.9, 34.4, 0.13, 69.66561, 18.95119), (15, 26.2, 21.1, 0.0, 27.7, 0.35, 69.66566, 18.95129),
+    (16, 19.2, 19.2, 3.2, 25.6, 0.43, 69.66571, 18.95136), (17, 22.4, 16.9, 3.8, 29.4, 0.19, 69.66574, 18.95144),
+    (18, 16.3, 17.5, -0.8, 12.1, 0.15, 69.66578, 18.95151), (19, 16.1, 14.2, 2.1, 22.4, 0.17, 69.66581, 18.95157),
+    (20, 10.6, 12.9, 4.8, 17.8, 0.29, 69.66583, 18.95163), (21, 11.6, 9.9, 2.9, 17.9, 0.36, 69.66584, 18.95170),
+    (22, 8.8, 10.1, 3.5, 15.5, 0.16, 69.66584, 18.95176), (23, 9.9, 8.6, 9.2, 18.4, 0.34, 69.66585, 18.95181),
+    (24, 12.6, 8.9, 1.4, 18.3, 0.15, 69.66587, 18.95186), (25, 9.1, 8.9, 0.9, 14.4, 0.49, 69.66587, 18.95186),
+    (26, 8.9, 6.5, 0.7, 13.8, 0.69, 69.66590, 18.95192), (27, 8.2, 7.4, 2.4, 14.6, 1.26, 69.66591, 18.95194),
+    (28, 7.5, 5.8, 11.1, 17.3, 0.18, 69.66593, 18.95195), (29, 8.7, 1.7, 3.4, 15.5, 0.39, 69.66593, 18.95193),
+    (30, 6.6, 5.6, 12.0, 16.8, 0.30, 69.66595, 18.95194), (31, 6.3, 6.4, 5.4, 14.1, 0.28, 69.66597, 18.95194),
+    (32, 5.4, 3.8, 5.0, 13.2, 0.27, 69.66598, 18.95193), (33, 6.4, 3.2, 9.6, 15.8, 0.72, 69.66599, 18.95192),
+    (34, 6.4, 3.2, 6.1, 14.5, 0.17, 69.66599, 18.95192), (35, 5.9, 9.1, 6.3, 14.1, 0.16, 69.66602, 18.95192),
+    (36, 8.4, 7.3, 6.0, 16.2, 0.27, 69.66604, 18.95194), (37, 6.5, 7.7, 6.7, 14.8, 0.34, 69.66605, 18.95198),
+    (38, 7.2, 5.5, 8.5, 16.1, 0.07, 69.66606, 18.95200), (39, 7.7, 5.3, 7.3, 16.1, 0.11, 69.66608, 18.95201),
+    (40, 7.8, 5.6, 13.5, 18.4, 0.66, 69.66609, 18.95203), (41, 8.2, 6.6, 9.1, 17.1, 0.15, 69.66611, 18.95204),
+    (42, 7.5, 7.5, 4.9, 15.0, 0.31, 69.66612, 18.95209), (43, 8.5, 5.1, 10.3, 18.2, 0.44, 69.66613, 18.95209),
+    (44, 8.1, 6.5, 5.2, 15.8, 0.12, 69.66615, 18.95213), (45, 25.9, 4.6, 111.4, 83.8, 0.47, 69.66616, 18.95212),
+    (46, 3.1, 8.7, 0.2, 3.7, 0.36, 69.66618, 18.95215), (47, 0.3, 5.3, 0.3, 3.9, 0.34, 69.66619, 18.95216),
+    (48, 0.4, 2.5, 0.5, 5.1, 0.14, 69.66619, 18.95213), (49, 0.0, 0.6, 0.2, 4.4, 0.07, 69.66619, 18.95213),
+    (50, 0.0, 0.2, 0.3, 4.7, 0.10, 69.66619, 18.95213), (51, 1.4, 0.3, 1.0, 7.7, 0.29, 69.66619, 18.95213),
+    (52, 2.5, 0.3, 1.0, 8.1, 0.20, 69.66619, 18.95213), (53, 2.6, 0.2, 0.5, 7.5, 0.21, 69.66619, 18.95213),
+    (54, 4.0, 0.8, 1.6, 6.8, 0.41, 69.66619, 18.95212), (55, 5.0, 4.4, 1.7, 11.0, 0.28, 69.66620, 18.95214),
+    (56, 4.6, 4.3, 1.3, 10.6, 0.20, 69.66621, 18.95214), (57, 5.7, 4.3, 1.6, 12.0, 0.21, 69.66622, 18.95213),
+    (58, 3.6, 4.1, 0.7, 8.4, 0.38, 69.66623, 18.95212), (59, 5.2, 5.6, 0.8, 10.2, 0.30, 69.66624, 18.95213),
+]
+
+
+def mud_log():
+    return [msp(*row) for row in MUD_SPIN]
+
+
+def test_a_wheel_that_spun_up_in_mud_and_stopped_is_a_fall():
+    """Erwin: "I fell the other day, I think 28/10 so it should be a spike of speed which is a
+    good thing to mark a fall (it was like a free spin because mud)".
+
+    He is right about the spike and right that it marks the fall, and the detector counted
+    nothing. 8.1 to 25.9 km/h in one second at 111 A and 84% duty, then 3.1 km/h while the
+    ground still read 8.7, then seven seconds of nothing. His wheel's accelerometer saw 0.47 g
+    through all of it, so this fall has to be proved by the controller running out of room
+    rather than by an impact.
+    """
+    assert detect(mud_log())["fall"] == 1
+
+
+def test_the_stop_is_not_missed_because_the_dip_straddles_one_threshold():
+    """The same ride, cut to the two samples the old reading chose between.
+
+    Which sample counts as "the wheel has stopped" turns on 3 km/h. His wheel read 3.1 with the
+    ground at 8.7 and then 0.3 with the ground at 5.3, and a single reading taken at the second
+    of those missed the 8 km/h bar by 2.7 km/h. Nothing about the fall changed; the sample the
+    code happened to land on did.
+    """
+    rows = [r for r in MUD_SPIN if r[0] != 10]          # drop the 8.7 km/h sample entirely
+    assert detect([msp(*r) for r in rows])["fall"] == 1, (
+        "the fall is now carried by the 5.3 km/h sample alone and should still be found: the "
+        "window either side of the stop is what makes this independent of where the dip lands")
+
+
+def test_a_high_duty_cycle_on_its_own_is_not_impact_evidence():
+    """The pair, not either. A wheel can show a high duty cycle climbing a hill, and a duty
+    column can be noisy; what cannot happen without something going wrong is a controller at
+    84% duty drawing three times the ride's own worst current. Either half alone would make
+    this ordinary stop a crash.
+    """
+    log = [msp(i, 30.0 - i * 3.0, 29.0 - i * 3.0, 6.0, 80.0, 0.2,
+               55.0 + (30 - i * 3) * 2e-5, 11.0) for i in range(11)]
+    log += [msp(11 + i, 0.0, 0.0, 0.5, 4.0, 0.05, 55.0, 11.0) for i in range(14)]
+    assert detect(log)["fall"] == 0
+
+
 def test_a_hard_launch_current_is_not_impact_evidence():
     """Taking a current surge as proof of a hit gave 11 falls, nearly all to one rider - the
     one on the most powerful wheel. 40 A is an ordinary launch on a fast wheel, not a
