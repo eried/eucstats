@@ -92,6 +92,52 @@ def test_a_crew_credited_ride_marks_the_map(db, monkeypatch):
         "crew would trigger a whole-world rebuild")
 
 
+def test_founding_a_crew_marks_the_map(db):
+    """Erwin: "after someone creates a crew could we run the counting so they have the squares
+    right away?"
+
+    They already have the rides. `_stamp_recent` hands a new crew its founder's last fortnight
+    of riding the moment the crew exists, so the ground is decided before the response is even
+    written -- and then nothing told the map. The founder's first look was the empty one this
+    whole mechanic exists to prevent, under "The map is still being drawn. Ground shows up
+    within the hour", for up to an hour.
+
+    The mark is the fix, not a rebuild inside the request: a rebuild is 0.5-1.3s of one
+    worker, and the loop that drains the mark already redraws within `FRESH_GAP_S` and already
+    collapses twenty of them into one.
+    """
+    from web import crews_api
+    territory.claim_dirty()
+    _rider(db, "fresh-found")
+    clan = crews.create(db, "fresh-found", "Fresh Found Crew", "")
+    assert territory.is_dirty() is False, "creating the row alone is not what moves a square"
+    crews_api._stamp_recent(db, "fresh-found", clan.clan_id)
+    assert territory.is_dirty() is True, (
+        "a crew was given a fortnight of its founder's riding and the map was not told, so "
+        "the founder waits for the hourly pass to see ground they had already earned")
+    territory.claim_dirty()
+
+
+def test_a_crew_that_inherits_nothing_does_not_order_a_rebuild(db):
+    """The other half of the mark meaning something.
+
+    `_stamp_recent` runs on every join and every approval too, and most of those move no
+    square at all: a rider whose rides were already credited, or who has not ridden inside the
+    window, hands their new crew nothing. Marking on the call rather than on the rows would
+    make every join a whole-world rebuild for no change, which is the same mistake the upload
+    path is gated against one test above.
+    """
+    from web import crews_api
+    territory.claim_dirty()
+    _rider(db, "fresh-empty")
+    clan = crews.create(db, "fresh-empty", "Fresh Empty Crew", "")
+    crews_api._stamp_recent(db, "fresh-empty", clan.clan_id)   # takes the seed ride
+    territory.claim_dirty()
+    crews_api._stamp_recent(db, "fresh-empty", clan.clan_id)   # nothing left to take
+    assert territory.is_dirty() is False, (
+        "a stamp that moved no ride still ordered a rebuild of the whole world")
+
+
 def test_the_countdown_tells_the_truth_once_a_rebuild_is_owed(db):
     """The panel's "next redraw" line is served from the same gap.
 

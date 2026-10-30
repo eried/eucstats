@@ -797,11 +797,26 @@ def _stamp_recent(db: Session, store_id: str, clan_id: str) -> None:
             utcnow() - clan.created_at).days > JOIN_BACKFILL_DAYS:
         return
     since = utcnow() - timedelta(days=JOIN_BACKFILL_DAYS)
-    (db.query(Trip)
-     .filter(Trip.rider_store_id == store_id, Trip.clan_id.is_(None),
-             Trip.start_utc >= since, Trip.validation_status == "validated")
-     .update({Trip.clan_id: clan_id}, synchronize_session=False))
+    moved = (db.query(Trip)
+             .filter(Trip.rider_store_id == store_id, Trip.clan_id.is_(None),
+                     Trip.start_utc >= since, Trip.validation_status == "validated")
+             .update({Trip.clan_id: clan_id}, synchronize_session=False))
     db.commit()
+    # Those rides have ground on them and the map does not know yet.
+    #
+    # Erwin: "after someone creates a crew could we run the counting so they have the squares
+    # right away?" The squares were already decided -- this function just decided them -- and
+    # the founder still read "The map is still being drawn. Ground shows up within the hour"
+    # for up to an hour, which is the empty first look the backfill exists to prevent.
+    #
+    # The mark, not a rebuild in the request: a rebuild is 0.5-1.3s of one worker and grows
+    # with the trips in the window, and the loop that drains this mark already redraws within
+    # FRESH_GAP_S and already collapses a burst into one pass. Gated on rows, for the same
+    # reason the upload path is gated on the ride being credited: this runs on every join and
+    # every approval too, and a rider who hands their new crew nothing has moved no square.
+    if moved:
+        from services import territory
+        territory.mark_dirty()
 
 
 def _clan_by_slug(db: Session, slug: str) -> Clan:

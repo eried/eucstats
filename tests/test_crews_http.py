@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from models import Clan, ClanMember, Rider, Trip, utcnow
-from services import crews, pairing, settings
+from services import crews, pairing, settings, territory
 
 from conftest import HANDLE
 
@@ -334,6 +334,12 @@ def test_being_turned_down_costs_no_cooldown(client, db):
 # --- the redraw clock --------------------------------------------------------------------
 
 def test_the_panel_is_told_how_long_between_redraws(client, db):
+    # Both of these ask what the panel promises with NOTHING owed, and neither used to say
+    # so. The mark lives in the process, so any earlier test that founds a crew or lands a
+    # ride now leaves it set -- and a set mark makes the honest answer `FRESH_GAP_S`, which
+    # is the whole point of `test_the_countdown_tells_the_truth_once_a_rebuild_is_owed`
+    # two files over. Stating the precondition is the fix; the endpoint is right.
+    territory.claim_dirty()
     r = client.get("/api/v1/crews/drawn")
     assert r.status_code == 200
     body = r.json()
@@ -344,6 +350,7 @@ def test_the_panel_is_told_how_long_between_redraws(client, db):
 def test_the_redraw_promise_follows_the_retention_cadence(client, db):
     """The rebuild rides the retention loop, so with retention set slower than an hour the
     panel used to promise a redraw the server had no intention of making."""
+    territory.claim_dirty()                  # nothing owed; see the test above
     ret = settings.get_retention(db)
     settings.set_retention(db, days=ret["days"], disk_floor_gb=ret["disk_floor_gb"],
                            interval_s=86400)
