@@ -1213,10 +1213,14 @@
       .setHTML('<button type="button" class="crewpopid" data-tile="' + esc(tileId)
         + '" title="' + esc(tileId + " \u00b7 " + t("crew.pop.code"))
         + '" aria-label="' + esc(t("crew.pop.code")) + '">' + ICON_TILE
-        // No whitespace between the two halves: `textContent` is the key itself, so what a
-        // reader selects by hand is the same string the press copies.
-        + '<span class="crewpopz">' + esc(tileId.slice(0, cut)) + "</span>"
-        + esc(tileId.slice(cut)) + "</button>"
+        // One wrapper around the whole key, and no whitespace inside it. The button is a
+        // flex row, so every child of it is a flex item and the 5px that separates the mark
+        // from the code would open between `14/` and `9054/3714` as well -- which is how it
+        // first shipped, reading as two things rather than one reference. Inside the wrapper
+        // the dimmed zoom is inline, so the key is one run of text: `textContent` is the key,
+        // and so is what a reader gets by dragging across it.
+        + '<span class="crewpopk"><span class="crewpopz">' + esc(tileId.slice(0, cut))
+        + "</span>" + esc(tileId.slice(cut)) + "</span></button>"
         + '<div class="crewpop-in"><span class="crewpopleft">'
         + '<img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         // The name is the control that opens the crew, which is where Details went when the

@@ -1862,6 +1862,11 @@ def test_the_popup_names_the_square_it_is_about(rivals):
         const nr = nm ? nm.getBoundingClientRect() : null;
         return {
           text: id.textContent.trim(),
+          // What a reader gets by dragging across it. `textContent` cannot see the fault
+          // this caught: the button is a flex row, so a second child is a second flex item
+          // with the button's 5px gap in front of it, and `14/ 9054/3714` reads as two
+          // things. Flex items are block level, so `innerText` is where that shows up.
+          dragged: id.innerText.trim(),
           tag: id.tagName.toLowerCase(),
           label: id.getAttribute('aria-label') || id.getAttribute('title') || '',
           value: id.getAttribute('data-tile') || '',
@@ -1911,6 +1916,10 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     assert got, "the popup still does not say which square it is about"
     assert got["text"] == want, (
         f"the popup is open over {want} and calls it {got['text']!r}")
+    assert got["dragged"] == want, (
+        f"dragging across the key gives {got['dragged']!r}, not {want}. The dimmed zoom is "
+        "a second flex item unless it is wrapped with the rest of the code, and the button's "
+        "own gap then opens in the middle of the key")
     assert got["lines"] == 1, (
         f"the key renders on {got['lines']} lines. Stacked at the slashes to fit the "
         "emblem's column it read as `14/` over `9054/` over `3714`, which is not a "

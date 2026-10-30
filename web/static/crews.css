@@ -586,6 +586,9 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums; line-height: 1;
 }
+/* The whole key as one flex item. The button's `gap` separates the mark from the code, and
+   without this wrapper it separated the zoom from the coordinates too. */
+.crewpopk { display: block; }
 /* Every square on this map is z14, so the zoom is the part of the key that carries nothing
    for a reader. Dimmed rather than dropped: it is what makes the string resolvable on its
    own, and what is shown stays what is copied. */
