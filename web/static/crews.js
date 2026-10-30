@@ -1125,7 +1125,12 @@
     var patches = allPatches(crewPts(p.slug));
     var pi = patchIndexAt(patches, [tx, ty]);
     var hop = patches.length > 1;
-    var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
+    // 290, not MapLibre's 240. The square's key under the emblem made the left column 65px
+    // wide where the emblem alone was 34, and at the old cap that came straight off the text:
+    // "a short ride and it flips · 0.4 km" had been one line for as long as the popup has
+    // existed and broke into two. The cap buys the text its measure back rather than taking
+    // the key away, and 290 still leaves 100px of a 390px phone.
+    var popOpts = { closeButton: false, className: "crewpop", offset: 10, maxWidth: "290px" };
     // About the tallest this popup gets, which is what the placement arithmetic below is
     // measured against. A crew with more than one patch gets the counter line as well.
     var POP_H = hop ? 190 : 170;

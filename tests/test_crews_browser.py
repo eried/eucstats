@@ -1805,6 +1805,23 @@ def test_the_popup_names_the_square_it_is_about(rivals):
           faded: parseFloat(getComputedStyle(id).opacity) < 0.6,
           // The emblem rides with the name now, not with the middle of the block.
           emblemOnTheName: !!(er && nr && Math.abs(er.top - nr.top) < 10),
+          // The measure the lines beside the emblem are given, against the measure they had
+          // before the key was put under it. The key is wider than the emblem -- 65px
+          // against 34 -- so it widens the popup's left column, and at MapLibre's default
+          // 240px cap that came straight off the text: on the first cut "a short ride and it
+          // flips" broke away from its own figure. The popup carries its own `maxWidth` to
+          // pay for the column; these are the numbers that say whether it still does.
+          left: Math.round(
+            (p.querySelector('.crewpopleft') || p).getBoundingClientRect().width),
+          emblem: Math.round(em ? er.width : 0),
+          // MapLibre puts `maxWidth` on the popup CONTAINER, which is the element carrying
+          // `.crewpop`, not on the content box inside it.
+          cap: parseFloat(getComputedStyle(p).maxWidth),
+          pad: (function (c) {
+            var cs = getComputedStyle(c);
+            return parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+          })(p.querySelector('.maplibregl-popup-content')),
+          gap: parseFloat(getComputedStyle(p.querySelector('.crewpop-in')).columnGap) || 0,
         };
       }""")
     assert got, "the popup still does not say which square it is about"
@@ -1827,6 +1844,24 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     assert got["size"] < got["nameSize"] and got["faded"], (
         f"the code is {got['size']}px against a {got['nameSize']}px name and not faded; it "
         "is a reference, and it must not be the loudest thing in the popup")
+    # What the key costs the lines beside it, which must be nothing.
+    #
+    # MapLibre caps a popup at 240px. The emblem column was 34px wide, so the text had
+    # 240 - padding - gap - 34 to work with; the key is wider than the emblem it sits under,
+    # so the column is 65px now and at the old cap that 31px came straight off the text. On
+    # the first cut "a short ride and it flips" broke away from its own figure. The popup
+    # carries a `maxWidth` of its own to pay for the column instead, and this is the
+    # arithmetic that says whether it still does.
+    assert got["left"] > got["emblem"], (
+        f"the left column is {got['left']}px around a {got['emblem']}px emblem, so the key "
+        "is not the thing widening it and this measurement is about nothing")
+    measure = got["cap"] - got["pad"] - got["gap"] - got["left"]
+    before = 240 - got["pad"] - got["gap"] - got["emblem"]
+    assert measure >= before, (
+        f"the lines beside the emblem have {measure:.0f}px of measure and had {before:.0f}px "
+        f"before the key was put under it. The key widens that column by "
+        f"{got['left'] - got['emblem']}px, and unless the popup's own `maxWidth` pays for "
+        "that, the text pays for it instead")
 
 
 def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):
