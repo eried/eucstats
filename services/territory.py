@@ -492,7 +492,51 @@ def _xy(tile: str) -> tuple[int, int]:
     return (p[1], p[2])
 
 
-def seeded(held: set[tuple[int, int]], seed: int = SEED) -> set[tuple[int, int]]:
+def _neighbours(xy, held: set, rivals: set | None = None):
+    """The tiles `xy` is joined to: edge neighbours always, corners under the rule below.
+
+    Erwin, on two blobs that meet at a point: "we just need some simple rule when 2 blobs
+    touch in the corner, they act connected, but they dont if there is another rival crew
+    square next because then it means they can actually take that square back to connect...
+    in the 2x2 connection point if 1 and square 4 are crew A we assume they are connected
+    because 2 and 3 squares arent taken (maybe is not possible, no road, etc) but if square 2
+    is taken by crew B... means crew A could actually take it, so we dont connect them".
+
+    So the gap decides, and the gap is the other diagonal of that 2x2. Empty, and the split is
+    an artefact of where the grid happens to fall: there may be no road through it, no way in,
+    nothing to ride, and a rider looking at the map sees one piece of ground. Held by a rival,
+    and the gap is demonstrably rideable, because somebody rode it. Then the split is real and
+    the crew can go and take that square to close it properly.
+
+    Nothing is awarded and nothing is stored. The answer is read off the current map on every
+    rebuild, which is what keeps territory a pure function of the last ninety days of riding.
+
+    `rivals=None` means the caller does not know the rest of the map, and gets the edge-only
+    answer that `T.neighbours` has always given.
+    """
+    x, y = xy
+    for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+        if nb in held:
+            yield nb
+    if rivals is None:
+        return
+    for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+        nb = (x + dx, y + dy)
+        if nb not in held:
+            continue
+        if (x + dx, y) in rivals or (x, y + dy) in rivals:
+            continue                         # a rival is in the gap: the split is real
+        yield nb
+
+
+def _others(kept: dict, clan_id: str | None = None, pts: set | None = None) -> set:
+    """Every square on the map that is not this crew's. The gap test above reads it."""
+    mine = pts if pts is not None else (kept.get(clan_id) or set())
+    return {xy for cid, sq in kept.items() for xy in sq if cid != clan_id} - set(mine)
+
+
+def seeded(held: set[tuple[int, int]], seed: int = SEED,
+           rivals: set | None = None) -> set[tuple[int, int]]:
     """The subset of a crew's tiles that is connected to at least one full SEED x SEED block.
 
     Everything else is dropped. This is the rule that turns a scattering of won tiles into
@@ -507,14 +551,14 @@ def seeded(held: set[tuple[int, int]], seed: int = SEED) -> set[tuple[int, int]]
             seeds.update(block)
     if not seeds:
         return set()
-    # grow outward from the seeds through edge-adjacent owned tiles
+    # grow outward from the seeds through owned tiles the seed block is joined to
     out, stack = set(seeds), list(seeds)
     while stack:
-        x, y = stack.pop()
-        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-            if (nx, ny) in held and (nx, ny) not in out:
-                out.add((nx, ny))
-                stack.append((nx, ny))
+        xy = stack.pop()
+        for nb in _neighbours(xy, held, rivals):
+            if nb not in out:
+                out.add(nb)
+                stack.append(nb)
     return out
 
 
@@ -561,8 +605,13 @@ def fill_enclosed(held: set[tuple[int, int]], taken: set[tuple[int, int]]) -> se
     return gained
 
 
-def regions(held: set[tuple[int, int]]) -> list[set[tuple[int, int]]]:
-    """Connected components, so each one can be outlined and given its own emblem."""
+def regions(held: set[tuple[int, int]],
+            rivals: set | None = None) -> list[set[tuple[int, int]]]:
+    """Connected components, so each one can be outlined and given its own emblem.
+
+    Pass `rivals` wherever the rest of the map is known, so two patches meeting at a corner
+    with an empty gap count as the one piece of ground a rider sees. See `_neighbours`.
+    """
     seen, out = set(), []
     for start in held:
         if start in seen:
@@ -570,9 +619,9 @@ def regions(held: set[tuple[int, int]]) -> list[set[tuple[int, int]]]:
         comp, stack = {start}, [start]
         seen.add(start)
         while stack:
-            x, y = stack.pop()
-            for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-                if nb in held and nb not in seen:
+            xy = stack.pop()
+            for nb in _neighbours(xy, held, rivals):
+                if nb not in seen:
                     seen.add(nb)
                     comp.add(nb)
                     stack.append(nb)
@@ -671,8 +720,10 @@ def award(acc: dict, live: set, prev: dict, seed: int = SEED, rounds: int = 8,
         z = _zoom_of(won)
         withdrawn = set()
         kept: dict[str, set] = {}
+        won_by_anyone = {xy for sq in by_clan.values() for xy in sq}
         for clan_id, pts in by_clan.items():
-            drawable = seeded(pts, seed) if clan_id in live else set()
+            drawable = (seeded(pts, seed, won_by_anyone - pts)
+                        if clan_id in live else set())
             if drawable:
                 kept[clan_id] = drawable
             for (x, y) in pts - drawable:
@@ -689,89 +740,9 @@ def award(acc: dict, live: set, prev: dict, seed: int = SEED, rounds: int = 8,
                 if rivals:
                     withdrawn.add((tile, clan_id))
         if not withdrawn:
-            return _close_holes(_bridge(kept, acc, z)), won, blocked
+            return _close_holes(kept), won, blocked
         blocked |= withdrawn
-    return _close_holes(_bridge(kept, acc, z)), won, blocked
-
-
-def _bridge(kept: dict[str, set], acc: dict, zoom: int) -> dict[str, set]:
-    """Give a crew the square that joins two of its own patches at a corner, where it rode it.
-
-    Two patches touching only at a point are not one region. `T.neighbours` says so, and the
-    traversal in `tiles._between` says the same thing from the other side: a chain of squares
-    meeting at corners is not a chain, because nothing can ride through the point where four
-    squares meet. None of that changes here.
-
-    What changes is the square NEXT to that point. Erwin, with the map open: "those 2 areas
-    arent connected because the road only touched a part of the square". He is describing a
-    road, and the road is real: four squares meet at a point, the crew holds the two on one
-    diagonal, and the ride that won both of them went through one of the other two. It did
-    not claim that square because a claim is MIN_LEAD_EDGE of a tile's edge, and what one
-    ride through it is worth after the half-life is a fifth of that. So it sits unowned
-    between two patches a rider thinks of as one, and the board, which ranks on the biggest
-    unbroken patch, counts that crew at half its real size.
-
-    Measured on the local world before it was written: of the eight candidate squares at the
-    corner splits there, six were squares the crew had ridden straight through, one belonged
-    to a rival, and one had never been entered.
-
-    Three tests, and no new number in any of them:
-
-    * Nobody holds it. A rival's square is a wall, and a wall is a real thing on a map.
-    * The crew has ridden it, which `acc` already answers: a square only reaches `acc` at all
-      if one ride put `min_visit_km` inside it. That is what a visit means everywhere else in
-      this file, and borrowing it is the whole reason this rule needs no constant of its own.
-    * No other crew rode it harder. A bridge is never taken out from under somebody who rode
-      it more and merely has no lead there either.
-
-    Where both squares at a corner qualify, the one ridden further; ties by position, so two
-    rebuilds of the same data draw the same map. The loop re-labels and goes again because
-    one bridge can expose another corner -- it settled in a single pass on every crew it was
-    written against, and the cap is there so a pathological map cannot spin.
-
-    Called before `_close_holes`, which is not a detail: a bridge can complete a loop, and a
-    loop with a blank square inside it is exactly the fault that rule exists to stop.
-    """
-    everyone = {xy for pts in kept.values() for xy in pts}
-    out: dict[str, set] = {}
-    # Sorted, like `_close_holes` and for the same reason: two crews can want the same square
-    # and the first one through takes it, so the order has to come from the data and not from
-    # however the dictionary happened to be built.
-    for clan_id in sorted(kept):
-        pts = set(kept[clan_id])
-        for _ in range(3):
-            label = {}
-            for n, comp in enumerate(regions(pts)):
-                for xy in comp:
-                    label[xy] = n
-            found: dict[tuple, tuple] = {}
-            for (x, y) in pts:
-                mine = label[(x, y)]
-                for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
-                    if label.get((x + dx, y + dy), mine) == mine:
-                        continue             # not ours, or already the same patch
-                    for cand in ((x, y + dy), (x + dx, y)):
-                        if cand in everyone:
-                            continue
-                        per = acc.get(f"{zoom}/{cand[0]}/{cand[1]}") or {}
-                        ours = per.get(clan_id)
-                        if not ours or ours[0] <= 0:
-                            continue         # never rode it; claiming it invents ground
-                        if any(v[0] > ours[0] for c, v in per.items() if c != clan_id):
-                            continue
-                        # Keyed by the corner, so the two squares at one corner compete with
-                        # each other and only the better-ridden of them is taken.
-                        corner = (max(x, x + dx), max(y, y + dy))
-                        key = (-ours[0], cand)
-                        if corner not in found or key < found[corner]:
-                            found[corner] = key
-            gained = {k[1] for k in found.values()} - pts
-            if not gained:
-                break
-            pts |= gained
-            everyone |= gained
-        out[clan_id] = pts
-    return out
+    return _close_holes(kept), won, blocked
 
 
 def _close_holes(kept: dict[str, set]) -> dict[str, set]:
@@ -801,7 +772,7 @@ def _close_holes(kept: dict[str, set]) -> dict[str, set]:
     for clan_id in sorted(kept):
         pts = kept[clan_id]
         gained: set = set()
-        for comp in regions(pts):
+        for comp in regions(pts, everyone - pts):
             blocked = (everyone - comp) | claimed
             got = fill_enclosed(comp, blocked)
             if len(got) > len(comp):
@@ -974,11 +945,11 @@ def _pressure(acc: dict, tile: str, holder: str, held_km: float,
         # whole of what a rival has to ride to take it. Same meaning as the number on bands 1
         # and 2, which is what a rival still needs.
         #
-        # Floor first, because a bridge square is held with LESS than the floor in it -- it
-        # was never led, it joins two patches (see `_bridge`) -- and quoting what the holder
-        # rode would tell a rival a quarter of a kilometre takes a square that needs half of
-        # one. Every other square reaching this line is pinned at the floor by `winners`, so
-        # the two agree and this changes nothing for them.
+        # Floor first, because a square gained by enclosure is held with LESS than the floor
+        # in it -- nobody led it, the ring around it earned it (see `_close_holes`) -- and
+        # quoting what the holder rode would tell a rival that nothing at all takes a square
+        # that needs half a kilometre. Every other square reaching this line is pinned at the
+        # floor by `winners`, so the two agree and this changes nothing for them.
         return 3, max(0, int(round(max(held_km, floor) * 10))), None
 
     best = max(rivals)
@@ -1159,7 +1130,8 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     block = _first_block(acc, clan_id, won, zoom, mine, seed) if not held else set()
     cand |= block
 
-    patches = list(patches if patches is not None else regions(held))
+    not_ours = _others(kept, clan_id, held)
+    patches = list(patches if patches is not None else regions(held, not_ours))
     patches.sort(key=len, reverse=True)
     # The road between the two biggest patches, when they are close enough that closing it is
     # a ride rather than a holiday. Four squares is about five kilometres at Oslo.
@@ -1295,7 +1267,8 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         theirs = kept.get(holder) or set()
         if len(theirs) < 2:
             continue
-        left = seeded(theirs - {(t["x"], t["y"])}, seed)
+        not_theirs = _others(kept, holder, theirs)
+        left = seeded(theirs - {(t["x"], t["y"])}, seed, not_theirs)
         # More than one dangling tile. At "> 1" this fired on four crews out of five to mean
         # "they lose two squares out of a hundred and twenty", in the hottest colour in the
         # card, which teaches a rider to ignore it before they ever meet a real one.
@@ -1323,8 +1296,9 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
         # drop anywhere, and the board ranks the biggest single patch, so a square taken off
         # a detached outpost cost them four tiles and nothing at all on the ladder -- the row
         # said "drops to 12" while their ranked number stayed 16.
-        before = max((len(c) for c in regions(seeded(theirs, seed))), default=0)
-        after = max((len(c) for c in regions(left)), default=0)
+        before = max((len(c) for c in regions(seeded(theirs, seed, not_theirs),
+                                              not_theirs)), default=0)
+        after = max((len(c) for c in regions(left, not_theirs)), default=0)
         t["lost"] = lost
         t["ranked_now"] = after
         t["ranked_was"] = before
@@ -1438,11 +1412,14 @@ def targets_for(acc: dict, kept: dict, clan_id: str, won: dict, zoom: int,
     # Computed HERE, on the rows that actually ship: done on the pre-dedupe ranking it missed
     # every row the dedupe promoted from further down, and four rows went out with no answer
     # at all underneath a headline asserting what each of them does.
-    own_now = max((len(c) for c in regions(seeded(held, seed))), default=0)
+    own_now = max((len(c) for c in regions(seeded(held, seed, not_ours), not_ours)), default=0)
     for t in out[:limit]:
         t["own_now"] = own_now
-        t["grown"] = max(
-            (len(c) for c in regions(seeded(held | {(t["x"], t["y"])}, seed))), default=0)
+        # Taking a square takes it off whoever had it, so it leaves the gap test too.
+        after = not_ours - {(t["x"], t["y"])}
+        t["grown"] = max((len(c) for c in
+                          regions(seeded(held | {(t["x"], t["y"])}, seed, after), after)),
+                         default=0)
 
     # `grows` has done its job in the sort. It was true of ten rows in ten for almost every
     # crew, nothing on the client reads it, and it is bytes in the payload and in the row.
@@ -1496,7 +1473,8 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
                  (T.parse(t) for t, w in won.items() if w[0] == cid) if p}
         if not _one_square_short(leads, seed):
             seedless.add(cid)
-    patches_by_clan = {cid: regions(pts) for cid, pts in kept.items()}
+    patches_by_clan = {cid: regions(pts, _others(kept, cid, pts))
+                       for cid, pts in kept.items()}
 
     # --- where to ride next, worked out BEFORE the write transaction opens.
     #
@@ -1621,11 +1599,11 @@ def rebuild(db, window_days: int = WINDOW_DAYS, zoom: int = T.DEFAULT_ZOOM,
         fresh_pts: set[tuple[int, int]] = set()
         for (x, y) in sorted(pts):
             tile = f"{zoom}/{x}/{y}"
-            # A tile with no winner entry was not led by anybody. Two ways that happens
-            # and they do not report the same number: gained by enclosure, where nobody rode
-            # it and 0 is the truth, or gained as a bridge, where this crew DID ride it and
-            # simply never led it. Quote what they rode -- the popup and `_pressure` both
-            # read this back to them, and 0 there would say the square is untouched.
+            # A tile with no winner entry was not led by anybody, which since the corner
+            # rule replaced the bridge award means it was gained by enclosure. Read what the
+            # crew rode there anyway rather than writing a flat 0: the popup and `_pressure`
+            # both quote this back, a ring usually HAS been ridden through, and 0 would tell
+            # a rider the square is untouched when the accumulator says otherwise.
             w = won.get(tile)
             if w:
                 km, riders = w[1], w[2]
