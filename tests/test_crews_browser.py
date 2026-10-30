@@ -1286,11 +1286,17 @@ def _rival_rows(page):
     need a browser -- but all three are about the same strip, and a reader looking at it sees
     one row and not three assertions.
     """
-    return page.evaluate("""() => [...document.querySelectorAll('.crewrivrow')].map(r => {
+    return page.evaluate(r"""() => [...document.querySelectorAll('.crewrivrow')].map(r => {
         const sw = r.querySelector(':scope > .crewsw');
         const b = sw ? sw.getBoundingClientRect() : null;
         const facts = [...r.querySelectorAll('.crewrivsub > .crewfact')];
         const chips = [...r.querySelectorAll('.crewrivchips .crewwho')];
+        // Every child of the slot strip, pressable or not, in the order they are drawn.
+        const slots = [...r.querySelectorAll('.crewrivchips > *')].map(e => ({
+          text: e.textContent.replace(/\s+/g, ' ').trim(),
+          live: e.classList.contains('crewwho'),
+          size: parseFloat(getComputedStyle(e).fontSize),
+        }));
         const head = r.querySelector('.crewrivhead');
         const tx = r.querySelector('.crewrivtx');
         const desc = r.querySelector('.crewmeta2');
@@ -1300,18 +1306,28 @@ def _rival_rows(page):
           w: b ? Math.round(b.width * 10) / 10 : null,
           h: b ? Math.round(b.height * 10) / 10 : null,
           facts: facts.map(f => f.textContent.trim()),
-          // The chevron, not the button. `.crewwho` is `padding: 2px 4px; margin: 0 -4px`,
-          // so its box deliberately sticks 4px past its own ink to give an 11px word a thumb
-          // to be pressed with. The eye lines up on the ink.
-          chipRight: chips.length
-            ? Math.round((chips[chips.length - 1].querySelector('i')
-                          || chips[chips.length - 1]).getBoundingClientRect().right) : null,
+          // Where the control's INK ends. `.crewwho` is `padding: 2px 4px; margin: 0 -4px`,
+          // so its box deliberately sticks 4px past its own ink to give a 9.5px word a thumb
+          // to be pressed with, and the eye lines up on the ink rather than on the box.
+          //
+          // Not the chevron, which is what this measured first: an open fold rotates it 90
+          // degrees, and `getBoundingClientRect` reports the TRANSFORMED box -- so a row
+          // whose riders fold a previous test had left open read 4px wider than its
+          // neighbours and this called a correct layout a broken column. Taking the padding
+          // off the button's own box is the same number and nothing transforms it.
+          chipRight: chips.length ? (function (b) {
+            return Math.round(b.getBoundingClientRect().right
+                              - parseFloat(getComputedStyle(b).paddingRight));
+          })(chips[chips.length - 1]) : null,
           chipTop: chips.length ? Math.round(chips[0].getBoundingClientRect().top) : null,
           headTop: head ? Math.round(head.getBoundingClientRect().top) : null,
           txRight: tx ? Math.round(tx.getBoundingClientRect().right) : null,
+          openFolds: r.querySelectorAll('.crewwhopan:not([hidden])').length,
           chipSize: chips.length ? parseFloat(getComputedStyle(chips[0]).fontSize) : null,
           factSize: facts.length ? parseFloat(getComputedStyle(facts[0]).fontSize) : null,
           riderChips: chips.filter(c => c.hasAttribute('data-who')).length,
+          slots: slots,
+          regions: null,
           factsHaveControls: facts.some(f => !!f.querySelector('.crewwho')),
           desc: desc ? desc.textContent.trim() : '',
           descPlaceholder: !!(desc && desc.classList.contains('crewnodesc')),
@@ -1380,12 +1396,15 @@ def test_the_row_controls_are_a_small_column_at_the_top_right(rivals):
         assert r["chipSize"] < r["factSize"], (
             f"{r['name']}'s controls are {r['chipSize']}px against {r['factSize']}px facts; "
             "they were asked to be the small type on the row")
+    off = [(r["name"], r["chipRight"], r["txRight"], r["openFolds"]) for r in rows
+           if abs(r["chipRight"] - r["txRight"]) > 2]
+    assert not off, (
+        "the controls do not end at their own row's right edge (name, chip, edge, open "
+        f"folds): {off}")
     rights = sorted({r["chipRight"] for r in rows})
     assert len(rights) == 1, (
         "the controls end at different places down the card, so they are not a column: "
-        f"{[(r['name'], r['chipRight']) for r in rows]}")
-    assert abs(rights[0] - rows[0]["txRight"]) <= 2, (
-        f"the controls end {rows[0]['txRight'] - rights[0]}px short of the row's right edge")
+        f"{[(r['name'], r['chipRight'], r['txRight'], r['openFolds']) for r in rows]}")
 
 
 def test_a_crew_that_has_not_described_itself_still_says_so(rivals):
@@ -1408,6 +1427,49 @@ def test_a_crew_that_has_not_described_itself_still_says_so(rivals):
     wordy = [r for r in rows if r["name"] == "Wordy Crew"][0]
     assert not wordy["descPlaceholder"], (
         "a crew that DID describe itself is marked as having no description")
+
+
+def test_every_row_fills_both_slots_with_patches_before_riders(rivals):
+    """Erwin: "we can put patches first and then riders, because there is always at least one
+    rider per crew, otherwise we will not show them, so it will be more consistent", and "or
+    zero patches in like in a disabled way, so it's all super clean, like the description, no
+    description, for example, that we added".
+
+    Two faults, one shape. The patch count appeared only for a crew holding more than one
+    piece, so three rows out of four had nothing in that slot and the gap read as something
+    failing to load rather than as a crew holding one patch -- the same complaint that got
+    `crew.nodesc` written for the line below. And with the counts in the order riders-then-
+    patches, the one every crew has was first, so the slot that anchors the right edge of the
+    card was the one that came and went.
+
+    Filled is not pressable. A crew with one patch has nothing to open, and a count that
+    opens nothing must not look like a button: this file records shipping that twice.
+    """
+    _rivals_open(rivals)
+    rows = _rival_rows(rivals)
+    assert rows, "no rows in Other crews"
+    for r in rows:
+        assert len(r["slots"]) == 2, (
+            f"{r['name']} shows {len(r['slots'])} of the two counts: "
+            f"{[x['text'] for x in r['slots']]}")
+        patch, rider = r["slots"]
+        assert "patch" in patch["text"].lower(), (
+            f"{r['name']} leads its slots with {patch['text']!r}, not the patch count")
+        assert rider["live"] and "rider" in rider["text"].lower(), (
+            f"{r['name']} ends its slots with {rider['text']!r}, which is not the rider "
+            "control; that is the one every crew has, so it is what anchors the column")
+        assert any(ch.isdigit() for ch in patch["text"]), (
+            f"{r['name']}'s patch slot reads {patch['text']!r} and carries no count")
+        assert abs(patch["size"] - rider["size"]) < 0.6, (
+            f"{r['name']}'s two slots are {patch['size']}px and {rider['size']}px, so they "
+            "do not read as one strip")
+    # The crews holding nothing are exactly the ones whose patch count must not be a control.
+    dead = [r for r in rows if r["facts"] and r["facts"][0].startswith("0 ")]
+    assert dead, "no crew in this list holds nothing, so the dim case is not being tested"
+    for r in dead:
+        assert not r["slots"][0]["live"], (
+            f"{r['name']} holds nothing and its patch count is a button, which can only "
+            "open an empty box")
 
 
 def _shine_count(page):
@@ -1814,6 +1876,7 @@ def test_the_popup_names_the_square_it_is_about(rivals):
           left: Math.round(
             (p.querySelector('.crewpopleft') || p).getBoundingClientRect().width),
           emblem: Math.round(em ? er.width : 0),
+          lines: Math.round(ir.height / parseFloat(getComputedStyle(id).lineHeight)),
           // MapLibre puts `maxWidth` on the popup CONTAINER, which is the element carrying
           // `.crewpop`, not on the content box inside it.
           cap: parseFloat(getComputedStyle(p).maxWidth),
@@ -1827,6 +1890,9 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     assert got, "the popup still does not say which square it is about"
     assert got["text"] == want, (
         f"the popup is open over {want} and calls it {got['text']!r}")
+    assert got["lines"] > 1, (
+        f"the key renders on {got['lines']} line(s). It wraps at the slashes so it fits the "
+        "emblem's column; on one line it sets that column's width itself")
     assert got["value"] == want, (
         f"what a press would copy is {got['value']!r}, not the square's own key")
     assert got["tag"] == "button", (
@@ -1846,22 +1912,22 @@ def test_the_popup_names_the_square_it_is_about(rivals):
         "is a reference, and it must not be the loudest thing in the popup")
     # What the key costs the lines beside it, which must be nothing.
     #
-    # MapLibre caps a popup at 240px. The emblem column was 34px wide, so the text had
-    # 240 - padding - gap - 34 to work with; the key is wider than the emblem it sits under,
-    # so the column is 65px now and at the old cap that 31px came straight off the text. On
-    # the first cut "a short ride and it flips" broke away from its own figure. The popup
-    # carries a `maxWidth` of its own to pay for the column instead, and this is the
-    # arithmetic that says whether it still does.
-    assert got["left"] > got["emblem"], (
+    # MapLibre caps a popup at 240px, and the emblem column is 34px, so the text has
+    # 240 - padding - gap - 34. On one line the key was 60px wide, so it set that column
+    # itself and the extra 26px came straight off the text: "a short ride and it flips" broke
+    # away from its own figure. It was paid for with a `maxWidth` on the popup, and then paid
+    # for properly -- Erwin: "the code of the square could wordwrap, so uses less" -- by
+    # wrapping at the slashes inside the emblem's own column, which is what these two
+    # measurements hold in place from either side.
+    assert got["left"] <= got["emblem"] + 1, (
         f"the left column is {got['left']}px around a {got['emblem']}px emblem, so the key "
-        "is not the thing widening it and this measurement is about nothing")
+        "is setting the column's width instead of wrapping into it")
     measure = got["cap"] - got["pad"] - got["gap"] - got["left"]
     before = 240 - got["pad"] - got["gap"] - got["emblem"]
     assert measure >= before, (
         f"the lines beside the emblem have {measure:.0f}px of measure and had {before:.0f}px "
-        f"before the key was put under it. The key widens that column by "
-        f"{got['left'] - got['emblem']}px, and unless the popup's own `maxWidth` pays for "
-        "that, the text pays for it instead")
+        "before the key was put under the emblem, so the key is being paid for out of the "
+        "text")
 
 
 def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):

@@ -63,15 +63,6 @@ def _inline_stylesheet():
 # Every selector allowed to clip, and what was measured in the locale that needs the most
 # room. Adding a row here is the review; the measurement belongs in the note.
 REVIEWED = {
-    ".crewpopid":
-        "the clicked square's key under the emblem in the map popup, e.g. `14/9054/3714`. "
-        "Not translated copy and not a crew's own words: it is the zoom, x and y the server "
-        "files every answer under, so it is the same digits and slashes in all nineteen "
-        "locales and the only thing that changes its length is the zoom. The nowrap is what "
-        "stops `14/9054/` sitting over `3714` and being quoted back in two pieces. Measured "
-        "in the real popup at 480px: 12 characters of 9px monospace is 65px in a left column "
-        "whose other occupant is a 34px emblem, which takes the popup from 190px to 221px "
-        "and leaves it 259px clear of the narrowest phone this panel is built for.",
     ".crewnewtopw b":
         "the crew's name echoed on the pinned strip at the top of the create form, as it is "
         "typed. Not translated copy -- it is the rider's own 28 characters, and the field "

@@ -1125,12 +1125,7 @@
     var patches = allPatches(crewPts(p.slug));
     var pi = patchIndexAt(patches, [tx, ty]);
     var hop = patches.length > 1;
-    // 290, not MapLibre's 240. The square's key under the emblem made the left column 65px
-    // wide where the emblem alone was 34, and at the old cap that came straight off the text:
-    // "a short ride and it flips · 0.4 km" had been one line for as long as the popup has
-    // existed and broke into two. The cap buys the text its measure back rather than taking
-    // the key away, and 290 still leaves 100px of a 390px phone.
-    var popOpts = { closeButton: false, className: "crewpop", offset: 10, maxWidth: "290px" };
+    var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
     // About the tallest this popup gets, which is what the placement arithmetic below is
     // measured against. A crew with more than one patch gets the counter line as well.
     var POP_H = hop ? 190 : 170;
@@ -1201,7 +1196,19 @@
         // them make a left column against the name and the lines under it.
         + '<button type="button" class="crewpopid" data-tile="' + esc(tileId)
         + '" title="' + esc(t("crew.pop.code")) + '" aria-label="' + esc(t("crew.pop.code"))
-        + '">' + esc(tileId) + "</button></span>"
+        // A break opportunity after each slash, and nowhere else. Erwin: "the code of the
+        // square could wordwrap, so uses less". On one line it was 60px against a 34px
+        // emblem, so it set the width of the popup's whole left column and that 26px came
+        // off the text beside it -- which the popup was paying for with a `maxWidth` of its
+        // own. Wrapped it fits the emblem's own column and the popup goes back to MapLibre's
+        // default width with the text at its full measure.
+        //
+        // `<wbr>` rather than `overflow-wrap: anywhere`: anywhere breaks mid-number, and
+        // `14/90` over `54/37` over `14` is a reference nobody can read back. The slashes are
+        // where it already reads as three parts. `<wbr>` contributes nothing to
+        // `textContent`, so what gets copied is untouched -- and `data-tile` carries it
+        // anyway, which is what the press actually reads.
+        + '">' + esc(tileId).split("/").join("/<wbr>") + "</button></span>"
         + '<div><b class="crewpopnm" data-det="' + esc(p.slug) + '">'
         + esc(p.name) + "</b><span>" + esc(state)
         + "</span><span>" + esc(detail)
@@ -4769,8 +4776,10 @@
   // inside `crew.board.inp`'s "{a} in {b}" -- so a crew the board leads with as "46 in one
   // patch" read "58 squares in 3 patches" here, two different answers to the same question
   // on one screen, and the figure the ranking is actually made of was the one missing.
+  // `patchesOf`, not the two-plural form this used: with the count always on the row it has
+  // to be able to say "1 patch" and "0 patches" as well as "2 patches".
   function patchWords(c) {
-    return esc(plural(null, "crew.patches.few", "crew.patches", c.regions));
+    return esc(patchesOf(c.regions || 0));
   }
 
   function groundBits(c, deco, hoisted) {
@@ -4779,7 +4788,12 @@
     if (!best && !all) return [esc(tiles(0))];
     var out = [];
     if (best) {
-      out.push(esc(tiles(best) + " " + t("crew.mine.ao")));
+      // "in one patch" qualifies the BIGGEST patch against everything held, which is worth
+      // saying only when the two differ. On a row whose patch count is already printed beside
+      // it, a crew with one patch read "186 squares in one patch" next to "1 patch" -- the
+      // same fact twice, in two different wordings, nine pixels apart.
+      out.push(hoisted && all === best ? esc(tiles(best))
+                                       : esc(tiles(best) + " " + t("crew.mine.ao")));
       if (all && all !== best) out.push(esc(t("crew.inall", { v: tiles(all) })));
     } else {
       out.push(esc(tiles(all)));
@@ -5913,11 +5927,31 @@
              a crew whose other ground lies outside the loaded region -- the count is still
              true, it simply opens nothing -- and a plain number parked among the buttons
              would look like a third one. Those rows keep it in the facts line as words. */
+          /* Two slots on every row, in the same order, whatever the crew holds.
+
+             Erwin: "we can put patches first and then riders, because there is always at
+             least one rider per crew, otherwise we will not show them, so it will be more
+             consistent ... or zero patches in like in a disabled way, so it's all super
+             clean, like the description, no description, for example, that we added".
+
+             He is describing the same fix twice. The riders count is the one fact every crew
+             has, so it goes LAST and the column it makes is anchored at the row's right edge
+             on every row; the patches count, which is what varies, goes first. And the slot
+             is always filled: it used to appear only for a crew with more than one patch, so
+             three rows out of four simply had nothing there and the gap read as something
+             missing rather than as a crew holding one piece of ground.
+
+             Filled is not the same as pressable. `patsDeco` gives a control only where the
+             fold has something to open -- more than one patch, in squares this client
+             actually holds -- and a crew with one patch, or none, gets the count as dim words
+             instead. Same answer as `crew.nodesc` on the line below it: say the thing, and
+             make it look like what it is. */
           var pd = patsDeco(c.slug, pats);
-          var hoist = !!(pd && (c.regions || 0) > 1);
-          var chips = [whoBtn(c.slug, esc(riders(c.members)))];
-          if (hoist) chips.push(pd(patchWords(c)));
-          var bits = groundBits(c, pd, hoist);
+          var pw = patchWords(c);
+          var chips = [pd && (c.regions || 0) > 1
+                       ? pd(pw) : '<span class="crewchipoff">' + pw + "</span>",
+                       whoBtn(c.slug, esc(riders(c.members)))];
+          var bits = groundBits(c, pd, true);
           return '<div class="crewrivrow" data-rival="' + esc(c.slug) + '">'
             + swatch(c.colour, c.pattern, 14)
             + '<span class="crewrivtx">'

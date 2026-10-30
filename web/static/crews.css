@@ -570,14 +570,20 @@
    what a reader came to the popup for. Tabular and monospace because it is read digit by
    digit and quoted back into a message. `margin: -2px 0 5px -4px` pulls it into the padding
    so the code sits in the popup's own top-left corner rather than one line in from it. */
-/* The emblem and the square's key, as the popup's left column. */
-.crewpopleft { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+/* The emblem and the square's key, as the popup's left column.
+   `width: var(--popem)` so the column is the emblem's width and nothing else: the key wraps
+   into it at the slashes rather than setting the column's width itself, which is what was
+   taking 26px off the lines beside it. */
+.crewpopleft {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  flex: 0 0 auto; width: var(--popem, 34px);
+}
 .crewpopid {
-  display: block; padding: 0; border: 0; background: none; cursor: pointer;
-  color: var(--mut, #9aa6c8); opacity: .42;
+  display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--mut, #9aa6c8); opacity: .42; text-align: center;
   font: inherit; font-size: 9px; letter-spacing: .01em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-variant-numeric: tabular-nums; line-height: 1.4; white-space: nowrap;
+  font-variant-numeric: tabular-nums; line-height: 1.35;
 }
 .crewpopid:hover { opacity: 1; color: #cfe0ff; text-decoration: underline; }
 .crewpopid:focus-visible {
@@ -588,8 +594,8 @@
 .crewpopid .crewtick { width: 11px; height: 11px; vertical-align: -1px; }
 /* `flex-start`, so the emblem sits on the crew's name rather than floating halfway down a
    four-line block -- and so the key underneath it has somewhere to be. */
-.crewpop-in { display: flex; align-items: flex-start; gap: 10px; }
-.crewpop-in img { width: 34px; height: 34px; }
+.crewpop-in { display: flex; align-items: flex-start; gap: 10px; --popem: 34px; }
+.crewpop-in img { width: var(--popem, 34px); height: var(--popem, 34px); }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
 .crewpop-in span { display: block; font-size: 11px; color: var(--mut, #9aa6c8); }
 .crewpop-in span + span { color: #cfe0ff; font-variant-numeric: tabular-nums; }
@@ -892,6 +898,12 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
    and the chevron stay -- what shrinks is the type, not the affordance. */
 .crewrivchips .crewwho { font-size: 9.5px; }
 .crewrivchips .crewwho i { font-size: 11px; }
+/* The same slot when there is nothing to open: a crew holding one patch, or none. The count
+   is still said, because a row with a gap where every other row has a number reads as
+   something failing to load -- the argument `.crewmeta2.crewnodesc` records one card down.
+   Dimmer than the control beside it, no underline and no chevron, so it cannot be mistaken
+   for a button that does nothing: this file has shipped that twice and pays for it here. */
+.crewchipoff { font-size: 9.5px; color: var(--mut, #9aa6c8); opacity: .5; }
 /* The name WRAPS. An ellipsis was the first instinct, and `.crewrowname` on the board does
    exactly that -- but that one ships with a measurement, and this one could not get an
    honest reading: the two-column split is a viewport media query, so shrinking the panel to

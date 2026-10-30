@@ -66,6 +66,9 @@ const esc = s => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const tiles = n => n + " squares";
 const plural = (one, few, many, n) => n + " patches";
+// `patchWords` counts through this rather than `plural` now that the row says "1 patch" and
+// "0 patches" as well as "2 patches". Still no decision in it: it prints what it is given.
+const patchesOf = n => n + (n === 1 ? " patch" : " patches");
 const fmtKm = v => Math.round(v) + " km";
 // Rounded like the real one, which is what a reader compares between rows.
 const fmtKm2 = v => Math.round(v) + " km2";
