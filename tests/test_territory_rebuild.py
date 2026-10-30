@@ -182,17 +182,15 @@ def test_a_rebuild_with_no_crews_at_all_still_writes_its_outputs(db):
     assert rep["crews"] == 0 and rep["tiles"] == 0
     payload = json.loads(gzip.decompress(territory.cached(Z)))
     assert payload["crews"] == [] and payload["cells"] == []
-def test_two_blocks_meeting_at_a_point_are_ranked_as_one_patch(db):
-    """Through the real rebuild, because the stored ranking is the thing that matters.
+def test_a_bridge_square_is_written_as_a_cell_with_the_riding_behind_it(db):
+    """Through the real rebuild, because the cell write is where this could still go wrong.
 
-    Two blocks meeting at a point with an empty gap between them. Under the corner rule the
-    rider sees one piece of ground and so does the board, and the gap square stays nobody's:
-    the rule changes how patches are counted and hands over no ground at all. This replaces
-    the bridge award, which gave the crew that square for a fifth of a claim.
-
-    `terr_best_tiles` is the assertion with teeth. It is what the board ranks on, it is
-    computed from `regions` inside the rebuild, and it is the number that read 4 instead of 8
-    when two halves of one neighbourhood were counted as two patches.
+    Two blocks meeting at a point and one short ride through the square between them. That
+    square is never led -- it is in `acc` and not in the winners -- so it reaches the cell
+    write by the branch that has no winner entry, the same branch a square gained by
+    enclosure takes. Enclosure writes 0 km because nobody rode there; a bridge must write
+    what was ridden, or the popup tells a rider that the square joining their ground has
+    never been visited.
     """
     _settings(db)
     crew = _crew(db, "br", "Bridge Crew")
@@ -213,13 +211,12 @@ def test_two_blocks_meeting_at_a_point_are_ranked_as_one_patch(db):
 
     cells = {c.tile: c for c in db.query(models.ClanCell)
              .filter(models.ClanCell.clan_id == crew.clan_id).all()}
-    assert gap not in cells, (
-        "the gap square was handed over. The corner rule invents no ground: a visit through "
-        "it is not a claim, and the connection costs nobody a square")
-    assert len(cells) == 8, "the eight ridden squares, and nothing else"
+    assert gap in cells, "the square joining the two blocks was not handed over"
+    assert len(cells) == 9, "eight ridden squares and the one between them"
+    assert cells[gap].km > 0, (
+        "the bridge square was written with no kilometres, like a square nobody rode")
+    assert cells[gap].km < territory.min_lead_km(gap), (
+        "it is written as a claim, which it never was")
 
     row = db.get(models.Clan, crew.clan_id)
-    assert row.terr_best_tiles == 8, (
-        "the board still ranks this crew on half its ground. The two blocks meet at a point "
-        "with an empty gap, so they are one patch of eight")
-    assert row.terr_tiles == 8
+    assert row.terr_best_tiles == 9, "one patch now, and the board ranks on its size"

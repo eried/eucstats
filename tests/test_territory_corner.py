@@ -84,15 +84,20 @@ def test_without_the_rest_of_the_map_the_answer_is_edge_only():
     assert len(TR.seeded(BOTH | {(4, 4)})) == 8, "the lone square is dropped, as before"
 
 
-def test_a_seed_block_reaches_an_outpost_across_an_empty_corner():
-    """`seeded` is the rule that turns scattered squares into territory, and it has to agree
-    with the counting or a crew would be ranked on a patch the map does not draw."""
+def test_the_rule_draws_no_tile_that_was_not_drawn_before():
+    """The line this rule is not allowed to cross. Erwin, shown the first version wired into
+    the seeding: "the area of jonah turf expanded massively, maybe tiles appear as surrounded,
+    I dont like it, lets not make new tiles only the conenctors in the corners but internal
+    rule".
+
+    Growing the seed across corners kept 51 squares on the live map that used to be dropped
+    and let the hole rule close around them. So `seeded` stays edge-only and this is purely a
+    counting rule: the only square a corner can ever hand over is the connector a crew
+    actually rode, which is `_bridge` and was already there.
+    """
     held = WEST | {(2, 2)}
-    assert TR.seeded(held, rivals=set()) == held
-    assert TR.seeded(held, rivals={(2, 1)}) == WEST, (
-        "with a rival in the gap the outpost is a lone square again, and a lone square has "
-        "no 2x2 of its own")
-    assert TR.seeded(held) == WEST, "and without the map, the old answer"
+    assert TR.seeded(held) == WEST, "a corner-only outpost is still not territory"
+    assert len(TR.seeded(held)) == 4
 
 
 def test_a_staircase_of_blocks_is_one_patch_and_still_costs_what_it_costs():
@@ -110,21 +115,39 @@ def test_a_staircase_of_blocks_is_one_patch_and_still_costs_what_it_costs():
     assert len(chain) == 20
     assert len(TR.regions(chain, set())) == 1
     assert len(TR.regions(chain)) == 5, "five blocks, five corners, nothing connected before"
-    assert TR.seeded(chain, rivals=set()) == chain
+    assert TR.seeded(chain) == chain, "every block is its own seed, so all twenty are drawn"
     assert len(chain) == 20, "no square was added to it by being connected"
 
 
-def test_the_whole_pipeline_turns_two_patches_into_one_and_awards_nothing():
-    """Through `award()`, where it actually runs: the lead contest, seeding and the hole rule
-    in the order a rebuild uses them."""
+def test_a_corner_nobody_rode_through_is_counted_as_one_patch_anyway():
+    """Through `award()`, where both rules run: the lead contest, seeding, the connector and
+    the hole rule, in the order a rebuild uses them.
+
+    Nobody rode the gap, so no connector is handed over and the drawn map is still two blocks
+    touching at a point. This is the case the counting rule exists for, and the case the
+    connector award could never reach: there is no evidence of a route because there may be no
+    route, and a rider looking at it still sees one piece of ground.
+    """
     acc = {}
     for xy in BOTH:
-        rode(acc, xy, "a", 1.4)                  # comfortably a claim
-    rode(acc, (2, 1), "a", 0.5)                  # and a visit in the gap, as the road left it
+        rode(acc, xy, "a", 1.4)                  # comfortably a claim, and nothing in the gap
     kept, _won, _blocked = TR.award(acc, {"a"}, {})
-    assert kept["a"] == BOTH, "the gap square belongs to nobody, and that is the whole idea"
-    assert len(TR.regions(kept["a"], set())) == 1
-    assert (2, 1) not in kept["a"]
+    assert kept["a"] == BOTH, "nothing was handed over, because nothing was ridden"
+    assert len(TR.regions(kept["a"])) == 2, "two clumps on the map, as they always were"
+    assert len(TR.regions(kept["a"], TR._others(kept, "a", kept["a"]))) == 1, (
+        "and one patch to the board, which is the whole of this rule")
+
+
+def test_a_gap_square_the_ride_went_through_is_still_handed_over():
+    """The connector award is untouched and still runs first. Ride through the corner and the
+    square is yours, by the rule that shipped three days before this one."""
+    acc = {}
+    for xy in BOTH:
+        rode(acc, xy, "a", 1.4)
+    rode(acc, (2, 1), "a", 0.5)                  # a visit, well under a claim
+    kept, _won, _blocked = TR.award(acc, {"a"}, {})
+    assert kept["a"] == BOTH | {(2, 1)}
+    assert len(TR.regions(kept["a"])) == 1, "joined on the map itself, with no help needed"
 
 
 def test_a_rival_holding_the_gap_survives_the_pipeline_as_two_patches():
