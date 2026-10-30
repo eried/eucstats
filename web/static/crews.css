@@ -565,33 +565,41 @@
    would run under it. I claimed this line fixed that and it did not; a reviewer measured 44px
    of an 80px popup still behind the panel. */
 .maplibregl-popup.crewpop { z-index: 560; }
-/* The square's own key, at the top left of the popup, pressable to copy.
+/* The emblem, as the popup's left column. One child and a fixed width, so the lines beside
+   it get everything that is left: the square's key used to share this column and had to wrap
+   at the slashes to fit 34px, which is what put `14/` over `9054/` over `3714`. */
+.crewpopleft { flex: 0 0 auto; width: var(--popem, 34px); }
+/* The square's own key, on its own line in the popup's top left corner, pressable to copy.
    Quiet on purpose: it is a reference, not a fact about the crew, and everything under it is
-   what a reader came to the popup for. Tabular and monospace because it is read digit by
-   digit and quoted back into a message. `margin: -2px 0 5px -4px` pulls it into the padding
-   so the code sits in the popup's own top-left corner rather than one line in from it. */
-/* The emblem and the square's key, as the popup's left column.
-   `width: var(--popem)` so the column is the emblem's width and nothing else: the key wraps
-   into it at the slashes rather than setting the column's width itself, which is what was
-   taking 26px off the lines beside it. */
-.crewpopleft {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  flex: 0 0 auto; width: var(--popem, 34px);
-}
+   what a reader came to the popup for. Monospace and tabular because it is read digit by
+   digit and quoted back into a message. `margin-left` is the pill's `padding-left` back
+   out again, so what lines up with the emblem under it is the mark rather than the hover
+   chip's invisible edge.
+   `width: max-content` rather than the full line: the press target is the code, not the
+   stripe of empty popup beside it. */
 .crewpopid {
-  display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
-  color: var(--mut, #9aa6c8); opacity: .42; text-align: center;
-  font: inherit; font-size: 9px; letter-spacing: .01em;
+  display: flex; align-items: center; gap: 5px; width: max-content; max-width: 100%;
+  border: 0; background: none; cursor: pointer; white-space: nowrap;
+  padding: 2px 4px; margin: -3px 0 6px -4px; border-radius: 5px;
+  color: var(--mut, #9aa6c8); opacity: .55; text-align: left;
+  font: inherit; font-size: 9.5px; letter-spacing: .06em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-variant-numeric: tabular-nums; line-height: 1.35;
+  font-variant-numeric: tabular-nums; line-height: 1;
 }
-.crewpopid:hover { opacity: 1; color: #cfe0ff; text-decoration: underline; }
+/* Every square on this map is z14, so the zoom is the part of the key that carries nothing
+   for a reader. Dimmed rather than dropped: it is what makes the string resolvable on its
+   own, and what is shown stays what is copied. */
+.crewpopz { opacity: .6; }
+.crewpopid svg { width: 10px; height: 10px; flex: 0 0 auto; opacity: .85; }
+/* A chip on hover rather than an underline: the mark is inside the button, and an underline
+   runs under that too. Same move the crew's name above makes. */
+.crewpopid:hover { opacity: 1; color: #cfe0ff; background: rgba(255,255,255,.08); }
 .crewpopid:focus-visible {
   outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
 }
 /* The tick `flash` swaps in is sized for a 12px button; here it would be taller than the
-   line it replaces and would jump the whole popup up by a few pixels. */
-.crewpopid .crewtick { width: 11px; height: 11px; vertical-align: -1px; }
+   line it replaces and would jump everything under it down by a few pixels. */
+.crewpopid .crewtick { width: 10px; height: 10px; }
 /* `flex-start`, so the emblem sits on the crew's name rather than floating halfway down a
    four-line block -- and so the key underneath it has somewhere to be. */
 .crewpop-in { display: flex; align-items: flex-start; gap: 10px; --popem: 34px; }

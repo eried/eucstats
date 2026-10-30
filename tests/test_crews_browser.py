@@ -1836,6 +1836,15 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     about one square could only be "I see a fake square", and answering it meant scanning all
     of them. The tile key is what every server-side answer is already keyed by, so it is the
     reference both ends can use.
+
+    Where it goes took three rounds. Beside the whole popup it was the loudest thing in it;
+    under the emblem it was quiet but had 34px to live in, so it wrapped at the slashes and
+    read as `14/` over `9054/` over `3714`. Erwin: "I dont like how the square code appear,
+    can we make a cooler format, aligned to left and cooler looking?", and "it cam be another
+    format more compact for example of symbol". A line of its own above the block is the
+    answer to both halves of that: the popup's full width is its measure, so one line fits
+    and starts at the same left margin as everything else, and a 10px mark of a filled grid
+    cell says what the digits address without a word of label.
     """
     page = rivals
     _rivals_open(page)
@@ -1856,9 +1865,21 @@ def test_the_popup_names_the_square_it_is_about(rivals):
           tag: id.tagName.toLowerCase(),
           label: id.getAttribute('aria-label') || id.getAttribute('title') || '',
           value: id.getAttribute('data-tile') || '',
-          fromLeft: Math.round(ir.left - pr.left),
-          underTheEmblem: !!(er && ir.top >= er.bottom - 1),
-          leftOfTheName: !!(nr && ir.right <= nr.left + 1),
+          // Above the block, and starting on the emblem's own vertical -- which is the
+          // popup's left edge, since the emblem is the left column.
+          aboveTheEmblem: !!(er && ir.bottom <= er.top + 1),
+          // The mark's edge, not the button's: the button carries the hover chip's
+          // padding, so its own box starts a few pixels further left than anything drawn.
+          offTheEmblemsLeft: (function (g) {
+            return er && g ? Math.round(g.getBoundingClientRect().left - er.left) : null;
+          })(id.querySelector('svg')),
+          // The mark that lets the line be this short, and the dimmed zoom.
+          mark: !!id.querySelector('svg'),
+          zoom: (function (z) {
+            return z ? { text: z.textContent,
+                         dim: parseFloat(getComputedStyle(z).opacity) < 1 } : null;
+          })(id.querySelector('.crewpopz')),
+          width: Math.round(ir.width),
           // Quieter than anything it sits next to: it is a reference, not a fact about the
           // crew. Erwin, on the first cut: "could be most invisible it is already very
           // bissible in the example".
@@ -1890,9 +1911,10 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     assert got, "the popup still does not say which square it is about"
     assert got["text"] == want, (
         f"the popup is open over {want} and calls it {got['text']!r}")
-    assert got["lines"] > 1, (
-        f"the key renders on {got['lines']} line(s). It wraps at the slashes so it fits the "
-        "emblem's column; on one line it sets that column's width itself")
+    assert got["lines"] == 1, (
+        f"the key renders on {got['lines']} lines. Stacked at the slashes to fit the "
+        "emblem's column it read as `14/` over `9054/` over `3714`, which is not a "
+        "reference anybody takes in at a glance")
     assert got["value"] == want, (
         f"what a press would copy is {got['value']!r}, not the square's own key")
     assert got["tag"] == "button", (
@@ -1901,9 +1923,22 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     assert got["label"] and got["text"] not in got["label"], (
         f"the control is labelled {got['label']!r}, which says the code again rather than "
         "what pressing it does")
-    assert got["underTheEmblem"] and got["leftOfTheName"], (
-        "the code is not in the popup's left column under the emblem: under it = "
-        f"{got['underTheEmblem']}, left of the name = {got['leftOfTheName']}")
+    assert got["aboveTheEmblem"], (
+        "the code is not on its own line above the block; back inside the emblem's column "
+        "it has 34px to live in and has to stack to fit")
+    assert abs(got["offTheEmblemsLeft"]) <= 1, (
+        f"the mark starts {got['offTheEmblemsLeft']}px off the emblem's left edge, so the "
+        "key is not on the same left margin as everything under it")
+    assert got["mark"], (
+        "the code has no mark in front of it, so the line needs a word to say what the "
+        "digits are the address of and it is no longer the compact thing it was made into")
+    assert got["zoom"] and got["zoom"]["dim"], (
+        f"the zoom reads {got['zoom'] and got['zoom']['text']!r} at full strength. It is the "
+        "same on every square of the map, so it is the part of the key that carries nothing "
+        "-- dimmed, not dropped, because dropping it would make what is shown differ from "
+        "what is copied")
+    assert got["zoom"]["text"] + got["text"][len(got["zoom"]["text"]):] == want, (
+        f"the dimmed part is {got['zoom']['text']!r}, which is not the head of {want}")
     assert got["emblemOnTheName"], (
         "the emblem is not top aligned, so it floats halfway down a four-line block and the "
         "code under it has nowhere to be")
@@ -1913,15 +1948,18 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     # What the key costs the lines beside it, which must be nothing.
     #
     # MapLibre caps a popup at 240px, and the emblem column is 34px, so the text has
-    # 240 - padding - gap - 34. On one line the key was 60px wide, so it set that column
-    # itself and the extra 26px came straight off the text: "a short ride and it flips" broke
-    # away from its own figure. It was paid for with a `maxWidth` on the popup, and then paid
-    # for properly -- Erwin: "the code of the square could wordwrap, so uses less" -- by
-    # wrapping at the slashes inside the emblem's own column, which is what these two
-    # measurements hold in place from either side.
+    # 240 - padding - gap - 34. Sharing that column, the key was 60px on one line, set the
+    # column's width itself, and the extra 26px came straight off the text: "a short ride and
+    # it flips" broke away from its own figure. That was paid for first with a `maxWidth` on
+    # the popup, then by wrapping the key at the slashes to fit 34px, and now by giving it a
+    # line of its own above the block -- where the whole popup is its measure, it needs none
+    # of the block's, and it does not have to stack to fit.
     assert got["left"] <= got["emblem"] + 1, (
         f"the left column is {got['left']}px around a {got['emblem']}px emblem, so the key "
-        "is setting the column's width instead of wrapping into it")
+        "is back inside it and setting its width")
+    assert got["width"] <= got["cap"] - got["pad"], (
+        f"the key is {got['width']}px on a line {got['cap'] - got['pad']:.0f}px wide, so it "
+        "is widening the popup to fit itself")
     measure = got["cap"] - got["pad"] - got["gap"] - got["left"]
     before = 240 - got["pad"] - got["gap"] - got["emblem"]
     assert measure >= before, (

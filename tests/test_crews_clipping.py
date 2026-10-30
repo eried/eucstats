@@ -63,6 +63,22 @@ def _inline_stylesheet():
 # Every selector allowed to clip, and what was measured in the locale that needs the most
 # room. Adding a row here is the review; the measurement belongs in the note.
 REVIEWED = {
+    ".crewpopid":
+        "the square's key in the popup's top left corner -- `14/9054/3714`. The only "
+        "selector in this file whose content is not translated copy and never will be: it "
+        "is the tile the reader tapped, so it is three numbers and two slashes in every "
+        "locale, and the longest it can be anywhere on earth is z22 at `22/4194303/"
+        "4194303`, 18 characters. The nowrap is the point of it -- without it the key "
+        "breaks at the slashes, which is how it read when it shared the emblem's 34px "
+        "column: `14/` over `9054/` over `3714`, three lines of a reference nobody can "
+        "take in at a glance. On its own line above the block it has the popup's full "
+        "width, which MapLibre caps at 240px: measured in the real popup, the whole thing "
+        "-- 10px mark, 5px gap, 12 characters of 9.5px monospace and the hover chip's own "
+        "padding -- is 98px against a 216px line, and the longest key the earth can "
+        "produce, z22 at `22/4194303/4194303`, works out around 136px. There is nothing "
+        "here to cut, "
+        "and `text-overflow` is deliberately not set so that if that ever stopped being "
+        "true the key would be visibly wrong rather than quietly short of a digit.",
     ".crewnewtopw b":
         "the crew's name echoed on the pinned strip at the top of the create form, as it is "
         "typed. Not translated copy -- it is the rider's own 28 characters, and the field "

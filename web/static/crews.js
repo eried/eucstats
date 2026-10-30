@@ -1082,6 +1082,15 @@
      long it has been held -- is read from the tile under it. Handed a coordinate it states
      the facts about THAT square instead of carrying a copy of the facts about the square you
      first tapped 600km away. */
+  // One cell of the grid, filled, inside its square. Drawn rather than typed: a character
+  // for this is a box in any font that does not have it, and at 10px what survives is two
+  // rectangles, not nine.
+  var ICON_TILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="2" stroke-linejoin="round" aria-hidden="true">'
+    + '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/>'
+    + '<rect x="9.25" y="9.25" width="5.5" height="5.5" rx="1" fill="currentColor" '
+    + 'stroke="none"/></svg>';
+
   function openCrewPop(lngLat, p) {
     // The band is the answer to "am I actually taking this off them?". Without it the only
     // signal is the shade, and a shade on its own is something you notice after the fact.
@@ -1128,7 +1137,12 @@
     var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
     // About the tallest this popup gets, which is what the placement arithmetic below is
     // measured against. A crew with more than one patch gets the counter line as well.
-    var POP_H = hop ? 190 : 170;
+    // Measured in the real popup at 199px with the counter and the Next button, which is
+    // 17px more than before the square's key took a line of its own above the block; each
+    // of these keeps the same few pixels of slack over what was measured that it had then,
+    // because an estimate that runs short here clips the bottom of the popup rather than
+    // flipping it to the other side of the point.
+    var POP_H = hop ? 205 : 185;
     var panelEl = document.querySelector(".panel.open");
     var topEl = document.querySelector(".topbar");
     var pt = map.project(lngLat);
@@ -1164,7 +1178,7 @@
       // second, which is also the order the popup is written in.
       popOpts.anchor = below >= POP_H ? "top" : above >= POP_H ? "bottom" : "top";
     }
-    // Which square this is, at the top left, pressable to copy.
+    // Which square this is, in the popup's own top left corner, pressable to copy.
     //
     // Erwin, trying to report one square out of 240: "maybe in the square flyout the one with
     // the Highlight patch button we should add a little top left code for the coord code of
@@ -1174,41 +1188,42 @@
     // square" and answering it meant scanning the whole map. This is the key every answer on
     // the server is already filed under, so it is the reference both ends share.
     //
-    // Above the emblem rather than beside it: it belongs to the popup, not to the crew, and
-    // the three lines under the name are painted by sibling order (`span + span`), which an
-    // extra element inside that block would shift.
+    // Its own line above the emblem, rather than a second thing stacked inside the emblem's
+    // column. Under the emblem it had to wrap at the slashes to fit 34px, and `14/` over
+    // `9054/` over `3714` is not a reference anybody reads at a glance. Erwin: "I dont like
+    // how the square code appear, can we make a cooler format, aligned to left and cooler
+    // looking?", then "it cam be another format more compact for example of symbol". Across
+    // the popup's full width one line fits with room to spare, it starts at the left edge
+    // like every other line, and the block beside the emblem keeps all of its measure.
     var tileId = TERR.z + "/" + tx + "/" + ty;
+    var cut = tileId.indexOf("/") + 1;
     POPUP = new maplibregl.Popup(popOpts)
       .setLngLat(lngLat)
-      .setHTML('<div class="crewpop-in"><span class="crewpopleft">'
+      // The mark is what buys the compactness: one filled cell inside its square says "a
+      // square of the grid" at 10px, so the digits after it need no word of label to say
+      // what they are the address of.
+      //
+      // The zoom is dimmed, not dropped. Every square on this map is z14, so those three
+      // characters tell a reader nothing -- but they are what makes the string resolvable on
+      // its own when it comes back in a message, and dropping them would make what is shown
+      // differ from what is copied. Dim says both of those at once.
+      //
+      // The key is in the title as well: `flash` strips `aria-label` when the copied tick
+      // times out, so the title is what is left describing the control after a press.
+      .setHTML('<button type="button" class="crewpopid" data-tile="' + esc(tileId)
+        + '" title="' + esc(tileId + " \u00b7 " + t("crew.pop.code"))
+        + '" aria-label="' + esc(t("crew.pop.code")) + '">' + ICON_TILE
+        // No whitespace between the two halves: `textContent` is the key itself, so what a
+        // reader selects by hand is the same string the press copies.
+        + '<span class="crewpopz">' + esc(tileId.slice(0, cut)) + "</span>"
+        + esc(tileId.slice(cut)) + "</button>"
+        + '<div class="crewpop-in"><span class="crewpopleft">'
         + '<img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         // The name is the control that opens the crew, which is where Details went when the
         // second button became Next patch. It stays a `<b>` rather than gaining a wrapper:
         // the stylesheet colours this block by element and by sibling order, so an extra
         // span here would quietly repaint the two lines under it.
-        + '/emblem" alt=""/>'
-        // The code under the emblem, in its own column, which is where Erwin put it: "I am
-        // not sure if the logo of the crew should be top aligned, it could be also under that
-        // one the code of the clicked square, could be most invisible it is already very
-        // bissible in the example". It was a pill above the whole popup and read as the
-        // loudest thing in it, which is backwards -- it is a reference, and everything beside
-        // it is what the popup is actually for. The emblem is top aligned now, so the two of
-        // them make a left column against the name and the lines under it.
-        + '<button type="button" class="crewpopid" data-tile="' + esc(tileId)
-        + '" title="' + esc(t("crew.pop.code")) + '" aria-label="' + esc(t("crew.pop.code"))
-        // A break opportunity after each slash, and nowhere else. Erwin: "the code of the
-        // square could wordwrap, so uses less". On one line it was 60px against a 34px
-        // emblem, so it set the width of the popup's whole left column and that 26px came
-        // off the text beside it -- which the popup was paying for with a `maxWidth` of its
-        // own. Wrapped it fits the emblem's own column and the popup goes back to MapLibre's
-        // default width with the text at its full measure.
-        //
-        // `<wbr>` rather than `overflow-wrap: anywhere`: anywhere breaks mid-number, and
-        // `14/90` over `54/37` over `14` is a reference nobody can read back. The slashes are
-        // where it already reads as three parts. `<wbr>` contributes nothing to
-        // `textContent`, so what gets copied is untouched -- and `data-tile` carries it
-        // anyway, which is what the press actually reads.
-        + '">' + esc(tileId).split("/").join("/<wbr>") + "</button></span>"
+        + '/emblem" alt=""/></span>'
         + '<div><b class="crewpopnm" data-det="' + esc(p.slug) + '">'
         + esc(p.name) + "</b><span>" + esc(state)
         + "</span><span>" + esc(detail)
