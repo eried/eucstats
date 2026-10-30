@@ -1593,7 +1593,10 @@ def _popup(page):
         return {
           text: p.innerText.replace(/\n+/g, ' | '),
           counter: (p.querySelector('.crewpopct') || {}).textContent || null,
-          buttons: [...p.querySelectorAll('button')].map(b => b.textContent.trim()),
+          // The ACTIONS, which is what every caller means by "what the popup offers".
+          // Scoped to the action row since the square's own key became a button at the top
+          // left: unscoped, the key read as a third thing the popup was offering to do.
+          buttons: [...p.querySelectorAll('.crewpopacts button')].map(b => b.textContent.trim()),
           name: nm ? { tag: nm.tagName.toLowerCase(), role: nm.getAttribute('role'),
                        label: nm.getAttribute('aria-label'),
                        tab: nm.getAttribute('tabindex') } : null,
@@ -1715,6 +1718,55 @@ def test_a_crew_with_one_patch_is_offered_no_walk(rivals):
         "the only control on the popup is styled as the secondary one")
     page.evaluate("() => { const p = document.querySelector('.crewpop'); if (p) p.remove(); }")
     _restore_mine(page)
+
+
+def test_the_popup_names_the_square_it_is_about(rivals):
+    """Erwin, trying to report one square out of 240: "maybe in the square flyout the one with
+    the Highlight patch button we should add a little top left code for the coord code of this
+    square? like easy to copy to make references".
+
+    Nothing on the map could name a square. The popup said whose it was, what band it was in
+    and how much riding was left in it, and there was no way to say WHICH ONE -- so a report
+    about one square could only be "I see a fake square", and answering it meant scanning all
+    of them. The tile key is what every server-side answer is already keyed by, so it is the
+    reference both ends can use.
+    """
+    page = rivals
+    _rivals_open(page)
+    rival = _rival_slug(page)
+    info = _tap_patch(page, rival, 0)
+    want = "%d/%d/%d" % (info["z"], info["patches"][0][0][0], info["patches"][0][0][1])
+    got = page.evaluate("""() => {
+        const p = document.querySelector('.crewpop');
+        const id = p && p.querySelector('.crewpopid');
+        if (!id) return null;
+        const pr = p.getBoundingClientRect(), ir = id.getBoundingClientRect();
+        const rest = [...p.querySelectorAll('.crewpop-in, .crewpopacts')]
+          .map(e => e.getBoundingClientRect());
+        return {
+          text: id.textContent.trim(),
+          tag: id.tagName.toLowerCase(),
+          label: id.getAttribute('aria-label') || id.getAttribute('title') || '',
+          value: id.getAttribute('data-tile') || '',
+          fromLeft: Math.round(ir.left - pr.left),
+          aboveTheRest: rest.every(r => ir.top <= r.top + 1),
+          leftOfTheRest: rest.every(r => ir.left <= r.left + 1),
+        };
+      }""")
+    assert got, "the popup still does not say which square it is about"
+    assert got["text"] == want, (
+        f"the popup is open over {want} and calls it {got['text']!r}")
+    assert got["value"] == want, (
+        f"what a press would copy is {got['value']!r}, not the square's own key")
+    assert got["tag"] == "button", (
+        f"the code is a <{got['tag']}>, so it cannot be pressed to copy and a keyboard "
+        "cannot reach it")
+    assert got["label"] and got["text"] not in got["label"], (
+        f"the control is labelled {got['label']!r}, which says the code again rather than "
+        "what pressing it does")
+    assert got["aboveTheRest"] and got["leftOfTheRest"], (
+        f"the code is not at the top left of the popup: {got['fromLeft']}px in, above the "
+        f"rest = {got['aboveTheRest']}")
 
 
 def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):

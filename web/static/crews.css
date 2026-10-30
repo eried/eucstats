@@ -565,6 +565,25 @@
    would run under it. I claimed this line fixed that and it did not; a reviewer measured 44px
    of an 80px popup still behind the panel. */
 .maplibregl-popup.crewpop { z-index: 560; }
+/* The square's own key, at the top left of the popup, pressable to copy.
+   Quiet on purpose: it is a reference, not a fact about the crew, and everything under it is
+   what a reader came to the popup for. Tabular and monospace because it is read digit by
+   digit and quoted back into a message. `margin: -2px 0 5px -4px` pulls it into the padding
+   so the code sits in the popup's own top-left corner rather than one line in from it. */
+.crewpopid {
+  display: block; margin: -2px 0 5px -4px; padding: 1px 4px; border: 0; border-radius: 3px;
+  background: rgba(255,255,255,.05); color: var(--mut, #9aa6c8); cursor: pointer;
+  font: inherit; font-size: 10px; letter-spacing: .02em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums; line-height: 1.5;
+}
+.crewpopid:hover { background: rgba(255,255,255,.12); color: #cfe0ff; }
+.crewpopid:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+}
+/* The tick `flash` swaps in is sized for a 12px button; here it would be taller than the
+   line it replaces and would jump the whole popup up by a few pixels. */
+.crewpopid .crewtick { width: 11px; height: 11px; vertical-align: -1px; }
 .crewpop-in { display: flex; align-items: center; gap: 10px; }
 .crewpop-in img { width: 34px; height: 34px; }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }

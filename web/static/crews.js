@@ -1164,9 +1164,26 @@
       // second, which is also the order the popup is written in.
       popOpts.anchor = below >= POP_H ? "top" : above >= POP_H ? "bottom" : "top";
     }
+    // Which square this is, at the top left, pressable to copy.
+    //
+    // Erwin, trying to report one square out of 240: "maybe in the square flyout the one with
+    // the Highlight patch button we should add a little top left code for the coord code of
+    // this square? like easy to copy to make references". Nothing on the map could name a
+    // square -- the popup said whose it was, what band it was in and how much riding was left
+    // in it, and never WHICH ONE -- so a report about one square could only be "I see a fake
+    // square" and answering it meant scanning the whole map. This is the key every answer on
+    // the server is already filed under, so it is the reference both ends share.
+    //
+    // Above the emblem rather than beside it: it belongs to the popup, not to the crew, and
+    // the three lines under the name are painted by sibling order (`span + span`), which an
+    // extra element inside that block would shift.
+    var tileId = TERR.z + "/" + tx + "/" + ty;
     POPUP = new maplibregl.Popup(popOpts)
       .setLngLat(lngLat)
-      .setHTML('<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
+      .setHTML('<button type="button" class="crewpopid" data-tile="' + esc(tileId)
+        + '" title="' + esc(t("crew.pop.code")) + '" aria-label="' + esc(t("crew.pop.code"))
+        + '">' + esc(tileId) + "</button>"
+        + '<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         // The name is the control that opens the crew, which is where Details went when the
         // second button became Next patch. It stays a `<b>` rather than gaining a wrapper:
         // the stylesheet colours this block by element and by sibling order, so an extra
@@ -1241,6 +1258,15 @@
       openCrewDetail(slug);
     });
     if (nx) nx.onclick = function () { hopPatch(p, patches, pi); };
+    // The square's own key, copied. `copyVia` is the one clipboard path in this file: it
+    // falls back to a textarea on an insecure origin or in a webview, and says nothing at all
+    // rather than showing a tick over a clipboard that never changed.
+    var id = el.querySelector(".crewpopid");
+    if (id) id.onclick = function () {
+      copyVia(id.getAttribute("data-tile"),
+              function () { flash(id, t("crew.mine.copied")); },
+              function () {});
+    };
   }
 
   /* Walking a crew's patches from the popup, one press at a time.

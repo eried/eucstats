@@ -620,6 +620,11 @@ EN: dict[str, str] = {
     "crew.pop.next": "Next patch",
     "crew.pop.of": "patch {n} of {v}",
     "crew.pop.details": "Details",
+    # The label on the square's own key, top left of the popup. Nothing on the map could name
+    # a square before this: a reader who saw one they did not understand could only say "a
+    # square", and finding it meant scanning all of them. The key is what the server files
+    # every answer under, so it is the reference both ends can quote.
+    "crew.pop.code": "Copy this square's code",
     "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
     "crew.pub.scan": "Scan to find this crew",
     "crew.pub.open": "Check it out in {host}",

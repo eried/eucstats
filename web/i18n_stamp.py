@@ -414,6 +414,7 @@ EN_FINGERPRINT = {
     'crew.policy.approval': 'e198d19a3893',
     'crew.policy.invite': '166138f7c695',
     'crew.policy.open': '5c1b39efdd7a',
+    'crew.pop.code': 'b0517fd14ede',
     'crew.pop.details': 'dc3decbb9384',
     'crew.pop.highlight': '4de74822df2d',
     'crew.pop.next': '1ec01649a45c',

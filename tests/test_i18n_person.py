@@ -448,7 +448,10 @@ SHARED = {
     # event and names nobody, so the crew whose sheet it fires on does not change it.
     # `openCrewSheet` is the sheet's own Copy button, which exists because Share alone looked
     # dead on a desktop; same event, same word, and the sheet opens on any crew.
-    "crew.mine.copied": {"shareUrl", "openCrewSheet"},
+    # `bindPopActs` is the fourth copy control to confirm with this word, after the invite
+    # code, the share link and the QR address. One word, no person, and `flash` puts it in an
+    # `aria-label` over a tick either way, so the reader hears it in the same place.
+    "crew.mine.copied": {"shareUrl", "openCrewSheet", "bindPopActs"},
     # "Copy", on the sheet's button. A verb addressed to whoever is holding the phone, about
     # the link in front of them -- it says nothing about whose crew the sheet belongs to, which
     # is why it can sit on a stranger's sheet and on your own invite row alike.
