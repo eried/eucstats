@@ -170,6 +170,12 @@ EN: dict[str, str] = {
     # `crew.mine.who` is the heading on your own crew's list and `crew.roles.more` is the
     # overflow button under the roles list.
     "crew.rivals.none": "Nobody has ridden for them lately.",
+    # Where a crew's own words go when it has none. The row simply stopped after the facts
+    # line, so two rows out of four had a third line and two did not, and the gap read as
+    # something failing to load rather than as a crew that has not written anything. Third
+    # person on purpose: this is the site talking ABOUT the crew, and the stylesheet makes it
+    # look like it too.
+    "crew.nodesc": "Nothing stated yet.",
     # Sixteen crews is about 1,800px with no way to narrow it, and once joining
     # comes before founding that 1,800px is also what stands in front of the
     # create form. Six nearest, a box, and the rest behind the toggle.
@@ -200,7 +206,12 @@ EN: dict[str, str] = {
     # your crew
     "crew.mine.ao": "in one patch",
     "crew.mine.start": "Ride a {n}x{n} block and you're on the map",
-    "crew.mine.who": "Best riders",
+    # The heading inside the fold the rider count opens. "Best riders" named the list
+    # honestly -- it holds whoever rode most, while the count that opened it is the whole
+    # membership -- and Erwin asked for the shorter word anyway, knowing that: "in Best
+    # riders we can write RIDERS (from BEST)?". The share column beside each name is what
+    # still says these are ranked, and `crew.rivals.none` covers the empty case.
+    "crew.mine.who": "Riders",
     "crew.mine.manage": "Manage crew",
     # The marker on your own row. Not `crew.how.s3` ("Your crew"): these rows are riders,
     # and a row that is YOU labelled "Your crew" is the wrong noun in the one list that is

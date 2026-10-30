@@ -125,6 +125,9 @@ CARDS = {
     # "Since you last looked: +3 squares, 12th -> 11th". Addressed to the reader of their
     # own crew card, which is the same person `crew.mine.` speaks to.
     "crew.since.": "rider",
+    # "Nothing stated yet." -- the site talking about a crew that has written nothing, in the
+    # third person. There is nobody in it to address.
+    "crew.nodesc": "none",
     "crew.hue.": "none",
     "crew.key": "none",
     "crew.pop.": "none",

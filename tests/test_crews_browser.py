@@ -881,6 +881,24 @@ def rivals(browser, world):
         if crews.membership(db, "brw-ghost") is None:
             crews.create(db, "brw-ghost", "Ghost Crew", "", join_policy="open")
             db.commit()
+        # And one crew that filled the description box to the brim, which is the row that
+        # breaks the LAYOUT. The swatch is a flex item beside a text column whose flex basis
+        # is its own max-content width, so the longer a crew's words the harder everything
+        # else is squeezed: 280 characters took a 14px square down to a ribbon on Erwin's
+        # screen -- "the ua path finders icon looks like a tall rectangle". Nothing but a real
+        # description reproduces that, so one lives here.
+        if db.get(models.Rider, "brw-wordy") is None:
+            db.add(models.Rider(store_id="brw-wordy", display_name="brw-wordy",
+                                platform="google_play", flag="NO"))
+            db.commit()
+            db.add(models.Trip(trip_uuid="brw-seed-brw-wordy", rider_store_id="brw-wordy",
+                               distance_km=5.0, validation_status="validated",
+                               start_utc=models.utcnow() - timedelta(days=2),
+                               end_utc=models.utcnow() - timedelta(days=2)))
+            db.commit()
+        if crews.membership(db, "brw-wordy") is None:
+            crews.create(db, "brw-wordy", "Wordy Crew", WORDY, join_policy="open")
+            db.commit()
         p = pairing.start(db, purpose="rider")
         pairing.confirm(db, p["code"], "brw-lead")
     finally:
@@ -907,6 +925,16 @@ def rivals(browser, world):
     pg.wait_for_function("() => !!window.__map", timeout=30000)
     yield pg
     ctx.close()
+
+
+# A crew's own words at the length the field actually allows. `crews.create` clips the
+# description at 280 characters, so this is the worst case a row can be asked to lay out, and
+# the worst case is the one that was shipping broken.
+WORDY = (
+    "The grid goes dark and the skies get loud, but the roads are still here. We navigate "
+    "the realities of today with patience and resolve, keeping the wheel turning in spite "
+    "of all of it. Kilometre by kilometre, street by street, we are still out there and "
+    "we are not stopping.")
 
 
 def _rivals_open(page):
@@ -1233,6 +1261,109 @@ def test_a_crew_with_no_ground_is_not_a_control(rivals):
 
     lit = [r for r in rows if r["lit"]]
     assert lit, "no row in the list is pressable, so the rule is firing on everything"
+
+
+def _rival_rows(page):
+    """Every row in Other crews, measured rather than read.
+
+    The three things below are a size, a position and a piece of text, and only the first two
+    need a browser -- but all three are about the same strip, and a reader looking at it sees
+    one row and not three assertions.
+    """
+    return page.evaluate("""() => [...document.querySelectorAll('.crewrivrow')].map(r => {
+        const sw = r.querySelector(':scope > .crewsw');
+        const b = sw ? sw.getBoundingClientRect() : null;
+        const facts = [...r.querySelectorAll('.crewrivsub > .crewfact')];
+        const desc = r.querySelector('.crewmeta2');
+        const nm = r.querySelector('b');
+        return {
+          name: nm ? nm.textContent.trim() : '',
+          w: b ? Math.round(b.width * 10) / 10 : null,
+          h: b ? Math.round(b.height * 10) / 10 : null,
+          facts: facts.map(f => f.textContent.trim()),
+          firstIsRiders: !!(facts[0] && facts[0].querySelector('.crewwho[data-who]')),
+          factLeft: facts.length ? Math.round(facts[0].getBoundingClientRect().left) : null,
+          desc: desc ? desc.textContent.trim() : '',
+          descPlaceholder: !!(desc && desc.classList.contains('crewnodesc')),
+        };
+      })""")
+
+
+def test_a_crews_swatch_is_a_square_however_much_the_crew_has_to_say(rivals):
+    """Erwin, on the live panel: "the ua path finders icon looks like a tall rectangle,
+    yooohoo one seems aligned to top but not to bottom".
+
+    Both are one bug. `.crewsw` carries `width: 14px; height: 14px` and is a flex item in a
+    row whose text column is `flex: 1 1 auto` -- flex basis auto, which resolves to the
+    column's max-content width, and the widest thing in it is the crew's description on one
+    unwrapped line. A 280-character description makes that basis enormous, the row overflows
+    by hundreds of pixels, and the shrink is shared in proportion to basis: the square keeps
+    its 14px of height and loses most of its width. So the swatch got thinner the more the
+    crew had written, which is why three rows on one card were three different shapes.
+
+    The join list next door never had it: `.crewrown` is `flex: 1`, basis 0, so that row
+    cannot overflow and nothing is ever squeezed.
+    """
+    _rivals_open(rivals)
+    rows = _rival_rows(rivals)
+    assert rows, "no rows in Other crews, so this test is not asking anything"
+    wordy = [r for r in rows if r["name"] == "Wordy Crew"]
+    assert wordy and len(wordy[0]["desc"]) > 150, (
+        "the long description never reached the row, so the squeeze cannot happen here and "
+        f"this test proves nothing: {[(r['name'], len(r['desc'])) for r in rows]}")
+    for r in rows:
+        assert r["w"] is not None, f"{r['name']} has no swatch beside it at all"
+        assert abs(r["w"] - r["h"]) <= 0.5, (
+            f"{r['name']}'s swatch is {r['w']}x{r['h']}px: a rectangle, not the square the "
+            "same colour and pattern are drawn as on the map")
+    widths = sorted({r["w"] for r in rows})
+    assert len(widths) == 1, (
+        "the swatches on one card are different widths, so they line up with nothing: "
+        f"{[(r['name'], r['w']) for r in rows]}")
+
+
+def test_the_rider_count_opens_every_row_from_the_same_place(rivals):
+    """Erwin: "can we change the rider button and squares to the front".
+
+    The counts used to come last, after a ground line whose length is whatever that crew
+    holds -- "186 squares in one patch 361 km2 1 rider" against "0 squares 1 rider" -- so the
+    one control on the line started at a different x on every row and there was no column to
+    run an eye down. First, it is a column.
+    """
+    _rivals_open(rivals)
+    rows = _rival_rows(rivals)
+    assert rows, "no rows in Other crews"
+    for r in rows:
+        assert r["facts"], f"{r['name']} has no facts line"
+        assert r["firstIsRiders"], (
+            f"{r['name']} leads its facts line with {r['facts'][0]!r} rather than with the "
+            f"rider count: {r['facts']}")
+    lefts = sorted({r["factLeft"] for r in rows})
+    assert len(lefts) == 1, (
+        "the rider counts start at different places down the card, so they are not a column: "
+        f"{[(r['name'], r['factLeft']) for r in rows]}")
+
+
+def test_a_crew_that_has_not_described_itself_still_says_so(rivals):
+    """A row with no description just stopped after the facts line, so two rows out of four
+    had a third line and two did not, and the gap read as something failing to load rather
+    than as a crew that has not written anything. It says which it is now.
+
+    Marked as a placeholder as well as worded as one: it is the site talking about the crew,
+    not the crew talking, and it must not be mistaken for a crew that chose those words.
+    """
+    _rivals_open(rivals)
+    rows = _rival_rows(rivals)
+    ghost = [r for r in rows if r["name"] == "Ghost Crew"]
+    assert ghost, f"Ghost Crew is not in the list: {[r['name'] for r in rows]}"
+    g = ghost[0]
+    assert g["desc"] == EN["crew.nodesc"], (
+        f"a crew with no description reads {g['desc']!r}, not the line written for it")
+    assert g["descPlaceholder"], (
+        "the placeholder is not marked as one, so it looks exactly like a crew's own words")
+    wordy = [r for r in rows if r["name"] == "Wordy Crew"][0]
+    assert not wordy["descPlaceholder"], (
+        "a crew that DID describe itself is marked as having no description")
 
 
 def _shine_count(page):

@@ -833,8 +833,20 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 }
 .crewrivrow + .crewrivrow { border-top: 1px solid rgba(255,255,255,.06); }
 /* The swatch sits on the name's line rather than at the top of a four-line block -- the same
-   reading `.crewrow` records for its 46px emblem, one card up. */
-.crewrivrow > .crewsw { margin-top: 2px; }
+   reading `.crewrow` records for its 46px emblem, one card up.
+
+   `flex: 0 0 auto` because it is a flex ITEM and 14px is not a suggestion. The text column
+   beside it is `flex: 1 1 auto`, so its flex basis is its own max-content width -- and the
+   widest thing in that column is the crew's description on one unwrapped line. 280 characters
+   of it overflowed the row by hundreds of pixels, the shrink was then shared in proportion to
+   basis, and the square kept its height while losing most of its width: measured 11.1x14 on a
+   crew with NO description and thinner the more a crew had written, so three rows on one card
+   were three different shapes. Erwin saw it as "the ua path finders icon looks like a tall
+   rectangle, yooohoo one seems aligned to top but not to bottom", which is one bug and not
+   two. The join list next door never had it because `.crewrown` is `flex: 1` -- basis 0, so
+   that row cannot overflow and nothing in it is ever squeezed. `.crewrivtx` keeps `min-width:
+   0`, which is what lets the text absorb all of it instead. */
+.crewrivrow > .crewsw { flex: 0 0 auto; margin-top: 2px; }
 /* `min-width: 0` so a long crew name gives way instead of pushing the chevron off the card
    -- the same fix three other rows in this file carry. */
 .crewrivtx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -1374,6 +1386,10 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* the crew's own words, on their own line under the stats, not welded onto the end of them */
 .crewmeta2 { display: block; margin-top: 1px; font-size: 11px; color: var(--mut, #9aa6c8);
   opacity: .85; }
+/* The line that stands in for them when a crew has written nothing. Italic and fainter,
+   because this is the site talking ABOUT the crew and everything else on that line is the
+   crew talking: a placeholder at full weight reads as words somebody chose. */
+.crewmeta2.crewnodesc { font-style: italic; opacity: .6; }
 
 /* the band legend under the board */
 /* a grid, so the chips line up in columns instead of wrapping 4 / 3 / 1, and a

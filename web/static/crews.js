@@ -4752,6 +4752,24 @@
     return out;
   }
 
+  /* A crew's own words, or a line saying there are none.
+
+     The row used to stop after the facts line when `description` was empty, so two rows out
+     of four had a third line and two did not and the gap read as something failing to load.
+     It is also the one fact on the row that a leader can fix in ten seconds, and silence
+     never said so. Erwin asked for it on the live panel -- "for the ones without description
+     we can write (No description given)".
+
+     `crewnodesc` marks it, because this is the site talking ABOUT the crew while everything
+     else on that line is the crew talking, and a placeholder at full weight reads as words
+     somebody chose. Both lists that print a description use this, so they cannot disagree
+     about what an empty one looks like. */
+  function descHTML(c) {
+    var own = (c.description || "").trim();
+    return '<span class="crewmeta2' + (own ? "" : " crewnodesc") + '">'
+      + esc(own || t("crew.nodesc")) + "</span>";
+  }
+
   // Slugs are `[a-z0-9-]` by construction (`crews._slug`), so this is already an id; the
   // prefix only keeps it from colliding with anything else on a panel that carries a dozen.
   function whoId(slug) {
@@ -5834,8 +5852,13 @@
           // The patches, read once: `patsDeco` needs them to decide whether the count this
           // row prints can be pressed, and `patPan` needs the same list to build the fold.
           var pats = allPatches(crewPts(c.slug));
-          var bits = groundBits(c, patsDeco(c.slug, pats))
-            .concat([whoBtn(c.slug, esc(riders(c.members)))]);
+          // The rider count FIRST, which is where the join list next door has always put it.
+          // Last, it sat behind a ground line whose length is whatever that crew happens to
+          // hold -- "186 squares in one patch 361 km2 1 rider" over "0 squares 1 rider" -- so
+          // the one control on the line started at a different x on every row and there was
+          // no column to run an eye down. Leading, every row opens from the same place.
+          var bits = [whoBtn(c.slug, esc(riders(c.members)))]
+            .concat(groundBits(c, patsDeco(c.slug, pats)));
           return '<div class="crewrivrow" data-rival="' + esc(c.slug) + '">'
             + swatch(c.colour, c.pattern, 14)
             + '<span class="crewrivtx">'
@@ -5850,8 +5873,7 @@
                 return '<span class="crewfact">' + f + "</span>";
               }).join(" ")
             + "</span>"
-            + (c.description
-               ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
+            + descHTML(c)
             + whoPan(c.slug)
             // Second, because who rides for a crew is what a reader asks first and where
             // they ride is the follow-up. Only in this list: the join list is a choice
@@ -5996,7 +6018,7 @@
             // ground before committing to it, and this list showed neither the position nor
             // the map.
             + '<div class="crewrown">' + headHTML(c) + "<span>" + sub + "</span>"
-            + (c.description ? '<span class="crewmeta2">' + esc(c.description) + "</span>" : "")
+            + descHTML(c)
             + whoPan(c.slug)
             + "</div>"
             + (locked
