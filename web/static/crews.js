@@ -1180,15 +1180,24 @@
     var tileId = TERR.z + "/" + tx + "/" + ty;
     POPUP = new maplibregl.Popup(popOpts)
       .setLngLat(lngLat)
-      .setHTML('<button type="button" class="crewpopid" data-tile="' + esc(tileId)
-        + '" title="' + esc(t("crew.pop.code")) + '" aria-label="' + esc(t("crew.pop.code"))
-        + '">' + esc(tileId) + "</button>"
-        + '<div class="crewpop-in"><img src="/api/v1/crews/' + encodeURIComponent(p.slug)
+      .setHTML('<div class="crewpop-in"><span class="crewpopleft">'
+        + '<img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         // The name is the control that opens the crew, which is where Details went when the
         // second button became Next patch. It stays a `<b>` rather than gaining a wrapper:
         // the stylesheet colours this block by element and by sibling order, so an extra
         // span here would quietly repaint the two lines under it.
-        + '/emblem" alt=""/><div><b class="crewpopnm" data-det="' + esc(p.slug) + '">'
+        + '/emblem" alt=""/>'
+        // The code under the emblem, in its own column, which is where Erwin put it: "I am
+        // not sure if the logo of the crew should be top aligned, it could be also under that
+        // one the code of the clicked square, could be most invisible it is already very
+        // bissible in the example". It was a pill above the whole popup and read as the
+        // loudest thing in it, which is backwards -- it is a reference, and everything beside
+        // it is what the popup is actually for. The emblem is top aligned now, so the two of
+        // them make a left column against the name and the lines under it.
+        + '<button type="button" class="crewpopid" data-tile="' + esc(tileId)
+        + '" title="' + esc(t("crew.pop.code")) + '" aria-label="' + esc(t("crew.pop.code"))
+        + '">' + esc(tileId) + "</button></span>"
+        + '<div><b class="crewpopnm" data-det="' + esc(p.slug) + '">'
         + esc(p.name) + "</b><span>" + esc(state)
         + "</span><span>" + esc(detail)
         + (fig ? ' <i>· ' + esc(fig) + "</i>" : "")
@@ -4755,7 +4764,11 @@
   // inside `crew.board.inp`'s "{a} in {b}" -- so a crew the board leads with as "46 in one
   // patch" read "58 squares in 3 patches" here, two different answers to the same question
   // on one screen, and the figure the ranking is actually made of was the one missing.
-  function groundBits(c, deco) {
+  function patchWords(c) {
+    return esc(plural(null, "crew.patches.few", "crew.patches", c.regions));
+  }
+
+  function groundBits(c, deco, hoisted) {
     var best = c.best_tiles || 0;
     var all = c.tiles || 0;
     if (!best && !all) return [esc(tiles(0))];
@@ -4766,13 +4779,16 @@
     } else {
       out.push(esc(tiles(all)));
     }
-    if ((c.regions || 0) > 1) {
+    if ((c.regions || 0) > 1 && !hoisted) {
       // The one fact either list may hand back as a control rather than as words. Escaped
       // first and decorated after, so what `deco` wraps is already safe -- the alternative is
       // a function that escapes in one branch and trusts in the other, which is how the
       // pattern gets copied wrong the third time.
-      var p = esc(plural(null, "crew.patches.few", "crew.patches", c.regions));
-      out.push(deco ? deco(p) : p);
+      //
+      // `hoisted` means the caller has already put this count somewhere else -- the rivals
+      // row carries its controls on the title line now -- and printing it twice on one row
+      // would be the same number asking to be read as two.
+      out.push(deco ? deco(patchWords(c)) : patchWords(c));
     }
     if (c.km2) out.push(esc(fmtKm2(c.km2)));
     return out;
@@ -5878,13 +5894,25 @@
           // The patches, read once: `patsDeco` needs them to decide whether the count this
           // row prints can be pressed, and `patPan` needs the same list to build the fold.
           var pats = allPatches(crewPts(c.slug));
-          // The rider count FIRST, which is where the join list next door has always put it.
-          // Last, it sat behind a ground line whose length is whatever that crew happens to
-          // hold -- "186 squares in one patch 361 km2 1 rider" over "0 squares 1 rider" -- so
-          // the one control on the line started at a different x on every row and there was
-          // no column to run an eye down. Leading, every row opens from the same place.
-          var bits = [whoBtn(c.slug, esc(riders(c.members)))]
-            .concat(groundBits(c, patsDeco(c.slug, pats)));
+          /* The controls leave the facts line and go to the top right of the row.
+
+             They were last on the facts line, behind a ground line whose length is whatever
+             that crew happens to hold -- "186 squares in one patch 361 km2 1 rider" over "0
+             squares 1 rider" -- so the one control started at a different x on every row.
+             Leading fixed the column and Erwin wanted them off the facts line entirely:
+             "I want to make this inline buttons better, maybe the buttons could go in the top
+             right", then "make it very small font and top right". Facts read as facts on one
+             line and the two things you can press are a column of their own.
+
+             The patch count goes up only when it IS a control. `patsDeco` returns nothing for
+             a crew whose other ground lies outside the loaded region -- the count is still
+             true, it simply opens nothing -- and a plain number parked among the buttons
+             would look like a third one. Those rows keep it in the facts line as words. */
+          var pd = patsDeco(c.slug, pats);
+          var hoist = !!(pd && (c.regions || 0) > 1);
+          var chips = [whoBtn(c.slug, esc(riders(c.members)))];
+          if (hoist) chips.push(pd(patchWords(c)));
+          var bits = groundBits(c, pd, hoist);
           return '<div class="crewrivrow" data-rival="' + esc(c.slug) + '">'
             + swatch(c.colour, c.pattern, 14)
             + '<span class="crewrivtx">'
@@ -5893,7 +5921,8 @@
             // control announcing itself as two. Erwin asked for exactly this split -- "the
             // click of the title is just the higlight and center in map and the chevron
             // shows the riders".
-            + headHTML(c)
+            + '<span class="crewrivtop">' + headHTML(c)
+            + '<span class="crewrivchips">' + chips.join("") + "</span></span>"
             + '<span class="crewrivsub">'
             + bits.map(function (f) {
                 return '<span class="crewfact">' + f + "</span>";

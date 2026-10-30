@@ -970,6 +970,8 @@ def _rival_row(page):
             controls: q('.crewwho[data-who]').getAttribute('aria-controls'),
           } : null,
           panelId: q('.crewwhopan:not(.crewpatpan)') ? q('.crewwhopan:not(.crewpatpan)').id : null,
+          foldOnTitleLine: !!q('.crewrivchips .crewwho[data-who]'),
+          oldLabelLine: !!q('.crewwhobox'),
           overflowsCard: !!(hr && cr && hr.right > cr.right + 1),
         };
       }""")
@@ -1032,9 +1034,17 @@ def test_the_fold_says_where_it_goes_before_it_is_pressed(rivals):
     assert row["fold"], "there is no fold under the row at all"
     assert any(ch.isdigit() for ch in row["fold"]["label"]), (
         f"the fold reads {row['fold']['label']!r}, which is not the count the row prints")
-    assert row["fold"]["label"] in row["sub"], (
-        f"the fold's label {row['fold']['label']!r} is not part of the facts line "
-        f"{row['sub']!r}: it is still a line of its own")
+    # It used to have to be INSIDE the facts line, which is where Erwin first asked for it.
+    # He has since moved the controls off that line entirely -- "maybe the buttons could go in
+    # the top right" -- so what this still guards is the part that did not change: the count
+    # is the label, and there is no second line of chrome under the row naming the fold.
+    assert row["foldOnTitleLine"] and not row["oldLabelLine"], (
+        "the fold is not the small control on the title line, or a `Best riders` label line "
+        "has come back under the row: either way the row carries chrome saying what the "
+        "count beside it already says")
+    assert row["fold"]["label"] not in row["sub"], (
+        f"the fold's label {row['fold']['label']!r} is ALSO printed in the facts line "
+        f"{row['sub']!r}, so one number is on the row twice asking to be read as two")
     assert row["fold"]["expanded"] == "false", (
         f"the fold reports aria-expanded={row['fold']['expanded']!r} while shut")
     assert row["fold"]["controls"] and row["fold"]["controls"] == row["panelId"], (
@@ -1042,9 +1052,14 @@ def test_the_fold_says_where_it_goes_before_it_is_pressed(rivals):
         f"{row['panelId']!r}")
 
 
-def test_a_count_on_the_facts_line_is_pressable_where_a_thumb_lands(rivals):
-    """What the source cannot answer: whether an 11px word in a line of five facts is a
-    control a finger can hit, and whether it still looks like one before it is hovered.
+def test_a_count_is_pressable_where_a_thumb_lands(rivals):
+    """What the source cannot answer: whether a 9.5px word is a control a finger can hit, and
+    whether it still looks like one before it is hovered.
+
+    It was 11px on the facts line when this was written. The controls are smaller now and sit
+    at the top right of the row, which makes every question below sharper rather than stale:
+    smaller type with the same padding is less to aim at, and a control that no longer has
+    four facts around it has to look like one on its own.
 
     `.click()` bypasses hit testing, so the number under the thumb is measured with
     `elementFromPoint` -- the row carries other controls, and the one directly above this line
@@ -1054,6 +1069,7 @@ def test_a_count_on_the_facts_line_is_pressable_where_a_thumb_lands(rivals):
     seen = rivals.evaluate(r"""() => {
         const row = document.querySelector('.crewrivrow');
         const sub = row.querySelector('.crewrivsub');
+        const top = row.querySelector('.crewrivtop');
         const who = row.querySelector('.crewwho[data-who]');
         const lab = who.querySelector('span');
         // NOT a neighbouring fact: the facts line is a flex row and `align-items` defaults to
@@ -1067,7 +1083,7 @@ def test_a_count_on_the_facts_line_is_pressable_where_a_thumb_lands(rivals):
         const r = who.getBoundingClientRect();
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return {
-          inLine: sub.contains(who),
+          inLine: top.contains(who) && !sub.contains(who),
           label: who.textContent.replace(/\s+/g, ' ').trim(),
           // The line AND the style: with the rule gone the style still computes to
           // 'solid', which is the default for text that carries no decoration at all.
@@ -1095,11 +1111,11 @@ def test_a_count_on_the_facts_line_is_pressable_where_a_thumb_lands(rivals):
         };
       }""")
     assert seen["inLine"] and not seen["oldBoxes"], (
-        f"the control is not inside the facts line (oldBoxes={seen['oldBoxes']}), so nothing "
-        "was streamlined: the row still carries a line per fold")
+        f"the control is not on the title line (oldBoxes={seen['oldBoxes']}), or it is still "
+        "mixed in with the facts under it")
     assert seen["facts"] >= 3, (
-        f"the facts line holds {seen['facts']} facts, so this is not the line the counts "
-        "were meant to join")
+        f"the facts line holds {seen['facts']} facts; the controls left it and the facts "
+        "were supposed to stay")
     assert seen["hit"] == "control", (
         f"a press in the middle of the count lands on {seen['hit']!r}: the number is "
         "underlined like a control and something else answers for it")
@@ -1274,6 +1290,9 @@ def _rival_rows(page):
         const sw = r.querySelector(':scope > .crewsw');
         const b = sw ? sw.getBoundingClientRect() : null;
         const facts = [...r.querySelectorAll('.crewrivsub > .crewfact')];
+        const chips = [...r.querySelectorAll('.crewrivchips .crewwho')];
+        const head = r.querySelector('.crewrivhead');
+        const tx = r.querySelector('.crewrivtx');
         const desc = r.querySelector('.crewmeta2');
         const nm = r.querySelector('b');
         return {
@@ -1281,8 +1300,19 @@ def _rival_rows(page):
           w: b ? Math.round(b.width * 10) / 10 : null,
           h: b ? Math.round(b.height * 10) / 10 : null,
           facts: facts.map(f => f.textContent.trim()),
-          firstIsRiders: !!(facts[0] && facts[0].querySelector('.crewwho[data-who]')),
-          factLeft: facts.length ? Math.round(facts[0].getBoundingClientRect().left) : null,
+          // The chevron, not the button. `.crewwho` is `padding: 2px 4px; margin: 0 -4px`,
+          // so its box deliberately sticks 4px past its own ink to give an 11px word a thumb
+          // to be pressed with. The eye lines up on the ink.
+          chipRight: chips.length
+            ? Math.round((chips[chips.length - 1].querySelector('i')
+                          || chips[chips.length - 1]).getBoundingClientRect().right) : null,
+          chipTop: chips.length ? Math.round(chips[0].getBoundingClientRect().top) : null,
+          headTop: head ? Math.round(head.getBoundingClientRect().top) : null,
+          txRight: tx ? Math.round(tx.getBoundingClientRect().right) : null,
+          chipSize: chips.length ? parseFloat(getComputedStyle(chips[0]).fontSize) : null,
+          factSize: facts.length ? parseFloat(getComputedStyle(facts[0]).fontSize) : null,
+          riderChips: chips.filter(c => c.hasAttribute('data-who')).length,
+          factsHaveControls: facts.some(f => !!f.querySelector('.crewwho')),
           desc: desc ? desc.textContent.trim() : '',
           descPlaceholder: !!(desc && desc.classList.contains('crewnodesc')),
         };
@@ -1322,26 +1352,40 @@ def test_a_crews_swatch_is_a_square_however_much_the_crew_has_to_say(rivals):
         f"{[(r['name'], r['w']) for r in rows]}")
 
 
-def test_the_rider_count_opens_every_row_from_the_same_place(rivals):
-    """Erwin: "can we change the rider button and squares to the front".
+def test_the_row_controls_are_a_small_column_at_the_top_right(rivals):
+    """Erwin, twice. First "can we change the rider button and squares to the front", then,
+    once that shipped, "I want to make this inline buttons better, maybe the buttons could go
+    in the top right" and "make it very small font and top right".
 
-    The counts used to come last, after a ground line whose length is whatever that crew
-    holds -- "186 squares in one patch 361 km2 1 rider" against "0 squares 1 rider" -- so the
-    one control on the line started at a different x on every row and there was no column to
-    run an eye down. First, it is a column.
+    They began at the END of the facts line, behind a ground line whose length is whatever
+    that crew happens to hold -- "186 squares in one patch 361 km2 1 rider" over "0 squares
+    1 rider" -- so the one control on the row started at a different x on every row. Leading
+    the facts line fixed the column and left controls mixed in with facts. On the title line,
+    anchored right, the facts read as facts and the things you can press are their own column.
+
+    Anchored to the row's right EDGE, not to the end of the name: a crew's name is whatever a
+    rider typed, so anything that merely follows it lands somewhere different on every row.
     """
     _rivals_open(rivals)
     rows = _rival_rows(rivals)
     assert rows, "no rows in Other crews"
     for r in rows:
-        assert r["facts"], f"{r['name']} has no facts line"
-        assert r["firstIsRiders"], (
-            f"{r['name']} leads its facts line with {r['facts'][0]!r} rather than with the "
-            f"rider count: {r['facts']}")
-    lefts = sorted({r["factLeft"] for r in rows})
-    assert len(lefts) == 1, (
-        "the rider counts start at different places down the card, so they are not a column: "
-        f"{[(r['name'], r['factLeft']) for r in rows]}")
+        assert r["riderChips"] == 1, (
+            f"{r['name']} has {r['riderChips']} rider controls at the top right")
+        assert not r["factsHaveControls"], (
+            f"{r['name']} still has a control inside its facts line: {r['facts']}")
+        assert r["facts"], f"{r['name']} has no facts line left"
+        assert abs(r["chipTop"] - r["headTop"]) <= 6, (
+            f"{r['name']}'s controls sit {r['chipTop'] - r['headTop']}px off the title line")
+        assert r["chipSize"] < r["factSize"], (
+            f"{r['name']}'s controls are {r['chipSize']}px against {r['factSize']}px facts; "
+            "they were asked to be the small type on the row")
+    rights = sorted({r["chipRight"] for r in rows})
+    assert len(rights) == 1, (
+        "the controls end at different places down the card, so they are not a column: "
+        f"{[(r['name'], r['chipRight']) for r in rows]}")
+    assert abs(rights[0] - rows[0]["txRight"]) <= 2, (
+        f"the controls end {rows[0]['txRight'] - rights[0]}px short of the row's right edge")
 
 
 def test_a_crew_that_has_not_described_itself_still_says_so(rivals):
@@ -1741,16 +1785,26 @@ def test_the_popup_names_the_square_it_is_about(rivals):
         const id = p && p.querySelector('.crewpopid');
         if (!id) return null;
         const pr = p.getBoundingClientRect(), ir = id.getBoundingClientRect();
-        const rest = [...p.querySelectorAll('.crewpop-in, .crewpopacts')]
-          .map(e => e.getBoundingClientRect());
+        const em = p.querySelector('.crewpop-in img');
+        const nm = p.querySelector('[data-det]');
+        const er = em ? em.getBoundingClientRect() : null;
+        const nr = nm ? nm.getBoundingClientRect() : null;
         return {
           text: id.textContent.trim(),
           tag: id.tagName.toLowerCase(),
           label: id.getAttribute('aria-label') || id.getAttribute('title') || '',
           value: id.getAttribute('data-tile') || '',
           fromLeft: Math.round(ir.left - pr.left),
-          aboveTheRest: rest.every(r => ir.top <= r.top + 1),
-          leftOfTheRest: rest.every(r => ir.left <= r.left + 1),
+          underTheEmblem: !!(er && ir.top >= er.bottom - 1),
+          leftOfTheName: !!(nr && ir.right <= nr.left + 1),
+          // Quieter than anything it sits next to: it is a reference, not a fact about the
+          // crew. Erwin, on the first cut: "could be most invisible it is already very
+          // bissible in the example".
+          size: parseFloat(getComputedStyle(id).fontSize),
+          nameSize: nm ? parseFloat(getComputedStyle(nm).fontSize) : null,
+          faded: parseFloat(getComputedStyle(id).opacity) < 0.6,
+          // The emblem rides with the name now, not with the middle of the block.
+          emblemOnTheName: !!(er && nr && Math.abs(er.top - nr.top) < 10),
         };
       }""")
     assert got, "the popup still does not say which square it is about"
@@ -1764,9 +1818,15 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     assert got["label"] and got["text"] not in got["label"], (
         f"the control is labelled {got['label']!r}, which says the code again rather than "
         "what pressing it does")
-    assert got["aboveTheRest"] and got["leftOfTheRest"], (
-        f"the code is not at the top left of the popup: {got['fromLeft']}px in, above the "
-        f"rest = {got['aboveTheRest']}")
+    assert got["underTheEmblem"] and got["leftOfTheName"], (
+        "the code is not in the popup's left column under the emblem: under it = "
+        f"{got['underTheEmblem']}, left of the name = {got['leftOfTheName']}")
+    assert got["emblemOnTheName"], (
+        "the emblem is not top aligned, so it floats halfway down a four-line block and the "
+        "code under it has nowhere to be")
+    assert got["size"] < got["nameSize"] and got["faded"], (
+        f"the code is {got['size']}px against a {got['nameSize']}px name and not faded; it "
+        "is a reference, and it must not be the loudest thing in the popup")
 
 
 def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):

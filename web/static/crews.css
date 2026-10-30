@@ -570,21 +570,25 @@
    what a reader came to the popup for. Tabular and monospace because it is read digit by
    digit and quoted back into a message. `margin: -2px 0 5px -4px` pulls it into the padding
    so the code sits in the popup's own top-left corner rather than one line in from it. */
+/* The emblem and the square's key, as the popup's left column. */
+.crewpopleft { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .crewpopid {
-  display: block; margin: -2px 0 5px -4px; padding: 1px 4px; border: 0; border-radius: 3px;
-  background: rgba(255,255,255,.05); color: var(--mut, #9aa6c8); cursor: pointer;
-  font: inherit; font-size: 10px; letter-spacing: .02em;
+  display: block; padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--mut, #9aa6c8); opacity: .42;
+  font: inherit; font-size: 9px; letter-spacing: .01em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-variant-numeric: tabular-nums; line-height: 1.5;
+  font-variant-numeric: tabular-nums; line-height: 1.4; white-space: nowrap;
 }
-.crewpopid:hover { background: rgba(255,255,255,.12); color: #cfe0ff; }
+.crewpopid:hover { opacity: 1; color: #cfe0ff; text-decoration: underline; }
 .crewpopid:focus-visible {
   outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
 }
 /* The tick `flash` swaps in is sized for a 12px button; here it would be taller than the
    line it replaces and would jump the whole popup up by a few pixels. */
 .crewpopid .crewtick { width: 11px; height: 11px; vertical-align: -1px; }
-.crewpop-in { display: flex; align-items: center; gap: 10px; }
+/* `flex-start`, so the emblem sits on the crew's name rather than floating halfway down a
+   four-line block -- and so the key underneath it has somewhere to be. */
+.crewpop-in { display: flex; align-items: flex-start; gap: 10px; }
 .crewpop-in img { width: 34px; height: 34px; }
 .crewpop-in b { display: block; font-size: 13px; color: #eaf2ff; }
 .crewpop-in span { display: block; font-size: 11px; color: var(--mut, #9aa6c8); }
@@ -869,6 +873,25 @@ a.crewqr, a.crewqr:visited { color: var(--acc, #2ea8ff); }
 /* `min-width: 0` so a long crew name gives way instead of pushing the chevron off the card
    -- the same fix three other rows in this file carry. */
 .crewrivtx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+/* The title line, with the row's controls pushed to its right end.
+   Erwin: "make it very small font and top right". The facts line underneath reads as facts
+   and the two things you can press are a column of their own, which is also what lines them
+   up down the card: the name beside them is whatever a rider typed, so anything sharing that
+   line with it has to be anchored to the far edge rather than to the end of the name.
+   `baseline`, so a 9.5px chip sits on the same line as a 12.5px name instead of floating
+   above it, and `flex-wrap` so a name long enough to need the whole width drops the chips to
+   their own line rather than squeezing them. */
+.crewrivtop { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
+.crewrivtop > .crewrivhead { flex: 1 1 auto; min-width: 0; }
+/* `margin-left: auto` as well as the head's `flex: 1`, so the chips stay at the right edge on
+   the wrapped line too, where there is no head beside them to push them over. */
+.crewrivchips {
+  flex: 0 0 auto; margin-left: auto; display: flex; align-items: baseline; gap: 8px;
+}
+/* Very small, as asked. They are still the only controls on the row, so the dotted underline
+   and the chevron stay -- what shrinks is the type, not the affordance. */
+.crewrivchips .crewwho { font-size: 9.5px; }
+.crewrivchips .crewwho i { font-size: 11px; }
 /* The name WRAPS. An ellipsis was the first instinct, and `.crewrowname` on the board does
    exactly that -- but that one ships with a measurement, and this one could not get an
    honest reading: the two-column split is a viewport media query, so shrinking the panel to
