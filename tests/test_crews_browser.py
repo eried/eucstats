@@ -1837,74 +1837,62 @@ def test_the_popup_names_the_square_it_is_about(rivals):
     of them. The tile key is what every server-side answer is already keyed by, so it is the
     reference both ends can use.
 
-    Where it goes took three rounds. Beside the whole popup it was the loudest thing in it;
-    under the emblem it was quiet but had 34px to live in, so it wrapped at the slashes and
-    read as `14/` over `9054/` over `3714`. Erwin: "I dont like how the square code appear,
-    can we make a cooler format, aligned to left and cooler looking?", and "it cam be another
-    format more compact for example of symbol". A line of its own above the block is the
-    answer to both halves of that: the popup's full width is its measure, so one line fits
-    and starts at the same left margin as everything else, and a 10px mark of a filled grid
-    cell says what the digits address without a word of label.
+    Where it goes took four rounds, all of them the same arithmetic: the key is 98px on one
+    line and the emblem's column is 34px. Beside the whole popup it was the loudest thing in
+    it. Inside the column it wrapped at the slashes into `14/` over `9054/` over `3714`. On a
+    line of its own above the block it fitted and was straight, and it cost the popup a row
+    of height. Erwin: "Can we do under the icon of the crew, but split by character? So it
+    looks like and we can use some padding, maybe like some invalid padding, like another
+    character that is not slash, to make it look like, you know, a two-line thing that it
+    goes under the space of the and feels perfectly side to side."
+
+    Which is the fourth answer and the one that fits: x over y, one character per cell,
+    each row spread so the outer characters sit on the emblem's own edges. The line break is
+    the separator the slash was, and a dim `\u00b7` pads the shorter row so both rows are the
+    same length and the characters stack into columns.
     """
     page = rivals
     _rivals_open(page)
     rival = _rival_slug(page)
     info = _tap_patch(page, rival, 0)
-    want = "%d/%d/%d" % (info["z"], info["patches"][0][0][0], info["patches"][0][0][1])
+    x, y = info["patches"][0][0][0], info["patches"][0][0][1]
+    want = "%d/%d/%d" % (info["z"], x, y)
     got = page.evaluate("""() => {
         const p = document.querySelector('.crewpop');
         const id = p && p.querySelector('.crewpopid');
         if (!id) return null;
-        const pr = p.getBoundingClientRect(), ir = id.getBoundingClientRect();
         const em = p.querySelector('.crewpop-in img');
         const nm = p.querySelector('[data-det]');
         const er = em ? em.getBoundingClientRect() : null;
         const nr = nm ? nm.getBoundingClientRect() : null;
+        const ir = id.getBoundingClientRect();
+        const rows = [...id.querySelectorAll('.crewpopr')].map(r => ({
+          text: r.textContent,
+          cells: [...r.querySelectorAll('i')].map(c => {
+            const b = c.getBoundingClientRect();
+            return { ch: c.textContent, pad: c.classList.contains('crewpopf'),
+                     left: b.left, right: b.right, mid: (b.left + b.right) / 2 };
+          }),
+        }));
         return {
-          text: id.textContent.trim(),
-          // What a reader gets by dragging across it. `textContent` cannot see the fault
-          // this caught: the button is a flex row, so a second child is a second flex item
-          // with the button's 5px gap in front of it, and `14/ 9054/3714` reads as two
-          // things. Flex items are block level, so `innerText` is where that shows up.
-          dragged: id.innerText.trim(),
-          tag: id.tagName.toLowerCase(),
-          label: id.getAttribute('aria-label') || id.getAttribute('title') || '',
+          rows: rows,
           value: id.getAttribute('data-tile') || '',
-          // Above the block, and starting on the emblem's own vertical -- which is the
-          // popup's left edge, since the emblem is the left column.
-          aboveTheEmblem: !!(er && ir.bottom <= er.top + 1),
-          // The mark's edge, not the button's: the button carries the hover chip's
-          // padding, so its own box starts a few pixels further left than anything drawn.
-          offTheEmblemsLeft: (function (g) {
-            return er && g ? Math.round(g.getBoundingClientRect().left - er.left) : null;
-          })(id.querySelector('svg')),
-          // The mark that lets the line be this short, and the dimmed zoom.
-          mark: !!id.querySelector('svg'),
-          zoom: (function (z) {
-            return z ? { text: z.textContent,
-                         dim: parseFloat(getComputedStyle(z).opacity) < 1 } : null;
-          })(id.querySelector('.crewpopz')),
-          width: Math.round(ir.width),
-          // Quieter than anything it sits next to: it is a reference, not a fact about the
-          // crew. Erwin, on the first cut: "could be most invisible it is already very
-          // bissible in the example".
+          tag: id.tagName.toLowerCase(),
+          label: id.getAttribute('aria-label') || '',
+          title: id.getAttribute('title') || '',
+          // Under the emblem, in its column, and no wider than it.
+          underTheEmblem: !!(er && ir.top >= er.bottom - 1),
+          leftOfTheName: !!(nr && ir.right <= nr.left + 1),
+          emblemLeft: er ? er.left : null,
+          emblemRight: er ? er.right : null,
+          emblem: Math.round(er ? er.width : 0),
+          left: Math.round(
+            (p.querySelector('.crewpopleft') || p).getBoundingClientRect().width),
+          // The emblem rides with the name, not with the middle of the block.
+          emblemOnTheName: !!(er && nr && Math.abs(er.top - nr.top) < 10),
           size: parseFloat(getComputedStyle(id).fontSize),
           nameSize: nm ? parseFloat(getComputedStyle(nm).fontSize) : null,
           faded: parseFloat(getComputedStyle(id).opacity) < 0.6,
-          // The emblem rides with the name now, not with the middle of the block.
-          emblemOnTheName: !!(er && nr && Math.abs(er.top - nr.top) < 10),
-          // The measure the lines beside the emblem are given, against the measure they had
-          // before the key was put under it. The key is wider than the emblem -- 65px
-          // against 34 -- so it widens the popup's left column, and at MapLibre's default
-          // 240px cap that came straight off the text: on the first cut "a short ride and it
-          // flips" broke away from its own figure. The popup carries its own `maxWidth` to
-          // pay for the column; these are the numbers that say whether it still does.
-          left: Math.round(
-            (p.querySelector('.crewpopleft') || p).getBoundingClientRect().width),
-          emblem: Math.round(em ? er.width : 0),
-          lines: Math.round(ir.height / parseFloat(getComputedStyle(id).lineHeight)),
-          // MapLibre puts `maxWidth` on the popup CONTAINER, which is the element carrying
-          // `.crewpop`, not on the content box inside it.
           cap: parseFloat(getComputedStyle(p).maxWidth),
           pad: (function (c) {
             var cs = getComputedStyle(c);
@@ -1914,61 +1902,84 @@ def test_the_popup_names_the_square_it_is_about(rivals):
         };
       }""")
     assert got, "the popup still does not say which square it is about"
-    assert got["text"] == want, (
-        f"the popup is open over {want} and calls it {got['text']!r}")
-    assert got["dragged"] == want, (
-        f"dragging across the key gives {got['dragged']!r}, not {want}. The dimmed zoom is "
-        "a second flex item unless it is wrapped with the rest of the code, and the button's "
-        "own gap then opens in the middle of the key")
-    assert got["lines"] == 1, (
-        f"the key renders on {got['lines']} lines. Stacked at the slashes to fit the "
-        "emblem's column it read as `14/` over `9054/` over `3714`, which is not a "
-        "reference anybody takes in at a glance")
+
+    # --- what it says ----------------------------------------------------------------
+    assert len(got["rows"]) == 2, (
+        f"the key is in {len(got['rows'])} rows, not two. It is x over y: the line break is "
+        "the slash, and a third row would be the zoom, which is 14 on every square of this "
+        "map and would be the loudest thing in a block whose job is to be quiet")
     assert got["value"] == want, (
         f"what a press would copy is {got['value']!r}, not the square's own key")
+    assert want in got["title"], (
+        f"the title reads {got['title']!r}. It is the only place the zoom is readable once "
+        "the rows carry x and y alone, so the whole key has to be in it")
+    pad = "\u00b7"
+    said = [r["text"].lstrip(pad) for r in got["rows"]]
+    assert said == [str(x), str(y)], (
+        f"the popup is open over {want} and its rows read {said}, not {[str(x), str(y)]}")
+
+    # --- the padding that makes it a block -------------------------------------------
+    counts = [len(r["cells"]) for r in got["rows"]]
+    assert counts[0] == counts[1], (
+        f"the rows hold {counts[0]} and {counts[1]} characters. Unequal rows cannot stack "
+        "into columns, which is the whole reason the shorter one is padded")
+    for r, v in zip(got["rows"], (x, y)):
+        pads = [i for i, c in enumerate(r["cells"]) if c["pad"]]
+        assert pads == list(range(len(pads))), (
+            f"{r['text']!r} is padded at {pads}; padding is leading only, so the units "
+            "column stays the units column")
+        assert len(pads) == counts[0] - len(str(v)), (
+            f"{r['text']!r} carries {len(pads)} padding characters for a {len(str(v))}-digit "
+            "number in a {counts[0]}-wide block")
+        for c in r["cells"]:
+            assert c["pad"] == (c["ch"] == "\u00b7"), (
+                f"a cell reads {c['ch']!r} and is marked pad={c['pad']}; the filler has to "
+                "be the one character that cannot be mistaken for a digit")
+
+    # --- perfectly side to side ------------------------------------------------------
+    #
+    # Erwin's words, and the measurable part of them: each row's outer characters sit on the
+    # emblem's own edges, so the block is exactly as wide as the thing above it.
+    for r in got["rows"]:
+        assert abs(r["cells"][0]["left"] - got["emblemLeft"]) <= 1, (
+            f"{r['text']!r} starts {r['cells'][0]['left'] - got['emblemLeft']:.1f}px off the "
+            "emblem's left edge")
+        assert abs(r["cells"][-1]["right"] - got["emblemRight"]) <= 1, (
+            f"{r['text']!r} ends {r['cells'][-1]['right'] - got['emblemRight']:.1f}px off "
+            "the emblem's right edge")
+    for i in range(counts[0]):
+        drift = abs(got["rows"][0]["cells"][i]["mid"] - got["rows"][1]["cells"][i]["mid"])
+        assert drift <= 1, (
+            f"column {i} is {drift:.1f}px out between the two rows, so the block reads as "
+            "two lines of text rather than one grid")
+
+    # --- and still a quiet, pressable reference ---------------------------------------
     assert got["tag"] == "button", (
         f"the code is a <{got['tag']}>, so it cannot be pressed to copy and a keyboard "
         "cannot reach it")
-    assert got["label"] and got["text"] not in got["label"], (
+    assert got["label"] and str(x) not in got["label"], (
         f"the control is labelled {got['label']!r}, which says the code again rather than "
         "what pressing it does")
-    assert got["aboveTheEmblem"], (
-        "the code is not on its own line above the block; back inside the emblem's column "
-        "it has 34px to live in and has to stack to fit")
-    assert abs(got["offTheEmblemsLeft"]) <= 1, (
-        f"the mark starts {got['offTheEmblemsLeft']}px off the emblem's left edge, so the "
-        "key is not on the same left margin as everything under it")
-    assert got["mark"], (
-        "the code has no mark in front of it, so the line needs a word to say what the "
-        "digits are the address of and it is no longer the compact thing it was made into")
-    assert got["zoom"] and got["zoom"]["dim"], (
-        f"the zoom reads {got['zoom'] and got['zoom']['text']!r} at full strength. It is the "
-        "same on every square of the map, so it is the part of the key that carries nothing "
-        "-- dimmed, not dropped, because dropping it would make what is shown differ from "
-        "what is copied")
-    assert got["zoom"]["text"] + got["text"][len(got["zoom"]["text"]):] == want, (
-        f"the dimmed part is {got['zoom']['text']!r}, which is not the head of {want}")
+    assert got["underTheEmblem"] and got["leftOfTheName"], (
+        "the code is not in the popup's left column under the emblem: under it = "
+        f"{got['underTheEmblem']}, left of the name = {got['leftOfTheName']}")
     assert got["emblemOnTheName"], (
         "the emblem is not top aligned, so it floats halfway down a four-line block and the "
         "code under it has nowhere to be")
     assert got["size"] < got["nameSize"] and got["faded"], (
         f"the code is {got['size']}px against a {got['nameSize']}px name and not faded; it "
         "is a reference, and it must not be the loudest thing in the popup")
+
     # What the key costs the lines beside it, which must be nothing.
     #
     # MapLibre caps a popup at 240px, and the emblem column is 34px, so the text has
-    # 240 - padding - gap - 34. Sharing that column, the key was 60px on one line, set the
-    # column's width itself, and the extra 26px came straight off the text: "a short ride and
-    # it flips" broke away from its own figure. That was paid for first with a `maxWidth` on
-    # the popup, then by wrapping the key at the slashes to fit 34px, and now by giving it a
-    # line of its own above the block -- where the whole popup is its measure, it needs none
-    # of the block's, and it does not have to stack to fit.
+    # 240 - padding - gap - 34. A key on one line is 98px: inside this column it set the
+    # column's width itself and the extra came straight off the text, so "a short ride and it
+    # flips" broke away from its own figure. Split into two rows of characters it is laid out
+    # ACROSS the column rather than measured against it, so there is nothing left to pay.
     assert got["left"] <= got["emblem"] + 1, (
         f"the left column is {got['left']}px around a {got['emblem']}px emblem, so the key "
-        "is back inside it and setting its width")
-    assert got["width"] <= got["cap"] - got["pad"], (
-        f"the key is {got['width']}px on a line {got['cap'] - got['pad']:.0f}px wide, so it "
-        "is widening the popup to fit itself")
+        "is setting the column's width instead of being spread across it")
     measure = got["cap"] - got["pad"] - got["gap"] - got["left"]
     before = 240 - got["pad"] - got["gap"] - got["emblem"]
     assert measure >= before, (
@@ -1976,6 +1987,73 @@ def test_the_popup_names_the_square_it_is_about(rivals):
         "before the key was put under the emblem, so the key is being paid for out of the "
         "text")
 
+
+def test_the_two_rows_of_the_key_are_padded_to_the_same_length(rivals):
+    """The ragged case, which this fixture's ground cannot produce.
+
+    A tile's x and y are both four digits over Europe -- Copenhagen is 8763/5128, Oslo
+    8750/4931 -- so every square a test can tap here makes two rows of four and the padding
+    never runs. It runs for real riders: x passes 10000 at longitude 39.7E, so anybody east
+    of the Volga gets a five-digit x over a four-digit y. Tokyo is 14549/6451.
+
+    `keyRows` is what decides that, so `keyRows` is what this runs -- lifted out of the
+    stylesheet-independent half of the shipped file rather than copied into the test, so it
+    is the real characters being measured. Where the rows LAND is the live popup's test
+    above; this one is only about what they contain.
+    """
+    page = rivals
+    got = page.evaluate("""async () => {
+        const src = await fetch('/static/crews.js').then(r => r.text());
+        // The function's own source, brace-matched out of the file it ships in.
+        const at = src.indexOf('function keyRows(');
+        if (at < 0) return { err: 'keyRows is not in crews.js' };
+        let i = src.indexOf('{', at), depth = 0, end = -1;
+        for (let j = i; j < src.length; j++) {
+          if (src[j] === '{') depth++;
+          else if (src[j] === '}' && --depth === 0) { end = j + 1; break; }
+        }
+        if (end < 0) return { err: 'keyRows does not close' };
+        const fn = new Function('esc', src.slice(at, end) + '; return keyRows;')(v => v);
+        const read = (x, y) => {
+          const d = document.createElement('div');
+          d.innerHTML = fn(x, y);
+          return [...d.querySelectorAll('.crewpopr')].map(r => ({
+            text: r.textContent,
+            cells: [...r.querySelectorAll('i')]
+              .map(c => [c.textContent, c.classList.contains('crewpopf')]),
+          }));
+        };
+        return { tokyo: read(14549, 6451), even: read(8763, 5128),
+                 short: read(512, 14000) };
+      }""")
+    assert not got.get("err"), got.get("err")
+
+    pad = "\u00b7"
+    for name, pair in (("14549/6451", got["tokyo"]), ("8763/5128", got["even"]),
+                       ("512/14000", got["short"])):
+        a, b = pair
+        assert len(a["cells"]) == len(b["cells"]), (
+            f"{name} makes rows of {len(a['cells'])} and {len(b['cells'])} characters. "
+            "Rows of different lengths cannot stack into columns, which is the only reason "
+            "the padding exists")
+        for row, want in zip(pair, name.split("/")):
+            assert row["text"].lstrip(pad) == want, (
+                f"{name} renders a row as {row['text']!r}, which is not {want} under its "
+                "padding")
+            assert row["text"].endswith(want), (
+                f"{name} renders a row as {row['text']!r}; the padding is leading, so the "
+                "units column stays the units column")
+            for ch, is_pad in row["cells"]:
+                assert is_pad == (ch == pad), (
+                    f"a cell of {row['text']!r} reads {ch!r} and is marked pad={is_pad}; "
+                    "the filler is the one character that cannot be read as a digit")
+
+    # The whole point of the exercise: the ragged pair comes out square.
+    assert [r["text"] for r in got["tokyo"]] == ["14549", pad + "6451"], (
+        f"Tokyo renders as {[r['text'] for r in got['tokyo']]}")
+    assert [r["text"] for r in got["even"]] == ["8763", "5128"], (
+        f"a pair that is already square renders as {[r['text'] for r in got['even']]}, so "
+        "it is being padded when it needs nothing")
 
 def test_the_name_in_the_popup_opens_that_crews_own_row(rivals):
     """Details used to scroll to the board row, which Erwin read as "a bit pointless" -- the

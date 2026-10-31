@@ -565,44 +565,52 @@
    would run under it. I claimed this line fixed that and it did not; a reviewer measured 44px
    of an 80px popup still behind the panel. */
 .maplibregl-popup.crewpop { z-index: 560; }
-/* The emblem, as the popup's left column. One child and a fixed width, so the lines beside
-   it get everything that is left: the square's key used to share this column and had to wrap
-   at the slashes to fit 34px, which is what put `14/` over `9054/` over `3714`. */
-.crewpopleft { flex: 0 0 auto; width: var(--popem, 34px); }
-/* The square's own key, on its own line in the popup's top left corner, pressable to copy.
-   Quiet on purpose: it is a reference, not a fact about the crew, and everything under it is
-   what a reader came to the popup for. Monospace and tabular because it is read digit by
-   digit and quoted back into a message. `margin-left` is the pill's `padding-left` back
-   out again, so what lines up with the emblem under it is the mark rather than the hover
-   chip's invisible edge.
-   `width: max-content` rather than the full line: the press target is the code, not the
-   stripe of empty popup beside it. */
-.crewpopid {
-  display: flex; align-items: center; gap: 5px; width: max-content; max-width: 100%;
-  border: 0; background: none; cursor: pointer; white-space: nowrap;
-  padding: 2px 4px; margin: -3px 0 6px -4px; border-radius: 5px;
-  color: var(--mut, #9aa6c8); opacity: .55; text-align: left;
-  font: inherit; font-size: 9.5px; letter-spacing: .06em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-variant-numeric: tabular-nums; line-height: 1;
+/* The emblem and, under it, the square's key. A fixed width, because that width is what the
+   key is laid out against: `--popem` is the emblem, and the two rows of the key below spread
+   themselves across exactly it. */
+.crewpopleft {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  flex: 0 0 auto; width: var(--popem, 34px);
 }
-/* The whole key as one flex item. The button's `gap` separates the mark from the code, and
-   without this wrapper it separated the zoom from the coordinates too. */
-.crewpopk { display: block; }
-/* Every square on this map is z14, so the zoom is the part of the key that carries nothing
-   for a reader. Dimmed rather than dropped: it is what makes the string resolvable on its
-   own, and what is shown stays what is copied. */
-.crewpopz { opacity: .6; }
-.crewpopid svg { width: 10px; height: 10px; flex: 0 0 auto; opacity: .85; }
-/* A chip on hover rather than an underline: the mark is inside the button, and an underline
-   runs under that too. Same move the crew's name above makes. */
-.crewpopid:hover { opacity: 1; color: #cfe0ff; background: rgba(255,255,255,.08); }
+/* The square's own key, as x over y under the emblem, pressable to copy.
+   Quiet on purpose: it is a reference, not a fact about the crew, and everything beside it
+   is what a reader came to the popup for. Monospace and tabular because it is read digit by
+   digit and quoted back into a message -- and here because every cell has to be the same
+   width as every other for the two rows to line up into columns. */
+.crewpopid {
+  display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--mut, #9aa6c8); opacity: .5; text-align: center;
+  font: inherit; font-size: 10px; letter-spacing: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums; line-height: 1.3;
+}
+/* One row, spread edge to edge. `space-between` puts the first character's left edge and the
+   last one's right edge on the emblem's own edges, so the block is exactly as wide as the
+   emblem above it however many digits the row holds -- and since the padding character makes
+   both rows the same length, the characters stack into columns.
+   Every one of these is scoped through `.crewpopid` to outrank the block rules this column
+   sits inside. `.crewpop-in span` is a class and a type, so it beat a bare `.crewpopr` and
+   laid the row out as `display: block` -- `justify-content` inert, the characters centred by
+   `text-align`, and the row 4.9px in from the emblem's edge. `.crewpop-in span i` did the
+   same to the cells at 11px, and `span + span` painted the second row brighter than the
+   first, which is the rule that makes a figure stand out from the line above it. */
+.crewpopid .crewpopr {
+  display: flex; justify-content: space-between;
+  font-size: inherit; color: inherit; line-height: inherit;
+}
+.crewpopid .crewpopr i { font-style: normal; font-size: inherit; opacity: 1; }
+/* The padding character. Dim enough to read as the filler it is: it is there so a 4-digit
+   row and a 5-digit row are the same shape, not because the square has a `·` in its key. */
+.crewpopid .crewpopf { opacity: .4; }
+.crewpopid:hover { opacity: 1; color: #cfe0ff; }
 .crewpopid:focus-visible {
   outline: none; box-shadow: 0 0 0 2px #0b0f1c, 0 0 0 4px var(--sec, #ff8ad8);
+  border-radius: 3px;
 }
-/* The tick `flash` swaps in is sized for a 12px button; here it would be taller than the
-   line it replaces and would jump everything under it down by a few pixels. */
-.crewpopid .crewtick { width: 10px; height: 10px; }
+/* The tick `flash` swaps in is sized for a 12px button; here it would be taller than the two
+   rows it replaces. The column it sits in is shorter than the block beside it either way, so
+   nothing moves while it shows. */
+.crewpopid .crewtick { width: 11px; height: 11px; }
 /* `flex-start`, so the emblem sits on the crew's name rather than floating halfway down a
    four-line block -- and so the key underneath it has somewhere to be. */
 .crewpop-in { display: flex; align-items: flex-start; gap: 10px; --popem: 34px; }

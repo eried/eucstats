@@ -1082,14 +1082,39 @@
      long it has been held -- is read from the tile under it. Handed a coordinate it states
      the facts about THAT square instead of carrying a copy of the facts about the square you
      first tapped 600km away. */
-  // One cell of the grid, filled, inside its square. Drawn rather than typed: a character
-  // for this is a box in any font that does not have it, and at 10px what survives is two
-  // rectangles, not nine.
-  var ICON_TILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    + 'stroke-width="2" stroke-linejoin="round" aria-hidden="true">'
-    + '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/>'
-    + '<rect x="9.25" y="9.25" width="5.5" height="5.5" rx="1" fill="currentColor" '
-    + 'stroke="none"/></svg>';
+  // A square's key as two rows of characters under the emblem, x over y.
+  //
+  // Erwin: "Can we do under the icon of the crew, but split by character? So it looks like
+  // and we can use some padding, maybe like some invalid padding, like another character
+  // that is not slash, to make it look like, you know, a two-line thing that it goes under
+  // the space of the and feels perfectly side to side."
+  //
+  // The emblem's column is 34px and a key on one line is 98px, which is the whole reason
+  // this has moved three times. Two rows of four or five characters fit 34px at a readable
+  // size, and the line break is the separator the slash was -- x over y is how the pair
+  // reads anyway. Every character gets its own cell so the row can be spread edge to edge:
+  // the first and last sit on the emblem's own edges, so the block is exactly as wide as
+  // the thing above it and the columns line up between the rows.
+  //
+  // The padding character is what makes that true when the two numbers are different
+  // lengths. Leading, so the units column stays the units column, and dim, so it reads as
+  // the filler it is rather than a digit -- `·` cannot be mistaken for one, which a
+  // zero could.
+  function keyRows(x, y) {
+    var a = String(x), b = String(y);
+    var w = Math.max(a.length, b.length);
+    function row(v) {
+      var out = '<span class="crewpopr">';
+      for (var i = 0; i < w; i++) {
+        var j = i - (w - v.length);
+        out += j < 0
+          ? '<i class="crewpopf">\u00b7</i>'
+          : "<i>" + esc(v.charAt(j)) + "</i>";
+      }
+      return out + "</span>";
+    }
+    return row(a) + row(b);
+  }
 
   function openCrewPop(lngLat, p) {
     // The band is the answer to "am I actually taking this off them?". Without it the only
@@ -1137,12 +1162,12 @@
     var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
     // About the tallest this popup gets, which is what the placement arithmetic below is
     // measured against. A crew with more than one patch gets the counter line as well.
-    // Measured in the real popup at 199px with the counter and the Next button, which is
-    // 17px more than before the square's key took a line of its own above the block; each
-    // of these keeps the same few pixels of slack over what was measured that it had then,
-    // because an estimate that runs short here clips the bottom of the popup rather than
-    // flipping it to the other side of the point.
-    var POP_H = hop ? 205 : 185;
+    // The key is two rows under the emblem rather than a line of its own above the block,
+    // and the block beside the emblem is taller than the emblem and those rows together, so
+    // the key costs the popup no height at all. An estimate that runs short here clips the
+    // bottom of the popup rather than flipping it to the other side of the point, so both
+    // numbers keep a few pixels over what was measured.
+    var POP_H = hop ? 190 : 170;
     var panelEl = document.querySelector(".panel.open");
     var topEl = document.querySelector(".topbar");
     var pt = map.project(lngLat);
@@ -1188,46 +1213,32 @@
     // square" and answering it meant scanning the whole map. This is the key every answer on
     // the server is already filed under, so it is the reference both ends share.
     //
-    // Its own line above the emblem, rather than a second thing stacked inside the emblem's
-    // column. Under the emblem it had to wrap at the slashes to fit 34px, and `14/` over
-    // `9054/` over `3714` is not a reference anybody reads at a glance. Erwin: "I dont like
-    // how the square code appear, can we make a cooler format, aligned to left and cooler
-    // looking?", then "it cam be another format more compact for example of symbol". Across
-    // the popup's full width one line fits with room to spare, it starts at the left edge
-    // like every other line, and the block beside the emblem keeps all of its measure.
+    // Back under the emblem, where it started, and this time it fits: `keyRows` splits it
+    // into two rows of single characters that spread across the emblem's own width. On one
+    // line it was 98px against a 34px column, which is why it first wrapped at the slashes
+    // into three ragged lines and then took a line of its own above the whole popup.
+    //
+    // The zoom is not drawn. Two rows are x and y, and a third row for a number that is 14
+    // on every square of this map would be the loudest thing in a block whose whole job is
+    // to be quiet. It is still what gets copied and it is still in the title, so the key
+    // leaves here whole; what is on screen is the part that differs between squares.
     var tileId = TERR.z + "/" + tx + "/" + ty;
-    var cut = tileId.indexOf("/") + 1;
     POPUP = new maplibregl.Popup(popOpts)
       .setLngLat(lngLat)
-      // The mark is what buys the compactness: one filled cell inside its square says "a
-      // square of the grid" at 10px, so the digits after it need no word of label to say
-      // what they are the address of.
-      //
-      // The zoom is dimmed, not dropped. Every square on this map is z14, so those three
-      // characters tell a reader nothing -- but they are what makes the string resolvable on
-      // its own when it comes back in a message, and dropping them would make what is shown
-      // differ from what is copied. Dim says both of those at once.
-      //
-      // The key is in the title as well: `flash` strips `aria-label` when the copied tick
-      // times out, so the title is what is left describing the control after a press.
-      .setHTML('<button type="button" class="crewpopid" data-tile="' + esc(tileId)
-        + '" title="' + esc(tileId + " \u00b7 " + t("crew.pop.code"))
-        + '" aria-label="' + esc(t("crew.pop.code")) + '">' + ICON_TILE
-        // One wrapper around the whole key, and no whitespace inside it. The button is a
-        // flex row, so every child of it is a flex item and the 5px that separates the mark
-        // from the code would open between `14/` and `9054/3714` as well -- which is how it
-        // first shipped, reading as two things rather than one reference. Inside the wrapper
-        // the dimmed zoom is inline, so the key is one run of text: `textContent` is the key,
-        // and so is what a reader gets by dragging across it.
-        + '<span class="crewpopk"><span class="crewpopz">' + esc(tileId.slice(0, cut))
-        + "</span>" + esc(tileId.slice(cut)) + "</span></button>"
-        + '<div class="crewpop-in"><span class="crewpopleft">'
+      // The key is in the title as well as the label: `flash` strips `aria-label` when the
+      // copied tick times out, so the title is what is left describing the control after a
+      // press -- and on this block it is also the only place the zoom is readable.
+      .setHTML('<div class="crewpop-in"><span class="crewpopleft">'
         + '<img src="/api/v1/crews/' + encodeURIComponent(p.slug)
         // The name is the control that opens the crew, which is where Details went when the
         // second button became Next patch. It stays a `<b>` rather than gaining a wrapper:
         // the stylesheet colours this block by element and by sibling order, so an extra
         // span here would quietly repaint the two lines under it.
-        + '/emblem" alt=""/></span>'
+        + '/emblem" alt=""/>'
+        + '<button type="button" class="crewpopid" data-tile="' + esc(tileId)
+        + '" title="' + esc(tileId + " \u00b7 " + t("crew.pop.code"))
+        + '" aria-label="' + esc(t("crew.pop.code")) + '">'
+        + keyRows(tx, ty) + "</button></span>"
         + '<div><b class="crewpopnm" data-det="' + esc(p.slug) + '">'
         + esc(p.name) + "</b><span>" + esc(state)
         + "</span><span>" + esc(detail)
