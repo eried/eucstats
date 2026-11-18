@@ -33,13 +33,8 @@ brand is genuinely fast or just loud.
 
 **App and OS stats.** Who's on the latest app, and who's still riding a build from 2021.
 
-**30 languages.** The same ones the app ships, plus British English. It picks up your
-browser's language on its own, and you can switch any time from the menu. Even the trophy
-names get translated, not just the buttons.
-
-**Your units.** Distance, temperature and altitude are three separate switches (km or mi,
-°C or °F, m or ft), so miles with Celsius is one tap. The choice follows you to the
-[Trip Viewer](https://github.com/eried/eucviewer) and back.
+**Your language, your units.** It picks up your browser's language on its own, shows
+distances and temperatures the way you read them, and lets you change either from the menu.
 
 ## Privacy (the whole point)
 
@@ -88,10 +83,8 @@ heatmap tuning, metric visibility, an activity/health log, and a sandbox of magi
 
 ## Contributing
 
-The backend is `services/` and `ingest/`, the public site is `web/public.py`, Crews is
-`web/static/crews.js`, and the admin is `web/admin.py`. Text lives in `web/i18n.py`
-(English, the source) and `web/i18n_data.py` (the translations, generated: change the
-English, retranslate, then run `scripts/stamp_i18n.py`). PRs welcome, bugs go to
+The backend is `services/` and `ingest/`, the public site and the admin are in `web/`,
+and the English in `web/i18n.py` is the source for every translation. PRs welcome, bugs go to
 [Issues](../../issues), live chat is on [Telegram](https://t.me/EUCPlanetApp).
 
 ## Support
