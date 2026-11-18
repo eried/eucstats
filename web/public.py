@@ -593,7 +593,7 @@ function rowsCls(n){return n<=3?' onerow':(n>=7?' threerow':'');}   // 1 row (<=
 // Only four countries use imperial road units, so we list their zones explicitly and treat
 // every other (or unrecognized) zone as metric: never guess imperial.
 const MI=0.621371;
-const IMPERIAL_TZ={"America/New_York":"US","America/Detroit":"US","America/Kentucky/Louisville":"US","America/Kentucky/Monticello":"US","America/Indiana/Indianapolis":"US","America/Indiana/Vincennes":"US","America/Indiana/Winamac":"US","America/Indiana/Marengo":"US","America/Indiana/Petersburg":"US","America/Indiana/Vevay":"US","America/Indiana/Tell_City":"US","America/Indiana/Knox":"US","America/Chicago":"US","America/Menominee":"US","America/North_Dakota/Center":"US","America/North_Dakota/New_Salem":"US","America/North_Dakota/Beulah":"US","America/Denver":"US","America/Boise":"US","America/Phoenix":"US","America/Los_Angeles":"US","America/Anchorage":"US","America/Juneau":"US","America/Sitka":"US","America/Metlakatla":"US","America/Yakutat":"US","America/Nome":"US","America/Adak":"US","Pacific/Honolulu":"US","Europe/London":"GB","Africa/Monrovia":"LR","Asia/Yangon":"MM","Asia/Rangoon":"MM"};
+const IMPERIAL_TZ={"America/Puerto_Rico":"US","America/St_Thomas":"US","Pacific/Pago_Pago":"US","Pacific/Guam":"US","Pacific/Saipan":"US","Pacific/Midway":"US","Pacific/Wake":"US","Europe/Belfast":"GB","Europe/Jersey":"GB","Europe/Guernsey":"GB","Europe/Isle_of_Man":"GB","America/New_York":"US","America/Detroit":"US","America/Kentucky/Louisville":"US","America/Kentucky/Monticello":"US","America/Indiana/Indianapolis":"US","America/Indiana/Vincennes":"US","America/Indiana/Winamac":"US","America/Indiana/Marengo":"US","America/Indiana/Petersburg":"US","America/Indiana/Vevay":"US","America/Indiana/Tell_City":"US","America/Indiana/Knox":"US","America/Chicago":"US","America/Menominee":"US","America/North_Dakota/Center":"US","America/North_Dakota/New_Salem":"US","America/North_Dakota/Beulah":"US","America/Denver":"US","America/Boise":"US","America/Phoenix":"US","America/Los_Angeles":"US","America/Anchorage":"US","America/Juneau":"US","America/Sitka":"US","America/Metlakatla":"US","America/Yakutat":"US","America/Nome":"US","America/Adak":"US","Pacific/Honolulu":"US","Europe/London":"GB","Africa/Monrovia":"LR","Asia/Yangon":"MM","Asia/Rangoon":"MM"};
 // Which quantities each profile shows in imperial (d=distance/speed, t=temperature, a=altitude).
 // The UK and Myanmar use miles and mph on the road but Celsius and metres for everything else,
 // so "imperial" is per-quantity — one global flag handed British riders °F and feet they never use.
@@ -601,7 +601,16 @@ const UNIT_PROFILES={"kmh":{"d":0,"t":0,"a":0},"mph":{"d":1,"t":1,"a":1},"road":
 const REGION_PROFILE={"US":"mph","LR":"mph","GB":"road","MM":"road"};
 function homeRegion(){try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)return IMPERIAL_TZ[tz]||"";}catch(e){}return "";}
 function defaultUnit(){return REGION_PROFILE[homeRegion()]||"kmh";}
-let UNIT=localStorage.getItem("eucstats_unit")||defaultUnit();
+// The choice is shared with eucviewer.ried.no through a cookie on the parent domain, which both
+// sites can read (localStorage is per site). It is read first: it is the newer of the two whenever
+// the units were last changed over there. The name and the values (metric / imperial / road) must
+// match the viewer's static/js/units.js. Off ried.no (localhost, a fork) it stays with the host.
+const SHARED_UNIT={"metric":"kmh","imperial":"mph","road":"road"};
+function sharedUnit(){try{const m=document.cookie.match(/(?:^|;\s*)euc_units=([^;]*)/);return m?(SHARED_UNIT[decodeURIComponent(m[1])]||""):"";}catch(e){return "";}}
+function shareUnit(u){try{const v=Object.keys(SHARED_UNIT).find(k=>SHARED_UNIT[k]===u);if(!v)return;
+  const dom=/(^|\.)ried\.no$/.test(location.hostname)?"; domain=ried.no":"";
+  document.cookie="euc_units="+v+dom+"; path=/; max-age=31536000; samesite=lax";}catch(e){}}
+let UNIT=sharedUnit()||localStorage.getItem("eucstats_unit")||defaultUnit();
 const RASTER=(t,a)=>({version:8,sources:{r:{type:"raster",tiles:[t],tileSize:256,attribution:a,maxzoom:19}},layers:[{id:"r",type:"raster",source:"r"}]});
 const STYLES={dark:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",light:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",voyager:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",satellite:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}","© Esri, Maxar"),terrain:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}","© Esri")};
 let MAPSTYLE=localStorage.getItem("eucstats_style")||(window.__CFG__&&window.__CFG__.map_style)||"dark";
@@ -1297,7 +1306,7 @@ function setupCfg(){
       `</span></div>`;
     const lsel=cfg.querySelector("#langsel");
     if(lsel)lsel.onchange=async()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}await ensureLang(LANG);applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
-    cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
+    cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);shareUnit(UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
     const sq=cfg.querySelector("#crewsqchk");
     if(sq) sq.onchange=()=>{ try{window.EUCCrews.setOverlay(sq.checked);}catch(e){} };

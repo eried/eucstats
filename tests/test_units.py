@@ -71,3 +71,32 @@ def test_liberia_gets_full_imperial():
 def test_unknown_timezone_falls_back_to_metric():
     """Never guess imperial: an unrecognised or missing zone must stay metric."""
     assert _profile_for(_page(), "Not/AZone") == METRIC
+
+
+def test_us_territories_and_crown_dependencies_match_the_viewer():
+    """eucviewer.ried.no resolves these zones too; the two sites must not disagree."""
+    page = _page()
+    for tz in ("America/Puerto_Rico", "America/St_Thomas", "Pacific/Guam", "Pacific/Pago_Pago"):
+        assert _profile_for(page, tz) == IMPERIAL, tz
+    for tz in ("Europe/Jersey", "Europe/Guernsey", "Europe/Isle_of_Man", "Europe/Belfast"):
+        assert _profile_for(page, tz) == ROAD_ONLY, tz
+
+
+def test_unit_choice_is_shared_with_the_viewer():
+    """A cookie on the parent domain carries the choice between eucstats and eucviewer.
+
+    The viewer writes `euc_units` as metric / imperial / road (its static/js/units.js); every
+    one of those has to land on a profile that exists here, and the cookie has to be consulted
+    before this site's own localStorage, or a change made over there would never arrive.
+    """
+    page = _page()
+    shared = _table(page, "SHARED_UNIT")
+    profiles = _table(page, "UNIT_PROFILES")
+    assert set(shared) == {"metric", "imperial", "road"}
+    assert all(v in profiles for v in shared.values())
+    assert profiles[shared["metric"]] == METRIC
+    assert profiles[shared["imperial"]] == IMPERIAL
+    assert profiles[shared["road"]] == ROAD_ONLY
+    assert 'let UNIT=sharedUnit()||localStorage.getItem("eucstats_unit")||defaultUnit();' in page
+    assert "domain=ried.no" in page, "the cookie must be set on the parent domain to be shared"
+    assert "shareUnit(UNIT)" in page, "changing units in the gear menu must update the cookie"
