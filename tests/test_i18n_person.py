@@ -281,7 +281,7 @@ PLURAL = {
 # check. Both were audited by hand and neither has a live defect -- `crew.legend.note` uses
 # `自分たち` and `너희` correctly. They are exempt by name rather than by omission, so that a
 # nineteenth locale cannot join the set and be skipped in silence.
-EXEMPT = {"ja", "ko"}
+EXEMPT = {"ja", "ko", "en-GB"}      # English does not mark number in "you"
 
 
 def test_every_locale_is_either_checked_or_exempt():

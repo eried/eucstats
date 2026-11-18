@@ -49,7 +49,7 @@ EN: dict[str, str] = {
     # was hard-coded English in all nineteen, including the notice that says what a
     # pass can and cannot do -- which is the one string on it that matters.
     "pair.h": "Crew Pass",
-    "pair.p": "Say yes in {app} and that browser can fly your colours.",
+    "pair.p": "Say yes in {app} and that browser can fly your colors.",
     "pair.noapp": "App did not open? Start it yourself, go to {crews}, and punch in the code above.",
     "pair.safe": "Only say yes to a code you asked for. A pass lets a browser act for you in crews: start one, join one, leave one. It can't send up rides, rename you, or delete anything.",
     # A code lives three minutes and works once, so a scan of a photographed QR is likelier
@@ -69,7 +69,7 @@ EN: dict[str, str] = {
     "crew.hook.1": "Take over the world. The EUC bit of it, anyway.",
     "crew.hook.2": "The streets are going to belong to somebody. Might as well be you.",
     "crew.hook.3": "Ride it and it is yours. Stop, and somebody comes for it.",
-    "crew.hook.4": "Your city, in your colours, if you can hold it.",
+    "crew.hook.4": "Your city, in your colors, if you can hold it.",
     "crew.hook.5": "Every square out there has somebody's name on it. Change that.",
     "crew.hook.6": "Turn the ride home into a land grab.",
     # Which app, which version, and where the screen is inside it. NOT "scan it with" --
@@ -77,7 +77,7 @@ EN: dict[str, str] = {
     # already says what does the scanning. What a reader cannot guess is where the screen
     # lives, so that is what this spends its words on. The path matches the app's own
     # labels: Settings, then EUC Stats, then a row titled Crews.
-    "crew.signin.scan": "EUC Planet {v} or newer. In the app: Settings, EUC Stats, Crews.",
+    "crew.signin.scan": "EUC Planet {v} or newer. In the app: Settings, Online leaderboards, Crew pass.",
     # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
     # from services.pairing.MIN_APP, so a release is one line and not nineteen.
     "crew.signin.needs": "Needs EUC Planet {v} or newer.",
@@ -94,10 +94,10 @@ EN: dict[str, str] = {
     "crew.signin.tap": "On this phone? Tap the code to open EUC Planet.",
     # starting one
     "crew.new.h": "Start a crew",
-    "crew.new.p": "We picked colours nobody else is flying. Change them now: once your first square is on the map they stay as they are.",
+    "crew.new.p": "We picked colors nobody else is flying. Change them now: once your first square is on the map they stay as they are.",
     "crew.new.name": "Name",
     "crew.new.desc": "Description",
-    "crew.new.colours": "Colours",
+    "crew.new.colours": "Colors",
     # `solid`, `stripes`, `dots` and `hatch` were raw array identifiers, and the colour cells
     # were named by hex code -- twenty-four of them read aloud, and the only strings in the
     # create card that did not change with the language.
@@ -117,7 +117,7 @@ EN: dict[str, str] = {
     # The swatch's own name plus its index. Forty-eight of these said "Colour 1".."Colour 48"
     # while the patterns beside them said "stripes" -- in the grid where somebody who cannot
     # see the difference needs words most. The name is derived from the hex; see colourName.
-    "crew.new.colourn": "{v}, colour {n}",
+    "crew.new.colourn": "{v}, color {n}",
     "crew.new.identw": "{c}, {p}",
     "crew.hue.red": "red",
     "crew.hue.orange": "orange",
@@ -129,7 +129,7 @@ EN: dict[str, str] = {
     "crew.hue.blue": "blue",
     "crew.hue.purple": "purple",
     "crew.hue.pink": "pink",
-    "crew.hue.grey": "grey",
+    "crew.hue.grey": "gray",
     "crew.hue.white": "white",
     "crew.hue.black": "black",
     "crew.hue.pale": "pale {v}",
@@ -252,13 +252,13 @@ EN: dict[str, str] = {
     "crew.mine.cancelq": "Pull your request to {name}? Costs you nothing.",
     "crew.mine.disband": "Disband",
     "crew.mine.dangerh": "Ends it for everyone",
-    "crew.mine.disbandq": "Disband {name}? Colours go back in the box and the map fades out on its own. No waiting afterwards. You can start or join another straight away.",
+    "crew.mine.disbandq": "Disband {name}? Colors go back in the box and the map fades out on its own. No waiting afterwards. You can start or join another straight away.",
     # The same question when other people are in it. The single-string version was read
     # out word for word to the leader of a five-rider crew sitting first on the board,
     # and it never mentioned that four other riders lose their crew. `leaveq` has had
     # four variants for less than this. Phrased so one rider and four read the same way:
     # "takes it away from 1 rider besides you" needs no verb agreement.
-    "crew.mine.disbandq.others": "Disband {name}? That takes it away from {r} besides you, and they get no say in it. Colours go back in the box and the map fades out on its own. No waiting afterwards. You can start or join another straight away.",
+    "crew.mine.disbandq.others": "Disband {name}? That takes it away from {r} besides you, and they get no say in it. Colors go back in the box and the map fades out on its own. No waiting afterwards. You can start or join another straight away.",
     "crew.mine.onmap": "Show your crew's ground on the map",
     "crew.asked.ago": "asked {d} ago",
     # The short end, which `crew.ago.` has no buckets for: its floor is "a day or two",
@@ -455,10 +455,10 @@ EN: dict[str, str] = {
     "crew.e.increw": "Leave your crew first.",
     "crew.e.notrips": "Send up one ride first.",
     "crew.e.cooldown": "Still cooling off from the last one.",
-    "crew.e.identity": "Another crew already flies those colours.",
+    "crew.e.identity": "Another crew already flies those colors.",
     "crew.e.gone": "That crew is gone.",
     "crew.e.promote": "Make somebody an officer first. Someone has to run the place.",
-    "crew.e.image2": "Too busy to shrink. Try something flatter, with fewer colours.",
+    "crew.e.image2": "Too busy to shrink. Try something flatter, with fewer colors.",
     "crew.e.image": "That picture will not do. A small square PNG, under 2 MB.",
     # Eight hex characters a new leader had to select by hand, inside a
     # panel that scrolls under your finger.
@@ -470,11 +470,11 @@ EN: dict[str, str] = {
     # The colours are a guess until the crew is on the map and a fact afterwards, so the
     # picker goes away at the moment the rectangles appear. Doubles as the refusal if a
     # request tries anyway.
-    "crew.mine.colourlock": "Your colours are on the map now, so they stay as they are.",
+    "crew.mine.colourlock": "Your colors are on the map now, so they stay as they are.",
     # Shown only when nothing has been uploaded: with a picture there, the picture
     # is the answer. It said "from your name", which stopped being true when the
     # placeholder became the crew's colour under its own pattern.
-    "crew.mine.emblemp": "Drawn from your crew's colours.",
+    "crew.mine.emblemp": "Drawn from your crew's colors.",
     "crew.mine.embpick": "Upload a picture",
     "crew.mine.rmpic": "Remove picture",
     "crew.mine.save": "Save",
@@ -505,7 +505,7 @@ EN: dict[str, str] = {
     "crew.how.h": "How crews work",
     # What the mode IS, before any of the rules for playing it. The manual opened on "Ride it,
     # it turns your colour", which is a rule and not an answer.
-    "crew.how.intro": "The world is carved into squares. Ride the same ones harder than anyone else and they turn your crew's colour. Hold a block of them and your crew is on the map, with every other crew out there coming to take it.",
+    "crew.how.intro": "The world is carved into squares. Ride the same ones harder than anyone else and they turn your crew's color. Hold a block of them and your crew is on the map, with every other crew out there coming to take it.",
     "crew.how.s1": "Conquering territory",
     "crew.how.s2": "Losing ground",
     "crew.how.s3": "Your crew",
@@ -521,7 +521,7 @@ EN: dict[str, str] = {
     # the question is the right one.
     "crew.how.c1": "Contested. Another crew is riding it too.",
     "crew.how.c0": "Uncontested. Nobody else has put a wheel in it lately.",
-    "crew.how.s4": "What the colours mean",
+    "crew.how.s4": "What the colors mean",
     "crew.how.s5": "What the numbers mean",
     "crew.how.n1": "The board ranks a crew on its biggest patch, not on everything it holds. Two patches of ten lose to one of eleven.",
     # This said "squares and km² are the same thing counted twice" and then, in the same
@@ -540,7 +540,7 @@ EN: dict[str, str] = {
     # own was told that was allowed and then found it was not.
     "crew.how.cool": "Walk out of a crew and you wait {v} before joining another one or starting your own.",
     "crew.how.size": "A crew holds {n} riders at most.",
-    "crew.how.1": "Ride a square and it turns your colour. Whoever rode it most over the last {d} days holds it.",
+    "crew.how.1": "Ride a square and it turns your color. Whoever rode it most over the last {d} days holds it.",
     # "a 2x2 block, about 1.2 km across" -- `{v}` is the width of ONE square, so that
     # sentence put a 2x2 block at the size of a single square, and the numbers section
     # printed the same figure for one square two sections later. "each" fixes it.
@@ -625,7 +625,7 @@ EN: dict[str, str] = {
     # square", and finding it meant scanning all of them. The key is what the server files
     # every answer under, so it is the reference both ends can quote.
     "crew.pop.code": "Copy this square's code",
-    "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's colour.",
+    "crew.pub.what": "Crews cut the map into squares. Ride inside one and it turns your crew's color.",
     "crew.pub.scan": "Scan to find this crew",
     "crew.pub.open": "Check it out in {host}",
     # What the button on a crew's own page says, chosen by how that crew lets people in.
@@ -647,7 +647,7 @@ EN: dict[str, str] = {
     "crew.roles.more.few": "Show {n} more",
     "crew.roles.more": "Show {n} more",
     "crew.roles.promote": "Make officer",
-    "crew.roles.promoteq": "Make {name} an officer? They can rename the crew, change its colours and emblem, let riders in and take them off. They cannot end the crew or touch you, and you can stand them down again any time.",
+    "crew.roles.promoteq": "Make {name} an officer? They can rename the crew, change its colors and emblem, let riders in and take them off. They cannot end the crew or touch you, and you can stand them down again any time.",
     "crew.roles.handover": "Hand over",
     "crew.roles.handoverq": "Hand {name} to {who}? They run it from then on and you become an officer. Only they can give it back.",
     "crew.tip.handover": "They become the leader. You become an officer.",
@@ -870,7 +870,7 @@ EN: dict[str, str] = {
     # new gated / extreme boards (ship disabled). The qualifying ride length + distance
     # is appended on the client, unit-aware, so it's not part of the description string.
     "b.temphigh.n": "High Temp",
-    "b.temphigh.d": "Hottest the board ever ran",
+    "b.temphigh.d": "Hottest the wheel ever ran",
     "b.templow.n": "Low Temp",
     "b.templow.d": "Coldest ride",
     "b.temprise.n": "Temp Climb",
@@ -945,12 +945,12 @@ EN: dict[str, str] = {
     "g.cutout.d": "Cutouts per 1000 km ridden",
     "g.climb.d": "Biggest single climb",
     "g.alt.d": "Highest altitude reached",
-    "g.temp.d": "Hottest the board ran",
+    "g.temp.d": "Hottest the wheel ran",
 }
 
 # Native names shown in the language selector (never translated).
 LANG_NAMES: dict[str, str] = {
-    "en": "English", "da": "Dansk", "de": "Deutsch", "es-419": "Español",
+    "en": "English", "en-GB": "English (UK)", "da": "Dansk", "de": "Deutsch", "es-419": "Español",
     "es": "Español (España)", "fr": "Français", "it": "Italiano",
     "nl": "Nederlands", "no": "Norsk", "pl": "Polski", "pt-BR": "Português (BR)",
     "ru": "Русский", "sv": "Svenska", "uk": "Українська",
@@ -1003,7 +1003,11 @@ def pick(accept_language: str) -> str:
             continue
         base = code.split("-")[0]
         reg = code.split("-")[1] if "-" in code else ""
-        if base == "pt":
+        if base == "en":
+            # British spelling for the countries that use it; everyone else, and a bare
+            # `en`, reads the American table, which is the site's own English.
+            loc = "en-GB" if reg in ("gb", "uk", "ie", "au", "nz", "za", "in") else "en"
+        elif base == "pt":
             # Portugal and Lusophone Africa read European Portuguese; a bare `pt` and
             # everything else stays Brazilian, which is where most of those readers are.
             loc = "pt-PT" if reg in ("pt", "ao", "mz", "cv", "gw", "st", "tl") else "pt-BR"

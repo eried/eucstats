@@ -52,7 +52,7 @@ WITHOUT_ONE = [
 FAMILIES = WITH_ONE + WITHOUT_ONE
 
 # The languages here with a distinct category for 2, 3 and 4.
-HAS_FEW = {"ru", "uk", "pl", "cs", "sk"}
+HAS_FEW = {"ru", "uk", "pl", "cs", "sk", "ro"}
 
 
 @pytest.mark.parametrize("loc", sorted(TRANSLATIONS))
@@ -89,6 +89,8 @@ def cldr(loc, n):
         if 2 <= d <= 4 and not (12 <= h <= 14):
             return "few"
         return "many"
+    if loc == "ro":
+        return "one" if n == 1 else "few" if n == 0 or 1 <= h <= 19 else "many"
     if loc in ("cs", "sk"):
         return "one" if n == 1 else "few" if 2 <= n <= 4 else "many"
     return "one" if n == 1 else "many"

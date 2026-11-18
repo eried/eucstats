@@ -2086,6 +2086,9 @@
       return t(one, { n: n });
     }
     if (few && FEW_TO_4[locale()]) return t(n >= 2 && n <= 4 ? few : many, { n: n });
+    // Romanian counts bare up to 19 and takes "de" from 20: `19 pătrate`, `20 de pătrate`,
+    // and bare again for 101 to 119. The bare form is in the `.few` slot.
+    if (few && locale() === "ro") return t(n === 0 || (h >= 1 && h <= 19) ? few : many, { n: n });
     if (few && d >= 2 && d <= 4 && (h < 12 || h > 14)) return t(few, { n: n });
     return t(many, { n: n });
   }
