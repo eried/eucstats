@@ -318,6 +318,7 @@ td.sub{color:var(--mut)}
 @media(max-width:560px){.sheet{width:96vw;max-height:94dvh}.sheetbody{padding:14px 13px 20px}}
 .crow{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:10px;font-size:12px;color:var(--mut);letter-spacing:.4px}
 .crow>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.segs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:3px}
 .seg button{background:transparent;border:0;color:var(--mut);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer}
 .seg button.on{background:var(--acc);color:#04101f;font-weight:700}
@@ -414,7 +415,12 @@ function _mapLang(raw){if(!raw)return null;const lc=(""+raw).toLowerCase(),base=
   if(base==="nb"||base==="nn"||base==="no")return "no";
   if(base==="es"){const LAT=["419","MX","AR","CO","CL","PE","VE","EC","GT","CU","BO","DO","HN","PY","SV","NI","CR","PA","UY","PR"];return LAT.indexOf(reg)>=0?"es-419":"es";}
   return LANGS[base]?base:null;}
-function _detectLang(){try{const s=localStorage.getItem("eucstats_lang");if(s&&LANGS[s])return s;
+// Shared with eucviewer.ried.no like the units are: a cookie on the parent domain, read before
+// this site's own localStorage. The viewer has more languages; a code missing here is ignored.
+function _sharedLang(){try{const m=document.cookie.match(/(?:^|;\s*)euc_lang=([^;]*)/);const v=m?decodeURIComponent(m[1]):"";return LANGS[v]?v:"";}catch(e){return "";}}
+function _shareLang(l){try{const dom=/(^|\.)ried\.no$/.test(location.hostname)?"; domain=ried.no":"";
+  document.cookie="euc_lang="+encodeURIComponent(l)+dom+"; path=/; max-age=31536000; samesite=lax";}catch(e){}}
+function _detectLang(){try{const c=_sharedLang();if(c)return c;const s=localStorage.getItem("eucstats_lang");if(s&&LANGS[s])return s;
   const navs=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||"en"];
   for(let i=0;i<navs.length;i++){const m=_mapLang(navs[i]);if(m&&LANGS[m])return m;}}catch(e){}return "en";}
 let LANG=_detectLang();
@@ -597,15 +603,19 @@ const IMPERIAL_TZ={"America/Puerto_Rico":"US","America/St_Thomas":"US","Pacific/
 // Which quantities each profile shows in imperial (d=distance/speed, t=temperature, a=altitude).
 // The UK and Myanmar use miles and mph on the road but Celsius and metres for everything else,
 // so "imperial" is per-quantity — one global flag handed British riders °F and feet they never use.
-const UNIT_PROFILES={"kmh":{"d":0,"t":0,"a":0},"mph":{"d":1,"t":1,"a":1},"road":{"d":1,"t":0,"a":0}};
+// The gear menu has two switches, km|mi and °C|°F; altitude has none and follows temperature
+// (everywhere that reads the weather in °F also measures a hill in feet).
+const UNIT_PROFILES={"kmh":{"d":0,"t":0,"a":0},"mph":{"d":1,"t":1,"a":1},"road":{"d":1,"t":0,"a":0},"kmf":{"d":0,"t":1,"a":1}};
+function unitFor(d,t){return d?(t?"mph":"road"):(t?"kmf":"kmh");}
 const REGION_PROFILE={"US":"mph","LR":"mph","GB":"road","MM":"road"};
 function homeRegion(){try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)return IMPERIAL_TZ[tz]||"";}catch(e){}return "";}
 function defaultUnit(){return REGION_PROFILE[homeRegion()]||"kmh";}
 // The choice is shared with eucviewer.ried.no through a cookie on the parent domain, which both
 // sites can read (localStorage is per site). It is read first: it is the newer of the two whenever
-// the units were last changed over there. The name and the values (metric / imperial / road) must
-// match the viewer's static/js/units.js. Off ried.no (localhost, a fork) it stays with the host.
-const SHARED_UNIT={"metric":"kmh","imperial":"mph","road":"road"};
+// the units were last changed over there. The name and the values (<distance>-<temperature>:
+// km-c / mi-c / mi-f / km-f) must match the viewer's static/js/units.js; the older profile names
+// are still read. Off ried.no (localhost, a fork) it stays with the host.
+const SHARED_UNIT={"km-c":"kmh","mi-c":"road","mi-f":"mph","km-f":"kmf","metric":"kmh","imperial":"mph","road":"road"};
 function sharedUnit(){try{const m=document.cookie.match(/(?:^|;\s*)euc_units=([^;]*)/);return m?(SHARED_UNIT[decodeURIComponent(m[1])]||""):"";}catch(e){return "";}}
 function shareUnit(u){try{const v=Object.keys(SHARED_UNIT).find(k=>SHARED_UNIT[k]===u);if(!v)return;
   const dom=/(^|\.)ried\.no$/.test(location.hostname)?"; domain=ried.no":"";
@@ -1297,7 +1307,7 @@ function setupCfg(){
     const maps=[["dark",t("map.dark")],["light",t("map.light")],["voyager",t("map.voyager")],["satellite",t("map.satellite")],["terrain",t("map.topo")]];
     const langs=Object.keys(LANGS).map(l=>`<option value="${l}" ${LANG===l?'selected':''}>${LANGS[l]}</option>`).join("");
     cfg.innerHTML=`<div class="crow"><span>${t("cfg.language")}</span><select id="langsel" class="csel">${langs}</select></div>`+
-      `<div class="crow"><span>${t("cfg.units")}</span><div class="seg"><button data-u="kmh" class="${UNIT==='kmh'?'on':''}">${t("u.metric")}</button><button data-u="mph" class="${UNIT!=='kmh'?'on':''}">${t("u.imperial")}</button></div></div>`+
+      `<div class="crow"><span>${t("cfg.units")}</span><div class="segs"><div class="seg"><button data-ud="0" class="${U().d?'':'on'}">km</button><button data-ud="1" class="${U().d?'on':''}">mi</button></div><div class="seg"><button data-ut="0" class="${U().t?'':'on'}">°C</button><button data-ut="1" class="${U().t?'on':''}">°F</button></div></div></div>`+
       `<div class="crow"><span>${t("cfg.map")}</span><select id="mapsel" class="csel">${maps.map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
       crewLayerRow()+
       `<div class="crow"><span>${t("cfg.intro")}</span><span class="introctl">`+
@@ -1305,8 +1315,8 @@ function setupCfg(){
         `<button id="introbtn" class="cbtn"${on?'':' disabled'}>${t("cfg.replay")}</button>`+
       `</span></div>`;
     const lsel=cfg.querySelector("#langsel");
-    if(lsel)lsel.onchange=async()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}await ensureLang(LANG);applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
-    cfg.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{UNIT=b.dataset.u;localStorage.setItem("eucstats_unit",UNIT);shareUnit(UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
+    if(lsel)lsel.onchange=async()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}_shareLang(LANG);await ensureLang(LANG);applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
+    cfg.querySelectorAll("[data-ud],[data-ut]").forEach(b=>b.onclick=()=>{UNIT=unitFor(b.dataset.ud!=null?+b.dataset.ud:U().d,b.dataset.ut!=null?+b.dataset.ut:U().t);localStorage.setItem("eucstats_unit",UNIT);shareUnit(UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
     const sq=cfg.querySelector("#crewsqchk");
     if(sq) sq.onchange=()=>{ try{window.EUCCrews.setOverlay(sq.checked);}catch(e){} };

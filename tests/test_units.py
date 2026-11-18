@@ -14,6 +14,7 @@ from main import app
 METRIC = {"d": 0, "t": 0, "a": 0}
 IMPERIAL = {"d": 1, "t": 1, "a": 1}
 ROAD_ONLY = {"d": 1, "t": 0, "a": 0}      # miles & mph, but Celsius and metres
+KM_FAHRENHEIT = {"d": 0, "t": 1, "a": 1}  # nobody's default, but the two switches allow it
 
 
 def _page() -> str:
@@ -85,18 +86,45 @@ def test_us_territories_and_crown_dependencies_match_the_viewer():
 def test_unit_choice_is_shared_with_the_viewer():
     """A cookie on the parent domain carries the choice between eucstats and eucviewer.
 
-    The viewer writes `euc_units` as metric / imperial / road (its static/js/units.js); every
-    one of those has to land on a profile that exists here, and the cookie has to be consulted
-    before this site's own localStorage, or a change made over there would never arrive.
+    The viewer writes `euc_units` as <distance>-<temperature> (its static/js/units.js); every
+    one of the four has to land on a profile that exists here, and the cookie has to be
+    consulted before this site's own localStorage, or a change made over there would never
+    arrive. The profile names the cookie carried at first are still read.
     """
     page = _page()
     shared = _table(page, "SHARED_UNIT")
     profiles = _table(page, "UNIT_PROFILES")
-    assert set(shared) == {"metric", "imperial", "road"}
+    assert set(shared) == {"km-c", "mi-c", "mi-f", "km-f", "metric", "imperial", "road"}
     assert all(v in profiles for v in shared.values())
-    assert profiles[shared["metric"]] == METRIC
-    assert profiles[shared["imperial"]] == IMPERIAL
-    assert profiles[shared["road"]] == ROAD_ONLY
+    assert profiles[shared["km-c"]] == profiles[shared["metric"]] == METRIC
+    assert profiles[shared["mi-f"]] == profiles[shared["imperial"]] == IMPERIAL
+    assert profiles[shared["mi-c"]] == profiles[shared["road"]] == ROAD_ONLY
+    assert profiles[shared["km-f"]] == KM_FAHRENHEIT
+    # What is written back must be the new spelling, so the first match for a profile wins.
+    first = {}
+    for code, profile in shared.items():
+        first.setdefault(profile, code)
+    assert set(first.values()) == {"km-c", "mi-c", "mi-f", "km-f"}
     assert 'let UNIT=sharedUnit()||localStorage.getItem("eucstats_unit")||defaultUnit();' in page
     assert "domain=ried.no" in page, "the cookie must be set on the parent domain to be shared"
     assert "shareUnit(UNIT)" in page, "changing units in the gear menu must update the cookie"
+
+
+def test_units_are_two_switches_and_altitude_follows_temperature():
+    """km|mi and °C|°F, independently. Feet come with Fahrenheit, never with miles alone."""
+    page = _page()
+    profiles = _table(page, "UNIT_PROFILES")
+    assert all(p["a"] == p["t"] for p in profiles.values())
+    assert {(p["d"], p["t"]) for p in profiles.values()} == {(0, 0), (0, 1), (1, 0), (1, 1)}
+    assert 'function unitFor(d,t){return d?(t?"mph":"road"):(t?"kmf":"kmh");}' in page
+    for marker in ('data-ud="0"', 'data-ud="1"', 'data-ut="0"', 'data-ut="1"'):
+        assert marker in page, marker
+    assert 'data-u="kmh"' not in page, "the old Metric / Imperial pair is still there"
+
+
+def test_language_choice_is_shared_with_the_viewer():
+    """Same cookie trick as the units: `euc_lang` on the parent domain, read first."""
+    page = _page()
+    assert "function _detectLang(){try{const c=_sharedLang();if(c)return c;" in page
+    assert "_shareLang(LANG)" in page, "changing language in the gear menu must update the cookie"
+    assert 'document.cookie="euc_lang="' in page
