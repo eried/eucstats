@@ -629,6 +629,8 @@ EN_FINGERPRINT = {
     'u.activeRiders': '3e2aadec34d9',
     'u.imperial': '5d3908ac11c0',
     'u.metric': 'b2bb7604c825',
+    'u.rider1': '9b0f5dd636f6',
     'u.riders': 'fee417a5c1d1',
+    'u.riders.few': 'fee417a5c1d1',
     'u.ridesLogged': 'e5df96161e6e',
 }

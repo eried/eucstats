@@ -415,7 +415,7 @@ function _mapLang(raw){if(!raw)return null;const lc=(""+raw).toLowerCase(),base=
   if(base==="in"||base==="id")return "id";
   if(base==="zh")return /(^|-)(tw|hk|mo|hant)(-|$)/.test(lc)?"zh-Hant":"zh";
   if(base==="nb"||base==="nn"||base==="no")return "no";
-  if(base==="es")return reg==="ES"?"es":"es-419";
+  if(base==="es"){const LAT=["419","MX","AR","CO","CL","PE","VE","EC","GT","CU","BO","DO","HN","PY","SV","NI","CR","PA","UY","PR","US"];return LAT.indexOf(reg)>=0?"es-419":"es";}
   return LANGS[base]?base:null;}
 // Shared with eucviewer.ried.no like the units are: a cookie on the parent domain, read before
 // this site's own localStorage. The viewer has more languages; a code missing here is ignored.
@@ -974,7 +974,7 @@ function renderGroup(b,cfg){
   // they carry no distance, climb or rider stats to show anywhere else.
   const src=(b.key==="top_speed"&&GANON.length)?GROWS.concat(GANON):GROWS;
   const rows=src.filter(e=>e[b.key]!=null).slice().sort((x,y)=>b.asc?((x[b.key]||1e9)-(y[b.key]||1e9)):((y[b.key]||0)-(x[b.key]||0)));
-  cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>t("u.riders",{n:e.riders})},cfg));
+  cont.innerHTML=podList(rows,Object.assign({label:e=>e.name||e.country,val:e=>gval(b,e),sub:e=>ridersN(e.riders)},cfg));
   if(cfg.click){cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>flyToCountry(rows[+el.dataset.i]));
     fitTop3(rows,e=>{const c=CENTROIDS[(e.country||"").toUpperCase()];return c?[c[0],c[1]]:null;});}
   if(cfg.flow) cont.querySelectorAll("[data-i]").forEach(el=>el.onclick=()=>brandFlow(rows[+el.dataset.i].name));
@@ -992,7 +992,11 @@ async function showGroupPanel(kind,name,title,cfg){
   bindTips(pbody,true);if(vis[sel])renderGroup(vis[sel],cfg);
 }
 function showCountries(){showGroupPanel("country","countries",t("title.countries"),{flag:e=>e.anon?null:e.country,label:e=>e.anon?e.name:(cname(e.country)||e.country),click:true});}
-function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+t("u.riders",{n:e.riders||0})});}
+// "1 riders" was on every country and wheel with one rider. The singular, and the 2-to-4
+// form the Slavic languages need, come from the same rule the Crews panel counts with;
+// before that script has loaded, one and many is as much as can be said.
+function ridersN(n){const C=window.EUCCrews,k=C&&C.pluralKey?C.pluralKey("u.rider1","u.riders.few","u.riders",n):(n===1?"u.rider1":"u.riders");return t(k,{n:n});}
+function showWheels(){showGroupPanel("wheel","wheels",t("title.wheels"),{icon:WHEELIC,label:e=>e.name,sub:e=>(e.brand?e.brand+" · ":"")+ridersN(e.riders||0)});}
 function showBrands(){showGroupPanel("brand","brands",t("title.brands"),{iconFn:e=>brandLogo(e.name),flow:true});}
 async function showRecords(){
   const recs=orderBy((await j("/records")).filter(r=>r.value!=null&&(isAdminView()||!HIDE.records.includes(r.key))),ORDER.records,r=>r.key);

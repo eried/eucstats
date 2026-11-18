@@ -770,6 +770,8 @@ EN: dict[str, str] = {
     "pod.2": "2ND",
     "pod.3": "3RD",
     # generic units / sub-labels
+    "u.rider1": "{n} rider",
+    "u.riders.few": "{n} riders",
     "u.riders": "{n} riders",
     "u.activeRiders": "Active riders",
     "u.ridesLogged": "Rides logged",
@@ -1021,10 +1023,12 @@ def pick(accept_language: str) -> str:
         elif base in ("nb", "nn", "no"):
             loc = "no"
         elif base == "es":
-            # Latin American Spanish is the default and Spain is the named exception:
-            # most Spanish-speaking riders are not in Spain, and a bare `es` says nothing
-            # about where its reader is.
-            loc = "es" if reg == "es" else "es-419"
+            # The same list the app and the viewer use, so one browser lands on the same
+            # Spanish on all three: Latin America and the US read es-419, and a bare `es`
+            # or any other region reads Spain.
+            lat = {"419", "mx", "ar", "co", "cl", "pe", "ve", "ec", "gt", "cu", "bo",
+                   "do", "hn", "py", "sv", "ni", "cr", "pa", "uy", "pr", "us"}
+            loc = "es-419" if reg in lat else "es"
         else:
             loc = base
         if loc in sup:
