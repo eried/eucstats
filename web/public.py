@@ -607,26 +607,31 @@ const IMPERIAL_TZ={"America/Puerto_Rico":"US","America/St_Thomas":"US","Pacific/
 // so "imperial" is per-quantity — one global flag handed British riders °F and feet they never use.
 // The gear menu has two switches, km|mi and °C|°F; altitude has none and follows temperature
 // (everywhere that reads the weather in °F also measures a hill in feet).
-const UNIT_PROFILES={"kmh":{"d":0,"t":0,"a":0},"mph":{"d":1,"t":1,"a":1},"road":{"d":1,"t":0,"a":1},"kmf":{"d":0,"t":1,"a":0}};
-function unitFor(d,t){return d?(t?"mph":"road"):(t?"kmf":"kmh");}
-const REGION_PROFILE={"US":"mph","LR":"mph","GB":"road","MM":"road"};
+// Three independent flags and nothing derived: distance (and speed), temperature, altitude.
+// The key is the value the shared cookie carries, <distance>-<temperature>-<altitude>.
+const UNIT_PROFILES={"km-c-m":{"d":0,"t":0,"a":0},"km-c-ft":{"d":0,"t":0,"a":1},"km-f-m":{"d":0,"t":1,"a":0},"km-f-ft":{"d":0,"t":1,"a":1},"mi-c-m":{"d":1,"t":0,"a":0},"mi-c-ft":{"d":1,"t":0,"a":1},"mi-f-m":{"d":1,"t":1,"a":0},"mi-f-ft":{"d":1,"t":1,"a":1}};
+function unitFor(d,t,a){return (d?"mi":"km")+"-"+(t?"f":"c")+"-"+(a?"ft":"m");}
+const REGION_PROFILE={"US":"mi-f-ft","LR":"mi-f-ft","GB":"mi-c-m","MM":"mi-c-m"};
 function homeRegion(){try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)return IMPERIAL_TZ[tz]||"";}catch(e){}return "";}
-function defaultUnit(){return REGION_PROFILE[homeRegion()]||"kmh";}
+function defaultUnit(){return REGION_PROFILE[homeRegion()]||"km-c-m";}
 // The choice is shared with eucviewer.ried.no through a cookie on the parent domain, which both
 // sites can read (localStorage is per site). It is read first: it is the newer of the two whenever
-// the units were last changed over there. The name and the values (<distance>-<temperature>:
-// km-c / mi-c / mi-f / km-f) must match the viewer's static/js/units.js; the older profile names
-// are still read. Off ried.no (localhost, a fork) it stays with the host.
-const SHARED_UNIT={"km-c":"kmh","mi-c":"road","mi-f":"mph","km-f":"kmf","metric":"kmh","imperial":"mph","road":"road"};
-function sharedUnit(){try{const m=document.cookie.match(/(?:^|;\s*)euc_units=([^;]*)/);return m?(SHARED_UNIT[decodeURIComponent(m[1])]||""):"";}catch(e){return "";}}
-function shareUnit(u){try{const v=Object.keys(SHARED_UNIT).find(k=>SHARED_UNIT[k]===u);if(!v)return;
+// the units were last changed over there. The name and the value (<distance>-<temperature>-<altitude>:
+// km-c-m / mi-c-m / mi-f-ft ...) must match the viewer's static/js/units.js. Older spellings are
+// still read: two parts (altitude was feet with Fahrenheit then), the profile names the cookie
+// carried at first, and the names this site kept in localStorage. Off ried.no (localhost, a
+// fork) it stays with the host.
+const SHARED_UNIT={"km-c":"km-c-m","mi-c":"mi-c-m","mi-f":"mi-f-ft","km-f":"km-f-ft","metric":"km-c-m","imperial":"mi-f-ft","road":"mi-c-m","kmh":"km-c-m","mph":"mi-f-ft","kmf":"km-f-ft"};
+function normUnit(v){return v?(UNIT_PROFILES[v]?v:(SHARED_UNIT[v]||"")):"";}
+function sharedUnit(){try{const m=document.cookie.match(/(?:^|;\s*)euc_units=([^;]*)/);return m?normUnit(decodeURIComponent(m[1])):"";}catch(e){return "";}}
+function shareUnit(u){try{const v=normUnit(u);if(!v)return;
   const dom=/(^|\.)ried\.no$/.test(location.hostname)?"; domain=ried.no":"";
   document.cookie="euc_units="+v+dom+"; path=/; max-age=31536000; samesite=lax";}catch(e){}}
-let UNIT=sharedUnit()||localStorage.getItem("eucstats_unit")||defaultUnit();
+let UNIT=sharedUnit()||normUnit(localStorage.getItem("eucstats_unit"))||defaultUnit();
 const RASTER=(t,a)=>({version:8,sources:{r:{type:"raster",tiles:[t],tileSize:256,attribution:a,maxzoom:19}},layers:[{id:"r",type:"raster",source:"r"}]});
 const STYLES={dark:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",light:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",voyager:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",satellite:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}","© Esri, Maxar"),terrain:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}","© Esri")};
 let MAPSTYLE=localStorage.getItem("eucstats_style")||(window.__CFG__&&window.__CFG__.map_style)||"dark";
-const U=()=>UNIT_PROFILES[UNIT]||UNIT_PROFILES.kmh;
+const U=()=>UNIT_PROFILES[UNIT]||UNIT_PROFILES["km-c-m"];
 const mph=()=>!!U().d, fahr=()=>!!U().t, feet=()=>!!U().a;   // per-quantity, not one imperial flag
 const r1=n=>Math.round((+n||0)*10)/10, r2=n=>Math.round((+n||0)*100)/100;
 const dnum=km=>mph()?(""+r1(km*MI)):(""+r1(km)), dunit=()=>mph()?"mi":"km";
@@ -1320,6 +1325,7 @@ function setupCfg(){
     cfg.innerHTML=`<div class="crow"><span>${t("cfg.language")}</span><select id="langsel" class="csel">${langs}</select></div>`+
       `<div class="crow"><span>${t("cfg.distance")}</span><div class="seg"><button data-ud="0" class="${U().d?'':'on'}">km</button><button data-ud="1" class="${U().d?'on':''}">mi</button></div></div>`+
       `<div class="crow"><span>${t("cfg.temp")}</span><div class="seg"><button data-ut="0" class="${U().t?'':'on'}">°C</button><button data-ut="1" class="${U().t?'on':''}">°F</button></div></div>`+
+      `<div class="crow"><span>${t("cfg.alt")}</span><div class="seg"><button data-ua="0" class="${U().a?'':'on'}">m</button><button data-ua="1" class="${U().a?'on':''}">ft</button></div></div>`+
       `<div class="crow"><span>${t("cfg.map")}</span><select id="mapsel" class="csel">${maps.map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
       crewLayerRow()+
       `<div class="crow"><span>${t("cfg.intro")}</span><span class="introctl">`+
@@ -1328,7 +1334,7 @@ function setupCfg(){
       `</span></div>`;
     const lsel=cfg.querySelector("#langsel");
     if(lsel)lsel.onchange=async()=>{LANG=lsel.value;try{localStorage.setItem("eucstats_lang",LANG);}catch(e){}_shareLang(LANG);await ensureLang(LANG);applyI18n();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}render();};
-    cfg.querySelectorAll("[data-ud],[data-ut]").forEach(b=>b.onclick=()=>{UNIT=unitFor(b.dataset.ud!=null?+b.dataset.ud:U().d,b.dataset.ut!=null?+b.dataset.ut:U().t);localStorage.setItem("eucstats_unit",UNIT);shareUnit(UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
+    cfg.querySelectorAll("[data-ud],[data-ut],[data-ua]").forEach(b=>b.onclick=()=>{UNIT=unitFor(b.dataset.ud!=null?+b.dataset.ud:U().d,b.dataset.ut!=null?+b.dataset.ut:U().t,b.dataset.ua!=null?+b.dataset.ua:U().a);localStorage.setItem("eucstats_unit",UNIT);shareUnit(UNIT);render();renderHeader();animateChips();const p=openPanel;if(p){openPanel=null;HANDLERS[p]();}});
     const ms=cfg.querySelector("#mapsel");if(ms)ms.onchange=()=>{MAPSTYLE=ms.value;localStorage.setItem("eucstats_style",MAPSTYLE);map.setStyle(STYLES[MAPSTYLE]);};
     const sq=cfg.querySelector("#crewsqchk");
     if(sq) sq.onchange=()=>{ try{window.EUCCrews.setOverlay(sq.checked);}catch(e){} };

@@ -720,6 +720,7 @@ EN: dict[str, str] = {
     "cfg.units": "Units",
     "cfg.distance": "Distance",
     "cfg.temp": "Temperature",
+    "cfg.alt": "Altitude",
     # The one map layer a visitor can be surprised by: it switches itself on when the Crews
     # panel opens, and before this there was no way to see that, let alone undo it.
     "cfg.layers": "Crews",

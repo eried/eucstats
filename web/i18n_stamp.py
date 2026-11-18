@@ -138,6 +138,7 @@ EN_FINGERPRINT = {
     'b.week.n': 'b1ac248b2f92',
     'b.weekend.d': 'b4f0f3e737ad',
     'b.weekend.n': '4d6fd54acadb',
+    'cfg.alt': '22786d42cc30',
     'cfg.crewsq': '079f22865494',
     'cfg.distance': '423208095dd7',
     'cfg.enabled': 'df174a3f2faa',
