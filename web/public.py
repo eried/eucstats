@@ -409,7 +409,8 @@ const HEAT=Object.assign({zoom:0.1,radius:60,zoom_growth:1,intensity:1,glow_floo
 const I18N=window.__I18N__||{en:{}};
 const LANGS=window.__LANGS__||{en:"English"};
 function _mapLang(raw){if(!raw)return null;const lc=(""+raw).toLowerCase(),base=lc.split("-")[0],reg=(lc.split("-")[1]||"").toUpperCase();
-  if(base==="pt")return "pt-BR";
+  if(base==="pt")return /^(PT|AO|MZ|CV|GW|ST|TL)$/.test(reg)?"pt-PT":"pt-BR";
+  if(base==="in"||base==="id")return "id";
   if(base==="zh")return /(^|-)(tw|hk|mo|hant)(-|$)/.test(lc)?"zh-Hant":"zh";
   if(base==="nb"||base==="nn"||base==="no")return "no";
   if(base==="es"){const LAT=["419","MX","AR","CO","CL","PE","VE","EC","GT","CU","BO","DO","HN","PY","SV","NI","CR","PA","UY","PR"];return LAT.indexOf(reg)>=0?"es-419":"es";}

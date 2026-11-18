@@ -281,11 +281,11 @@ EN: dict[str, str] = {
     # string rather than `tiles()` plus the per-row `crew.lose.cold` fragment -- a counted
     # sentence assembled out of another string's words is how `crew.how.7` shipped broken
     # grammar to German and Russian. `{v}` arrives pluralised, like its sibling above.
-    "crew.lose.cold.n": "{v} unridden. Anyone could take them with one ride.",
+    "crew.lose.cold.n": "{v} gone cold. Anyone could take them with one ride.",
     "crew.lose.gap": "{v} and it's theirs",
     "crew.lose.now": "this week",
     "crew.lose.soon": "creeping up",
-    "crew.lose.cold": "unridden, and cheap for anyone",
+    "crew.lose.cold": "gone cold, and cheap for anyone",
     "crew.lose.more": "and {v} more",
     "crew.tile.since": "held for {d}",
     "crew.ago.new": "a day or two",
@@ -956,6 +956,9 @@ LANG_NAMES: dict[str, str] = {
     "ru": "Русский", "sv": "Svenska", "uk": "Українська",
     "zh": "中文 (简体)", "zh-Hant": "中文 (繁體)", "ja": "日本語", "ko": "한국어",
     "tr": "Türkçe",
+    "bg": "Български", "cs": "Čeština", "el": "Ελληνικά", "fi": "Suomi", "hu": "Magyar",
+    "id": "Bahasa Indonesia", "pt-PT": "Português (PT)", "ro": "Română", "sk": "Slovenčina",
+    "th": "ไทย", "vi": "Tiếng Việt",
 }
 
 # Filled by the translation workflow (web/i18n_data.py). Imported lazily so the
@@ -1001,7 +1004,11 @@ def pick(accept_language: str) -> str:
         base = code.split("-")[0]
         reg = code.split("-")[1] if "-" in code else ""
         if base == "pt":
-            loc = "pt-BR"
+            # Portugal and Lusophone Africa read European Portuguese; a bare `pt` and
+            # everything else stays Brazilian, which is where most of those readers are.
+            loc = "pt-PT" if reg in ("pt", "ao", "mz", "cv", "gw", "st", "tl") else "pt-BR"
+        elif base in ("in", "id"):
+            loc = "id"          # `in` is the code Android still sends for Indonesian
         elif base == "zh":
             loc = "zh-Hant" if any(x in code for x in ("tw", "hk", "mo", "hant")) else "zh"
         elif base in ("nb", "nn", "no"):

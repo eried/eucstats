@@ -2070,6 +2070,9 @@
   // Written as one arithmetic test for all nineteen languages, the board printed the genitive
   // plural for one Russian row in ten.
   var ONE_AT_X1 = { ru: 1, uk: 1 };
+  // Czech and Slovak have the middle category too, but only for 2, 3 and 4 themselves:
+  // `3 čtverce`, and then `22 čtverců` where Russian would go back to the middle form.
+  var FEW_TO_4 = { cs: 1, sk: 1 };
 
   // The page already keeps this current: it sets `lang` on the root element every time the
   // rider changes language, so there is nothing here to get out of step with it.
@@ -2082,6 +2085,7 @@
     if (one && (n === 1 || (ONE_AT_X1[locale()] && d === 1 && h !== 11))) {
       return t(one, { n: n });
     }
+    if (few && FEW_TO_4[locale()]) return t(n >= 2 && n <= 4 ? few : many, { n: n });
     if (few && d >= 2 && d <= 4 && (h < 12 || h > 14)) return t(few, { n: n });
     return t(many, { n: n });
   }
