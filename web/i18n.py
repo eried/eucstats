@@ -955,8 +955,8 @@ EN: dict[str, str] = {
 
 # Native names shown in the language selector (never translated).
 LANG_NAMES: dict[str, str] = {
-    "en": "English", "en-GB": "English (UK)", "da": "Dansk", "de": "Deutsch", "es-419": "Español",
-    "es": "Español (España)", "fr": "Français", "it": "Italiano",
+    "en": "English (US)", "en-GB": "English (UK)", "da": "Dansk", "de": "Deutsch", "es-419": "Español (LA)",
+    "es": "Español (ES)", "fr": "Français", "it": "Italiano",
     "nl": "Nederlands", "no": "Norsk", "pl": "Polski", "pt-BR": "Português (BR)",
     "ru": "Русский", "sv": "Svenska", "uk": "Українська",
     "zh": "中文 (简体)", "zh-Hant": "中文 (繁體)", "ja": "日本語", "ko": "한국어",
