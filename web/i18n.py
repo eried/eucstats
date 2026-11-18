@@ -718,6 +718,8 @@ EN: dict[str, str] = {
     "act.refresh": "Refresh",
     # cogwheel settings menu
     "cfg.units": "Units",
+    "cfg.distance": "Distance",
+    "cfg.temp": "Temperature",
     # The one map layer a visitor can be surprised by: it switches itself on when the Crews
     # panel opens, and before this there was no way to see that, let alone undo it.
     "cfg.layers": "Crews",

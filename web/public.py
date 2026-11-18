@@ -137,7 +137,7 @@ svg.ic{width:18px;height:18px;display:block}
 .cline{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 @media(pointer:coarse){.cline{min-height:34px}}
-.cline .clab{width:42px;min-width:42px;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
+.cline .clab{width:var(--clab,42px);min-width:var(--clab,42px);font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
 .cline b{color:var(--gold);font-weight:700;flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cscore{margin-left:auto;color:var(--acc);font-weight:700;font-size:12px}/* The crews deck. Its own tint and its own accent, so a glance tells you which leaderboard
    is up without reading the title; the swatch carries the crew's real colour and pattern,
@@ -607,7 +607,7 @@ const IMPERIAL_TZ={"America/Puerto_Rico":"US","America/St_Thomas":"US","Pacific/
 // so "imperial" is per-quantity — one global flag handed British riders °F and feet they never use.
 // The gear menu has two switches, km|mi and °C|°F; altitude has none and follows temperature
 // (everywhere that reads the weather in °F also measures a hill in feet).
-const UNIT_PROFILES={"kmh":{"d":0,"t":0,"a":0},"mph":{"d":1,"t":1,"a":1},"road":{"d":1,"t":0,"a":0},"kmf":{"d":0,"t":1,"a":1}};
+const UNIT_PROFILES={"kmh":{"d":0,"t":0,"a":0},"mph":{"d":1,"t":1,"a":1},"road":{"d":1,"t":0,"a":1},"kmf":{"d":0,"t":1,"a":0}};
 function unitFor(d,t){return d?(t?"mph":"road"):(t?"kmf":"kmh");}
 const REGION_PROFILE={"US":"mph","LR":"mph","GB":"road","MM":"road"};
 function homeRegion(){try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz)return IMPERIAL_TZ[tz]||"";}catch(e){}return "";}
@@ -1134,7 +1134,16 @@ function renderChampions(){
           +` aria-current="${i===deck}" title="${q(x.label)}" aria-label="${q(x.label)}">`
           +`${x.mark}</button>`).join("")+`</div>`;
     ch.innerHTML=`<div class="chead">${mark}<span>${d.label}</span><button class="cinfo" data-tip="${d.tip}">&#9432;</button><button class="ccol" title="${t("champ.toggle")}">${CHEV}</button></div><div class="crows">${d.rows}</div>`;
-    wire();};
+    fitClab();wire();};
+  // "Day / Week / Month" sat in a 42px column, which is the English. "Semana" is 52px and
+  // "Settimana" 70, and the label ran into the name beside it in ten languages. The column
+  // is as wide as the longest of the three words now. Zero widths are skipped (the card is
+  // collapsed, or not laid out yet) and it runs again when the fonts land, because Orbitron
+  // is wider than the fallback this would otherwise have measured.
+  const fitClab=()=>{const ls=ch.querySelectorAll(".clab");let m=0;
+    ls.forEach(l=>{l.style.width="max-content";l.style.minWidth="0";m=Math.max(m,l.getBoundingClientRect().width);l.style.width=l.style.minWidth="";});
+    if(m>0)ch.style.setProperty("--clab",Math.max(42,Math.ceil(m))+"px");};
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitClab);
   // The tear. Content is swapped at the midpoint, where the card is clipped to a single line
   // and nothing in it is legible, so the change itself is never seen happening.
   const swapTo=(i)=>{
@@ -1309,7 +1318,8 @@ function setupCfg(){
     const maps=[["dark",t("map.dark")],["light",t("map.light")],["voyager",t("map.voyager")],["satellite",t("map.satellite")],["terrain",t("map.topo")]];
     const langs=Object.keys(LANGS).map(l=>`<option value="${l}" ${LANG===l?'selected':''}>${LANGS[l]}</option>`).join("");
     cfg.innerHTML=`<div class="crow"><span>${t("cfg.language")}</span><select id="langsel" class="csel">${langs}</select></div>`+
-      `<div class="crow"><span>${t("cfg.units")}</span><div class="segs"><div class="seg"><button data-ud="0" class="${U().d?'':'on'}">km</button><button data-ud="1" class="${U().d?'on':''}">mi</button></div><div class="seg"><button data-ut="0" class="${U().t?'':'on'}">°C</button><button data-ut="1" class="${U().t?'on':''}">°F</button></div></div></div>`+
+      `<div class="crow"><span>${t("cfg.distance")}</span><div class="seg"><button data-ud="0" class="${U().d?'':'on'}">km</button><button data-ud="1" class="${U().d?'on':''}">mi</button></div></div>`+
+      `<div class="crow"><span>${t("cfg.temp")}</span><div class="seg"><button data-ut="0" class="${U().t?'':'on'}">°C</button><button data-ut="1" class="${U().t?'on':''}">°F</button></div></div>`+
       `<div class="crow"><span>${t("cfg.map")}</span><select id="mapsel" class="csel">${maps.map(([v,l])=>`<option value="${v}" ${MAPSTYLE===v?'selected':''}>${l}</option>`).join("")}</select></div>`+
       crewLayerRow()+
       `<div class="crow"><span>${t("cfg.intro")}</span><span class="introctl">`+

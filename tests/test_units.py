@@ -13,8 +13,8 @@ from main import app
 
 METRIC = {"d": 0, "t": 0, "a": 0}
 IMPERIAL = {"d": 1, "t": 1, "a": 1}
-ROAD_ONLY = {"d": 1, "t": 0, "a": 0}      # miles & mph, but Celsius and metres
-KM_FAHRENHEIT = {"d": 0, "t": 1, "a": 1}  # nobody's default, but the two switches allow it
+ROAD_ONLY = {"d": 1, "t": 0, "a": 1}      # miles, mph and feet, but Celsius
+KM_FAHRENHEIT = {"d": 0, "t": 1, "a": 0}  # nobody's default, but the two switches allow it
 
 
 def _page() -> str:
@@ -59,7 +59,7 @@ def test_united_states_gets_full_imperial():
         assert _profile_for(page, tz) == IMPERIAL, tz
 
 
-def test_uk_and_myanmar_get_miles_but_keep_celsius_and_metres():
+def test_uk_and_myanmar_get_miles_but_keep_celsius():
     page = _page()
     assert _profile_for(page, "Europe/London") == ROAD_ONLY
     assert _profile_for(page, "Asia/Yangon") == ROAD_ONLY
@@ -110,11 +110,12 @@ def test_unit_choice_is_shared_with_the_viewer():
     assert "shareUnit(UNIT)" in page, "changing units in the gear menu must update the cookie"
 
 
-def test_units_are_two_switches_and_altitude_follows_temperature():
-    """km|mi and °C|°F, independently. Feet come with Fahrenheit, never with miles alone."""
+def test_units_are_two_switches_and_altitude_follows_distance():
+    """km|mi and °C|°F, independently. Altitude is a length, so feet come with miles, as in
+    the app: a UK rider on miles and Celsius reads feet on every surface."""
     page = _page()
     profiles = _table(page, "UNIT_PROFILES")
-    assert all(p["a"] == p["t"] for p in profiles.values())
+    assert all(p["a"] == p["d"] for p in profiles.values())
     assert {(p["d"], p["t"]) for p in profiles.values()} == {(0, 0), (0, 1), (1, 0), (1, 1)}
     assert 'function unitFor(d,t){return d?(t?"mph":"road"):(t?"kmf":"kmh");}' in page
     for marker in ('data-ud="0"', 'data-ud="1"', 'data-ut="0"', 'data-ut="1"'):
