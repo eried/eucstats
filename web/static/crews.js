@@ -1159,15 +1159,23 @@
     var patches = allPatches(crewPts(p.slug));
     var pi = patchIndexAt(patches, [tx, ty]);
     var hop = patches.length > 1;
-    var popOpts = { closeButton: false, className: "crewpop", offset: 10 };
+    // Wider than MapLibre's 240px default, which left the lines beside the emblem 170px.
+    // "{effort} and it flips · 12.3 km" is wider than that in 15 of the 19 locales (264px in
+    // Spanish), so the line broke in two and the popup grew a row the placement arithmetic
+    // below was not counting. At 300px the text has 230px and it fits in all but a handful;
+    // the popup is still `max-content`, so a short language stays as narrow as it was. The
+    // `min()` keeps it on a 320px phone.
+    var popOpts = { closeButton: false, className: "crewpop", offset: 10,
+                    maxWidth: "min(300px, calc(100vw - 24px))" };
     // About the tallest this popup gets, which is what the placement arithmetic below is
     // measured against. A crew with more than one patch gets the counter line as well.
     // The key is two rows under the emblem rather than a line of its own above the block,
     // and the block beside the emblem is taller than the emblem and those rows together, so
     // the key costs the popup no height at all. An estimate that runs short here clips the
     // bottom of the popup rather than flipping it to the other side of the point, so both
-    // numbers keep a few pixels over what was measured.
-    var POP_H = hop ? 190 : 170;
+    // numbers keep a few pixels over what was measured -- and one line over, because the
+    // detail line still breaks in two in the longest strings (202px measured against 182).
+    var POP_H = hop ? 210 : 190;
     var panelEl = document.querySelector(".panel.open");
     var topEl = document.querySelector(".topbar");
     var pt = map.project(lngLat);
