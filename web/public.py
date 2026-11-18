@@ -413,7 +413,7 @@ function _mapLang(raw){if(!raw)return null;const lc=(""+raw).toLowerCase(),base=
   if(base==="in"||base==="id")return "id";
   if(base==="zh")return /(^|-)(tw|hk|mo|hant)(-|$)/.test(lc)?"zh-Hant":"zh";
   if(base==="nb"||base==="nn"||base==="no")return "no";
-  if(base==="es"){const LAT=["419","MX","AR","CO","CL","PE","VE","EC","GT","CU","BO","DO","HN","PY","SV","NI","CR","PA","UY","PR"];return LAT.indexOf(reg)>=0?"es-419":"es";}
+  if(base==="es")return reg==="ES"?"es":"es-419";
   return LANGS[base]?base:null;}
 function _detectLang(){try{const s=localStorage.getItem("eucstats_lang");if(s&&LANGS[s])return s;
   const navs=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||"en"];

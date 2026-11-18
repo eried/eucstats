@@ -144,7 +144,7 @@ EN_FINGERPRINT = {
     'cfg.intro_off': '811dafe46d90',
     'cfg.intro_play': '73a5d1a3fb9b',
     'cfg.language': '89b86ab0e66f',
-    'cfg.layers': 'fdee43176a62',
+    'cfg.layers': '2124fdb4f8a7',
     'cfg.map': 'ab478f3efc84',
     'cfg.replay': 'c0f85d667973',
     'cfg.units': '12748281e0f0',

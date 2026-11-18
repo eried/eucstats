@@ -720,7 +720,7 @@ EN: dict[str, str] = {
     "cfg.units": "Units",
     # The one map layer a visitor can be surprised by: it switches itself on when the Crews
     # panel opens, and before this there was no way to see that, let alone undo it.
-    "cfg.layers": "Map layers",
+    "cfg.layers": "Crews",
     "cfg.crewsq": "Crew squares",
     "u.metric": "Metric",
     "u.imperial": "Imperial",
@@ -950,8 +950,8 @@ EN: dict[str, str] = {
 
 # Native names shown in the language selector (never translated).
 LANG_NAMES: dict[str, str] = {
-    "en": "English", "da": "Dansk", "de": "Deutsch", "es": "Español",
-    "es-419": "Español (LatAm)", "fr": "Français", "it": "Italiano",
+    "en": "English", "da": "Dansk", "de": "Deutsch", "es-419": "Español",
+    "es": "Español (España)", "fr": "Français", "it": "Italiano",
     "nl": "Nederlands", "no": "Norsk", "pl": "Polski", "pt-BR": "Português (BR)",
     "ru": "Русский", "sv": "Svenska", "uk": "Українська",
     "zh": "中文 (简体)", "zh-Hant": "中文 (繁體)", "ja": "日本語", "ko": "한국어",
@@ -1014,9 +1014,10 @@ def pick(accept_language: str) -> str:
         elif base in ("nb", "nn", "no"):
             loc = "no"
         elif base == "es":
-            lat = {"419", "mx", "ar", "co", "cl", "pe", "ve", "ec", "gt", "cu",
-                   "bo", "do", "hn", "py", "sv", "ni", "cr", "pa", "uy", "pr"}
-            loc = "es-419" if reg in lat else "es"
+            # Latin American Spanish is the default and Spain is the named exception:
+            # most Spanish-speaking riders are not in Spain, and a bare `es` says nothing
+            # about where its reader is.
+            loc = "es" if reg == "es" else "es-419"
         else:
             loc = base
         if loc in sup:
