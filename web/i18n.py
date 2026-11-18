@@ -511,7 +511,7 @@ EN: dict[str, str] = {
     "crew.how.s3": "Your crew",
     "crew.how.c4": "Surrounded. You never rode this one. You rode all the way around it.",
     "crew.how.c5": "Taken this week. Somebody just turned it over, and it is the newest thing on the map.",
-    "crew.how.c3": "Unridden. Nobody has been back, so it sits at its floor. It stays yours until somebody rides it.",
+    "crew.how.c3": "Gone cold. Nobody has been back, so it sits at its floor. It stays yours until somebody rides it.",
     "crew.how.c2": "About to flip. One more ride by them and it changes hands.",
     # No unit. This and `crew.how.1` below used "km" as prose for "distance ridden", with no
     # placeholder, so they could never convert and were simply wrong for a reader in miles --
@@ -699,7 +699,7 @@ EN: dict[str, str] = {
     "crew.tile.pushed": "Contested",
     "crew.tile.slipping": "About to flip",
     "crew.tile.free": "Unclaimed",
-    "crew.tile.fading": "Unridden",
+    "crew.tile.fading": "Gone cold",
     "crew.tile.ringed": "Surrounded",
     "crew.tile.ringedp": "taken by riding right round it",
     "crew.tile.clear": "{v} ahead of anyone else",
