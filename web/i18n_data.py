@@ -7147,7 +7147,7 @@ TRANSLATIONS = {
   "crew.folded.h": "Tej ekipy już nie ma",
   "crew.folded.p": "{name} została rozwiązana. Stare przejazdy przy niej zostają, a ty możesz od razu dołączyć do innej.",
   "crew.declined.h": "Odmówili",
-  "crew.declined.p": "{name} odrzuciła twoją prośbę. Bez czekania, wybierz inną.",
+  "crew.declined.p": "Ekipa {name} odrzuciła twoją prośbę. Bez czekania, wybierz inną.",
   "crew.join.away": "{v} stąd",
   "crew.join.full": "Pełna",
   "crew.join.nomatch": "Nic nie pasuje do „{v}”.",
