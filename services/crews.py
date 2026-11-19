@@ -603,7 +603,8 @@ def leave(db, store_id: str) -> None:
     # One timestamp for the walk-out and for the fold it causes, because that is what later
     # tells this rider apart from somebody who left last week while the crew carried on. See
     # `unretire` and `_folded_with`.
-    now = utcnow()
+    # A fold has to read as later than every walk-out before it: see `_fold_moment`.
+    now = _fold_moment(db, m.clan_id) if last_one else utcnow()
     m.left_at = now
     if last_one:
         clan = db.get(Clan, m.clan_id)
@@ -950,7 +951,7 @@ def disband(db, actor: str, clan_id: str) -> None:
     # row inside the loop, the members' times drifted microseconds apart from each other and
     # from the fold, and a restore has to be able to tell the people a fold took with it from
     # somebody who had walked out earlier of their own accord. See `_folded_with`.
-    now = utcnow()
+    now = _fold_moment(db, clan_id)
     for mm in db.query(ClanMember).filter(ClanMember.clan_id == clan_id,
                                           ClanMember.left_at.is_(None)).all():
         mm.left_at = now
@@ -981,6 +982,23 @@ def _retire(clan, when=None) -> None:
     if not clan.name.endswith(")"):
         clan.name = f"{clan.name} (folded {tag})"[:60]
     clan.slug = f"{clan.slug}-x{tag}"[:80]
+
+
+def _fold_moment(db, clan_id: str):
+    """The time a fold is stamped with: now, and strictly after every earlier walk-out.
+
+    `_folded_with` tells the riders a fold took down from one who left before it by
+    `left_at >= disbanded_at`. A clock only ticks so often (about 15 ms on Windows, and two
+    requests can share a microsecond anywhere), so somebody who walked out just before the
+    fold could carry the very same timestamp and be restored into a crew they had left.
+    """
+    now = utcnow()
+    last = (db.query(ClanMember.left_at)
+            .filter(ClanMember.clan_id == clan_id, ClanMember.left_at.isnot(None))
+            .order_by(ClanMember.left_at.desc()).first())
+    if last and last[0] is not None and last[0] >= now:
+        now = last[0] + timedelta(microseconds=1)
+    return now
 
 
 def _folded_with(db, clan, folded_at) -> list:

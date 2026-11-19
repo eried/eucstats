@@ -908,6 +908,30 @@ def test_restoring_does_not_drag_back_somebody_who_left_while_it_carried_on(db):
     assert gone.left_at is not None, "somebody who had already walked out stays out"
 
 
+def test_a_walk_out_in_the_same_clock_tick_as_the_fold_is_still_a_walk_out(db, monkeypatch):
+    """The clock does not tick between two calls as often as the rule above assumes: about
+    every 15 ms on Windows, and this test failed one full run in a few because of it. With
+    the same timestamp on the walk-out and the fold, the rider who had left was restored."""
+    frozen = utcnow()
+    monkeypatch.setattr(crews, "utcnow", lambda: frozen)
+    _rider(db, "stay2")
+    _rider(db, "gone2")
+    c = crews.create(db, "stay2", "One Tick", join_policy="open")
+    crews.join(db, "gone2", c.clan_id)
+    crews.leave(db, "gone2")
+    crews.leave(db, "stay2")
+    db.refresh(c)
+    gone = (db.query(ClanMember)
+            .filter(ClanMember.clan_id == c.clan_id, ClanMember.store_id == "gone2").one())
+    assert c.disbanded_at > gone.left_at, "the fold reads as later than the walk-out before it"
+
+    assert crews.unretire(db, c) is None
+    db.commit()
+    assert _active(db, c.clan_id) == 1
+    db.refresh(gone)
+    assert gone.left_at is not None
+
+
 def test_a_crew_folded_before_the_two_clocks_agreed_can_still_be_restored(db):
     """Jonah's row, exactly as production wrote it.
 
