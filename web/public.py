@@ -413,16 +413,19 @@ function _mapLang(raw){if(!raw)return null;const lc=(""+raw).toLowerCase(),base=
   if(base==="en")return /^(GB|UK|IE|AU|NZ|ZA|IN)$/.test(reg)?"en-GB":"en";
   if(base==="pt")return /^(PT|AO|MZ|CV|GW|ST|TL)$/.test(reg)?"pt-PT":"pt-BR";
   if(base==="in"||base==="id")return "id";
-  if(base==="zh")return /(^|-)(tw|hk|mo|hant)(-|$)/.test(lc)?"zh-Hant":"zh";
+  if(base==="zh")return /(^|-)(tw|hk|mo|hant)(-|$)/.test(lc)?"zh-TW":"zh";
   if(base==="nb"||base==="nn"||base==="no")return "no";
   if(base==="es"){const LAT=["419","MX","AR","CO","CL","PE","VE","EC","GT","CU","BO","DO","HN","PY","SV","NI","CR","PA","UY","PR","US"];return LAT.indexOf(reg)>=0?"es-419":"es";}
   return LANGS[base]?base:null;}
+// A stored code, or one it maps to: a cookie written before Traditional Chinese was renamed
+// (zh-Hant) still lands on zh-TW instead of dropping the rider back to English.
+function _knownLang(v){if(!v)return "";if(LANGS[v])return v;const m=_mapLang(v);return m&&LANGS[m]?m:"";}
 // Shared with eucviewer.ried.no like the units are: a cookie on the parent domain, read before
 // this site's own localStorage. The viewer has more languages; a code missing here is ignored.
-function _sharedLang(){try{const m=document.cookie.match(/(?:^|;\s*)euc_lang=([^;]*)/);const v=m?decodeURIComponent(m[1]):"";return LANGS[v]?v:"";}catch(e){return "";}}
+function _sharedLang(){try{const m=document.cookie.match(/(?:^|;\s*)euc_lang=([^;]*)/);const v=m?decodeURIComponent(m[1]):"",k=_knownLang(v);if(k&&k!==v)_shareLang(k);return k;}catch(e){return "";}}
 function _shareLang(l){try{const dom=/(^|\.)ried\.no$/.test(location.hostname)?"; domain=ried.no":"";
   document.cookie="euc_lang="+encodeURIComponent(l)+dom+"; path=/; max-age=31536000; samesite=lax";}catch(e){}}
-function _detectLang(){try{const c=_sharedLang();if(c)return c;const s=localStorage.getItem("eucstats_lang");if(s&&LANGS[s])return s;
+function _detectLang(){try{const c=_sharedLang();if(c)return c;const s=_knownLang(localStorage.getItem("eucstats_lang"));if(s)return s;
   const navs=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||"en"];
   for(let i=0;i<navs.length;i++){const m=_mapLang(navs[i]);if(m&&LANGS[m])return m;}}catch(e){}return "en";}
 let LANG=_detectLang();

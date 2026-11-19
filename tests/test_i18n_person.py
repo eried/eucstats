@@ -196,7 +196,7 @@ SINGULAR = {
     "no": r"\b(du|din|ditt|dine|deg)\b",
     # Chinese marks it with one character, and was absent entirely.
     "zh": r"你(?!们)|您",
-    "zh-Hant": r"你(?!們)|您",
+    "zh-TW": r"你(?!們)|您",
     # Turkish marks person by suffix, so this does too. Only the verb endings: the bare
     # possessive `-in` is two letters and would match half the language.
     "tr": r"\b(sen|seni|sana|senin)\b|\b\w{3,}(?:sin|sın|sun|sün)\b",
@@ -259,7 +259,7 @@ PLURAL = {
     "da": r"\b(jer|jeres)\b|(?-i:(?<![\wæøå])I(?![\wæøå]))",
     "no": r"\b(dere)\b",                                 # not `deres`: also "theirs"
     "zh": r"你们",
-    "zh-Hant": r"你們",
+    "zh-TW": r"你們",
     "tr": r"\b(siz|sizi|size|sizin)\b"
           r"|\b\w{3,}(?:iniz|ınız|unuz|ünüz|siniz|sınız|sunuz|sünüz)\b",
     "bg": r"\b(вие|вас|ви|ваш|вашия|вашият|вашата|вашето|ваши|вашите|можете|искате|сте)\b",
@@ -365,7 +365,7 @@ def test_each_card_addresses_the_person_it_declares(loc):
 # `crew.lose.cold.n` added seven clause-openers, each read before being listed. "keiner" (de)
 # and "без" (ru, uk) are an indefinite pronoun and a preposition introducing the second half --
 # "nobody rides there any more", "without riders"; "uğramıyor" (tr) is the verb of that same
-# clause, "nobody drops by". The bare "v" in ja, zh and zh-Hant is the `{v}` placeholder itself
+# clause, "nobody drops by". The bare "v" in ja, zh and zh-TW is the `{v}` placeholder itself
 # opening the sentence, which no string in those locales had done before. None of the seven
 # addresses the crew as one rider, which is the failure this guard exists to catch.
 CREW_WORDS = {
@@ -400,7 +400,7 @@ CREW_WORDS = {
     "uk": {"n", "name", "v", "але", "беріть", "будь-хто", "вас", "ваш", "взято", "ви", "виберіть", "виводить", "вони", "відкидає", "готово", "дихає", "додасть", "з", "зʼявиться", "зʼєднує", "збиває", "його", "кожен", "куди", "ламає", "легка", "лишився", "лишилось", "мінус", "найдешевший", "наїжджено", "ніхто", "пд", "пдз", "пдс", "пн", "пнз", "пнс", "позначені", "поки", "поряд", "проїдьте", "проїдьтеся", "підбираються", "піде", "с", "скільки", "ставить", "цього", "частина", "чуже", "що", "щоб", "щойно", "яскравіше", "і", "їх"},
     "vi": {"ai", "b", "bỏ", "chiếm", "chưa", "chạy", "chỉ", "chọn", "các", "còn", "có", "của", "giúp", "họ", "không", "khối", "kéo", "là", "lấy", "mỗi", "n", "name", "nhưng", "những", "nó", "nối", "phá", "phần", "quay", "t", "tb", "thuộc", "thêm", "tiếp", "tn", "tuần", "tuột", "tạm", "tổng", "v", "và", "xong", "đ", "đang", "đb", "đn", "đã", "đất", "đẩy"},
     "zh": {"name", "v", "下一趟骑哪里", "东", "东北", "东南", "他们马上就要拿走了。再过去压一遍。", "会呼吸的是你们自己的地盘。别人的不动。", "你们的方块已经骑完了。下次重画就会出现。", "你们的方块扩到", "你们第一个方块的一部分", "你们还没上地图。标记的格子正好是一个", "再", "北", "南", "可能会丢的", "多一格，但不算进方块", "已完成", "打断他们的方块，掉", "把他们压到", "把他们挤到", "方块一成就从", "暂时够不着", "暂时没什么可盯的。随便找地方骑出一个", "有人占着", "本周", "本周拿下的", "标得更亮的是你们自己的地盘。别人的保持原样。", "正在逼近", "每个格子里还得再骑多少。选一个就能找到。", "没人再骑，谁来都好拿", "没人在抢这些。是你们自己不去了。", "西", "西北", "西南", "让你们超过", "让你们超过他们", "还差", "还差一格。在标记的那格里骑", "还有", "连起两块地盘", "附近没有别的战队在骑。每一格都给你们的方块加一格。", "骑够了，去拿旁边那个"},
-    "zh-Hant": {"name", "v", "下一趟騎哪裡", "他們馬上就要拿走了。再過去壓一遍。", "你們的方塊升到", "你們的方塊已經騎完了。下次重畫就會出現。", "你們第一個方塊的一部分", "你們還沒上地圖。標記的格子正好是一個", "再", "北", "南", "可能會丟的", "多一格，但不算進方塊", "已完成", "打斷他們的方塊，掉", "把他們壓到", "把他們擠到", "方塊一成就從", "暫時搆不著", "暫時沒什麼可盯的。隨便找地方騎出一個", "會呼吸的是你們自己的地盤。別人的不動。", "有人佔著", "本週", "本週拿下的", "東", "東北", "東南", "標得更亮的是你們自己的地盤。別人的保持原樣。", "正在逼近", "每個格子裡還得再騎多少。選一個就能找到。", "沒人再騎，誰來都好拿", "沒人在搶這些。是你們自己不去了。", "西", "西北", "西南", "讓你們超過", "讓你們超過他們", "連起兩塊地盤", "還差", "還差一格。在標記的那格裡騎", "還有", "附近沒有別的車隊在騎。每一格都給你們的方塊加一格。", "騎滿了，去拿隔壁那格"},
+    "zh-TW": {"name", "v", "下一趟騎哪裡", "他們馬上就要拿走了。再過去壓一遍。", "你們的方塊升到", "你們的方塊已經騎完了。下次重畫就會出現。", "你們第一個方塊的一部分", "你們還沒上地圖。標記的格子正好是一個", "再", "北", "南", "可能會丟的", "多一格，但不算進方塊", "已完成", "打斷他們的方塊，掉", "把他們壓到", "把他們擠到", "方塊一成就從", "暫時搆不著", "暫時沒什麼可盯的。隨便找地方騎出一個", "會呼吸的是你們自己的地盤。別人的不動。", "有人佔著", "本週", "本週拿下的", "東", "東北", "東南", "標得更亮的是你們自己的地盤。別人的保持原樣。", "正在逼近", "每個格子裡還得再騎多少。選一個就能找到。", "沒人再騎，誰來都好拿", "沒人在搶這些。是你們自己不去了。", "西", "西北", "西南", "讓你們超過", "讓你們超過他們", "連起兩塊地盤", "還差", "還差一格。在標記的那格裡騎", "還有", "附近沒有別的車隊在騎。每一格都給你們的方塊加一格。", "騎滿了，去拿隔壁那格"},
 }
 
 TAIL_FIRST = {"tr"}        # verb-final: the word that carries person is the last one

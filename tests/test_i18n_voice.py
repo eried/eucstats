@@ -93,7 +93,7 @@ PASS_NOUN = {
     "uk": "пропуск",
     "vi": "thẻ",
     "zh": "通行证",
-    "zh-Hant": "通行證",
+    "zh-TW": "通行證",
 }
 # `crew.mine.signout` and its question were in here while the control was called "Hand
 # the pass back". It is "Sign out" now -- Erwin asked twice what the old label meant,

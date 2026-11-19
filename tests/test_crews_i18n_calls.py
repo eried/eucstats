@@ -93,7 +93,7 @@ NO_AGREEMENT = {
     # Written so that nothing can agree with it. Read in all nineteen: the number ends the
     # clause in en, de, da, no, sv, nl, it, fr, es, es-419, pt-BR, pl, ru, uk and ko; tr puts
     # a noun after it (`{n} ekibin`) and Turkish does not pluralise after a numeral; zh and
-    # zh-Hant follow it with the measure word 个/個, which is invariant.
+    # zh-TW follow it with the measure word 个/個, which is invariant.
     "crew.join.all": "`Show all {n}` -- the number ends the clause, or is followed by "
                      "something that does not inflect after a numeral",
     # `{n} of {v} crews`: the noun agrees with {v}, the total, and nothing follows {n}. In

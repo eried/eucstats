@@ -11324,7 +11324,7 @@ TRANSLATIONS = {
   "g.alt.d": "到达过的最高海拔",
   "g.temp.d": "车子跑得最热的温度",
  },
- "zh-Hant": {
+ "zh-TW": {
   "dock.riders": "騎士",
   "dock.crews": "車隊",
   "dock.countries": "國家",

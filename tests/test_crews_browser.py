@@ -1584,7 +1584,7 @@ def test_pressing_a_rival_name_flies_to_its_ground_and_lights_it(rivals):
 
 # Each locale's longest possible standing, read off the shipped tables rather than copied
 # into this file, so a retranslation that lengthens an ordinal is measured on the next run.
-WORST_ORDINALS = [{'loc': 'da', 'text': '21. ▲12'}, {'loc': 'de', 'text': '21. ▲12'}, {'loc': 'es', 'text': '21.º ▲12'}, {'loc': 'es-419', 'text': '21.º ▲12'}, {'loc': 'fr', 'text': '21e ▲12'}, {'loc': 'it', 'text': '21° ▲12'}, {'loc': 'ja', 'text': '21位 ▲12'}, {'loc': 'ko', 'text': '21위 ▲12'}, {'loc': 'nl', 'text': '21e ▲12'}, {'loc': 'no', 'text': '21. ▲12'}, {'loc': 'pl', 'text': '21. ▲12'}, {'loc': 'pt-BR', 'text': '21º ▲12'}, {'loc': 'ru', 'text': '21-е ▲12'}, {'loc': 'sv', 'text': '21:a ▲12'}, {'loc': 'tr', 'text': '21. ▲12'}, {'loc': 'uk', 'text': '21-е ▲12'}, {'loc': 'zh', 'text': '第21 ▲12'}, {'loc': 'zh-Hant', 'text': '21位 ▲12'}, {'loc': 'en', 'text': '21th ▲12'}]
+WORST_ORDINALS = [{'loc': 'da', 'text': '21. ▲12'}, {'loc': 'de', 'text': '21. ▲12'}, {'loc': 'es', 'text': '21.º ▲12'}, {'loc': 'es-419', 'text': '21.º ▲12'}, {'loc': 'fr', 'text': '21e ▲12'}, {'loc': 'it', 'text': '21° ▲12'}, {'loc': 'ja', 'text': '21位 ▲12'}, {'loc': 'ko', 'text': '21위 ▲12'}, {'loc': 'nl', 'text': '21e ▲12'}, {'loc': 'no', 'text': '21. ▲12'}, {'loc': 'pl', 'text': '21. ▲12'}, {'loc': 'pt-BR', 'text': '21º ▲12'}, {'loc': 'ru', 'text': '21-е ▲12'}, {'loc': 'sv', 'text': '21:a ▲12'}, {'loc': 'tr', 'text': '21. ▲12'}, {'loc': 'uk', 'text': '21-е ▲12'}, {'loc': 'zh', 'text': '第21 ▲12'}, {'loc': 'zh-TW', 'text': '21位 ▲12'}, {'loc': 'en', 'text': '21th ▲12'}]
 
 
 # ---------------------------------------------------------------------------------------

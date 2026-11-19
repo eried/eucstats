@@ -3,7 +3,7 @@
 `EN` is the canonical English source — the single source of truth and the
 fallback for any missing key. `TRANSLATIONS` holds the other 18 locales
 supported by eucplanet (da, de, es, es-419, fr, it, ja, ko, nl, no, pl,
-pt-BR, ru, sv, tr, uk, zh, zh-Hant). `langs_payload()` returns
+pt-BR, ru, sv, tr, uk, zh, zh-TW). `langs_payload()` returns
 {locale: {key: text}} for injection into the public page as
 window.__I18N__; the client picks a locale (browser
 auto-detect or the saved cogwheel choice) and falls back to EN per key.
@@ -959,7 +959,7 @@ LANG_NAMES: dict[str, str] = {
     "es": "Español (ES)", "fr": "Français", "it": "Italiano",
     "nl": "Nederlands", "no": "Norsk", "pl": "Polski", "pt-BR": "Português (BR)",
     "ru": "Русский", "sv": "Svenska", "uk": "Українська",
-    "zh": "中文 (简体)", "zh-Hant": "中文 (繁體)", "ja": "日本語", "ko": "한국어",
+    "zh": "中文 (简体)", "zh-TW": "中文 (繁體)", "ja": "日本語", "ko": "한국어",
     "tr": "Türkçe",
     "bg": "Български", "cs": "Čeština", "el": "Ελληνικά", "fi": "Suomi", "hu": "Magyar",
     "id": "Bahasa Indonesia", "pt-PT": "Português (PT)", "ro": "Română", "sk": "Slovenčina",
@@ -1019,7 +1019,7 @@ def pick(accept_language: str) -> str:
         elif base in ("in", "id"):
             loc = "id"          # `in` is the code Android still sends for Indonesian
         elif base == "zh":
-            loc = "zh-Hant" if any(x in code for x in ("tw", "hk", "mo", "hant")) else "zh"
+            loc = "zh-TW" if any(x in code for x in ("tw", "hk", "mo", "hant")) else "zh"
         elif base in ("nb", "nn", "no"):
             loc = "no"
         elif base == "es":

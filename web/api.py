@@ -166,6 +166,9 @@ def i18n_locale(loc: str):
     """One locale's translation table — lazy-loaded by the public page so it can ship
     only English + the visitor's language and fetch any other on demand."""
     from web import i18n
+    if loc == "zh-Hant":     # the code Traditional Chinese had before it matched the app's
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/api/v1/i18n/zh-TW", status_code=308)
     table = i18n.locale_table(loc)
     if table is None:
         raise HTTPException(404, "unknown locale")
