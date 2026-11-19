@@ -955,15 +955,15 @@ EN: dict[str, str] = {
 
 # Native names shown in the language selector (never translated).
 LANG_NAMES: dict[str, str] = {
-    "en": "English (US)", "en-GB": "English (UK)", "da": "Dansk", "de": "Deutsch", "es-419": "Español (LA)",
-    "es": "Español (ES)", "fr": "Français", "it": "Italiano",
-    "nl": "Nederlands", "no": "Norsk", "pl": "Polski", "pt-BR": "Português (BR)",
-    "ru": "Русский", "sv": "Svenska", "uk": "Українська",
-    "zh": "中文 (简体)", "zh-TW": "中文 (繁體)", "ja": "日本語", "ko": "한국어",
-    "tr": "Türkçe",
-    "bg": "Български", "cs": "Čeština", "el": "Ελληνικά", "fi": "Suomi", "hu": "Magyar",
-    "id": "Bahasa Indonesia", "pt-PT": "Português (PT)", "ro": "Română", "sk": "Slovenčina",
-    "th": "ไทย", "vi": "Tiếng Việt",
+    # Picker order, the same as the app and the viewer: English first, then by code
+    # (so Spanish (ES) comes before (LA), Simplified Chinese before Traditional).
+    "en": "English (US)", "en-GB": "English (UK)", "bg": "Български", "cs": "Čeština",
+    "da": "Dansk", "de": "Deutsch", "el": "Ελληνικά", "es": "Español (ES)",
+    "es-419": "Español (LA)", "fi": "Suomi", "fr": "Français", "hu": "Magyar",
+    "id": "Bahasa Indonesia", "it": "Italiano", "ja": "日本語", "ko": "한국어", "nl": "Nederlands",
+    "no": "Norsk", "pl": "Polski", "pt-BR": "Português (BR)", "pt-PT": "Português (PT)",
+    "ro": "Română", "ru": "Русский", "sk": "Slovenčina", "sv": "Svenska", "th": "ไทย",
+    "tr": "Türkçe", "uk": "Українська", "vi": "Tiếng Việt", "zh": "中文 (简体)", "zh-TW": "中文 (繁體)",
 }
 
 # Filled by the translation workflow (web/i18n_data.py). Imported lazily so the

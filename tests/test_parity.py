@@ -145,3 +145,11 @@ def test_the_address_can_force_a_language_and_units_like_on_the_viewer(page, tmp
     r = subprocess.run(["node", str(f)], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout) == [["zh-TW", "mi-c-m"], ["pt-PT", "mi-f-ft"], ["de", "mi-f-ft"], ["en", "km-c-m"]]
+
+
+def test_the_picker_lists_english_first_then_by_code():
+    """The app and the viewer list English (US), English (UK), then every other language by
+    its code, which puts Español (ES) before (LA) and Simplified before Traditional Chinese."""
+    rest = [k for k in i18n.LANG_NAMES if k not in ("en", "en-GB")]
+    assert list(i18n.LANG_NAMES)[:2] == ["en", "en-GB"]
+    assert rest == sorted(rest)
