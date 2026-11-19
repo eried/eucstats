@@ -77,7 +77,7 @@ EN: dict[str, str] = {
     # already says what does the scanning. What a reader cannot guess is where the screen
     # lives, so that is what this spends its words on. The path matches the app's own
     # labels: Settings, then EUC Stats, then a row titled Crews.
-    "crew.signin.scan": "EUC Planet {v} or newer. In the app: Settings, Online leaderboards, Crew pass.",
+    "crew.signin.scan": "EUC Planet {v} or newer. In the app: Settings, Backups & leaderboards, Crew pass.",
     # Crews pairing lands in EUC Planet 0.22.0. The number is a variable and comes
     # from services.pairing.MIN_APP, so a release is one line and not nineteen.
     "crew.signin.needs": "Needs EUC Planet {v} or newer.",

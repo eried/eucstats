@@ -477,7 +477,7 @@ EN_FINGERPRINT = {
     'crew.signin.p': 'd243f1fab52b',
     'crew.signin.qralt': '9a37d445ae7b',
     'crew.signin.ride': '0eeaee7d49bd',
-    'crew.signin.scan': '3167463e6da0',
+    'crew.signin.scan': 'f33753ae5939',
     'crew.signin.tap': 'a251947e4f62',
     'crew.since.dot': 'facda49b5ff3',
     'crew.since.down': '9f6f0926198d',
