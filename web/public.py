@@ -425,7 +425,10 @@ function _knownLang(v){if(!v)return "";if(LANGS[v])return v;const m=_mapLang(v);
 function _sharedLang(){try{const m=document.cookie.match(/(?:^|;\s*)euc_lang=([^;]*)/);const v=m?decodeURIComponent(m[1]):"",k=_knownLang(v);if(k&&k!==v)_shareLang(k);return k;}catch(e){return "";}}
 function _shareLang(l){try{const dom=/(^|\.)ried\.no$/.test(location.hostname)?"; domain=ried.no":"";
   document.cookie="euc_lang="+encodeURIComponent(l)+dom+"; path=/; max-age=31536000; samesite=lax";}catch(e){}}
-function _detectLang(){try{const c=_sharedLang();if(c)return c;const s=_knownLang(localStorage.getItem("eucstats_lang"));if(s)return s;
+// `?lang=` and `?units=` in the address win for this page view and are not stored, the same
+// as on the viewer: a link somebody shares must not overwrite the choice the reader had made.
+function _urlParam(k){try{return new URLSearchParams(location.search).get(k)||"";}catch(e){return "";}}
+function _detectLang(){try{const f=_knownLang(_urlParam("lang"));if(f)return f;const c=_sharedLang();if(c)return c;const s=_knownLang(localStorage.getItem("eucstats_lang"));if(s)return s;
   const navs=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||"en"];
   for(let i=0;i<navs.length;i++){const m=_mapLang(navs[i]);if(m&&LANGS[m])return m;}}catch(e){}return "en";}
 let LANG=_detectLang();
@@ -630,7 +633,7 @@ function sharedUnit(){try{const m=document.cookie.match(/(?:^|;\s*)euc_units=([^
 function shareUnit(u){try{const v=normUnit(u);if(!v)return;
   const dom=/(^|\.)ried\.no$/.test(location.hostname)?"; domain=ried.no":"";
   document.cookie="euc_units="+v+dom+"; path=/; max-age=31536000; samesite=lax";}catch(e){}}
-let UNIT=sharedUnit()||normUnit(localStorage.getItem("eucstats_unit"))||defaultUnit();
+let UNIT=normUnit(_urlParam("units").trim().toLowerCase())||sharedUnit()||normUnit(localStorage.getItem("eucstats_unit"))||defaultUnit();
 const RASTER=(t,a)=>({version:8,sources:{r:{type:"raster",tiles:[t],tileSize:256,attribution:a,maxzoom:19}},layers:[{id:"r",type:"raster",source:"r"}]});
 const STYLES={dark:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",light:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",voyager:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",satellite:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}","© Esri, Maxar"),terrain:RASTER("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}","© Esri")};
 let MAPSTYLE=localStorage.getItem("eucstats_style")||(window.__CFG__&&window.__CFG__.map_style)||"dark";

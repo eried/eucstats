@@ -125,3 +125,23 @@ def test_a_stored_old_code_lands_on_the_new_one(page, tmp_path):
     r = subprocess.run(["node", str(f)], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout) == ["zh-TW", "zh-TW", "zh", "", ""]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run the shipped js")
+def test_the_address_can_force_a_language_and_units_like_on_the_viewer(page, tmp_path):
+    """`?lang=` and `?units=` win over the cookie for one page view, as on the viewer."""
+    lang = re.search(r"function _mapLang\(raw\)\{.*?\nfunction _detectLang\(\)\{.*?return \"en\";\}", page, re.S)
+    unit = re.search(r"const UNIT_PROFILES=.*?\nlet UNIT=[^\n]*\n", page, re.S)
+    assert lang and unit, "language or unit detection not found in the served page"
+    stub = ("const LANGS=%s;const IMPERIAL_TZ={};\n"
+            "const localStorage={getItem:()=>null};const navigator={languages:['en-US']};\n"
+            "function run(search,cookie){const location={search:search,hostname:'x'};const document={cookie:cookie};\n"
+            "%s\n%s\nreturn [_detectLang(),UNIT];}\n"
+            "console.log(JSON.stringify([run('?lang=zh-TW&units=mi-c-m','euc_lang=de; euc_units=km-c-m'),"
+            "run('?lang=pt-AO&units=imperial',''),run('?lang=xx&units=nope','euc_lang=de; euc_units=mi-f-ft'),run('','')]));\n"
+            % (json.dumps({k: 1 for k in RULES["languages"]}), lang.group(0), unit.group(0)))
+    f = tmp_path / "force.js"
+    f.write_text(stub, encoding="utf-8")
+    r = subprocess.run(["node", str(f)], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [["zh-TW", "mi-c-m"], ["pt-PT", "mi-f-ft"], ["de", "mi-f-ft"], ["en", "km-c-m"]]

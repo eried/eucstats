@@ -103,7 +103,7 @@ def test_unit_choice_is_shared_with_the_viewer():
             == IMPERIAL)
     assert profiles[shared["mi-c"]] == profiles[shared["road"]] == ROAD_ONLY
     assert profiles[shared["km-f"]] == profiles[shared["kmf"]] == KM_FAHRENHEIT
-    assert ('let UNIT=sharedUnit()||normUnit(localStorage.getItem("eucstats_unit"))||defaultUnit();'
+    assert ('||sharedUnit()||normUnit(localStorage.getItem("eucstats_unit"))||defaultUnit();'
             in page)
     assert "domain=ried.no" in page, "the cookie must be set on the parent domain to be shared"
     assert "shareUnit(UNIT)" in page, "changing units in the gear menu must update the cookie"
@@ -131,6 +131,6 @@ def test_units_are_three_independent_switches():
 def test_language_choice_is_shared_with_the_viewer():
     """Same cookie trick as the units: `euc_lang` on the parent domain, read first."""
     page = _page()
-    assert "function _detectLang(){try{const c=_sharedLang();if(c)return c;" in page
+    assert "const c=_sharedLang();if(c)return c;const s=_knownLang(localStorage" in page
     assert "_shareLang(LANG)" in page, "changing language in the gear menu must update the cookie"
     assert 'document.cookie="euc_lang="' in page
