@@ -42,15 +42,16 @@ Strava's global heatmap once outed secret military bases and a lot of people's f
 doors. This one is built the other way around:
 
 - The map never shows your **route**, your start point, or any line. Every ride is
-  snapped onto a fixed grid of roughly 2 to 3 km squares.
-- A square only lights up once **several different riders** have used it. A street only
-  you ride never shows up at all.
+  snapped onto a fixed grid of coarse squares, far bigger than a street or a block.
+- A square says that somebody rode somewhere inside it, and glows brighter the more
+  riders share it. It never says who, when, or which way.
 - The flag next to your name is the one **you picked**, not reverse-geocoded from GPS.
 - You can opt out of public stats entirely, or delete everything you ever sent.
 - **Crews is the one exception, and it is opt-in.** If you join a crew, the squares you
-  ride are painted in your crew's colour even when you are the only one riding there,
-  and your name is on the crew's roster. It is still squares and never a route. If that
-  is more than you want to show, don't join one; everything above stays as it is.
+  ride are painted in your crew's colour and your name is on the crew's roster, so a
+  square can be tied to a small group of named riders. It is still squares and never a
+  route. If that is more than you want to show, don't join one; everything above stays
+  as it is.
 
 We keep aggregates, not breadcrumbs.
 
