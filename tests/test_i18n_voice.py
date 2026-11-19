@@ -89,7 +89,7 @@ PASS_NOUN = {
     "sk": "preukaz",
     "sv": "pass",
     "th": "บัตรผ่าน",
-    "tr": "pas",
+    "tr": "kart",
     "uk": "пропуск",
     "vi": "thẻ",
     "zh": "通行证",
